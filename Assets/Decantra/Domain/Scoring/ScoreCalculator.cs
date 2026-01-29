@@ -4,29 +4,27 @@ namespace Decantra.Domain.Scoring
 {
     public static class ScoreCalculator
     {
-        public static int CalculateScore(int baseScore, int movesUsed, int optimalMoves)
+        public static int CalculateScore(int baseScore, int filledUnits, int movesUsed, int movesAllowed, int optimalMoves, out int bonus)
         {
             if (baseScore < 0) throw new ArgumentOutOfRangeException(nameof(baseScore));
+            if (filledUnits < 0) throw new ArgumentOutOfRangeException(nameof(filledUnits));
             if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
+            if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
             if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
 
-            if (optimalMoves == 0)
+            int fillScore = filledUnits * 10;
+            bonus = 0;
+
+            if (movesAllowed > 0 && movesUsed <= movesAllowed)
             {
-                return baseScore;
+                bonus += (movesAllowed - movesUsed + 1) * 50;
+                if (optimalMoves > 0)
+                {
+                    bonus += Math.Max(0, (optimalMoves - movesUsed) * 20);
+                }
             }
 
-            int delta = movesUsed - optimalMoves;
-            int bonus;
-            if (delta <= 0)
-            {
-                bonus = optimalMoves * 5 + Math.Abs(delta) * 2;
-            }
-            else
-            {
-                bonus = Math.Max(0, optimalMoves * 3 - delta * 2);
-            }
-
-            return baseScore + bonus;
+            return baseScore + fillScore + bonus;
         }
     }
 }

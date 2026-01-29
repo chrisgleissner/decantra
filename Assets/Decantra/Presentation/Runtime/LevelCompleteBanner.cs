@@ -24,7 +24,7 @@ namespace Decantra.Presentation
             "On fire!"
         };
 
-        public void Show(int level, Action onComplete)
+        public void Show(int level, int bonusScore, Action onComplete)
         {
             if (panel == null || messageText == null || canvasGroup == null)
             {
@@ -34,7 +34,7 @@ namespace Decantra.Presentation
 
             StopAllCoroutines();
             var tag = messages[Mathf.Abs(level) % messages.Length];
-            messageText.text = $"LEVEL {level} COMPLETE\n{tag}";
+            messageText.text = $"LEVEL {level} COMPLETE\n{tag}\nBONUS +{bonusScore}";
             StartCoroutine(Animate(onComplete));
         }
 

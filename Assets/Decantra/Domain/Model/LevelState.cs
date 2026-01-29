@@ -33,10 +33,9 @@ namespace Decantra.Domain.Model
         {
             for (int i = 0; i < Bottles.Count; i++)
             {
-                if (!Bottles[i].IsSingleColorOrEmpty())
-                {
-                    return false;
-                }
+                var bottle = Bottles[i];
+                if (bottle.IsEmpty) continue;
+                if (!bottle.IsSolvedBottle()) return false;
             }
             return true;
         }

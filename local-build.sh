@@ -277,6 +277,8 @@ ensure_android_toolchain() {
   local editor_dir=""
   local embedded_ndk=""
   local embedded_clang=""
+  local sdk_root_pre=""
+  local required_ndk="27.2.12479018"
 
   editor_dir="$(cd "$(dirname "${unity_path}")" && pwd)"
   embedded_ndk="${editor_dir}/Data/PlaybackEngines/AndroidPlayer/NDK"
@@ -291,22 +293,27 @@ ensure_android_toolchain() {
   local ensured_java_home=""
   ensured_java_home="$(ensure_jdk_17 || true)"
 
-  if ! have_cmd adb; then
+  sdk_root_pre="$(detect_android_sdk_root || true)"
+  if [[ -n "${sdk_root_pre}" && -d "${sdk_root_pre}/ndk/${required_ndk}" && -d "${sdk_root_pre}/platform-tools" && -d "${sdk_root_pre}/build-tools/36.0.0" && -d "${sdk_root_pre}/cmdline-tools/16.0" ]]; then
+    log "Android SDK/NDK already installed at ${sdk_root_pre}. Skipping apt installs."
+  else
+    if ! have_cmd adb; then
+      if dpkg -s google-android-platform-tools-installer >/dev/null 2>&1; then
+        apt_install_once google-android-platform-tools-installer
+      else
+        apt_install_once android-sdk-platform-tools
+      fi
+    fi
+
     if dpkg -s google-android-platform-tools-installer >/dev/null 2>&1; then
-      apt_install_once google-android-platform-tools-installer
+      apt_install_once google-android-cmdline-tools-13.0-installer
+      apt_install_once google-android-ndk-r25c-installer
     else
+      apt_install_once android-sdk
+      apt_install_once android-sdk-build-tools
+      apt_install_once android-sdk-platforms
       apt_install_once android-sdk-platform-tools
     fi
-  fi
-
-  if dpkg -s google-android-platform-tools-installer >/dev/null 2>&1; then
-    apt_install_once google-android-cmdline-tools-13.0-installer
-    apt_install_once google-android-ndk-r25c-installer
-  else
-    apt_install_once android-sdk
-    apt_install_once android-sdk-build-tools
-    apt_install_once android-sdk-platforms
-    apt_install_once android-sdk-platform-tools
   fi
 
   local sdk_root=""
@@ -415,6 +422,17 @@ discover_unity_path() {
   return 1
 }
 
+check_unity_lockfile() {
+  local lock_file="${ROOT_DIR}/Library/UnityLockfile"
+  if [[ -f "${lock_file}" ]]; then
+    if [[ -s "${lock_file}" ]]; then
+      echo "Unity appears to be running (lockfile present). Close Unity and retry." >&2
+      return 1
+    fi
+  fi
+  return 0
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install)
@@ -468,6 +486,10 @@ if [[ "${RUN_TESTS}" == "true" || "${RUN_BUILD}" == "true" ]]; then
     exit 1
   fi
   export UNITY_PATH="${UNITY_PATH_FOUND}"
+
+  if ! check_unity_lockfile; then
+    exit 1
+  fi
 
   if [[ "${RUN_BUILD}" == "true" ]]; then
     ensure_android_toolchain "${UNITY_PATH_FOUND}"

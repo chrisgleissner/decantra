@@ -31,6 +31,7 @@ namespace Decantra.Presentation.Controller
         private int _currentLevel = 1;
         private int _currentSeed;
         private int _currentScore;
+        private int _lastBonus;
         private LevelState _nextState;
         private int _nextLevel;
         private int _nextSeed;
@@ -193,7 +194,15 @@ namespace Decantra.Presentation.Controller
 
             if (hudView != null)
             {
-                int score = ScoreCalculator.CalculateScore(baseScore, _state.MovesUsed, _state.OptimalMoves);
+                int filledUnits = 0;
+                for (int i = 0; i < _state.Bottles.Count; i++)
+                {
+                    filledUnits += _state.Bottles[i].Count;
+                }
+
+                int bonus;
+                int score = ScoreCalculator.CalculateScore(baseScore, filledUnits, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, out bonus);
+                _lastBonus = bonus;
                 _currentScore = score;
                 if (_progress != null && score > _progress.HighScore)
                 {
@@ -229,7 +238,7 @@ namespace Decantra.Presentation.Controller
             bool finished = false;
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastBonus, () => finished = true);
                 while (!finished)
                 {
                     yield return null;
@@ -264,38 +273,10 @@ namespace Decantra.Presentation.Controller
             {
                 StopCoroutine(_precomputeRoutine);
             }
-            _precomputeRoutine = StartCoroutine(PrecomputeNextLevelAsync());
-        }
 
-        private IEnumerator PrecomputeNextLevelAsync()
-        {
             _nextLevel = _currentLevel + 1;
-            int attempt = 0;
-            int seed = NextSeed(_nextLevel, _currentSeed);
-
-            while (attempt < 8)
-            {
-                bool failed = false;
-                try
-                {
-                    _nextSeed = seed;
-                    _nextState = GenerateLevelWithRetry(_nextLevel, _nextSeed, 4);
-                    yield break;
-                }
-                catch
-                {
-                    attempt++;
-                    seed = NextSeed(_nextLevel, seed + 17);
-                    failed = true;
-                }
-
-                if (failed)
-                {
-                    yield return null;
-                }
-            }
-
-            _nextState = null;
+            _nextSeed = NextSeed(_nextLevel, _currentSeed);
+            _nextState = GenerateLevelWithRetry(_nextLevel, _nextSeed, 6);
         }
 
         private LevelState GenerateLevelWithRetry(int level, int seed, int maxAttempts = 8)
