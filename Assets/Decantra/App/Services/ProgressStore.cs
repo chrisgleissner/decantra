@@ -1,0 +1,79 @@
+using System.Collections.Generic;
+using System.IO;
+using Decantra.Domain.Persistence;
+using UnityEngine;
+
+namespace Decantra.App.Services
+{
+    public sealed class ProgressStore
+    {
+        private const string FileName = "progress.json";
+        private const string PublicDirName = "Decantra";
+
+        public ProgressData Load()
+        {
+            foreach (string path in GetPaths())
+            {
+                if (!File.Exists(path)) continue;
+                string json = File.ReadAllText(path);
+                var data = JsonUtility.FromJson<ProgressData>(json);
+                if (data != null)
+                {
+                    EnsureDefaults(data);
+                    return data;
+                }
+            }
+
+            return new ProgressData
+            {
+                HighestUnlockedLevel = 1,
+                CurrentLevel = 1,
+                CurrentSeed = 0,
+                CurrentScore = 0,
+                HighScore = 0
+            };
+        }
+
+        public void Save(ProgressData data)
+        {
+            EnsureDefaults(data);
+            string json = JsonUtility.ToJson(data, true);
+            foreach (string path in GetPaths())
+            {
+                try
+                {
+                    var dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+                    File.WriteAllText(path, json);
+                }
+                catch
+                {
+                    // Ignore and keep trying other paths.
+                }
+            }
+        }
+
+        private static IEnumerable<string> GetPaths()
+        {
+            yield return Path.Combine(Application.persistentDataPath, FileName);
+
+            var publicRoot = "/storage/emulated/0";
+            if (Directory.Exists(publicRoot))
+            {
+                yield return Path.Combine(publicRoot, PublicDirName, FileName);
+            }
+        }
+
+        private static void EnsureDefaults(ProgressData data)
+        {
+            if (data.HighestUnlockedLevel <= 0) data.HighestUnlockedLevel = 1;
+            if (data.CurrentLevel <= 0) data.CurrentLevel = data.HighestUnlockedLevel;
+            if (data.CurrentSeed < 0) data.CurrentSeed = 0;
+            if (data.CurrentScore < 0) data.CurrentScore = 0;
+            if (data.HighScore < 0) data.HighScore = 0;
+        }
+    }
+}

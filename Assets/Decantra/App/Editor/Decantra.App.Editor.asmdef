@@ -1,0 +1,19 @@
+{
+  "name": "Decantra.App.Editor",
+  "references": [
+    "Decantra.App",
+    "UnityEditor.TestRunner",
+    "Unity.TestTools.CodeCoverage.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

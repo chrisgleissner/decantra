@@ -1,0 +1,65 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Decantra.Domain.Model
+{
+    public sealed class LevelState
+    {
+        public LevelState(IReadOnlyList<Bottle> bottles, int movesUsed, int movesAllowed, int optimalMoves, int levelIndex, int seed)
+        {
+            if (bottles == null) throw new ArgumentNullException(nameof(bottles));
+            if (bottles.Count == 0) throw new ArgumentOutOfRangeException(nameof(bottles));
+            if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
+            if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
+            if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
+
+            Bottles = bottles.Select(b => b.Clone()).ToList();
+            MovesUsed = movesUsed;
+            MovesAllowed = movesAllowed;
+            OptimalMoves = optimalMoves;
+            LevelIndex = levelIndex;
+            Seed = seed;
+        }
+
+        public IReadOnlyList<Bottle> Bottles { get; }
+        public int MovesUsed { get; private set; }
+        public int MovesAllowed { get; }
+        public int OptimalMoves { get; }
+        public int LevelIndex { get; }
+        public int Seed { get; }
+
+        public bool IsWin()
+        {
+            for (int i = 0; i < Bottles.Count; i++)
+            {
+                if (!Bottles[i].IsSingleColorOrEmpty())
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public bool IsFail()
+        {
+            return MovesUsed > MovesAllowed;
+        }
+
+        public bool TryApplyMove(int sourceIndex, int targetIndex, out int poured)
+        {
+            poured = 0;
+            if (sourceIndex == targetIndex) return false;
+            if (sourceIndex < 0 || sourceIndex >= Bottles.Count) return false;
+            if (targetIndex < 0 || targetIndex >= Bottles.Count) return false;
+            var source = Bottles[sourceIndex];
+            var target = Bottles[targetIndex];
+            int amount = source.MaxPourAmountInto(target);
+            if (amount <= 0) return false;
+            source.PourInto(target, amount);
+            MovesUsed++;
+            poured = amount;
+            return true;
+        }
+    }
+}

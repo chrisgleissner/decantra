@@ -1,0 +1,63 @@
+name: Build Decantra
+
+on:
+    push:
+        branches: ["**"]
+    pull_request:
+
+jobs:
+    test:
+        name: Unity tests (EditMode + PlayMode)
+        runs-on: ubuntu-latest
+        env:
+            UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  lfs: true
+            - uses: actions/cache@v4
+              with:
+                  path: Library
+                  key: Library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+                  restore-keys: |
+                      Library-${{ runner.os }}-
+            - uses: game-ci/unity-test-runner@v4
+              with:
+                  projectPath: .
+                  unityVersion: 6000.3.5f2
+                  testMode: editmode
+                  artifactsPath: TestResults
+            - uses: game-ci/unity-test-runner@v4
+              with:
+                  projectPath: .
+                  unityVersion: 6000.3.5f2
+                  testMode: playmode
+                  artifactsPath: TestResults
+
+    build-android:
+        name: Build Android APK
+        runs-on: ubuntu-latest
+        needs: test
+        env:
+            UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  lfs: true
+            - uses: actions/cache@v4
+              with:
+                  path: Library
+                  key: Library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+                  restore-keys: |
+                      Library-${{ runner.os }}-
+            - uses: game-ci/unity-builder@v4
+              with:
+                  projectPath: .
+                  unityVersion: 6000.3.5f2
+                  targetPlatform: Android
+                  buildMethod: Decantra.App.Editor.AndroidBuild.BuildDebugApk
+                  outputPath: Builds/Android
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: Decantra-Android
+                  path: Builds/Android

@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "ms-dotnettools.csharp",
+        "Unity.unity-debug",
+        "Unity.unity-snippets",
+        "visualstudioexptteam.vscodeintellicode",
+        "visualstudiotoolsforunity.vstuc"
+    ]
+}

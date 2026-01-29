@@ -1,0 +1,21 @@
+{
+  "name": "Decantra.PlayMode.Tests",
+  "references": [
+    "Decantra.Presentation",
+    "Decantra.App",
+    "Decantra.Domain",
+    "UnityEngine.TestRunner"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "testAssemblies": true,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

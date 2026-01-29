@@ -1,0 +1,61 @@
+using Decantra.Domain.Model;
+using NUnit.Framework;
+
+namespace Decantra.Tests.EditMode
+{
+    public class BottleTests
+    {
+        [Test]
+        public void EmptyBottle_HasNoTopColor()
+        {
+            var bottle = new Bottle(4);
+            Assert.IsNull(bottle.TopColor);
+            Assert.IsTrue(bottle.IsEmpty);
+            Assert.IsFalse(bottle.IsFull);
+        }
+
+        [Test]
+        public void PourInto_AllowsMatchingTopOrEmpty()
+        {
+            var source = new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, null, null });
+            var target = new Bottle(new ColorId?[] { null, null, null, null });
+            Assert.IsTrue(source.CanPourInto(target));
+
+            target = new Bottle(new ColorId?[] { ColorId.Red, null, null, null });
+            Assert.IsTrue(source.CanPourInto(target));
+
+            target = new Bottle(new ColorId?[] { ColorId.Blue, null, null, null });
+            Assert.IsFalse(source.CanPourInto(target));
+        }
+
+        [Test]
+        public void PourInto_PoursMaxContiguous()
+        {
+            var source = new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Blue, ColorId.Blue });
+            var target = new Bottle(new ColorId?[] { null, null, null, null });
+
+            int amount = source.MaxPourAmountInto(target);
+            Assert.AreEqual(2, amount);
+
+            source.PourInto(target, amount);
+
+            Assert.AreEqual(ColorId.Blue, target.TopColor);
+            Assert.AreEqual(2, target.Count);
+            Assert.AreEqual(2, source.Count);
+            Assert.AreEqual(ColorId.Red, source.TopColor);
+        }
+
+        [Test]
+        public void IsSolvedBottle_TrueOnlyWhenFullSameColor()
+        {
+            var bottle = new Bottle(new ColorId?[] { ColorId.Green, ColorId.Green, ColorId.Green, ColorId.Green });
+            Assert.IsTrue(bottle.IsSolvedBottle());
+
+            var notFull = new Bottle(new ColorId?[] { ColorId.Green, ColorId.Green, null, null });
+            Assert.IsFalse(notFull.IsSolvedBottle());
+
+            var mixed = new Bottle(new ColorId?[] { ColorId.Green, ColorId.Blue, ColorId.Green, ColorId.Green });
+            Assert.IsFalse(mixed.IsSolvedBottle());
+        }
+    }
+}

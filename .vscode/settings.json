@@ -1,0 +1,18 @@
+{
+    "files.exclude": {
+        "**/[Ll]ibrary": true,
+        "**/Temp": true,
+        "**/obj": true,
+        "**/Build": true,
+        "**/Builds": true
+    },
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+    },
+    "omnisharp.useModernNet": true,
+    "omnisharp.loggingLevel": "warning",
+    "csharp.format.enable": true,
+    "csharp.suppressHiddenDiagnostics": true,
+    "dotnet.defaultSolution": "decantra.slnx"
+}
