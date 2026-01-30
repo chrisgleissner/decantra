@@ -23,6 +23,10 @@ Decantra is a mobile-first bottle sorting puzzle built in Unity. Pour colors bet
 - Skip tests:
   - `./local-build.sh --skip-tests`
 
+## Developer docs
+
+- Build/install/sharing instructions: [doc/developer.md](doc/developer.md)
+
 ## Project Structure
 
 - Domain logic: Assets/Decantra/Domain
