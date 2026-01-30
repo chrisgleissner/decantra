@@ -59,12 +59,13 @@ namespace Decantra.App.Services
         private static IEnumerable<string> GetPaths()
         {
             yield return Path.Combine(Application.persistentDataPath, FileName);
-
+#if UNITY_EDITOR
             var publicRoot = "/storage/emulated/0";
             if (Directory.Exists(publicRoot))
             {
                 yield return Path.Combine(publicRoot, PublicDirName, FileName);
             }
+#endif
         }
 
         private static void EnsureDefaults(ProgressData data)

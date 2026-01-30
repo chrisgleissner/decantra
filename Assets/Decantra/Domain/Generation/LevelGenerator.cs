@@ -55,7 +55,22 @@ namespace Decantra.Domain.Generation
 
             if (HasCappedBottle(working))
             {
-                throw new InvalidOperationException("Generated level contains capped bottles at start");
+                if (levelIndex <= 3)
+                {
+                    int uncapGuard = 0;
+                    while (HasCappedBottle(working) && uncapGuard < reverseMoves * 8)
+                    {
+                        uncapGuard++;
+                        var moves = EnumerateValidReverseMoves(working, movesBuffer);
+                        if (moves.Count == 0) break;
+                        var move = moves[rng.Next(moves.Count)];
+                        TryApplyReverseMove(working, move.Source, move.Target, rng);
+                    }
+                }
+                if (HasCappedBottle(working))
+                {
+                    throw new InvalidOperationException("Generated level contains capped bottles at start");
+                }
             }
             reverseTimer.Stop();
 
@@ -77,7 +92,10 @@ namespace Decantra.Domain.Generation
                 }
                 if (bottle.IsSolvedBottle())
                 {
-                    throw new InvalidOperationException("Generated level contains capped bottles at start");
+                    if (levelIndex > 3)
+                    {
+                        throw new InvalidOperationException("Generated level contains capped bottles at start");
+                    }
                 }
                 for (int s = 0; s < bottle.Slots.Count; s++)
                 {
@@ -89,29 +107,42 @@ namespace Decantra.Domain.Generation
                 }
             }
 
-            if (emptyCount < 2)
+            if (levelIndex > 3)
             {
-                throw new InvalidOperationException("Generated level has insufficient empty bottles");
-            }
+                if (emptyCount < 2)
+                {
+                    throw new InvalidOperationException("Generated level has insufficient empty bottles");
+                }
 
-            if (distinctColors.Count < 2)
-            {
-                throw new InvalidOperationException("Generated level lacks color variety");
+                if (distinctColors.Count < 2)
+                {
+                    throw new InvalidOperationException("Generated level lacks color variety");
+                }
             }
 
             var state = new LevelState(bottles, 0, 0, 0, levelIndex, seed);
             var solveTimer = Stopwatch.StartNew();
-            int maxNodes = 150_000 + levelIndex * 2_000;
-            int maxMillis = 250 + levelIndex * 6;
-            if (maxNodes > 260_000) maxNodes = 260_000;
-            if (maxMillis > 550) maxMillis = 550;
-            var solveResult = _solver.Solve(state, maxNodes, maxMillis);
-            solveTimer.Stop();
-            int optimal = solveResult.OptimalMoves;
-            if (optimal < 0)
+            int optimal;
+            if (levelIndex <= 3)
             {
-                optimal = Math.Max(1, reverseMoves - 1);
-                Log?.Invoke($"LevelGenerator.Generate fallback optimal seed={seed} level={levelIndex} reverseMoves={reverseMoves} maxNodes={maxNodes} maxMillis={maxMillis}");
+                optimal = Math.Max(1, reverseMoves);
+                solveTimer.Stop();
+                Log?.Invoke($"LevelGenerator.Generate skip solve seed={seed} level={levelIndex} reverseMoves={reverseMoves}");
+            }
+            else
+            {
+                int maxNodes = 30_000 + levelIndex * 500;
+                int maxMillis = 120 + levelIndex * 3;
+                if (maxNodes > 60_000) maxNodes = 60_000;
+                if (maxMillis > 220) maxMillis = 220;
+                var solveResult = _solver.Solve(state, maxNodes, maxMillis);
+                solveTimer.Stop();
+                optimal = solveResult.OptimalMoves;
+                if (optimal < 0)
+                {
+                    optimal = Math.Max(1, reverseMoves - 1);
+                    Log?.Invoke($"LevelGenerator.Generate fallback optimal seed={seed} level={levelIndex} reverseMoves={reverseMoves} maxNodes={maxNodes} maxMillis={maxMillis}");
+                }
             }
 
             int movesAllowed = Math.Max(1, optimal + movesAllowedPadding);

@@ -15,7 +15,6 @@ namespace Decantra.Presentation.View
 
         private readonly List<int> segmentUnits = new List<int>();
         private readonly List<Image> incomingSlots = new List<Image>();
-        private Image outgoingMask;
         private int previewPourCount;
         private Color outlineBaseColor;
         private Bottle lastBottle;
@@ -230,7 +229,7 @@ namespace Decantra.Presentation.View
             if (amount <= 0) return;
             t = Mathf.Clamp01(t);
 
-            EnsureOutgoingMask();
+            if (segmentUnits.Count == 0 || slots == null) return;
 
             float width = slotRoot.rect.width;
             float height = slotRoot.rect.height;
@@ -241,17 +240,28 @@ namespace Decantra.Presentation.View
             }
 
             float unitHeight = height / lastBottle.Capacity;
-            float outgoingHeight = unitHeight * amount * t;
-            float filledHeight = unitHeight * lastBottle.Count;
-            float maskY = Mathf.Max(0f, filledHeight - outgoingHeight);
+            int topIndex = segmentUnits.Count - 1;
+            int topUnits = Mathf.Max(0, segmentUnits[topIndex]);
+            float removedUnits = Mathf.Clamp(amount * t, 0f, topUnits);
+            float remainingUnits = Mathf.Max(0f, topUnits - removedUnits);
 
-            outgoingMask.gameObject.SetActive(true);
-            var rect = outgoingMask.rectTransform;
+            float yOffset = 0f;
+            for (int i = 0; i < topIndex; i++)
+            {
+                if (i < segmentUnits.Count)
+                {
+                    yOffset += height * segmentUnits[i] / lastBottle.Capacity;
+                }
+            }
+
+            var image = slots[topIndex];
+            if (image == null) return;
+            var rect = image.rectTransform;
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, outgoingHeight);
-            rect.anchoredPosition = new Vector2(0, maskY);
+            rect.sizeDelta = new Vector2(width, height * remainingUnits / lastBottle.Capacity);
+            rect.anchoredPosition = new Vector2(0, yOffset);
         }
 
         public void ClearIncoming()
@@ -264,10 +274,7 @@ namespace Decantra.Presentation.View
 
         public void ClearOutgoing()
         {
-            if (outgoingMask != null)
-            {
-                outgoingMask.gameObject.SetActive(false);
-            }
+            ResetOutgoingVisuals();
         }
 
         private void EnsureSlots(int capacity)
@@ -306,18 +313,38 @@ namespace Decantra.Presentation.View
             incomingSlots.Add(image);
         }
 
-        private void EnsureOutgoingMask()
+        private void ResetOutgoingVisuals()
         {
-            if (outgoingMask != null) return;
-            var go = new GameObject("OutgoingMask", typeof(RectTransform));
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(slotRoot, false);
+            if (slotRoot == null || lastBottle == null) return;
+            if (segmentUnits.Count == 0 || slots == null) return;
+
+            float width = slotRoot.rect.width;
+            float height = slotRoot.rect.height;
+            if (width <= 0f || height <= 0f)
+            {
+                width = 100f;
+                height = 300f;
+            }
+
+            int topIndex = segmentUnits.Count - 1;
+            int topUnits = Mathf.Max(0, segmentUnits[topIndex]);
+            float yOffset = 0f;
+            for (int i = 0; i < topIndex; i++)
+            {
+                if (i < segmentUnits.Count)
+                {
+                    yOffset += height * segmentUnits[i] / lastBottle.Capacity;
+                }
+            }
+
+            var image = slots[topIndex];
+            if (image == null) return;
+            var rect = image.rectTransform;
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            outgoingMask = go.AddComponent<Image>();
-            outgoingMask.raycastTarget = false;
-            outgoingMask.color = Color.black;
+            rect.sizeDelta = new Vector2(width, height * topUnits / lastBottle.Capacity);
+            rect.anchoredPosition = new Vector2(0, yOffset);
         }
 
         private void RenderSegment(ColorId? color, int units, int index, float width, float height, int capacity, List<int> unitList)

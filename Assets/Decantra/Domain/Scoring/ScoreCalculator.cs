@@ -13,25 +13,34 @@ namespace Decantra.Domain.Scoring
             return emptiedUnits * scaledLevel * 10;
         }
 
-        public static int CalculateScore(int baseScore, int emptyTransitionScore, int movesUsed, int movesAllowed, int optimalMoves, out int bonus)
+        public static int CalculatePourIncrement(int levelIndex, int pouredUnits)
+        {
+            if (levelIndex < 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
+            if (pouredUnits < 0) throw new ArgumentOutOfRangeException(nameof(pouredUnits));
+
+            int scaledLevel = Math.Max(1, levelIndex);
+            int perUnit = 8 + scaledLevel * 2;
+            return pouredUnits * perUnit;
+        }
+
+        public static int CalculateStarBonus(int levelIndex, int stars)
+        {
+            if (levelIndex < 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
+            if (stars < 0) throw new ArgumentOutOfRangeException(nameof(stars));
+
+            int scaledLevel = Math.Max(1, levelIndex);
+            int clampedStars = Math.Min(5, Math.Max(0, stars));
+            return clampedStars * (200 + scaledLevel * 20);
+        }
+
+        public static int CalculateScore(int baseScore, int emptyTransitionScore, int pourScore, int starBonus)
         {
             if (baseScore < 0) throw new ArgumentOutOfRangeException(nameof(baseScore));
             if (emptyTransitionScore < 0) throw new ArgumentOutOfRangeException(nameof(emptyTransitionScore));
-            if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
-            if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
-            if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
-            bonus = 0;
+            if (pourScore < 0) throw new ArgumentOutOfRangeException(nameof(pourScore));
+            if (starBonus < 0) throw new ArgumentOutOfRangeException(nameof(starBonus));
 
-            if (movesAllowed > 0 && movesUsed <= movesAllowed)
-            {
-                bonus += (movesAllowed - movesUsed + 1) * 50;
-                if (optimalMoves > 0)
-                {
-                    bonus += Math.Max(0, (optimalMoves - movesUsed) * 20);
-                }
-            }
-
-            return baseScore + emptyTransitionScore + bonus;
+            return baseScore + emptyTransitionScore + pourScore + starBonus;
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,11 +20,24 @@ namespace Decantra.Presentation
         [SerializeField] private float burstDuration = 0.45f;
         [SerializeField] private float burstMaxScale = 3.0f;
         [SerializeField] private float burstMaxAlpha = 0.85f;
+        [SerializeField] private int maxSparkles = 12;
+        [SerializeField] private int maxFlyingStars = 8;
 
         private readonly float[] starPitches = { 0.9f, 1.0f, 1.08f, 1.16f, 1.24f };
         private AudioSource[] _starSources;
         private AudioClip _starClip;
         private int _lastStarCount;
+        private RectTransform _effectsRoot;
+        private Image _glistenImage;
+        private Image[] _sparkles;
+        private Image[] _flyingStars;
+        private bool _effectsReady;
+
+        private static Sprite _sparkleSpriteCache;
+        private static Sprite _glistenSpriteCache;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private string _debugLogPath;
+#endif
 
         private readonly string[] messages =
         {
@@ -106,6 +120,8 @@ namespace Decantra.Presentation
             starsText.text = new string('★', clampedStars);
             var tag = messages[Mathf.Abs(level) % messages.Length];
             levelText.text = $"LEVEL {level + 1}\n{tag}";
+            EnsureEffects();
+            DisableEffects();
             if (sfxEnabled)
             {
                 PlayStarLayers(clampedStars);
@@ -144,7 +160,7 @@ namespace Decantra.Presentation
             panel.anchoredPosition = Vector2.zero;
             if (activeText == starsText)
             {
-                yield return AnimateStarBurst();
+                yield return AnimateCelebration();
             }
             if (holdDuration > 0f)
             {
@@ -164,6 +180,30 @@ namespace Decantra.Presentation
             canvasGroup.alpha = 0f;
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
+            DisableEffects();
+        }
+
+        private IEnumerator AnimateCelebration()
+        {
+            float intensity = Mathf.InverseLerp(1f, 5f, _lastStarCount);
+            float duration = Mathf.Lerp(0.55f, 1.15f, intensity);
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra Celebration stars={_lastStarCount} intensity={intensity:0.00} duration={duration:0.00}");
+            AppendDebugLog($"Celebration stars={_lastStarCount} intensity={intensity:0.00} duration={duration:0.00}");
+#endif
+
+            StartCoroutine(AnimateSparkles(duration, intensity));
+            StartCoroutine(AnimateFlyingStars(duration, intensity));
+            StartCoroutine(AnimateGlisten(duration, intensity));
+
+            yield return AnimateStarBurst();
+
+            float remaining = Mathf.Max(0f, duration - burstDuration);
+            if (remaining > 0f)
+            {
+                yield return new WaitForSeconds(remaining);
+            }
         }
 
         private IEnumerator AnimateStarBurst()
@@ -196,6 +236,268 @@ namespace Decantra.Presentation
             color.a = 0f;
             starBurst.color = color;
         }
+
+        private IEnumerator AnimateSparkles(float duration, float intensity)
+        {
+            if (_sparkles == null || _sparkles.Length == 0 || panel == null) yield break;
+
+            int count = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(4f, maxSparkles, intensity)), 1, _sparkles.Length);
+            Vector2 size = panel.rect.size;
+            float[] phases = new float[count];
+            float[] speeds = new float[count];
+            float[] scales = new float[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                var sparkle = _sparkles[i];
+                if (sparkle == null) continue;
+                sparkle.gameObject.SetActive(true);
+                phases[i] = UnityEngine.Random.Range(0f, 1f);
+                speeds[i] = UnityEngine.Random.Range(2.2f, 4.2f);
+                scales[i] = UnityEngine.Random.Range(0.25f, 0.6f) + intensity * 0.25f;
+
+                var rect = sparkle.rectTransform;
+                rect.anchoredPosition = new Vector2(
+                    UnityEngine.Random.Range(-size.x * 0.35f, size.x * 0.35f),
+                    UnityEngine.Random.Range(-size.y * 0.15f, size.y * 0.25f));
+                rect.localScale = Vector3.one * scales[i];
+            }
+
+            float time = 0f;
+            while (time < duration)
+            {
+                time += Time.unscaledDeltaTime;
+                for (int i = 0; i < count; i++)
+                {
+                    var sparkle = _sparkles[i];
+                    if (sparkle == null) continue;
+                    float twinkle = Mathf.Sin((time * speeds[i] + phases[i]) * Mathf.PI * 2f) * 0.5f + 0.5f;
+                    var color = sparkle.color;
+                    color.a = Mathf.Lerp(0.15f, 0.55f, twinkle) * (0.6f + 0.4f * intensity);
+                    sparkle.color = color;
+                }
+                yield return null;
+            }
+        }
+
+        private IEnumerator AnimateFlyingStars(float duration, float intensity)
+        {
+            if (_flyingStars == null || _flyingStars.Length == 0 || panel == null) yield break;
+
+            int count = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(2f, maxFlyingStars, intensity)), 1, _flyingStars.Length);
+            Vector2 size = panel.rect.size;
+
+            Vector2[] starts = new Vector2[count];
+            Vector2[] ends = new Vector2[count];
+            float[] delays = new float[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                var star = _flyingStars[i];
+                if (star == null) continue;
+                star.gameObject.SetActive(true);
+                starts[i] = new Vector2(UnityEngine.Random.Range(-size.x * 0.2f, size.x * 0.2f), UnityEngine.Random.Range(-size.y * 0.05f, size.y * 0.1f));
+                ends[i] = starts[i] + new Vector2(UnityEngine.Random.Range(-size.x * 0.35f, size.x * 0.35f), UnityEngine.Random.Range(size.y * 0.25f, size.y * 0.5f));
+                delays[i] = UnityEngine.Random.Range(0f, duration * 0.3f);
+
+                var rect = star.rectTransform;
+                rect.anchoredPosition = starts[i];
+                rect.localScale = Vector3.one * UnityEngine.Random.Range(0.35f, 0.8f) * (0.8f + 0.4f * intensity);
+            }
+
+            float time = 0f;
+            while (time < duration)
+            {
+                time += Time.unscaledDeltaTime;
+                for (int i = 0; i < count; i++)
+                {
+                    var star = _flyingStars[i];
+                    if (star == null) continue;
+                    float local = Mathf.Clamp01((time - delays[i]) / Mathf.Max(0.01f, duration - delays[i]));
+                    float eased = Mathf.SmoothStep(0f, 1f, local);
+                    var rect = star.rectTransform;
+                    rect.anchoredPosition = Vector2.Lerp(starts[i], ends[i], eased);
+                    rect.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(0f, 30f, eased));
+                    var color = star.color;
+                    color.a = Mathf.Lerp(0.65f, 0f, eased);
+                    star.color = color;
+                }
+                yield return null;
+            }
+        }
+
+        private IEnumerator AnimateGlisten(float duration, float intensity)
+        {
+            if (_glistenImage == null || panel == null) yield break;
+
+            Vector2 size = panel.rect.size;
+            var rect = _glistenImage.rectTransform;
+            rect.sizeDelta = new Vector2(size.x * 1.2f, size.y * 0.35f);
+            rect.localEulerAngles = new Vector3(0f, 0f, -8f);
+
+            float time = 0f;
+            while (time < duration)
+            {
+                time += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(time / duration);
+                float eased = Mathf.SmoothStep(0f, 1f, t);
+                rect.anchoredPosition = new Vector2(Mathf.Lerp(-size.x * 0.6f, size.x * 0.6f, eased), size.y * 0.15f);
+                var color = _glistenImage.color;
+                color.a = Mathf.Lerp(0f, 0.4f, Mathf.Sin(t * Mathf.PI)) * (0.6f + 0.4f * intensity);
+                _glistenImage.color = color;
+                yield return null;
+            }
+        }
+
+        private void EnsureEffects()
+        {
+            if (_effectsReady || panel == null) return;
+
+            var rootGo = new GameObject("Effects", typeof(RectTransform));
+            _effectsRoot = rootGo.GetComponent<RectTransform>();
+            _effectsRoot.SetParent(panel, false);
+            _effectsRoot.anchorMin = Vector2.zero;
+            _effectsRoot.anchorMax = Vector2.one;
+            _effectsRoot.offsetMin = Vector2.zero;
+            _effectsRoot.offsetMax = Vector2.zero;
+
+            var glistenGo = new GameObject("Glisten", typeof(RectTransform));
+            var glistenRect = glistenGo.GetComponent<RectTransform>();
+            glistenRect.SetParent(_effectsRoot, false);
+            _glistenImage = glistenGo.AddComponent<Image>();
+            _glistenImage.sprite = GetGlistenSprite();
+            _glistenImage.raycastTarget = false;
+            _glistenImage.color = new Color(1f, 1f, 1f, 0f);
+
+            _sparkles = new Image[Mathf.Max(4, maxSparkles)];
+            for (int i = 0; i < _sparkles.Length; i++)
+            {
+                var sparkleGo = new GameObject($"Sparkle_{i + 1}", typeof(RectTransform));
+                var sparkleRect = sparkleGo.GetComponent<RectTransform>();
+                sparkleRect.SetParent(_effectsRoot, false);
+                var image = sparkleGo.AddComponent<Image>();
+                image.sprite = GetSparkleSprite();
+                image.raycastTarget = false;
+                image.color = new Color(1f, 0.98f, 0.8f, 0f);
+                _sparkles[i] = image;
+            }
+
+            _flyingStars = new Image[Mathf.Max(3, maxFlyingStars)];
+            for (int i = 0; i < _flyingStars.Length; i++)
+            {
+                var starGo = new GameObject($"FlyingStar_{i + 1}", typeof(RectTransform));
+                var starRect = starGo.GetComponent<RectTransform>();
+                starRect.SetParent(_effectsRoot, false);
+                var image = starGo.AddComponent<Image>();
+                image.sprite = GetSparkleSprite();
+                image.raycastTarget = false;
+                image.color = new Color(1f, 0.95f, 0.75f, 0f);
+                _flyingStars[i] = image;
+            }
+
+            _effectsReady = true;
+        }
+
+        private void DisableEffects()
+        {
+            if (_glistenImage != null)
+            {
+                var color = _glistenImage.color;
+                color.a = 0f;
+                _glistenImage.color = color;
+            }
+
+            if (_sparkles != null)
+            {
+                for (int i = 0; i < _sparkles.Length; i++)
+                {
+                    if (_sparkles[i] == null) continue;
+                    _sparkles[i].gameObject.SetActive(false);
+                }
+            }
+
+            if (_flyingStars != null)
+            {
+                for (int i = 0; i < _flyingStars.Length; i++)
+                {
+                    if (_flyingStars[i] == null) continue;
+                    _flyingStars[i].gameObject.SetActive(false);
+                }
+            }
+        }
+
+        private static Sprite GetSparkleSprite()
+        {
+            if (_sparkleSpriteCache != null) return _sparkleSpriteCache;
+
+            const int size = 64;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+            float maxDist = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    float t = Mathf.Clamp01(dist / maxDist);
+                    float alpha = Mathf.SmoothStep(1f, 0f, t);
+                    alpha *= Mathf.SmoothStep(1f, 0.6f, t);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            _sparkleSpriteCache = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 64f);
+            return _sparkleSpriteCache;
+        }
+
+        private static Sprite GetGlistenSprite()
+        {
+            if (_glistenSpriteCache != null) return _glistenSpriteCache;
+
+            const int width = 96;
+            const int height = 24;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float t = Mathf.Abs((x / (float)(width - 1)) - 0.5f) * 2f;
+                    float alpha = Mathf.SmoothStep(0.9f, 0f, t);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            _glistenSpriteCache = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 100f);
+            return _glistenSpriteCache;
+        }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private void AppendDebugLog(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message)) return;
+            if (string.IsNullOrWhiteSpace(_debugLogPath))
+            {
+                _debugLogPath = Path.Combine(Application.persistentDataPath, "debug-verification.log");
+            }
+
+            try
+            {
+                File.AppendAllText(_debugLogPath, $"{System.DateTime.UtcNow:O} {message}\n");
+            }
+            catch
+            {
+                // Ignore logging failures in debug builds.
+            }
+        }
+#endif
 
         private void PlayStarLayers(int stars)
         {

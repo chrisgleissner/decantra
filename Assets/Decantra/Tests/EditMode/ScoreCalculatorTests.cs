@@ -6,21 +6,25 @@ namespace Decantra.Tests.EditMode
     public class ScoreCalculatorTests
     {
         [Test]
-        public void CalculateScore_RewardsOptimalOrBetter()
+        public void CalculatePourIncrement_ScalesWithLevelAndUnits()
         {
-            int bonus;
-            int scoreAtOptimal = ScoreCalculator.CalculateScore(100, 200, 10, 10, 10, out bonus);
-            int scoreBetter = ScoreCalculator.CalculateScore(100, 200, 8, 10, 10, out bonus);
-            Assert.GreaterOrEqual(scoreBetter, scoreAtOptimal);
+            int low = ScoreCalculator.CalculatePourIncrement(1, 2);
+            int high = ScoreCalculator.CalculatePourIncrement(3, 2);
+            int moreUnits = ScoreCalculator.CalculatePourIncrement(1, 4);
+
+            Assert.Greater(high, low);
+            Assert.Greater(moreUnits, low);
         }
 
         [Test]
-        public void CalculateScore_PenalizesWorseThanOptimal()
+        public void CalculateStarBonus_ScalesWithStarsAndLevel()
         {
-            int bonus;
-            int scoreOptimal = ScoreCalculator.CalculateScore(100, 200, 10, 10, 10, out bonus);
-            int scoreWorse = ScoreCalculator.CalculateScore(100, 200, 15, 10, 10, out bonus);
-            Assert.Less(scoreWorse, scoreOptimal);
+            int low = ScoreCalculator.CalculateStarBonus(1, 1);
+            int high = ScoreCalculator.CalculateStarBonus(1, 5);
+            int higherLevel = ScoreCalculator.CalculateStarBonus(3, 1);
+
+            Assert.Greater(high, low);
+            Assert.Greater(higherLevel, low);
         }
 
         [Test]
@@ -32,6 +36,13 @@ namespace Decantra.Tests.EditMode
 
             Assert.Greater(high, low);
             Assert.Greater(moreUnits, low);
+        }
+
+        [Test]
+        public void CalculateScore_SumsComponents()
+        {
+            int score = ScoreCalculator.CalculateScore(100, 20, 30, 40);
+            Assert.AreEqual(190, score);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Decantra.Domain.Generation;
@@ -42,12 +43,18 @@ namespace Decantra.Presentation.Controller
         private int _currentScore;
         private int _lastBonus;
         private int _emptyTransitionScore;
+        private int _pourScore;
+        private int _starBonus;
+        private int _lastBackgroundPaletteIndex = -1;
         private int _lastStars;
         private LevelState _nextState;
         private int _nextLevel;
         private int _nextSeed;
         private CancellationTokenSource _precomputeCts;
         private Task<LevelState> _precomputeTask;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private string _debugLogPath;
+#endif
 
         private BfsSolver _solver;
         private LevelGenerator _generator;
@@ -120,6 +127,21 @@ namespace Decantra.Presentation.Controller
             CancelPrecompute();
         }
 
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private void Update()
+        {
+            if (_state == null) return;
+            if (Input.GetKeyDown(KeyCode.Menu))
+            {
+                int nextLevel = Mathf.Max(1, _currentLevel + 1);
+                int nextSeed = NextSeed(nextLevel, _currentSeed);
+                Debug.Log($"Decantra DevAdvance level={nextLevel} seed={nextSeed}");
+                AppendDebugLog($"DevAdvance level={nextLevel} seed={nextSeed}");
+                LoadLevel(nextLevel, nextSeed);
+            }
+        }
+#endif
+
         public void LoadLevel(int levelIndex, int seed)
         {
             _currentLevel = Mathf.Max(1, levelIndex);
@@ -128,6 +150,9 @@ namespace Decantra.Presentation.Controller
             _selectedIndex = -1;
             _isCompleting = false;
             _emptyTransitionScore = 0;
+            _pourScore = 0;
+            _starBonus = 0;
+            _currentScore = Mathf.Max(_progress?.CurrentScore ?? 0, baseScore);
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();
@@ -179,6 +204,10 @@ namespace Decantra.Presentation.Controller
             var color = _state.Bottles[sourceIndex].TopColor;
 
             PlayPourSfx(targetIndex, poured);
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra PourStart level={_state.LevelIndex} source={sourceIndex} target={targetIndex} poured={poured} color={(color.HasValue ? color.Value.ToString() : "none")}");
+#endif
 
             StartCoroutine(AnimateMove(sourceIndex, targetIndex, poured, color, duration, sourceView, targetView));
             return true;
@@ -243,18 +272,17 @@ namespace Decantra.Presentation.Controller
 
             if (hudView != null)
             {
-                int bonus;
-                int score = ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, out bonus);
-                _lastBonus = bonus;
-                _currentScore = score;
-                if (_progress != null && score > _progress.HighScore)
+                int score = ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _pourScore, _starBonus);
+                _currentScore = Mathf.Max(_currentScore, score);
+                _lastBonus = _starBonus;
+                if (_progress != null && _currentScore > _progress.HighScore)
                 {
-                    _progress.HighScore = score;
+                    _progress.HighScore = _currentScore;
                     _progressStore.Save(_progress);
                 }
                 int highScore = _progress?.HighScore ?? 0;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
-                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, score, highScore, maxLevel);
+                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, _currentScore, highScore, maxLevel);
             }
 
             if (_state.IsWin() && !_isCompleting)
@@ -284,9 +312,20 @@ namespace Decantra.Presentation.Controller
             }
 
             bool finished = false;
+            _lastStars = CalculateStars(_state.MovesUsed, _state.OptimalMoves);
+            _starBonus = Mathf.Max(_starBonus, ScoreCalculator.CalculateStarBonus(_state.LevelIndex, _lastStars));
+            _currentScore = Mathf.Max(_currentScore, ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _pourScore, _starBonus));
+            if (_progress != null)
+            {
+                _progress.CurrentScore = _currentScore;
+                if (_currentScore > _progress.HighScore)
+                {
+                    _progress.HighScore = _currentScore;
+                }
+                _progressStore.Save(_progress);
+            }
             if (levelBanner != null)
             {
-                _lastStars = CalculateStars(_state.MovesUsed, _state.OptimalMoves);
                 levelBanner.Show(_currentLevel, _lastStars, _sfxEnabled, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
@@ -439,6 +478,18 @@ namespace Decantra.Presentation.Controller
             {
                 _emptyTransitionScore += ScoreCalculator.CalculateEmptyTransitionIncrement(_state.LevelIndex, sourceCountBefore);
             }
+
+            if (poured > 0)
+            {
+                _pourScore += ScoreCalculator.CalculatePourIncrement(_state.LevelIndex, poured);
+            }
+
+            _currentScore = Mathf.Max(_currentScore, ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _pourScore, _starBonus));
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra ScoreUpdate level={_state.LevelIndex} poured={poured} emptyScore={_emptyTransitionScore} pourScore={_pourScore} starBonus={_starBonus} total={_currentScore}");
+            AppendDebugLog($"ScoreUpdate level={_state.LevelIndex} poured={poured} emptyScore={_emptyTransitionScore} pourScore={_pourScore} starBonus={_starBonus} total={_currentScore}");
+#endif
 
             return true;
         }
@@ -618,17 +669,28 @@ namespace Decantra.Presentation.Controller
             _selectedIndex = -1;
             _isCompleting = false;
             _emptyTransitionScore = 0;
+            _pourScore = 0;
+            _starBonus = 0;
+            _currentScore = Mathf.Max(_progress?.CurrentScore ?? 0, baseScore);
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();
             Render();
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra LevelLoaded level={_currentLevel} seed={_currentSeed}");
+#endif
         }
 
         private void ApplyBackgroundVariation(int levelIndex, int seed)
         {
             if (backgroundImage == null) return;
 
-            int paletteIndex = Mathf.Abs(seed + levelIndex * 7919) % BackgroundPalettes.Length;
+            int paletteIndex = Mathf.Abs(levelIndex - 1) % BackgroundPalettes.Length;
+            if (paletteIndex == _lastBackgroundPaletteIndex)
+            {
+                paletteIndex = (paletteIndex + 1) % BackgroundPalettes.Length;
+            }
             var palette = BackgroundPalettes[paletteIndex];
 
             float jitter = Hash01(seed, levelIndex);
@@ -671,7 +733,34 @@ namespace Decantra.Presentation.Controller
                 vignetteColor.a = palette.VignetteAlpha;
                 backgroundVignette.color = vignetteColor;
             }
+
+            _lastBackgroundPaletteIndex = paletteIndex;
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} base={backgroundImage.color}");
+            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} base={backgroundImage.color}");
+#endif
         }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private void AppendDebugLog(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message)) return;
+            if (string.IsNullOrWhiteSpace(_debugLogPath))
+            {
+                _debugLogPath = Path.Combine(Application.persistentDataPath, "debug-verification.log");
+            }
+
+            try
+            {
+                File.AppendAllText(_debugLogPath, $"{System.DateTime.UtcNow:O} {message}\n");
+            }
+            catch
+            {
+                // Ignore logging failures in debug builds.
+            }
+        }
+#endif
 
         private static float Hash01(int a, int b)
         {
