@@ -10,6 +10,9 @@ REPORT_LOG_PATH="${PROJECT_PATH}/Logs/coverage_report.log"
 UNITY_TIMEOUT="${UNITY_TIMEOUT:-10m}"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
 
+export UNITY_DISABLE_AUDIO=1
+export SDL_AUDIODRIVER=dummy
+
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
 
 ulimit -n 4096 >/dev/null 2>&1 || true
@@ -61,6 +64,8 @@ run_with_log() {
 run_with_log "Bootstrap Unity" "${BOOTSTRAP_LOG_PATH}" "${UNITY_PATH}" \
   -batchmode \
   -nographics \
+  -noaudio \
+  -disable-audio \
   -projectPath "${PROJECT_PATH}" \
   -logFile "${BOOTSTRAP_LOG_PATH}" \
   -quit
@@ -68,8 +73,9 @@ run_with_log "Bootstrap Unity" "${BOOTSTRAP_LOG_PATH}" "${UNITY_PATH}" \
 run_with_log "EditMode tests" "${EDITMODE_LOG_PATH}" "${UNITY_PATH}" \
   -batchmode \
   -nographics \
+  -noaudio \
+  -disable-audio \
   -projectPath "${PROJECT_PATH}" \
-  -runTests \
   -executeMethod Decantra.App.Editor.CommandLineTests.RunEditMode \
   -testResults "${PROJECT_PATH}/Logs/TestResults.xml" \
   -debugCodeOptimization \
@@ -81,6 +87,8 @@ run_with_log "EditMode tests" "${EDITMODE_LOG_PATH}" "${UNITY_PATH}" \
 run_with_log "Coverage report" "${REPORT_LOG_PATH}" "${UNITY_PATH}" \
   -batchmode \
   -nographics \
+  -noaudio \
+  -disable-audio \
   -projectPath "${PROJECT_PATH}" \
   -enableCodeCoverage \
   -coverageResultsPath "${PROJECT_PATH}/Coverage" \
@@ -90,6 +98,8 @@ run_with_log "Coverage report" "${REPORT_LOG_PATH}" "${UNITY_PATH}" \
 
 run_with_log "PlayMode tests" "${PLAYMODE_LOG_PATH}" "${UNITY_PATH}" \
   -batchmode \
+  -noaudio \
+  -disable-audio \
   -projectPath "${PROJECT_PATH}" \
   -buildTarget StandaloneLinux64 \
   -executeMethod Decantra.App.Editor.CommandLineTests.RunPlayMode \

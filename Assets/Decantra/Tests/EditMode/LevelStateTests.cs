@@ -58,5 +58,17 @@ namespace Decantra.Tests.EditMode
             var state = new LevelState(bottles, 0, 10, 3, 1, 123);
             Assert.IsTrue(state.IsWin());
         }
+
+        [Test]
+        public void IsWin_FailsWithPartiallyFilledUniformBottle()
+        {
+            var bottles = new Bottle[3];
+            bottles[0] = new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, null, null });
+            bottles[1] = new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, ColorId.Red });
+            bottles[2] = new Bottle(new ColorId?[] { null, null, null, null });
+
+            var state = new LevelState(bottles, 0, 10, 3, 1, 123);
+            Assert.IsFalse(state.IsWin());
+        }
     }
 }

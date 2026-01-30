@@ -15,14 +15,14 @@ namespace Decantra.Domain.Solver
 
             var startKey = StateEncoder.Encode(initial);
             visited.Add(startKey);
-            queue.Enqueue(new Node(CloneState(initial), new List<Move>()));
+            queue.Enqueue(new Node(CloneState(initial), 0));
 
             while (queue.Count > 0)
             {
                 var node = queue.Dequeue();
                 if (node.State.IsWin())
                 {
-                    return new SolverResult(node.Path.Count, node.Path);
+                    return new SolverResult(node.Depth, new List<Move>());
                 }
 
                 foreach (var move in EnumerateMoves(node.State))
@@ -37,10 +37,7 @@ namespace Decantra.Domain.Solver
                     var key = StateEncoder.Encode(next);
                     if (visited.Add(key))
                     {
-                        var newPath = new List<Move>(node.Path.Count + 1);
-                        newPath.AddRange(node.Path);
-                        newPath.Add(new Move(move.Source, move.Target, poured));
-                        queue.Enqueue(new Node(next, newPath));
+                        queue.Enqueue(new Node(next, node.Depth + 1));
                     }
                 }
             }
@@ -83,14 +80,14 @@ namespace Decantra.Domain.Solver
 
         private sealed class Node
         {
-            public Node(LevelState state, List<Move> path)
+            public Node(LevelState state, int depth)
             {
                 State = state;
-                Path = path;
+                Depth = depth;
             }
 
             public LevelState State { get; }
-            public List<Move> Path { get; }
+            public int Depth { get; }
         }
     }
 }

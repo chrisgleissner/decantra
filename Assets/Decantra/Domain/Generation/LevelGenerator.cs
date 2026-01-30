@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Decantra.Domain.Model;
 using Decantra.Domain.Solver;
 
@@ -8,6 +9,8 @@ namespace Decantra.Domain.Generation
     public sealed class LevelGenerator
     {
         private readonly BfsSolver _solver;
+
+        public Action<string> Log { get; set; }
 
         public LevelGenerator(BfsSolver solver)
         {
@@ -19,15 +22,19 @@ namespace Decantra.Domain.Generation
             if (reverseMoves <= 0) throw new ArgumentOutOfRangeException(nameof(reverseMoves));
             if (movesAllowedPadding < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowedPadding));
 
+            var overallTimer = Stopwatch.StartNew();
             var rng = new Random(seed);
             var working = CreateSolvedSlots();
 
+            var reverseTimer = Stopwatch.StartNew();
+
             int applied = 0;
             int guard = 0;
+            var movesBuffer = new List<Move>(working.Count * working.Count);
             while (applied < reverseMoves && guard < reverseMoves * 20)
             {
                 guard++;
-                var moves = EnumerateValidReverseMoves(working);
+                var moves = EnumerateValidReverseMoves(working, movesBuffer);
                 if (moves.Count == 0) break;
                 var move = moves[rng.Next(moves.Count)];
                 if (TryApplyReverseMove(working, move.Source, move.Target, rng))
@@ -35,6 +42,7 @@ namespace Decantra.Domain.Generation
                     applied++;
                 }
             }
+            reverseTimer.Stop();
 
             var bottles = new List<Bottle>(working.Count);
             for (int i = 0; i < working.Count; i++)
@@ -43,7 +51,9 @@ namespace Decantra.Domain.Generation
             }
 
             var state = new LevelState(bottles, 0, 0, 0, levelIndex, seed);
+            var solveTimer = Stopwatch.StartNew();
             var solveResult = _solver.Solve(state);
+            solveTimer.Stop();
             int optimal = solveResult.OptimalMoves;
             if (optimal < 0)
             {
@@ -51,6 +61,8 @@ namespace Decantra.Domain.Generation
             }
 
             int movesAllowed = optimal + movesAllowedPadding;
+            overallTimer.Stop();
+            Log?.Invoke($"LevelGenerator.Generate seed={seed} level={levelIndex} reverseMoves={reverseMoves} movesAllowedPadding={movesAllowedPadding} reverseMs={reverseTimer.ElapsedMilliseconds} solveMs={solveTimer.ElapsedMilliseconds} totalMs={overallTimer.ElapsedMilliseconds}");
             return new LevelState(state.Bottles, 0, movesAllowed, optimal, levelIndex, seed);
         }
 
@@ -71,9 +83,9 @@ namespace Decantra.Domain.Generation
             return bottles;
         }
 
-        private static List<Move> EnumerateValidReverseMoves(List<ColorId?[]> bottles)
+        private static List<Move> EnumerateValidReverseMoves(List<ColorId?[]> bottles, List<Move> moves)
         {
-            var moves = new List<Move>();
+            moves.Clear();
             for (int i = 0; i < bottles.Count; i++)
             {
                 var source = bottles[i];

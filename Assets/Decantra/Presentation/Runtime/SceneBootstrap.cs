@@ -12,11 +12,12 @@ namespace Decantra.Presentation
 {
     public static class SceneBootstrap
     {
+        private static Sprite roundedSprite;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         [Preserve]
         public static void EnsureScene()
         {
-            if (Object.FindObjectOfType<GameController>() != null)
+            if (Object.FindFirstObjectByType<GameController>() != null)
             {
                 return;
             }
@@ -24,7 +25,7 @@ namespace Decantra.Presentation
             Debug.Log("SceneBootstrap: building runtime UI");
 
             var canvas = CreateCanvas();
-            CreateBackground(canvas.transform);
+            var backgroundImage = CreateBackground(canvas.transform);
             CreateEventSystem();
 
             var hudView = CreateHud(canvas.transform);
@@ -47,6 +48,7 @@ namespace Decantra.Presentation
             var controller = controllerGo.AddComponent<GameController>();
             SetPrivateField(controller, "bottleViews", bottleViews);
             SetPrivateField(controller, "hudView", hudView);
+            SetPrivateField(controller, "backgroundImage", backgroundImage);
 
             var banner = CreateLevelBanner(canvas.transform);
             SetPrivateField(controller, "levelBanner", banner);
@@ -79,7 +81,7 @@ namespace Decantra.Presentation
             return canvas;
         }
 
-        private static void CreateBackground(Transform parent)
+        private static Image CreateBackground(Transform parent)
         {
             var bg = CreateUiChild(parent, "Background");
             var rect = bg.GetComponent<RectTransform>();
@@ -94,11 +96,12 @@ namespace Decantra.Presentation
             image.type = Image.Type.Simple;
             image.raycastTarget = false;
             bg.transform.SetAsFirstSibling();
+            return image;
         }
 
         private static void CreateEventSystem()
         {
-            if (Object.FindObjectOfType<EventSystem>() != null)
+            if (Object.FindFirstObjectByType<EventSystem>() != null)
             {
                 return;
             }
@@ -207,12 +210,29 @@ namespace Decantra.Presentation
             var bottleRect = bottleGo.GetComponent<RectTransform>();
             bottleRect.sizeDelta = new Vector2(220, 420);
 
+            var rounded = GetRoundedSprite();
+
             var hitArea = bottleGo.AddComponent<Image>();
             hitArea.color = new Color(0, 0, 0, 0);
             hitArea.raycastTarget = true;
 
+            var shadowGo = CreateUiChild(bottleGo.transform, "Shadow");
+            var shadow = shadowGo.AddComponent<Image>();
+            shadow.sprite = rounded;
+            shadow.type = Image.Type.Sliced;
+            shadow.color = new Color(0f, 0f, 0f, 0.15f);
+            shadow.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(150, 370);
+            shadowRect.anchoredPosition = new Vector2(8, -6);
+
             var outlineGo = CreateUiChild(bottleGo.transform, "Outline");
             var outline = outlineGo.AddComponent<Image>();
+            outline.sprite = rounded;
+            outline.type = Image.Type.Sliced;
             outline.color = new Color(0.55f, 0.6f, 0.68f, 0.85f);
             outline.raycastTarget = false;
             var outlineRect = outlineGo.GetComponent<RectTransform>();
@@ -223,17 +243,34 @@ namespace Decantra.Presentation
 
             var bodyGo = CreateUiChild(bottleGo.transform, "Body");
             var body = bodyGo.AddComponent<Image>();
+            body.sprite = rounded;
+            body.type = Image.Type.Sliced;
             body.color = new Color(0.5f, 0.55f, 0.65f, 0.12f);
             body.raycastTarget = false;
             var bodyRect = bodyGo.GetComponent<RectTransform>();
             bodyRect.anchorMin = new Vector2(0.5f, 0.5f);
             bodyRect.anchorMax = new Vector2(0.5f, 0.5f);
             bodyRect.pivot = new Vector2(0.5f, 0.5f);
-            bodyRect.sizeDelta = new Vector2(120, 320);
-            bodyRect.anchoredPosition = new Vector2(0, -10);
+            bodyRect.sizeDelta = new Vector2(124, 330);
+            bodyRect.anchoredPosition = new Vector2(0, -8);
+
+            var highlightGo = CreateUiChild(bodyGo.transform, "Highlight");
+            var highlight = highlightGo.AddComponent<Image>();
+            highlight.sprite = rounded;
+            highlight.type = Image.Type.Sliced;
+            highlight.color = new Color(1f, 1f, 1f, 0.08f);
+            highlight.raycastTarget = false;
+            var highlightRect = highlightGo.GetComponent<RectTransform>();
+            highlightRect.anchorMin = new Vector2(0.5f, 0.5f);
+            highlightRect.anchorMax = new Vector2(0.5f, 0.5f);
+            highlightRect.pivot = new Vector2(0.5f, 0.5f);
+            highlightRect.sizeDelta = new Vector2(70, 240);
+            highlightRect.anchoredPosition = new Vector2(24, 30);
 
             var neckGo = CreateUiChild(bottleGo.transform, "Neck");
             var neck = neckGo.AddComponent<Image>();
+            neck.sprite = rounded;
+            neck.type = Image.Type.Sliced;
             neck.color = new Color(0.5f, 0.55f, 0.65f, 0.18f);
             neck.raycastTarget = false;
             var neckRect = neckGo.GetComponent<RectTransform>();
@@ -241,7 +278,21 @@ namespace Decantra.Presentation
             neckRect.anchorMax = new Vector2(0.5f, 0.5f);
             neckRect.pivot = new Vector2(0.5f, 0.5f);
             neckRect.sizeDelta = new Vector2(60, 50);
-            neckRect.anchoredPosition = new Vector2(0, 180);
+            neckRect.anchoredPosition = new Vector2(0, 178);
+
+            var stopperGo = CreateUiChild(bottleGo.transform, "Stopper");
+            var stopper = stopperGo.AddComponent<Image>();
+            stopper.sprite = rounded;
+            stopper.type = Image.Type.Sliced;
+            stopper.color = new Color(0.35f, 0.25f, 0.18f, 0.95f);
+            stopper.raycastTarget = false;
+            var stopperRect = stopperGo.GetComponent<RectTransform>();
+            stopperRect.anchorMin = new Vector2(0.5f, 0.5f);
+            stopperRect.anchorMax = new Vector2(0.5f, 0.5f);
+            stopperRect.pivot = new Vector2(0.5f, 0.5f);
+            stopperRect.sizeDelta = new Vector2(80, 24);
+            stopperRect.anchoredPosition = new Vector2(0, 168);
+            stopper.gameObject.SetActive(false);
 
             var liquidRoot = CreateUiChild(bodyGo.transform, "LiquidRoot");
             var liquidRect = liquidRoot.GetComponent<RectTransform>();
@@ -255,7 +306,8 @@ namespace Decantra.Presentation
             SetPrivateField(bottleView, "palette", palette);
             SetPrivateField(bottleView, "slotRoot", liquidRect);
             SetPrivateField(bottleView, "outline", outline);
-            bottleView.SetOutlineColor(outline.color);
+            SetPrivateField(bottleView, "stopper", stopper);
+            SetPrivateField(bottleView, "outlineBaseColor", outline.color);
             return bottleView;
         }
 
@@ -443,13 +495,32 @@ namespace Decantra.Presentation
             panelImage.color = new Color(1f, 1f, 1f, 0.1f);
             panelImage.raycastTarget = false;
 
-            var text = CreateTitleText(panel.transform, "BannerText", "LEVEL COMPLETE");
-            text.fontSize = 48;
-            text.color = new Color(1f, 0.95f, 0.7f, 1f);
+            var starsText = CreateTitleText(panel.transform, "StarsText", "★★★");
+            starsText.fontSize = 64;
+            starsText.color = new Color(1f, 0.95f, 0.7f, 1f);
+
+            var levelText = CreateTitleText(panel.transform, "LevelText", "LEVEL 1");
+            levelText.fontSize = 48;
+            levelText.color = new Color(1f, 0.95f, 0.7f, 1f);
+            levelText.gameObject.SetActive(false);
+
+            var burstGo = CreateUiChild(panel.transform, "StarBurst");
+            var burstRect = burstGo.GetComponent<RectTransform>();
+            burstRect.anchorMin = new Vector2(0.5f, 0.5f);
+            burstRect.anchorMax = new Vector2(0.5f, 0.5f);
+            burstRect.pivot = new Vector2(0.5f, 0.5f);
+            burstRect.sizeDelta = new Vector2(420, 420);
+            var burstImage = burstGo.AddComponent<Image>();
+            burstImage.sprite = CreateRadialBurstSprite();
+            burstImage.color = new Color(1f, 0.95f, 0.7f, 0f);
+            burstImage.raycastTarget = false;
+            burstGo.transform.SetAsFirstSibling();
 
             var banner = root.AddComponent<LevelCompleteBanner>();
             SetPrivateField(banner, "panel", panelRect);
-            SetPrivateField(banner, "messageText", text);
+            SetPrivateField(banner, "starsText", starsText);
+            SetPrivateField(banner, "levelText", levelText);
+            SetPrivateField(banner, "starBurst", burstImage);
             SetPrivateField(banner, "canvasGroup", group);
             return banner;
         }
@@ -493,6 +564,69 @@ namespace Decantra.Presentation
 
             texture.Apply();
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
+        }
+
+        private static Sprite CreateRadialBurstSprite()
+        {
+            const int size = 128;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+            float maxDist = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    float t = Mathf.Clamp01(dist / maxDist);
+                    float alpha = Mathf.SmoothStep(0.35f, 0f, t);
+                    alpha *= Mathf.SmoothStep(1f, 0.6f, t);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+        }
+
+        private static Sprite GetRoundedSprite()
+        {
+            if (roundedSprite != null) return roundedSprite;
+            roundedSprite = CreateRoundedRectSprite(64, 12);
+            return roundedSprite;
+        }
+
+        private static Sprite CreateRoundedRectSprite(int size, int radius)
+        {
+            int clampedRadius = Mathf.Clamp(radius, 1, size / 2);
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            float r = clampedRadius - 0.5f;
+            float rSquared = r * r;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    int minX = Mathf.Min(x, size - 1 - x);
+                    int minY = Mathf.Min(y, size - 1 - y);
+                    float alpha = 1f;
+                    if (minX < clampedRadius && minY < clampedRadius)
+                    {
+                        float dx = r - minX;
+                        float dy = r - minY;
+                        alpha = (dx * dx + dy * dy <= rSquared) ? 1f : 0f;
+                    }
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            var border = new Vector4(clampedRadius, clampedRadius, clampedRadius, clampedRadius);
+            return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
         }
 
         private static ColorPalette CreatePalette()

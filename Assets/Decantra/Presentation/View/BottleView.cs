@@ -11,6 +11,7 @@ namespace Decantra.Presentation.View
         [SerializeField] private List<Image> slots = new List<Image>();
         [SerializeField] private ColorPalette palette;
         [SerializeField] private Image outline;
+        [SerializeField] private Image stopper;
 
         private readonly List<int> segmentUnits = new List<int>();
         private readonly List<Image> incomingSlots = new List<Image>();
@@ -106,6 +107,21 @@ namespace Decantra.Presentation.View
             }
 
             ApplyPreview();
+
+            if (stopper != null)
+            {
+                bool isSealed = bottle.IsSolvedBottle();
+                stopper.gameObject.SetActive(isSealed);
+                if (isSealed && palette != null)
+                {
+                    var top = bottle.TopColor;
+                    if (top.HasValue)
+                    {
+                        var color = palette.GetColor(top.Value);
+                        stopper.color = Color.Lerp(color, Color.black, 0.25f);
+                    }
+                }
+            }
         }
 
         public void SetOutlineColor(Color color)

@@ -32,7 +32,10 @@ namespace Decantra.Presentation.View
 
             if (optimalText != null)
             {
-                optimalText.text = $"OPTIMAL\n{optimalMoves}";
+                if (optimalText.gameObject.activeSelf)
+                {
+                    optimalText.gameObject.SetActive(false);
+                }
             }
 
             if (scoreText != null)
