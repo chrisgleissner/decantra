@@ -101,11 +101,11 @@ jobs:
             - uses: actions/upload-artifact@v4
               with:
                   name: Decantra-Android-Release
-                                    path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}.apk
+                  path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}.apk
             - uses: actions/upload-artifact@v4
               with:
                   name: Decantra-Android-Debug
-                                    path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}-debug.apk
+                  path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}-debug.apk
 
     release:
         name: Create GitHub release
