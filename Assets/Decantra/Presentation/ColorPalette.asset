@@ -12,4 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4649eebeadd2ee41b803969a310308b3, type: 3}
   m_Name: ColorPalette
   m_EditorClassIdentifier: Decantra.Presentation::Decantra.Presentation.View.ColorPalette
-  entries: []
+  entries:
+  - ColorId: 0
+    Color: {r: 0.92, g: 0.25, b: 0.22, a: 1}
+  - ColorId: 1
+    Color: {r: 0.25, g: 0.5, b: 0.95, a: 1}
+  - ColorId: 2
+    Color: {r: 0.2, g: 0.78, b: 0.38, a: 1}
+  - ColorId: 3
+    Color: {r: 0.98, g: 0.88, b: 0.2, a: 1}
+  - ColorId: 4
+    Color: {r: 0.65, g: 0.38, b: 0.85, a: 1}
+  - ColorId: 5
+    Color: {r: 0.97, g: 0.55, b: 0.2, a: 1}
+  - ColorId: 6
+    Color: {r: 0.2, g: 0.85, b: 0.9, a: 1}
+  - ColorId: 7
+    Color: {r: 0.92, g: 0.36, b: 0.78, a: 1}

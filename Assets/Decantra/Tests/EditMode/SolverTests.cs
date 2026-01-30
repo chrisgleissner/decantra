@@ -1,5 +1,6 @@
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
+using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
 using NUnit.Framework;
 
@@ -11,8 +12,11 @@ namespace Decantra.Tests.EditMode
         public void Solve_ReturnsZeroForSolvedState()
         {
             var solver = new BfsSolver();
-            var generator = new LevelGenerator(solver);
-            var solved = generator.Generate(42, 1, 1, 2);
+            var solved = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, ColorId.Red }),
+                new Bottle(new ColorId?[4])
+            }, 0, 10, 0, 1, 1);
 
             var result = solver.Solve(solved);
             Assert.GreaterOrEqual(result.OptimalMoves, 0);

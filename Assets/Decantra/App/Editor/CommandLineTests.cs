@@ -11,6 +11,7 @@ namespace Decantra.App.Editor
     {
         private static TestRunnerApi _api;
         private static string _resultsPath;
+        private const string ResultsPathKey = "Decantra.CommandLineTests.ResultsPath";
 
         public static void RunEditMode()
         {
@@ -25,6 +26,8 @@ namespace Decantra.App.Editor
         private static void RunTests(TestMode mode, string defaultResultsPath)
         {
             _resultsPath = GetArg("-testResults") ?? defaultResultsPath;
+            _resultsPath = Path.GetFullPath(_resultsPath);
+            SessionState.SetString(ResultsPathKey, _resultsPath);
             EnsureDirectory(_resultsPath);
 
             if (IsCoverageEnabled())
@@ -87,9 +90,21 @@ namespace Decantra.App.Editor
                 {
                     CodeCoverage.StopRecording();
                 }
+                if (string.IsNullOrEmpty(_resultsPath))
+                {
+                    _resultsPath = SessionState.GetString(ResultsPathKey, "Logs/TestResults.xml");
+                    if (!string.IsNullOrEmpty(_resultsPath))
+                    {
+                        _resultsPath = Path.GetFullPath(_resultsPath);
+                    }
+                }
                 TestRunnerApi.SaveResultToFile(result, _resultsPath);
                 int exitCode = result.FailCount > 0 ? 1 : 0;
-                EditorApplication.Exit(exitCode);
+                if (EditorApplication.isPlaying)
+                {
+                    EditorApplication.isPlaying = false;
+                }
+                EditorApplication.delayCall += () => EditorApplication.Exit(exitCode);
             }
 
             public void TestStarted(ITestAdaptor test)

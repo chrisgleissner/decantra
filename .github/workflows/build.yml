@@ -51,12 +51,16 @@ jobs:
                   restore-keys: |
                       Library-${{ runner.os }}-
             - uses: game-ci/unity-builder@v4
+              env:
+                  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+                  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+                  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
               with:
                   projectPath: .
                   unityVersion: 6000.3.5f2
                   targetPlatform: Android
                   buildMethod: Decantra.App.Editor.AndroidBuild.BuildDebugApk
-                  outputPath: Builds/Android
+                  buildsPath: Builds/Android
             - uses: actions/upload-artifact@v4
               with:
                   name: Decantra-Android

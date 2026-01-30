@@ -11,6 +11,21 @@ Single source of truth: This file governs all work for the current fixes.
 - Make scoring monotonic and consistent (game logic).
 - Build, deploy, and verify APK on device/emulator.
 
+## Phase 0.5: Progression + Visual Variety (TDD)
+- [ ] Define new progression plan and acceptance gates.
+- [ ] Add unit tests for difficulty band selection, counts, and monotonicity.
+- [ ] Add unit tests for move allowance calculation (surplus tightens by band).
+- [ ] Add unit tests for background theme selection determinism.
+- [ ] Add persistence + resume integration tests.
+- [ ] Update domain difficulty engine + move calculation (pure).
+- [ ] Update level generator to use difficulty profiles + color scaling.
+- [ ] Update color palette (enum + palette assets) for 7–8 colors.
+- [ ] Update background variation to use band-based theme IDs.
+- [ ] Update progress persistence/resume flow in GameController.
+- [ ] Run EditMode + PlayMode tests.
+- [ ] Run clean Android build and produce APK.
+- [ ] Final verification and checklist tick-off.
+
 ## Explicit timeout policy
 - Unity editor build step: 10 minutes max.
 - Gradle build step: 8 minutes max.
@@ -36,6 +51,7 @@ Single source of truth: This file governs all work for the current fixes.
 - 2026-01-30: APK install stalled with streamed install. Action: use --no-streaming and verify via package list if output stalls.
 - 2026-01-30: Soak test aborted because level log marker not observed within 20s. Action: rebuild APK with log marker and re-run soak test.
 - 2026-01-30: APK install failed because no adb devices detected after rebuild. Action: restart adb server and reconnect device before re-install.
+- 2026-01-30: Verification run failed because adb device disconnected mid-session. Action: reconnect device and retry verification steps.
 
 ## Issue-by-issue task checklist
 
@@ -162,9 +178,9 @@ Single source of truth: This file governs all work for the current fixes.
   - Install steps that rely on Play Store.
   - Sharing advice that violates size or policy limits.
 - Implementation checklist:
-  - [ ] Add explicit build steps and environment setup.
-  - [ ] Add ADB install steps and manual install options.
-  - [ ] Add guidance for sharing large APKs (Drive, S3, TestFlight-style alternatives, GitHub Releases limits).
+  - [x] Add explicit build steps and environment setup.
+  - [x] Add ADB install steps and manual install options.
+  - [x] Add guidance for sharing large APKs (Drive, S3, TestFlight-style alternatives, GitHub Releases limits).
 - Verification checklist:
   - [ ] README steps are complete and consistent with scripts.
 
@@ -177,7 +193,7 @@ Single source of truth: This file governs all work for the current fixes.
 ## APK deployment checklist
 - [x] Unity build (APK) completed within timeouts.
 - [ ] Gradle/signing completed within timeouts.
-- [ ] APK installed within 2 minutes (verified via package list).
+- [x] APK installed within 2 minutes (verified via package list).
 - [ ] App launches and runs on device/emulator.
 
 ## Final acceptance checklist

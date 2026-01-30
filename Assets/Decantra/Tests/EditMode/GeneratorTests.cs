@@ -1,4 +1,5 @@
 using Decantra.Domain.Generation;
+using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
 using NUnit.Framework;
 
@@ -12,8 +13,9 @@ namespace Decantra.Tests.EditMode
             var solver = new BfsSolver();
             var generator = new LevelGenerator(solver);
 
-            var levelA = generator.Generate(123, 1, 5, 3);
-            var levelB = generator.Generate(123, 1, 5, 3);
+            var profile = LevelDifficultyEngine.GetProfile(1);
+            var levelA = generator.Generate(123, profile);
+            var levelB = generator.Generate(123, profile);
 
             var keyA = StateEncoder.Encode(levelA);
             var keyB = StateEncoder.Encode(levelB);
@@ -31,11 +33,10 @@ namespace Decantra.Tests.EditMode
 
             for (int level = 1; level <= 6; level++)
             {
-                int reverseMoves = level + 4;
-                int padding = 4;
+                var profile = LevelDifficultyEngine.GetProfile(level);
                 for (int seed = 10; seed < 40; seed += 3)
                 {
-                    var state = generator.Generate(seed, level, reverseMoves, padding);
+                    var state = generator.Generate(seed, profile);
                     foreach (var bottle in state.Bottles)
                     {
                         Assert.IsFalse(bottle.IsSolvedBottle(), "Capped bottle found at start.");

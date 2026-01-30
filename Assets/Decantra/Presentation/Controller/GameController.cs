@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
+using Decantra.Domain.Rules;
 using Decantra.Domain.Scoring;
 using Decantra.Domain.Solver;
 using Decantra.App.Services;
@@ -30,8 +31,6 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Image backgroundVignette;
 
         [Header("Config")]
-        [SerializeField] private int reverseMoves = 18;
-        [SerializeField] private int movesAllowedPadding = 6;
         [SerializeField] private int baseScore = 100;
 
         private LevelState _state;
@@ -84,6 +83,18 @@ namespace Decantra.Presentation.Controller
             public float VignetteAlpha;
         }
 
+        private struct BackgroundThemeStyle
+        {
+            public float HueShift;
+            public float HueRange;
+            public float SaturationBoost;
+            public float ValueBoost;
+            public float DetailAlphaScale;
+            public float FlowAlphaScale;
+            public float ShapeAlphaScale;
+            public float VignetteAlphaScale;
+        }
+
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
             new BackgroundPalette { Hue = 0.56f, Saturation = 0.28f, Value = 0.55f, DetailSaturation = 0.2f, DetailValue = 0.6f, FlowSaturation = 0.22f, FlowValue = 0.66f, FlowAlpha = 0.1f, ShapeSaturation = 0.18f, ShapeValue = 0.62f, ShapeAlpha = 0.08f, VignetteAlpha = 0.22f },
@@ -117,8 +128,9 @@ namespace Decantra.Presentation.Controller
             _sfxEnabled = _settingsStore.LoadSfxEnabled();
             SetupAudio();
 
-            _currentLevel = _progress.CurrentLevel > 0 ? _progress.CurrentLevel : 1;
+            _currentLevel = ProgressionResumePolicy.ResolveResumeLevel(_progress);
             _currentSeed = _progress.CurrentSeed > 0 ? _progress.CurrentSeed : NextSeed(_currentLevel, 0);
+            PersistCurrentProgress(_currentLevel, _currentSeed);
             StartCoroutine(BeginSession());
         }
 
@@ -156,12 +168,14 @@ namespace Decantra.Presentation.Controller
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();
+            PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
         }
 
         public void OnBottleTapped(int index)
         {
             if (_inputLocked || _state == null) return;
+            if (index < 0 || index >= _state.Bottles.Count) return;
 
             if (_selectedIndex < 0)
             {
@@ -262,11 +276,19 @@ namespace Decantra.Presentation.Controller
 
             if (bottleViews != null)
             {
-                for (int i = 0; i < bottleViews.Count && i < _state.Bottles.Count; i++)
+                for (int i = 0; i < bottleViews.Count; i++)
                 {
                     var view = bottleViews[i];
                     if (view == null) continue;
-                    view.Render(_state.Bottles[i]);
+                    bool active = i < _state.Bottles.Count;
+                    if (view.gameObject.activeSelf != active)
+                    {
+                        view.gameObject.SetActive(active);
+                    }
+                    if (active)
+                    {
+                        view.Render(_state.Bottles[i]);
+                    }
                 }
             }
 
@@ -375,15 +397,14 @@ namespace Decantra.Presentation.Controller
         {
             int attempt = 0;
             int currentSeed = seed;
-            int scaledReverse = ComputeReverseMoves(level);
-            int scaledPadding = ComputeMovesPadding(level);
+            var profile = LevelDifficultyEngine.GetProfile(level);
 
             while (attempt < maxAttempts)
             {
                 if (token.IsCancellationRequested) return null;
                 try
                 {
-                    return _generator.Generate(currentSeed, level, scaledReverse, scaledPadding);
+                    return _generator.Generate(currentSeed, profile);
                 }
                 catch
                 {
@@ -395,7 +416,7 @@ namespace Decantra.Presentation.Controller
             }
 
             if (token.IsCancellationRequested) return null;
-            int fallbackReverse = useThreadSafeSeed ? System.Math.Max(6, scaledReverse - 6) : Mathf.Max(6, scaledReverse - 6);
+            int fallbackReverse = useThreadSafeSeed ? System.Math.Max(6, profile.ReverseMoves - 6) : Mathf.Max(6, profile.ReverseMoves - 6);
             int fallbackAttempts = 0;
             int fallbackSeed = seed;
             while (fallbackAttempts < 3)
@@ -403,7 +424,16 @@ namespace Decantra.Presentation.Controller
                 if (token.IsCancellationRequested) return null;
                 try
                 {
-                    return _generator.Generate(fallbackSeed, level, fallbackReverse, scaledPadding + 2);
+                    var fallbackProfile = LevelDifficultyEngine.GetProfile(level);
+                    var adjustedProfile = new DifficultyProfile(level,
+                        fallbackProfile.Band,
+                        fallbackProfile.BottleCount,
+                        fallbackProfile.ColorCount,
+                        fallbackProfile.EmptyBottleCount,
+                        fallbackReverse,
+                        fallbackProfile.ThemeId,
+                        fallbackProfile.DifficultyRating);
+                    return _generator.Generate(fallbackSeed, adjustedProfile);
                 }
                 catch
                 {
@@ -436,19 +466,13 @@ namespace Decantra.Presentation.Controller
             _inputLocked = false;
         }
 
-        private int ComputeReverseMoves(int level)
+        private void PersistCurrentProgress(int levelIndex, int seed)
         {
-            if (level <= 1) return 6;
-            if (level <= 3) return 8 + level;
-            if (level <= 8) return 10 + level * 2;
-            return 20 + level * 2;
-        }
-
-        private int ComputeMovesPadding(int level)
-        {
-            if (level <= 2) return 6;
-            if (level <= 6) return 5;
-            return 4;
+            if (_progress == null) return;
+            _progress.CurrentLevel = Mathf.Max(1, levelIndex);
+            _progress.CurrentSeed = seed > 0 ? seed : _progress.CurrentSeed;
+            _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, _progress.CurrentLevel);
+            _progressStore.Save(_progress);
         }
 
         private int CalculateStars(int movesUsed, int optimalMoves)
@@ -675,6 +699,7 @@ namespace Decantra.Presentation.Controller
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();
+            PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -686,7 +711,10 @@ namespace Decantra.Presentation.Controller
         {
             if (backgroundImage == null) return;
 
-            int paletteIndex = Mathf.Abs(levelIndex - 1) % BackgroundPalettes.Length;
+            var profile = LevelDifficultyEngine.GetProfile(levelIndex);
+            var themeStyle = GetThemeStyle(profile.ThemeId);
+
+            int paletteIndex = (Mathf.Abs(levelIndex - 1) + (int)profile.ThemeId) % BackgroundPalettes.Length;
             if (paletteIndex == _lastBackgroundPaletteIndex)
             {
                 paletteIndex = (paletteIndex + 1) % BackgroundPalettes.Length;
@@ -695,10 +723,10 @@ namespace Decantra.Presentation.Controller
 
             float jitter = Hash01(seed, levelIndex);
             float jitter2 = Hash01(levelIndex * 31, seed ^ 0x4f1d);
-            float hueOffset = Mathf.Lerp(-0.07f, 0.07f, jitter);
-            float hue = Mathf.Repeat(palette.Hue + hueOffset, 1f);
-            float sat = Mathf.Clamp01(palette.Saturation + Mathf.Lerp(-0.04f, 0.04f, jitter2));
-            float val = Mathf.Clamp01(palette.Value + Mathf.Lerp(-0.05f, 0.05f, 1f - jitter));
+            float hueOffset = Mathf.Lerp(-themeStyle.HueRange, themeStyle.HueRange, jitter);
+            float hue = Mathf.Repeat(palette.Hue + hueOffset + themeStyle.HueShift, 1f);
+            float sat = Mathf.Clamp01(palette.Saturation + themeStyle.SaturationBoost + Mathf.Lerp(-0.04f, 0.04f, jitter2));
+            float val = Mathf.Clamp01(palette.Value + themeStyle.ValueBoost + Mathf.Lerp(-0.05f, 0.05f, 1f - jitter));
 
             Color baseTint = Color.HSVToRGB(hue, sat, val);
             baseTint.a = 1f;
@@ -707,14 +735,14 @@ namespace Decantra.Presentation.Controller
             if (backgroundDetail != null)
             {
                 Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.03f * (jitter - 0.5f)));
-                detailTint.a = Mathf.Lerp(0.12f, 0.22f, jitter2);
+                detailTint.a = Mathf.Lerp(0.12f, 0.22f, jitter2) * themeStyle.DetailAlphaScale;
                 backgroundDetail.color = detailTint;
             }
 
             if (backgroundFlow != null)
             {
                 Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
-                flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter);
+                flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter) * themeStyle.FlowAlphaScale;
                 backgroundFlow.color = flowTint;
                 backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(-6f, 6f, jitter2));
             }
@@ -722,7 +750,7 @@ namespace Decantra.Presentation.Controller
             if (backgroundShapes != null)
             {
                 Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.04f, 1f), palette.ShapeSaturation, palette.ShapeValue);
-                shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2);
+                shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2) * themeStyle.ShapeAlphaScale;
                 backgroundShapes.color = shapeTint;
                 backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(4f, -4f, jitter));
             }
@@ -730,16 +758,45 @@ namespace Decantra.Presentation.Controller
             if (backgroundVignette != null)
             {
                 var vignetteColor = backgroundVignette.color;
-                vignetteColor.a = palette.VignetteAlpha;
+                vignetteColor.a = palette.VignetteAlpha * themeStyle.VignetteAlphaScale;
                 backgroundVignette.color = vignetteColor;
             }
 
             _lastBackgroundPaletteIndex = paletteIndex;
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} base={backgroundImage.color}");
-            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} base={backgroundImage.color}");
+            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
+            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
 #endif
+        }
+
+        private static BackgroundThemeStyle GetThemeStyle(BackgroundThemeId themeId)
+        {
+            switch (themeId)
+            {
+                case BackgroundThemeId.SoftGradient:
+                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.04f, SaturationBoost = -0.06f, ValueBoost = 0.02f, DetailAlphaScale = 0.9f, FlowAlphaScale = 0.85f, ShapeAlphaScale = 0.85f, VignetteAlphaScale = 1.0f };
+                case BackgroundThemeId.PastelRainbow:
+                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.09f, SaturationBoost = -0.02f, ValueBoost = 0.04f, DetailAlphaScale = 1.05f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 0.95f, VignetteAlphaScale = 0.95f };
+                case BackgroundThemeId.Balloons:
+                    return new BackgroundThemeStyle { HueShift = 0.03f, HueRange = 0.07f, SaturationBoost = 0.02f, ValueBoost = 0.03f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.1f, VignetteAlphaScale = 0.95f };
+                case BackgroundThemeId.LightCarnival:
+                    return new BackgroundThemeStyle { HueShift = 0.01f, HueRange = 0.06f, SaturationBoost = 0.01f, ValueBoost = 0.02f, DetailAlphaScale = 1.05f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 0.95f };
+                case BackgroundThemeId.CarnivalPattern:
+                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.03f, ValueBoost = 0.01f, DetailAlphaScale = 1.1f, FlowAlphaScale = 1.05f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 0.95f };
+                case BackgroundThemeId.CarnivalContrast:
+                    return new BackgroundThemeStyle { HueShift = 0.04f, HueRange = 0.05f, SaturationBoost = 0.05f, ValueBoost = 0.0f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.05f, VignetteAlphaScale = 0.9f };
+                case BackgroundThemeId.RainbowArcs:
+                    return new BackgroundThemeStyle { HueShift = 0.05f, HueRange = 0.1f, SaturationBoost = 0.02f, ValueBoost = 0.03f, DetailAlphaScale = 1.1f, FlowAlphaScale = 1.05f, ShapeAlphaScale = 1.05f, VignetteAlphaScale = 0.9f };
+                case BackgroundThemeId.PlayfulMotifs:
+                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.08f, SaturationBoost = 0.04f, ValueBoost = 0.02f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.1f, VignetteAlphaScale = 0.9f };
+                case BackgroundThemeId.RefinedCarnival:
+                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.0f, ValueBoost = 0.02f, DetailAlphaScale = 0.95f, FlowAlphaScale = 0.9f, ShapeAlphaScale = 0.85f, VignetteAlphaScale = 1.05f };
+                case BackgroundThemeId.RefinedRainbow:
+                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.07f, SaturationBoost = 0.01f, ValueBoost = 0.03f, DetailAlphaScale = 1.0f, FlowAlphaScale = 0.95f, ShapeAlphaScale = 0.9f, VignetteAlphaScale = 1.0f };
+                default:
+                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.0f, ValueBoost = 0.0f, DetailAlphaScale = 1.0f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 1.0f };
+            }
         }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR

@@ -9,7 +9,7 @@ namespace Decantra.Domain.Solver
     {
         public SolverResult Solve(LevelState initial)
         {
-            return Solve(initial, 180_000, 350);
+            return Solve(initial, 300_000, 800);
         }
 
         public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)

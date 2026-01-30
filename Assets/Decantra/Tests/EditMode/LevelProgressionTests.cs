@@ -1,4 +1,5 @@
 using Decantra.Domain.Generation;
+using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
 using NUnit.Framework;
 
@@ -16,10 +17,8 @@ namespace Decantra.Tests.EditMode
             for (int level = 1; level <= 10; level++)
             {
                 seed = NextSeed(level, seed);
-                int reverseMoves = ComputeReverseMoves(level);
-                int padding = ComputeMovesPadding(level);
-
-                var state = generator.Generate(seed, level, reverseMoves, padding);
+                var profile = LevelDifficultyEngine.GetProfile(level);
+                var state = generator.Generate(seed, profile);
                 Assert.GreaterOrEqual(state.OptimalMoves, 0, $"Unsolvable level {level}");
             }
         }
@@ -34,19 +33,6 @@ namespace Decantra.Tests.EditMode
             }
         }
 
-        private static int ComputeReverseMoves(int level)
-        {
-            if (level <= 1) return 6;
-            if (level <= 3) return 8 + level;
-            if (level <= 8) return 10 + level * 2;
-            return 20 + level * 2;
-        }
 
-        private static int ComputeMovesPadding(int level)
-        {
-            if (level <= 2) return 6;
-            if (level <= 6) return 5;
-            return 4;
-        }
     }
 }

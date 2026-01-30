@@ -22,6 +22,11 @@ namespace Decantra.Tests.PlayMode
         [UnityTest]
         public IEnumerator CaptureGameplayScreenshot()
         {
+            if (Application.isBatchMode)
+            {
+                Assert.Ignore("Screenshot capture is not supported in batch mode.");
+            }
+
             SceneBootstrap.EnsureScene();
             yield return new WaitForSeconds(5f);
 

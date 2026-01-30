@@ -9,6 +9,12 @@ namespace Decantra.App.Services
     {
         private const string FileName = "progress.json";
         private const string PublicDirName = "Decantra";
+        private readonly string[] _overridePaths;
+
+        public ProgressStore(IEnumerable<string> overridePaths = null)
+        {
+            _overridePaths = overridePaths == null ? null : new List<string>(overridePaths).ToArray();
+        }
 
         public ProgressData Load()
         {
@@ -56,8 +62,21 @@ namespace Decantra.App.Services
             }
         }
 
-        private static IEnumerable<string> GetPaths()
+        private IEnumerable<string> GetPaths()
         {
+            if (_overridePaths != null && _overridePaths.Length > 0)
+            {
+                for (int i = 0; i < _overridePaths.Length; i++)
+                {
+                    var path = _overridePaths[i];
+                    if (!string.IsNullOrWhiteSpace(path))
+                    {
+                        yield return path;
+                    }
+                }
+                yield break;
+            }
+
             yield return Path.Combine(Application.persistentDataPath, FileName);
 #if UNITY_EDITOR
             var publicRoot = "/storage/emulated/0";

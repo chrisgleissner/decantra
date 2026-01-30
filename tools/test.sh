@@ -102,7 +102,8 @@ run_with_log "PlayMode tests" "${PLAYMODE_LOG_PATH}" "${UNITY_PATH}" \
   -disable-audio \
   -projectPath "${PROJECT_PATH}" \
   -buildTarget StandaloneLinux64 \
-  -executeMethod Decantra.App.Editor.CommandLineTests.RunPlayMode \
+  -runTests \
+  -testPlatform PlayMode \
   -testResults "${PROJECT_PATH}/Logs/PlayModeTestResults.xml" \
   -logFile "${PLAYMODE_LOG_PATH}"
 
