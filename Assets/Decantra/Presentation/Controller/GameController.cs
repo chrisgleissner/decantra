@@ -179,16 +179,26 @@ namespace Decantra.Presentation.Controller
             Render();
         }
 
-        private void RestartCurrentLevel()
+        private void RestartCurrentLevel(LevelState restartState = null)
         {
-            if (_initialState == null)
+            var stateToUse = restartState;
+            if (stateToUse == null && _initialState != null)
+            {
+                stateToUse = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed);
+            }
+
+            if (stateToUse == null && _state != null)
+            {
+                stateToUse = new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed);
+            }
+
+            if (stateToUse == null)
             {
                 LoadLevel(_currentLevel, _currentSeed);
                 return;
             }
 
-            var restartState = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed);
-            ApplyLoadedState(restartState, _currentLevel, _initialState.Seed);
+            ApplyLoadedState(stateToUse, _currentLevel, stateToUse.Seed);
         }
 
         private void CaptureInitialState(LevelState state)
@@ -409,6 +419,7 @@ namespace Decantra.Presentation.Controller
             _inputLocked = true;
             _completionStreak = 0;
             _scoreSession?.FailLevel();
+            var restartSnapshot = CreateRestartSnapshot();
 
             bool finished = false;
             if (outOfMovesBanner != null)
@@ -426,9 +437,24 @@ namespace Decantra.Presentation.Controller
                 yield return new WaitForSeconds(0.5f);
             }
 
-            RestartCurrentLevel();
+            RestartCurrentLevel(restartSnapshot);
             _inputLocked = false;
             _isFailing = false;
+        }
+
+        private LevelState CreateRestartSnapshot()
+        {
+            if (_initialState != null)
+            {
+                return new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed);
+            }
+
+            if (_state != null)
+            {
+                return new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed);
+            }
+
+            return null;
         }
 
         private void StartPrecomputeNextLevel()
@@ -523,7 +549,10 @@ namespace Decantra.Presentation.Controller
             {
                 yield return introBanner.Play();
             }
-            LoadLevel(_currentLevel, _currentSeed);
+            if (_state == null)
+            {
+                LoadLevel(_currentLevel, _currentSeed);
+            }
             _inputLocked = false;
         }
 
