@@ -32,9 +32,10 @@ namespace Decantra.Presentation.View
 
             if (optimalText != null)
             {
-                if (optimalText.gameObject.activeSelf)
+                var parent = optimalText.transform.parent;
+                if (parent != null && parent.gameObject.activeSelf)
                 {
-                    optimalText.gameObject.SetActive(false);
+                    parent.gameObject.SetActive(false);
                 }
             }
 

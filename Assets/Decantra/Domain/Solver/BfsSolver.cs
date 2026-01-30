@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Decantra.Domain.Model;
 
 namespace Decantra.Domain.Solver
@@ -8,18 +9,33 @@ namespace Decantra.Domain.Solver
     {
         public SolverResult Solve(LevelState initial)
         {
+            return Solve(initial, 180_000, 350);
+        }
+
+        public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)
+        {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
+            if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
+            if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
 
             var visited = new HashSet<string>();
             var queue = new Queue<Node>();
+            var stopwatch = Stopwatch.StartNew();
 
             var startKey = StateEncoder.Encode(initial);
             visited.Add(startKey);
             queue.Enqueue(new Node(CloneState(initial), 0));
 
+            int processed = 0;
             while (queue.Count > 0)
             {
+                if (processed >= maxNodes || stopwatch.ElapsedMilliseconds > maxMillis)
+                {
+                    return new SolverResult(-1, new List<Move>());
+                }
+
                 var node = queue.Dequeue();
+                processed++;
                 if (node.State.IsWin())
                 {
                     return new SolverResult(node.Depth, new List<Move>());

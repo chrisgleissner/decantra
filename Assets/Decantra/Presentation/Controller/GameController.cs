@@ -23,6 +23,10 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private LevelCompleteBanner levelBanner;
         [SerializeField] private IntroBanner introBanner;
         [SerializeField] private Image backgroundImage;
+        [SerializeField] private Image backgroundDetail;
+        [SerializeField] private Image backgroundFlow;
+        [SerializeField] private Image backgroundShapes;
+        [SerializeField] private Image backgroundVignette;
 
         [Header("Config")]
         [SerializeField] private int reverseMoves = 18;
@@ -53,6 +57,35 @@ namespace Decantra.Presentation.Controller
         private bool _sfxEnabled = true;
         private AudioSource _audioSource;
         private AudioClip _pourClip;
+
+        private const float TransitionTimeoutSeconds = 2.5f;
+        private const float BannerTimeoutSeconds = 5.5f;
+
+        private struct BackgroundPalette
+        {
+            public float Hue;
+            public float Saturation;
+            public float Value;
+            public float DetailSaturation;
+            public float DetailValue;
+            public float FlowSaturation;
+            public float FlowValue;
+            public float FlowAlpha;
+            public float ShapeSaturation;
+            public float ShapeValue;
+            public float ShapeAlpha;
+            public float VignetteAlpha;
+        }
+
+        private static readonly BackgroundPalette[] BackgroundPalettes =
+        {
+            new BackgroundPalette { Hue = 0.56f, Saturation = 0.28f, Value = 0.55f, DetailSaturation = 0.2f, DetailValue = 0.6f, FlowSaturation = 0.22f, FlowValue = 0.66f, FlowAlpha = 0.1f, ShapeSaturation = 0.18f, ShapeValue = 0.62f, ShapeAlpha = 0.08f, VignetteAlpha = 0.22f },
+            new BackgroundPalette { Hue = 0.33f, Saturation = 0.26f, Value = 0.52f, DetailSaturation = 0.18f, DetailValue = 0.58f, FlowSaturation = 0.2f, FlowValue = 0.64f, FlowAlpha = 0.11f, ShapeSaturation = 0.16f, ShapeValue = 0.6f, ShapeAlpha = 0.09f, VignetteAlpha = 0.24f },
+            new BackgroundPalette { Hue = 0.08f, Saturation = 0.24f, Value = 0.54f, DetailSaturation = 0.16f, DetailValue = 0.6f, FlowSaturation = 0.18f, FlowValue = 0.66f, FlowAlpha = 0.09f, ShapeSaturation = 0.14f, ShapeValue = 0.62f, ShapeAlpha = 0.08f, VignetteAlpha = 0.2f },
+            new BackgroundPalette { Hue = 0.72f, Saturation = 0.22f, Value = 0.56f, DetailSaturation = 0.16f, DetailValue = 0.62f, FlowSaturation = 0.18f, FlowValue = 0.68f, FlowAlpha = 0.1f, ShapeSaturation = 0.14f, ShapeValue = 0.64f, ShapeAlpha = 0.09f, VignetteAlpha = 0.23f },
+            new BackgroundPalette { Hue = 0.46f, Saturation = 0.26f, Value = 0.5f, DetailSaturation = 0.18f, DetailValue = 0.56f, FlowSaturation = 0.2f, FlowValue = 0.62f, FlowAlpha = 0.11f, ShapeSaturation = 0.16f, ShapeValue = 0.58f, ShapeAlpha = 0.1f, VignetteAlpha = 0.25f },
+            new BackgroundPalette { Hue = 0.62f, Saturation = 0.2f, Value = 0.58f, DetailSaturation = 0.15f, DetailValue = 0.64f, FlowSaturation = 0.18f, FlowValue = 0.7f, FlowAlpha = 0.1f, ShapeSaturation = 0.14f, ShapeValue = 0.66f, ShapeAlpha = 0.08f, VignetteAlpha = 0.21f }
+        };
 
         public bool IsInputLocked => _inputLocked;
         public bool IsSfxEnabled => _sfxEnabled;
@@ -255,8 +288,10 @@ namespace Decantra.Presentation.Controller
             {
                 _lastStars = CalculateStars(_state.MovesUsed, _state.OptimalMoves);
                 levelBanner.Show(_currentLevel, _lastStars, _sfxEnabled, () => finished = true);
-                while (!finished)
+                float bannerWait = 0f;
+                while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
+                    bannerWait += Time.unscaledDeltaTime;
                     yield return null;
                 }
             }
@@ -270,22 +305,8 @@ namespace Decantra.Presentation.Controller
                 _nextState = _precomputeTask.Result;
             }
 
-            if (_nextState != null && _nextLevel == nextLevel)
-            {
-                _state = _nextState;
-                _currentLevel = _nextLevel;
-                _currentSeed = _nextSeed;
-                _nextState = null;
-                _selectedIndex = -1;
-                _isCompleting = false;
-                StartPrecomputeNextLevel();
-                Render();
-            }
-            else
-            {
-                LoadLevel(nextLevel, _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed));
-            }
-            _inputLocked = false;
+            int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
+            yield return TransitionToLevel(nextLevel, targetSeed);
         }
 
         private void StartPrecomputeNextLevel()
@@ -336,7 +357,27 @@ namespace Decantra.Presentation.Controller
 
             if (token.IsCancellationRequested) return null;
             int fallbackReverse = useThreadSafeSeed ? System.Math.Max(6, scaledReverse - 6) : Mathf.Max(6, scaledReverse - 6);
-            return _generator.Generate(seed, level, fallbackReverse, scaledPadding + 2);
+            int fallbackAttempts = 0;
+            int fallbackSeed = seed;
+            while (fallbackAttempts < 3)
+            {
+                if (token.IsCancellationRequested) return null;
+                try
+                {
+                    return _generator.Generate(fallbackSeed, level, fallbackReverse, scaledPadding + 2);
+                }
+                catch
+                {
+                    fallbackAttempts++;
+                    fallbackSeed = useThreadSafeSeed
+                        ? NextSeedThreadSafe(level, fallbackSeed + 31)
+                        : NextSeed(level, fallbackSeed + 31);
+                    fallbackReverse = useThreadSafeSeed
+                        ? System.Math.Max(4, fallbackReverse - 1)
+                        : Mathf.Max(4, fallbackReverse - 1);
+                }
+            }
+            return null;
         }
 
         public void SetSfxEnabled(bool enabled)
@@ -452,22 +493,194 @@ namespace Decantra.Presentation.Controller
             }
         }
 
+        private IEnumerator TransitionToLevel(int nextLevel, int seed)
+        {
+#if UNITY_EDITOR
+            Debug.Log($"TransitionToLevel start level={nextLevel} seed={seed} precomputeReady={_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully}");
+#endif
+            ApplyBackgroundVariation(nextLevel, seed);
+
+            if (_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully)
+            {
+                _nextState = _precomputeTask.Result;
+            }
+
+            if (_nextState != null && _nextLevel == nextLevel)
+            {
+                ApplyLoadedState(_nextState, _nextLevel, _nextSeed);
+                _inputLocked = false;
+                yield break;
+            }
+
+            CancelPrecompute();
+
+            LevelState loaded = null;
+            int attempt = 0;
+            int currentSeed = seed;
+            while (loaded == null && attempt < 2)
+            {
+                int attemptSeed = currentSeed;
+                using (var tokenSource = new CancellationTokenSource())
+                {
+                    var task = Task.Run(() => GenerateLevelWithRetryThreadSafe(nextLevel, attemptSeed, 8, tokenSource.Token), tokenSource.Token);
+                    float elapsed = 0f;
+                    while (!task.IsCompleted && elapsed < TransitionTimeoutSeconds)
+                    {
+                        elapsed += Time.unscaledDeltaTime;
+                        yield return null;
+                    }
+
+                    if (!task.IsCompleted)
+                    {
+#if UNITY_EDITOR
+                        Debug.LogWarning($"TransitionToLevel timeout level={nextLevel} seed={attemptSeed}");
+#endif
+                        tokenSource.Cancel();
+                        attempt++;
+                        currentSeed = NextSeed(nextLevel, currentSeed + 97);
+                        continue;
+                    }
+
+                    if (task.IsCompletedSuccessfully && task.Result != null)
+                    {
+                        loaded = task.Result;
+                    }
+                    else
+                    {
+                        attempt++;
+                        currentSeed = NextSeed(nextLevel, currentSeed + 97);
+                    }
+                }
+            }
+
+            if (loaded == null)
+            {
+                using (var tokenSource = new CancellationTokenSource())
+                {
+                    int fallbackSeed = currentSeed;
+                    var task = Task.Run(() => GenerateLevelWithRetryThreadSafe(nextLevel, fallbackSeed, 4, tokenSource.Token), tokenSource.Token);
+                    float elapsed = 0f;
+                    while (!task.IsCompleted && elapsed < TransitionTimeoutSeconds)
+                    {
+                        elapsed += Time.unscaledDeltaTime;
+                        yield return null;
+                    }
+
+                    if (task.IsCompletedSuccessfully && task.Result != null)
+                    {
+                        loaded = task.Result;
+                    }
+                    else
+                    {
+#if UNITY_EDITOR
+                        Debug.LogWarning($"TransitionToLevel fallback timeout level={nextLevel} seed={fallbackSeed}");
+#endif
+                        tokenSource.Cancel();
+                    }
+                }
+            }
+
+            if (loaded == null)
+            {
+                loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 2);
+            }
+
+            if (loaded == null)
+            {
+                int emergencyAttempts = 0;
+                int emergencySeed = NextSeed(nextLevel, currentSeed + 97);
+                while (loaded == null && emergencyAttempts < 2)
+                {
+                    loaded = GenerateLevelWithRetry(nextLevel, emergencySeed, 2);
+                    emergencyAttempts++;
+                    emergencySeed = NextSeed(nextLevel, emergencySeed + 97);
+                }
+            }
+
+            if (loaded == null)
+            {
+#if UNITY_EDITOR
+                Debug.LogWarning($"TransitionToLevel failed to generate level={nextLevel}");
+#endif
+                _inputLocked = false;
+                yield break;
+            }
+
+            ApplyLoadedState(loaded, nextLevel, currentSeed);
+            _inputLocked = false;
+        }
+
+        private void ApplyLoadedState(LevelState state, int levelIndex, int seed)
+        {
+            _currentLevel = Mathf.Max(1, levelIndex);
+            _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
+            _state = state;
+            _selectedIndex = -1;
+            _isCompleting = false;
+            _emptyTransitionScore = 0;
+            _nextState = null;
+            ApplyBackgroundVariation(_currentLevel, _currentSeed);
+            StartPrecomputeNextLevel();
+            Render();
+        }
+
         private void ApplyBackgroundVariation(int levelIndex, int seed)
         {
             if (backgroundImage == null) return;
 
-            float h, s, v;
-            Color.RGBToHSV(backgroundImage.color, out h, out s, out v);
+            int paletteIndex = Mathf.Abs(seed + levelIndex * 7919) % BackgroundPalettes.Length;
+            var palette = BackgroundPalettes[paletteIndex];
 
-            int mix = Mathf.Abs(seed + levelIndex * 9973);
-            float t = (mix % 1000) / 1000f;
-            float hueOffset = Mathf.Lerp(-0.08f, 0.08f, t);
-            float sat = Mathf.Clamp01(s + 0.12f * (0.5f - t));
-            float val = Mathf.Clamp01(v + -0.04f * (t - 0.5f));
+            float jitter = Hash01(seed, levelIndex);
+            float jitter2 = Hash01(levelIndex * 31, seed ^ 0x4f1d);
+            float hueOffset = Mathf.Lerp(-0.07f, 0.07f, jitter);
+            float hue = Mathf.Repeat(palette.Hue + hueOffset, 1f);
+            float sat = Mathf.Clamp01(palette.Saturation + Mathf.Lerp(-0.04f, 0.04f, jitter2));
+            float val = Mathf.Clamp01(palette.Value + Mathf.Lerp(-0.05f, 0.05f, 1f - jitter));
 
-            Color tint = Color.HSVToRGB(Mathf.Repeat(h + hueOffset, 1f), sat, val);
-            tint.a = backgroundImage.color.a;
-            backgroundImage.color = tint;
+            Color baseTint = Color.HSVToRGB(hue, sat, val);
+            baseTint.a = 1f;
+            backgroundImage.color = baseTint;
+
+            if (backgroundDetail != null)
+            {
+                Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.03f * (jitter - 0.5f)));
+                detailTint.a = Mathf.Lerp(0.12f, 0.22f, jitter2);
+                backgroundDetail.color = detailTint;
+            }
+
+            if (backgroundFlow != null)
+            {
+                Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
+                flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter);
+                backgroundFlow.color = flowTint;
+                backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(-6f, 6f, jitter2));
+            }
+
+            if (backgroundShapes != null)
+            {
+                Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.04f, 1f), palette.ShapeSaturation, palette.ShapeValue);
+                shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2);
+                backgroundShapes.color = shapeTint;
+                backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(4f, -4f, jitter));
+            }
+
+            if (backgroundVignette != null)
+            {
+                var vignetteColor = backgroundVignette.color;
+                vignetteColor.a = palette.VignetteAlpha;
+                backgroundVignette.color = vignetteColor;
+            }
+        }
+
+        private static float Hash01(int a, int b)
+        {
+            unchecked
+            {
+                int h = a * 73856093 ^ b * 19349663;
+                h = (h ^ (h >> 13)) * 1274126177;
+                return Mathf.Abs(h % 1000) / 1000f;
+            }
         }
 
         private static int NextSeedThreadSafe(int level, int previous)

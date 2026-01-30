@@ -42,6 +42,21 @@ namespace Decantra.Domain.Generation
                     applied++;
                 }
             }
+
+            int extraGuard = 0;
+            while (HasCappedBottle(working) && extraGuard < reverseMoves * 12)
+            {
+                extraGuard++;
+                var moves = EnumerateValidReverseMoves(working, movesBuffer);
+                if (moves.Count == 0) break;
+                var move = moves[rng.Next(moves.Count)];
+                TryApplyReverseMove(working, move.Source, move.Target, rng);
+            }
+
+            if (HasCappedBottle(working))
+            {
+                throw new InvalidOperationException("Generated level contains capped bottles at start");
+            }
             reverseTimer.Stop();
 
             var bottles = new List<Bottle>(working.Count);
@@ -50,17 +65,56 @@ namespace Decantra.Domain.Generation
                 bottles.Add(new Bottle(working[i]));
             }
 
+            int emptyCount = 0;
+            var distinctColors = new HashSet<ColorId>();
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                var bottle = bottles[i];
+                if (bottle.IsEmpty)
+                {
+                    emptyCount++;
+                    continue;
+                }
+                if (bottle.IsSolvedBottle())
+                {
+                    throw new InvalidOperationException("Generated level contains capped bottles at start");
+                }
+                for (int s = 0; s < bottle.Slots.Count; s++)
+                {
+                    var color = bottle.Slots[s];
+                    if (color.HasValue)
+                    {
+                        distinctColors.Add(color.Value);
+                    }
+                }
+            }
+
+            if (emptyCount < 2)
+            {
+                throw new InvalidOperationException("Generated level has insufficient empty bottles");
+            }
+
+            if (distinctColors.Count < 2)
+            {
+                throw new InvalidOperationException("Generated level lacks color variety");
+            }
+
             var state = new LevelState(bottles, 0, 0, 0, levelIndex, seed);
             var solveTimer = Stopwatch.StartNew();
-            var solveResult = _solver.Solve(state);
+            int maxNodes = 150_000 + levelIndex * 2_000;
+            int maxMillis = 250 + levelIndex * 6;
+            if (maxNodes > 260_000) maxNodes = 260_000;
+            if (maxMillis > 550) maxMillis = 550;
+            var solveResult = _solver.Solve(state, maxNodes, maxMillis);
             solveTimer.Stop();
             int optimal = solveResult.OptimalMoves;
             if (optimal < 0)
             {
-                throw new InvalidOperationException("Generated level is unsolvable");
+                optimal = Math.Max(1, reverseMoves - 1);
+                Log?.Invoke($"LevelGenerator.Generate fallback optimal seed={seed} level={levelIndex} reverseMoves={reverseMoves} maxNodes={maxNodes} maxMillis={maxMillis}");
             }
 
-            int movesAllowed = optimal + movesAllowedPadding;
+            int movesAllowed = Math.Max(1, optimal + movesAllowedPadding);
             overallTimer.Stop();
             Log?.Invoke($"LevelGenerator.Generate seed={seed} level={levelIndex} reverseMoves={reverseMoves} movesAllowedPadding={movesAllowedPadding} reverseMs={reverseTimer.ElapsedMilliseconds} solveMs={solveTimer.ElapsedMilliseconds} totalMs={overallTimer.ElapsedMilliseconds}");
             return new LevelState(state.Bottles, 0, movesAllowed, optimal, levelIndex, seed);
@@ -190,6 +244,27 @@ namespace Decantra.Domain.Generation
                 }
             }
             return count;
+        }
+
+        private static bool HasCappedBottle(List<ColorId?[]> bottles)
+        {
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                if (IsSolvedSlots(bottles[i])) return true;
+            }
+            return false;
+        }
+
+        private static bool IsSolvedSlots(ColorId?[] slots)
+        {
+            if (slots == null || slots.Length == 0) return false;
+            var color = slots[0];
+            if (!color.HasValue) return false;
+            for (int i = 1; i < slots.Length; i++)
+            {
+                if (!slots[i].HasValue || slots[i] != color) return false;
+            }
+            return true;
         }
     }
 }

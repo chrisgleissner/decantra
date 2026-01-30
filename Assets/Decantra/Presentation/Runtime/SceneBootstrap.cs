@@ -25,7 +25,7 @@ namespace Decantra.Presentation
             Debug.Log("SceneBootstrap: building runtime UI");
 
             var canvas = CreateCanvas();
-            var backgroundImage = CreateBackground(canvas.transform);
+            var backgroundLayers = CreateBackground(canvas.transform);
             CreateEventSystem();
 
             var hudView = CreateHud(canvas.transform);
@@ -48,7 +48,11 @@ namespace Decantra.Presentation
             var controller = controllerGo.AddComponent<GameController>();
             SetPrivateField(controller, "bottleViews", bottleViews);
             SetPrivateField(controller, "hudView", hudView);
-            SetPrivateField(controller, "backgroundImage", backgroundImage);
+            SetPrivateField(controller, "backgroundImage", backgroundLayers.Base);
+            SetPrivateField(controller, "backgroundDetail", backgroundLayers.Detail);
+            SetPrivateField(controller, "backgroundFlow", backgroundLayers.Flow);
+            SetPrivateField(controller, "backgroundShapes", backgroundLayers.Shapes);
+            SetPrivateField(controller, "backgroundVignette", backgroundLayers.Vignette);
 
             var banner = CreateLevelBanner(canvas.transform);
             SetPrivateField(controller, "levelBanner", banner);
@@ -81,7 +85,16 @@ namespace Decantra.Presentation
             return canvas;
         }
 
-        private static Image CreateBackground(Transform parent)
+        private struct BackgroundLayers
+        {
+            public Image Base;
+            public Image Detail;
+            public Image Flow;
+            public Image Shapes;
+            public Image Vignette;
+        }
+
+        private static BackgroundLayers CreateBackground(Transform parent)
         {
             var bg = CreateUiChild(parent, "Background");
             var rect = bg.GetComponent<RectTransform>();
@@ -90,13 +103,78 @@ namespace Decantra.Presentation
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            var image = bg.AddComponent<Image>();
-            image.sprite = CreateSunsetSprite();
-            image.color = Color.white;
-            image.type = Image.Type.Simple;
-            image.raycastTarget = false;
+            var baseImage = bg.AddComponent<Image>();
+            baseImage.sprite = CreateSunsetSprite();
+            baseImage.color = Color.white;
+            baseImage.type = Image.Type.Simple;
+            baseImage.raycastTarget = false;
+
+            var flowGo = CreateUiChild(parent, "BackgroundFlow");
+            var flowRect = flowGo.GetComponent<RectTransform>();
+            flowRect.anchorMin = Vector2.zero;
+            flowRect.anchorMax = Vector2.one;
+            flowRect.offsetMin = Vector2.zero;
+            flowRect.offsetMax = Vector2.zero;
+
+            var flowImage = flowGo.AddComponent<Image>();
+            flowImage.sprite = CreateFlowSprite();
+            flowImage.color = new Color(1f, 1f, 1f, 0.1f);
+            flowImage.type = Image.Type.Tiled;
+            flowImage.raycastTarget = false;
+
+            var shapesGo = CreateUiChild(parent, "BackgroundShapes");
+            var shapesRect = shapesGo.GetComponent<RectTransform>();
+            shapesRect.anchorMin = Vector2.zero;
+            shapesRect.anchorMax = Vector2.one;
+            shapesRect.offsetMin = Vector2.zero;
+            shapesRect.offsetMax = Vector2.zero;
+
+            var shapesImage = shapesGo.AddComponent<Image>();
+            shapesImage.sprite = CreateOrganicShapesSprite();
+            shapesImage.color = new Color(1f, 1f, 1f, 0.08f);
+            shapesImage.type = Image.Type.Tiled;
+            shapesImage.raycastTarget = false;
+
+            var detailGo = CreateUiChild(parent, "BackgroundDetail");
+            var detailRect = detailGo.GetComponent<RectTransform>();
+            detailRect.anchorMin = Vector2.zero;
+            detailRect.anchorMax = Vector2.one;
+            detailRect.offsetMin = Vector2.zero;
+            detailRect.offsetMax = Vector2.zero;
+
+            var detailImage = detailGo.AddComponent<Image>();
+            detailImage.sprite = CreateSoftNoiseSprite();
+            detailImage.color = new Color(1f, 1f, 1f, 0.14f);
+            detailImage.type = Image.Type.Tiled;
+            detailImage.raycastTarget = false;
+
+            var vignetteGo = CreateUiChild(parent, "BackgroundVignette");
+            var vignetteRect = vignetteGo.GetComponent<RectTransform>();
+            vignetteRect.anchorMin = Vector2.zero;
+            vignetteRect.anchorMax = Vector2.one;
+            vignetteRect.offsetMin = Vector2.zero;
+            vignetteRect.offsetMax = Vector2.zero;
+
+            var vignetteImage = vignetteGo.AddComponent<Image>();
+            vignetteImage.sprite = CreateVignetteSprite();
+            vignetteImage.color = new Color(0f, 0f, 0f, 0.25f);
+            vignetteImage.type = Image.Type.Simple;
+            vignetteImage.raycastTarget = false;
+
             bg.transform.SetAsFirstSibling();
-            return image;
+            flowGo.transform.SetSiblingIndex(1);
+            shapesGo.transform.SetSiblingIndex(2);
+            detailGo.transform.SetSiblingIndex(3);
+            vignetteGo.transform.SetSiblingIndex(4);
+
+            return new BackgroundLayers
+            {
+                Base = baseImage,
+                Detail = detailImage,
+                Flow = flowImage,
+                Shapes = shapesImage,
+                Vignette = vignetteImage
+            };
         }
 
         private static void CreateEventSystem()
@@ -137,7 +215,7 @@ namespace Decantra.Presentation
             topRect.anchorMax = new Vector2(0.5f, 1f);
             topRect.pivot = new Vector2(0.5f, 1f);
             topRect.anchoredPosition = new Vector2(0, -300);
-            topRect.sizeDelta = new Vector2(1040, 220);
+            topRect.sizeDelta = new Vector2(900, 220);
 
             var topLayout = topHud.AddComponent<HorizontalLayoutGroup>();
             topLayout.childAlignment = TextAnchor.MiddleCenter;
@@ -147,7 +225,6 @@ namespace Decantra.Presentation
 
             var levelText = CreateStatPanel(topHud.transform, "LevelPanel", "LEVEL");
             var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES");
-            var optimalText = CreateStatPanel(topHud.transform, "OptimalPanel", "OPTIMAL");
             var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE");
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
@@ -169,7 +246,6 @@ namespace Decantra.Presentation
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
-            SetPrivateField(hudView, "optimalText", optimalText);
             SetPrivateField(hudView, "scoreText", scoreText);
             SetPrivateField(hudView, "highScoreText", highScoreText);
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
@@ -545,16 +621,16 @@ namespace Decantra.Presentation
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
 
-            var sky = new Color(0.18f, 0.24f, 0.32f, 1f);
-            var mid = new Color(0.35f, 0.26f, 0.18f, 1f);
-            var sand = new Color(0.18f, 0.12f, 0.07f, 1f);
+            var sky = new Color(0.62f, 0.72f, 0.82f, 1f);
+            var mid = new Color(0.32f, 0.46f, 0.56f, 1f);
+            var deep = new Color(0.2f, 0.27f, 0.34f, 1f);
 
             for (int y = 0; y < height; y++)
             {
                 float t = y / (float)(height - 1);
-                Color color = t < 0.55f
-                    ? Color.Lerp(sand, mid, t / 0.55f)
-                    : Color.Lerp(mid, sky, (t - 0.55f) / 0.45f);
+                Color color = t < 0.6f
+                    ? Color.Lerp(deep, mid, t / 0.6f)
+                    : Color.Lerp(mid, sky, (t - 0.6f) / 0.4f);
 
                 for (int x = 0; x < width; x++)
                 {
@@ -564,6 +640,121 @@ namespace Decantra.Presentation
 
             texture.Apply();
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
+        }
+
+        private static Sprite CreateSoftNoiseSprite()
+        {
+            const int width = 64;
+            const int height = 64;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            float scale = 6.5f;
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float n1 = Mathf.PerlinNoise(nx * scale, ny * scale);
+                    float n2 = Mathf.PerlinNoise(nx * scale * 1.8f + 13.1f, ny * scale * 1.8f + 7.3f);
+                    float noise = Mathf.Lerp(n1, n2, 0.5f);
+                    float v = Mathf.Lerp(0.85f, 1.05f, noise);
+                    texture.SetPixel(x, y, new Color(v, v, v, 1f));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 64f);
+        }
+
+        private static Sprite CreateFlowSprite()
+        {
+            const int width = 64;
+            const int height = 64;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float wave = Mathf.Sin((nx * 2.2f + ny * 0.35f) * Mathf.PI * 2f);
+                    float wave2 = Mathf.Sin((nx * 3.1f - ny * 0.25f + 0.4f) * Mathf.PI * 2f);
+                    float combined = (wave * 0.55f + wave2 * 0.45f) * 0.5f + 0.5f;
+                    float alpha = Mathf.SmoothStep(0.2f, 0.85f, combined);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 64f);
+        }
+
+        private static Sprite CreateOrganicShapesSprite()
+        {
+            const int width = 64;
+            const int height = 64;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            var centers = new List<Vector2>(6);
+            var radii = new List<float>(6);
+            var rand = new System.Random(1337);
+            for (int i = 0; i < 6; i++)
+            {
+                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                radii.Add(Mathf.Lerp(12f, 28f, (float)rand.NextDouble()));
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < centers.Count; i++)
+                    {
+                        float dist = Vector2.Distance(new Vector2(x, y), centers[i]);
+                        float t = Mathf.Clamp01(1f - dist / radii[i]);
+                        v = Mathf.Max(v, t * t);
+                    }
+                    float alpha = Mathf.SmoothStep(0f, 0.9f, v);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 64f);
+        }
+
+        private static Sprite CreateVignetteSprite()
+        {
+            const int size = 256;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+            float maxDist = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    float t = Mathf.Clamp01(dist / maxDist);
+                    float alpha = Mathf.SmoothStep(0f, 1f, t);
+                    alpha *= alpha;
+                    texture.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
         }
 
         private static Sprite CreateRadialBurstSprite()
