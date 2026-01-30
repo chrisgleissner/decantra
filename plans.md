@@ -14,23 +14,23 @@ Single source of truth: This file governs all work for the current upgrade.
 - Full test coverage + Android APK build.
 
 ## Phase 1: Brain-Training Puzzle Upgrade (TDD)
-- [ ] Add domain tests for optimal solver correctness on known configs.
-- [ ] Add domain tests for optimal solver determinism and seed consistency.
-- [ ] Add domain tests for slack factor progression and allowed moves.
-- [ ] Add domain tests for level complexity progression (bottles/colors/empties).
-- [ ] Add domain tests for solver solvability on generated levels.
-- [ ] Add domain tests for scoring commit/rollback and efficiency ranking.
-- [ ] Add domain tests for grades + best-performance persistence rules.
-- [ ] Add PlayMode tests for move exhaustion failure UX + input block.
-- [ ] Add PlayMode tests for level reset on failure (state parity).
-- [ ] Add PlayMode tests for progression lock until success.
-- [ ] Implement optimal solver (pure domain) + caching on level config.
-- [ ] Implement slack factor curve and allowed move calculation.
-- [ ] Implement failure state flow and fly-in message.
-- [ ] Implement efficiency-based scoring with provisional commit/rollback.
-- [ ] Implement level generation complexity scaling (bottles/colors/empties).
-- [ ] Implement performance feedback (best moves, efficiency, grade).
-- [ ] Implement persistence for current level and best performance.
+- [x] Add domain tests for optimal solver correctness on known configs.
+- [x] Add domain tests for optimal solver determinism and seed consistency.
+- [x] Add domain tests for slack factor progression and allowed moves.
+- [x] Add domain tests for level complexity progression (bottles/colors/empties).
+- [x] Add domain tests for solver solvability on generated levels.
+- [x] Add domain tests for scoring commit/rollback and efficiency ranking.
+- [x] Add domain tests for grades + best-performance persistence rules.
+- [x] Add PlayMode tests for move exhaustion failure UX + input block.
+- [x] Add PlayMode tests for level reset on failure (state parity).
+- [x] Add PlayMode tests for progression lock until success.
+- [x] Implement optimal solver (pure domain) + caching on level config.
+- [x] Implement slack factor curve and allowed move calculation.
+- [x] Implement failure state flow and fly-in message.
+- [x] Implement efficiency-based scoring with provisional commit/rollback.
+- [x] Implement level generation complexity scaling (bottles/colors/empties).
+- [x] Implement performance feedback (best moves, efficiency, grade).
+- [x] Implement persistence for current level and best performance.
 - [ ] Run EditMode + PlayMode tests.
 - [ ] Run clean Android build and produce APK.
 - [ ] Final verification and checklist tick-off.
@@ -58,6 +58,7 @@ Single source of truth: This file governs all work for the current upgrade.
 - 2026-01-30: Unity build aborted because another Unity instance was running on the project. Action: terminate Unity batchmode processes and retry build with guarded timeout.
 - 2026-01-30: Android build failed due to JAVA_HOME pointing to JDK 25. Action: use JDK 17 and explicit SDK/NDK paths.
 - 2026-01-30: APK install stalled with streamed install. Action: use --no-streaming and verify via package list if output stalls.
+- 2026-01-30: Tests failed to start because Unity Editor was not found. Action: install Unity 6000.3.5f2 and set UNITY_PATH to the editor executable, then rerun tools/test.sh.
 
 ## Verification checklist (global)
 - [ ] Optimal solver produces correct minimum moves on known configs.

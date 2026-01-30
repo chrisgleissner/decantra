@@ -43,7 +43,8 @@ namespace Decantra.Domain.Model
 
         public bool IsFail()
         {
-            return MovesUsed > MovesAllowed;
+            if (MovesAllowed <= 0) return MovesUsed > 0 && !IsWin();
+            return MovesUsed >= MovesAllowed && !IsWin();
         }
 
         public bool TryApplyMove(int sourceIndex, int targetIndex, out int poured)

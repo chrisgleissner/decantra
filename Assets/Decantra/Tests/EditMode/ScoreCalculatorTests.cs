@@ -6,43 +6,30 @@ namespace Decantra.Tests.EditMode
     public class ScoreCalculatorTests
     {
         [Test]
-        public void CalculatePourIncrement_ScalesWithLevelAndUnits()
+        public void EfficiencyScore_DropsWithInefficientPlay()
         {
-            int low = ScoreCalculator.CalculatePourIncrement(1, 2);
-            int high = ScoreCalculator.CalculatePourIncrement(3, 2);
-            int moreUnits = ScoreCalculator.CalculatePourIncrement(1, 4);
-
-            Assert.Greater(high, low);
-            Assert.Greater(moreUnits, low);
+            int nearOptimal = ScoreCalculator.CalculateLevelScore(5, 10, 10, false, false, 0);
+            int inefficient = ScoreCalculator.CalculateLevelScore(5, 10, 20, false, false, 0);
+            Assert.Greater(nearOptimal, inefficient);
         }
 
         [Test]
-        public void CalculateStarBonus_ScalesWithStarsAndLevel()
+        public void EfficiencyScore_DeterministicForSameInputs()
         {
-            int low = ScoreCalculator.CalculateStarBonus(1, 1);
-            int high = ScoreCalculator.CalculateStarBonus(1, 5);
-            int higherLevel = ScoreCalculator.CalculateStarBonus(3, 1);
-
-            Assert.Greater(high, low);
-            Assert.Greater(higherLevel, low);
+            int scoreA = ScoreCalculator.CalculateLevelScore(12, 16, 18, false, false, 1);
+            int scoreB = ScoreCalculator.CalculateLevelScore(12, 16, 18, false, false, 1);
+            Assert.AreEqual(scoreA, scoreB);
         }
 
         [Test]
-        public void EmptyTransitionIncrement_ScalesWithLevelAndUnits()
+        public void Grade_TracksEfficiencyThresholds()
         {
-            int low = ScoreCalculator.CalculateEmptyTransitionIncrement(1, 2);
-            int high = ScoreCalculator.CalculateEmptyTransitionIncrement(3, 2);
-            int moreUnits = ScoreCalculator.CalculateEmptyTransitionIncrement(1, 4);
-
-            Assert.Greater(high, low);
-            Assert.Greater(moreUnits, low);
-        }
-
-        [Test]
-        public void CalculateScore_SumsComponents()
-        {
-            int score = ScoreCalculator.CalculateScore(100, 20, 30, 40);
-            Assert.AreEqual(190, score);
+            Assert.AreEqual(PerformanceGrade.S, ScoreCalculator.CalculateGrade(10, 10));
+            Assert.AreEqual(PerformanceGrade.A, ScoreCalculator.CalculateGrade(10, 11));
+            Assert.AreEqual(PerformanceGrade.B, ScoreCalculator.CalculateGrade(10, 12));
+            Assert.AreEqual(PerformanceGrade.C, ScoreCalculator.CalculateGrade(10, 15));
+            Assert.AreEqual(PerformanceGrade.D, ScoreCalculator.CalculateGrade(10, 19));
+            Assert.AreEqual(PerformanceGrade.E, ScoreCalculator.CalculateGrade(10, 25));
         }
     }
 }

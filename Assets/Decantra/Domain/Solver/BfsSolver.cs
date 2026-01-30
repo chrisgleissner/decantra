@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Decantra.Domain.Model;
 
@@ -7,9 +8,28 @@ namespace Decantra.Domain.Solver
 {
     public sealed class BfsSolver
     {
+        private readonly ConcurrentDictionary<string, int> _optimalCache = new ConcurrentDictionary<string, int>();
+
         public SolverResult Solve(LevelState initial)
         {
-            return Solve(initial, 300_000, 800);
+            return SolveOptimal(initial);
+        }
+
+        public SolverResult SolveOptimal(LevelState initial)
+        {
+            if (initial == null) throw new ArgumentNullException(nameof(initial));
+            var key = StateEncoder.EncodeCanonical(initial);
+            if (_optimalCache.TryGetValue(key, out int cached))
+            {
+                return new SolverResult(cached, new List<Move>());
+            }
+
+            var result = SolveInternal(initial, -1, -1, false);
+            if (result.OptimalMoves >= 0)
+            {
+                _optimalCache.TryAdd(key, result.OptimalMoves);
+            }
+            return result;
         }
 
         public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)
@@ -18,18 +38,25 @@ namespace Decantra.Domain.Solver
             if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
             if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
 
+            return SolveInternal(initial, maxNodes, maxMillis, true);
+        }
+
+        private SolverResult SolveInternal(LevelState initial, int maxNodes, int maxMillis, bool useLimits)
+        {
+            if (initial == null) throw new ArgumentNullException(nameof(initial));
+
             var visited = new HashSet<string>();
             var queue = new Queue<Node>();
             var stopwatch = Stopwatch.StartNew();
 
-            var startKey = StateEncoder.Encode(initial);
+            var startKey = StateEncoder.EncodeCanonical(initial);
             visited.Add(startKey);
             queue.Enqueue(new Node(CloneState(initial), 0));
 
             int processed = 0;
             while (queue.Count > 0)
             {
-                if (processed >= maxNodes || stopwatch.ElapsedMilliseconds > maxMillis)
+                if (useLimits && (processed >= maxNodes || stopwatch.ElapsedMilliseconds > maxMillis))
                 {
                     return new SolverResult(-1, new List<Move>());
                 }
@@ -50,7 +77,7 @@ namespace Decantra.Domain.Solver
                         continue;
                     }
 
-                    var key = StateEncoder.Encode(next);
+                    var key = StateEncoder.EncodeCanonical(next);
                     if (visited.Add(key))
                     {
                         queue.Enqueue(new Node(next, node.Depth + 1));

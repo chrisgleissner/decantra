@@ -22,37 +22,24 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void ProfileCounts_FollowBandRules()
+        public void ProfileCounts_ProgressMonotonically()
         {
-            var bandA = LevelDifficultyEngine.GetProfile(1);
-            Assert.AreEqual(3, bandA.ColorCount);
-            Assert.AreEqual(3, bandA.EmptyBottleCount);
-            Assert.AreEqual(6, bandA.BottleCount);
+            var levels = new[] { 1, 10, 25, 50, 100, 200, 500 };
+            int previousColors = 0;
+            int previousBottles = 0;
+            int previousEmpty = int.MaxValue;
 
-            var bandB = LevelDifficultyEngine.GetProfile(11);
-            Assert.AreEqual(4, bandB.ColorCount);
-            Assert.AreEqual(2, bandB.EmptyBottleCount);
-            Assert.AreEqual(6, bandB.BottleCount);
-
-            var bandC = LevelDifficultyEngine.GetProfile(26);
-            Assert.AreEqual(5, bandC.ColorCount);
-            Assert.AreEqual(2, bandC.EmptyBottleCount);
-            Assert.AreEqual(7, bandC.BottleCount);
-
-            var bandDodd = LevelDifficultyEngine.GetProfile(51);
-            Assert.AreEqual(6, bandDodd.ColorCount);
-            Assert.AreEqual(1, bandDodd.EmptyBottleCount);
-            Assert.AreEqual(7, bandDodd.BottleCount);
-
-            var bandDeven = LevelDifficultyEngine.GetProfile(52);
-            Assert.AreEqual(6, bandDeven.ColorCount);
-            Assert.AreEqual(2, bandDeven.EmptyBottleCount);
-            Assert.AreEqual(8, bandDeven.BottleCount);
-
-            var bandE = LevelDifficultyEngine.GetProfile(76);
-            Assert.AreEqual(8, bandE.ColorCount);
-            Assert.AreEqual(1, bandE.EmptyBottleCount);
-            Assert.AreEqual(9, bandE.BottleCount);
+            foreach (int level in levels)
+            {
+                var profile = LevelDifficultyEngine.GetProfile(level);
+                Assert.GreaterOrEqual(profile.ColorCount, previousColors, $"Color count regressed at level {level}");
+                Assert.GreaterOrEqual(profile.BottleCount, previousBottles, $"Bottle count regressed at level {level}");
+                Assert.LessOrEqual(profile.EmptyBottleCount, previousEmpty, $"Empty bottle count increased at level {level}");
+                Assert.AreEqual(profile.ColorCount + profile.EmptyBottleCount, profile.BottleCount);
+                previousColors = profile.ColorCount;
+                previousBottles = profile.BottleCount;
+                previousEmpty = profile.EmptyBottleCount;
+            }
         }
 
         [Test]
@@ -70,19 +57,32 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void MoveAllowance_SurplusTightensByBand()
         {
-            const int optimalMoves = 24;
-            var levels = new[] { 5, 15, 30, 60, 90 };
-            int previousSurplus = int.MaxValue;
+            const int optimalMoves = 10;
+            var levels = new[] { 1, 25, 50, 100, 250, 500 };
+            int previousAllowed = int.MaxValue;
 
-            for (int i = 0; i < levels.Length; i++)
+            foreach (int level in levels)
             {
-                var profile = LevelDifficultyEngine.GetProfile(levels[i]);
+                var profile = LevelDifficultyEngine.GetProfile(level);
                 int allowed = MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimalMoves);
-                int surplus = allowed - optimalMoves;
                 Assert.GreaterOrEqual(allowed, optimalMoves);
-                Assert.LessOrEqual(surplus, previousSurplus, $"Surplus increased at level {levels[i]}");
-                previousSurplus = surplus;
+                Assert.LessOrEqual(allowed, previousAllowed, $"Allowed moves increased at level {level}");
+                previousAllowed = allowed;
             }
+        }
+
+        [Test]
+        public void MoveAllowance_UsesSlackFactorEndpoints()
+        {
+            const int optimalMoves = 10;
+            var earlyProfile = LevelDifficultyEngine.GetProfile(1);
+            var lateProfile = LevelDifficultyEngine.GetProfile(500);
+
+            int earlyAllowed = MoveAllowanceCalculator.ComputeMovesAllowed(earlyProfile, optimalMoves);
+            int lateAllowed = MoveAllowanceCalculator.ComputeMovesAllowed(lateProfile, optimalMoves);
+
+            Assert.AreEqual(20, earlyAllowed, "Slack factor should start at 2.0 for early levels.");
+            Assert.AreEqual(10, lateAllowed, "Slack factor should reach 1.0 by level 500.");
         }
 
         [Test]

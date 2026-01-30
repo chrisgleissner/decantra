@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
@@ -149,26 +150,70 @@ namespace Decantra.Domain.Generation
                 }
             }
 
+            if (!IsStructurallyComplex(bottles, profile.LevelIndex, profile.ColorCount, profile.EmptyBottleCount))
+            {
+                throw new InvalidOperationException("Generated level is too trivial");
+            }
+
             var state = new LevelState(bottles, 0, 0, 0, profile.LevelIndex, seed);
             var solveTimer = Stopwatch.StartNew();
-            int optimal;
-            int maxNodes = 30_000 + profile.LevelIndex * 500;
-            int maxMillis = 120 + profile.LevelIndex * 3;
-            if (maxNodes > 60_000) maxNodes = 60_000;
-            if (maxMillis > 220) maxMillis = 220;
-            var solveResult = _solver.Solve(state, maxNodes, maxMillis);
+            var solveResult = _solver.SolveOptimal(state);
             solveTimer.Stop();
-            optimal = solveResult.OptimalMoves;
+            int optimal = solveResult.OptimalMoves;
             if (optimal < 0)
             {
-                optimal = Math.Max(1, reverseMoves - 1);
-                Log?.Invoke($"LevelGenerator.Generate fallback optimal seed={seed} level={profile.LevelIndex} reverseMoves={reverseMoves} maxNodes={maxNodes} maxMillis={maxMillis}");
+                throw new InvalidOperationException("Solver failed to find optimal moves");
             }
 
             int movesAllowed = MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimal);
             overallTimer.Stop();
             Log?.Invoke($"LevelGenerator.Generate seed={seed} level={profile.LevelIndex} reverseMoves={reverseMoves} movesAllowed={movesAllowed} reverseMs={reverseTimer.ElapsedMilliseconds} solveMs={solveTimer.ElapsedMilliseconds} totalMs={overallTimer.ElapsedMilliseconds}");
             return new LevelState(state.Bottles, 0, movesAllowed, optimal, profile.LevelIndex, seed);
+        }
+
+        private static bool IsStructurallyComplex(List<Bottle> bottles, int levelIndex, int colorCount, int emptyCount)
+        {
+            if (bottles == null || bottles.Count == 0) return false;
+
+            if (levelIndex <= 8)
+            {
+                return true;
+            }
+
+            int mixedCount = 0;
+            int nonEmptyCount = 0;
+            var signatures = new HashSet<string>();
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                var bottle = bottles[i];
+                if (bottle.IsEmpty) continue;
+                nonEmptyCount++;
+                if (!bottle.IsSingleColorOrEmpty())
+                {
+                    mixedCount++;
+                }
+
+                signatures.Add(BottleSignature(bottle));
+            }
+
+            int requiredMixed = colorCount <= 3 ? 1 : Math.Max(2, colorCount / 2);
+            if (mixedCount < requiredMixed) return false;
+
+            int requiredDistinct = Math.Max(3, Math.Min(bottles.Count - emptyCount, colorCount));
+            if (signatures.Count < requiredDistinct) return false;
+
+            return nonEmptyCount >= colorCount;
+        }
+
+        private static string BottleSignature(Bottle bottle)
+        {
+            var sb = new StringBuilder(bottle.Slots.Count + 1);
+            for (int i = 0; i < bottle.Slots.Count; i++)
+            {
+                var color = bottle.Slots[i];
+                sb.Append(color.HasValue ? ((int)color.Value + 1).ToString() : "0");
+            }
+            return sb.ToString();
         }
 
         private static List<ColorId?[]> CreateSolvedSlots(int colorCount, int emptyBottleCount)

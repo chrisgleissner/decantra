@@ -17,7 +17,8 @@ namespace Decantra.Presentation
         [Preserve]
         public static void EnsureScene()
         {
-            if (Object.FindFirstObjectByType<GameController>() != null)
+            var existingController = Object.FindFirstObjectByType<GameController>();
+            if (existingController != null && HasRequiredWiring(existingController))
             {
                 return;
             }
@@ -44,8 +45,12 @@ namespace Decantra.Presentation
                 SetPrivateField(bottleInput, "bottleView", bottleView);
             }
 
-            var controllerGo = new GameObject("GameController");
-            var controller = controllerGo.AddComponent<GameController>();
+            var controller = existingController;
+            if (controller == null)
+            {
+                var controllerGo = new GameObject("GameController");
+                controller = controllerGo.AddComponent<GameController>();
+            }
             SetPrivateField(controller, "bottleViews", bottleViews);
             SetPrivateField(controller, "hudView", hudView);
             SetPrivateField(controller, "backgroundImage", backgroundLayers.Base);
@@ -60,6 +65,9 @@ namespace Decantra.Presentation
             var intro = CreateIntroBanner(canvas.transform);
             SetPrivateField(controller, "introBanner", intro);
 
+            var outOfMoves = CreateOutOfMovesBanner(canvas.transform);
+            SetPrivateField(controller, "outOfMovesBanner", outOfMoves);
+
             var settings = CreateSettingsPanel(canvas.transform, controller);
 
             var toolsGo = new GameObject("RuntimeTools");
@@ -70,6 +78,17 @@ namespace Decantra.Presentation
                 var input = bottleView.GetComponent<BottleInput>();
                 SetPrivateField(input, "controller", controller);
             }
+        }
+
+        private static bool HasRequiredWiring(GameController controller)
+        {
+            if (controller == null) return false;
+            var bottleViews = GetPrivateField<List<BottleView>>(controller, "bottleViews");
+            var hud = GetPrivateField<HudView>(controller, "hudView");
+            var background = GetPrivateField<Image>(controller, "backgroundImage");
+            var banner = GetPrivateField<LevelCompleteBanner>(controller, "levelBanner");
+            var outOfMoves = GetPrivateField<OutOfMovesBanner>(controller, "outOfMovesBanner");
+            return bottleViews != null && bottleViews.Count > 0 && hud != null && background != null && banner != null && outOfMoves != null;
         }
 
         private static Canvas CreateCanvas()
@@ -518,6 +537,41 @@ namespace Decantra.Presentation
             return banner;
         }
 
+        private static OutOfMovesBanner CreateOutOfMovesBanner(Transform parent)
+        {
+            var root = CreateUiChild(parent, "OutOfMovesBanner");
+            var rect = root.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(680, 180);
+
+            var group = root.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(680, 180);
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.color = new Color(1f, 1f, 1f, 0.1f);
+            panelImage.raycastTarget = false;
+
+            var text = CreateTitleText(panel.transform, "MessageText", "Out of moves. Try again.");
+            text.fontSize = 48;
+            text.color = new Color(1f, 0.95f, 0.7f, 1f);
+            AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
+
+            var banner = root.AddComponent<OutOfMovesBanner>();
+            SetPrivateField(banner, "panel", panelRect);
+            SetPrivateField(banner, "messageText", text);
+            SetPrivateField(banner, "canvasGroup", group);
+            return banner;
+        }
+
         private static Text CreateStatPanel(Transform parent, string name, string label)
         {
             var panel = CreateUiChild(parent, name);
@@ -845,6 +899,14 @@ namespace Decantra.Presentation
             var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             if (field == null) return;
             field.SetValue(target, value);
+        }
+
+        private static T GetPrivateField<T>(Object target, string fieldName) where T : class
+        {
+            if (target == null) return null;
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null) return null;
+            return field.GetValue(target) as T;
         }
     }
 }

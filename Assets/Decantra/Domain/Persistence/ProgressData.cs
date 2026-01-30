@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Decantra.Domain.Persistence
 {
@@ -10,5 +11,6 @@ namespace Decantra.Domain.Persistence
         public int CurrentSeed;
         public int CurrentScore;
         public int HighScore;
+        public List<LevelPerformanceRecord> BestPerformances;
     }
 }

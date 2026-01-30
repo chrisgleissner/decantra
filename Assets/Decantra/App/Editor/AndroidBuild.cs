@@ -11,13 +11,62 @@ namespace Decantra.App.Editor
     {
         private const string DefaultApkPath = "Builds/Android/Decantra.apk";
 
+        [MenuItem("Decantra/Build/Android Debug APK")]
         public static void BuildDebugApk()
         {
             BuildApk(BuildOptions.Development);
         }
 
+        [MenuItem("Decantra/Build/Android Release APK")]
         public static void BuildReleaseApk()
         {
+            // ---- Build mode ----
+            EditorUserBuildSettings.development = false;
+            EditorUserBuildSettings.allowDebugging = false;
+            EditorUserBuildSettings.connectProfiler = false;
+
+            // ---- Target device: Galaxy S21+ ----
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.buildApkPerCpuArchitecture = false;
+
+            // ---- Scripting backend & stripping ----
+            PlayerSettings.SetScriptingBackend(
+                BuildTargetGroup.Android,
+                ScriptingImplementation.IL2CPP
+            );
+
+            PlayerSettings.SetManagedStrippingLevel(
+                BuildTargetGroup.Android,
+                ManagedStrippingLevel.High
+            );
+
+            PlayerSettings.stripEngineCode = true;
+
+            // ---- Graphics ----
+            // Lock to GLES3, exclude Vulkan entirely
+            PlayerSettings.SetGraphicsAPIs(
+                BuildTarget.Android,
+                new[] { UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3 }
+            );
+
+            // ---- Android API level ----
+            PlayerSettings.Android.minSdkVersion =
+                AndroidSdkVersions.AndroidApiLevel30;
+            PlayerSettings.Android.targetSdkVersion =
+                AndroidSdkVersions.AndroidApiLevelAuto;
+
+            // ---- Disable unused services ----
+            PlayerSettings.enableCrashReportAPI = false;
+            PlayerSettings.usePlayerLog = false;
+
+            // ---- Identity ----
+            PlayerSettings.productName = "Decantra";
+            PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
+
+            // ---- Ensure settings persist before IL2CPP build ----
+            AssetDatabase.SaveAssets();
+
+            // ---- Build ----
             BuildApk(BuildOptions.None);
         }
 

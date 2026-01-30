@@ -26,6 +26,7 @@ Coverage/**
 *.booproj
 *.svd
 *.pdb
+*.pdb.meta
 *.mdb
 *.blob
 .utmp/**

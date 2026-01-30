@@ -37,7 +37,7 @@ namespace Decantra.Tests.PlayMode
         }
 
         [Test]
-        public void ResumePolicy_UsesLastPlayableLevel()
+        public void ResumePolicy_UsesCurrentLevelWhenAvailable()
         {
             var data = new ProgressData
             {
@@ -46,7 +46,7 @@ namespace Decantra.Tests.PlayMode
             };
 
             int resume = ProgressionResumePolicy.ResolveResumeLevel(data);
-            Assert.AreEqual(12, resume);
+            Assert.AreEqual(4, resume);
         }
 
         [Test]

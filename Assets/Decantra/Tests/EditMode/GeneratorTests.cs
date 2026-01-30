@@ -44,5 +44,33 @@ namespace Decantra.Tests.EditMode
                 }
             }
         }
+
+        [Test]
+        public void Generate_ProvidesOptimalMovesAndAllowedMoves()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            int seed = 0;
+            var levels = new[] { 1, 5, 10, 25, 50 };
+            foreach (int level in levels)
+            {
+                seed = NextSeed(level, seed);
+                var profile = LevelDifficultyEngine.GetProfile(level);
+                var state = generator.Generate(seed, profile);
+                Assert.GreaterOrEqual(state.OptimalMoves, 0);
+                Assert.GreaterOrEqual(state.MovesAllowed, state.OptimalMoves);
+            }
+        }
+
+        private static int NextSeed(int level, int previous)
+        {
+            unchecked
+            {
+                int baseSeed = previous != 0 ? previous : 12345;
+                int mix = baseSeed * 1103515245 + 12345 + level * 97;
+                return System.Math.Abs(mix == 0 ? level * 7919 : mix);
+            }
+        }
     }
 }

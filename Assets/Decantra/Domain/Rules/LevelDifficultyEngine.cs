@@ -9,8 +9,8 @@ namespace Decantra.Domain.Rules
             if (levelIndex <= 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
 
             var band = ResolveBand(levelIndex);
-            int colorCount = ResolveColorCount(band);
-            int emptyCount = ResolveEmptyCount(band, levelIndex);
+            int colorCount = ResolveColorCount(levelIndex);
+            int emptyCount = ResolveEmptyCount(levelIndex);
             int bottleCount = colorCount + emptyCount;
             int reverseMoves = ComputeReverseMoves(levelIndex, band, colorCount, emptyCount, bottleCount);
             var themeId = ResolveThemeId(band, levelIndex);
@@ -28,30 +28,21 @@ namespace Decantra.Domain.Rules
             return LevelBand.E;
         }
 
-        private static int ResolveColorCount(LevelBand band)
+        private static int ResolveColorCount(int levelIndex)
         {
-            switch (band)
-            {
-                case LevelBand.A: return 3;
-                case LevelBand.B: return 4;
-                case LevelBand.C: return 5;
-                case LevelBand.D: return 6;
-                case LevelBand.E: return 8;
-                default: return 3;
-            }
+            int count = 3 + (levelIndex - 1) / 25;
+            if (count < 3) count = 3;
+            if (count > 8) count = 8;
+            return count;
         }
 
-        private static int ResolveEmptyCount(LevelBand band, int levelIndex)
+        private static int ResolveEmptyCount(int levelIndex)
         {
-            switch (band)
-            {
-                case LevelBand.A: return 3;
-                case LevelBand.B: return 2;
-                case LevelBand.C: return 2;
-                case LevelBand.D: return (levelIndex % 2 == 0) ? 2 : 1;
-                case LevelBand.E: return 1;
-                default: return 2;
-            }
+            int decay = (levelIndex - 1) / 40;
+            int empty = 3 - decay;
+            if (empty < 1) empty = 1;
+            if (empty > 3) empty = 3;
+            return empty;
         }
 
         private static BackgroundThemeId ResolveThemeId(LevelBand band, int levelIndex)
@@ -70,42 +61,13 @@ namespace Decantra.Domain.Rules
 
         private static int ComputeReverseMoves(int levelIndex, LevelBand band, int colorCount, int emptyCount, int bottleCount)
         {
-            int baseMoves;
-            int maxMoves;
-            switch (band)
-            {
-                case LevelBand.A:
-                    baseMoves = 8;
-                    maxMoves = 14;
-                    break;
-                case LevelBand.B:
-                    baseMoves = 12;
-                    maxMoves = 20;
-                    break;
-                case LevelBand.C:
-                    baseMoves = 18;
-                    maxMoves = 28;
-                    break;
-                case LevelBand.D:
-                    baseMoves = 24;
-                    maxMoves = 36;
-                    break;
-                case LevelBand.E:
-                    baseMoves = 30;
-                    maxMoves = 42;
-                    break;
-                default:
-                    baseMoves = 8;
-                    maxMoves = 14;
-                    break;
-            }
+            int baseMoves = 8 + colorCount * 2 - emptyCount;
+            int levelBoost = levelIndex / 3;
+            int bandBoost = ((int)band) * 2;
+            int result = baseMoves + levelBoost + bandBoost;
 
-            float t = GetBandProgress(levelIndex, band);
-            int scaled = (int)Math.Round(baseMoves + (maxMoves - baseMoves) * t);
-            int complexity = colorCount + bottleCount + Math.Max(0, 2 - emptyCount);
-            int result = scaled + (complexity / 4);
-            if (result < 6) result = 6;
-            if (result > 48) result = 48;
+            if (result < 8) result = 8;
+            if (result > 60) result = 60;
             return result;
         }
 
@@ -144,12 +106,12 @@ namespace Decantra.Domain.Rules
 
         private static int ComputeDifficultyRating(int levelIndex, LevelBand band, int colorCount, int emptyCount, int bottleCount, int reverseMoves)
         {
-            int bandScore = ((int)band) * 1000;
-            int levelScore = levelIndex * 20;
-            int colorScore = colorCount * 60;
-            int bandBottleReference = band == LevelBand.D ? 8 : bottleCount;
-            int bottleScore = bandBottleReference * 20;
-            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore);
+            int bandScore = ((int)band) * 900;
+            int levelScore = levelIndex * 25;
+            int colorScore = colorCount * 70;
+            int bottleScore = bottleCount * 30;
+            int emptyPenalty = (3 - emptyCount) * 40;
+            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyPenalty);
         }
     }
 }

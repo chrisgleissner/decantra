@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using Decantra.Domain.Scoring;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -106,7 +107,7 @@ namespace Decantra.Presentation
             }
         }
 
-        public void Show(int level, int stars, bool sfxEnabled, Action onComplete)
+        public void Show(int level, int stars, PerformanceGrade grade, bool sfxEnabled, Action onComplete)
         {
             if (panel == null || canvasGroup == null || starsText == null || levelText == null)
             {
@@ -119,7 +120,7 @@ namespace Decantra.Presentation
             _lastStarCount = clampedStars;
             starsText.text = new string('★', clampedStars);
             var tag = messages[Mathf.Abs(level) % messages.Length];
-            levelText.text = $"LEVEL {level + 1}\n{tag}";
+            levelText.text = $"LEVEL {level + 1}\nGRADE {grade}\n{tag}";
             EnsureEffects();
             DisableEffects();
             if (sfxEnabled)

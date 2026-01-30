@@ -9,19 +9,21 @@ namespace Decantra.Domain.Rules
             if (profile == null) throw new ArgumentNullException(nameof(profile));
             if (optimalMoves < 1) return 1;
 
-            int surplus = ComputeSurplus(profile);
-            return Math.Max(1, optimalMoves + surplus);
+            float slack = ComputeSlackFactor(profile.LevelIndex);
+            int allowed = (int)Math.Ceiling(optimalMoves * slack);
+            return Math.Max(1, allowed);
         }
 
-        private static int ComputeSurplus(DifficultyProfile profile)
+        public static float ComputeSlackFactor(int levelIndex)
         {
-            int complexity = profile.ColorCount * 3 + profile.BottleCount * 2 + profile.EmptyBottleCount;
-            int basePadding = (int)Math.Ceiling(complexity / 6f);
-            int bandTightening = ((int)profile.Band) * 2;
-            int padding = basePadding - bandTightening;
-            if (padding < 1) padding = 1;
-            if (padding > 8) padding = 8;
-            return padding;
+            if (levelIndex <= 1) return 2.0f;
+            if (levelIndex >= 500) return 1.0f;
+
+            float t = (levelIndex - 1) / 499f;
+            float slack = 2.0f - t;
+            if (slack < 1.0f) slack = 1.0f;
+            if (slack > 2.0f) slack = 2.0f;
+            return slack;
         }
     }
 }

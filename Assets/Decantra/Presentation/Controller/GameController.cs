@@ -24,28 +24,24 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private HudView hudView;
         [SerializeField] private LevelCompleteBanner levelBanner;
         [SerializeField] private IntroBanner introBanner;
+        [SerializeField] private OutOfMovesBanner outOfMovesBanner;
         [SerializeField] private Image backgroundImage;
         [SerializeField] private Image backgroundDetail;
         [SerializeField] private Image backgroundFlow;
         [SerializeField] private Image backgroundShapes;
         [SerializeField] private Image backgroundVignette;
 
-        [Header("Config")]
-        [SerializeField] private int baseScore = 100;
-
         private LevelState _state;
+        private LevelState _initialState;
         private bool _inputLocked;
         private int _selectedIndex = -1;
         private bool _isCompleting;
+        private bool _isFailing;
         private int _currentLevel = 1;
         private int _currentSeed;
-        private int _currentScore;
-        private int _lastBonus;
-        private int _emptyTransitionScore;
-        private int _pourScore;
-        private int _starBonus;
         private int _lastBackgroundPaletteIndex = -1;
         private int _lastStars;
+        private PerformanceGrade _lastGrade;
         private LevelState _nextState;
         private int _nextLevel;
         private int _nextSeed;
@@ -59,6 +55,10 @@ namespace Decantra.Presentation.Controller
         private LevelGenerator _generator;
         private ProgressStore _progressStore;
         private ProgressData _progress;
+        private ScoreSession _scoreSession;
+        private int _completionStreak;
+        private bool _usedUndo;
+        private bool _usedHints;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
         private AudioSource _audioSource;
@@ -128,6 +128,8 @@ namespace Decantra.Presentation.Controller
             _sfxEnabled = _settingsStore.LoadSfxEnabled();
             SetupAudio();
 
+            _scoreSession = new ScoreSession(_progress?.CurrentScore ?? 0);
+
             _currentLevel = ProgressionResumePolicy.ResolveResumeLevel(_progress);
             _currentSeed = _progress.CurrentSeed > 0 ? _progress.CurrentSeed : NextSeed(_currentLevel, 0);
             PersistCurrentProgress(_currentLevel, _currentSeed);
@@ -159,17 +161,40 @@ namespace Decantra.Presentation.Controller
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
             _state = GenerateLevelWithRetry(_currentLevel, _currentSeed);
+            CaptureInitialState(_state);
             _selectedIndex = -1;
             _isCompleting = false;
-            _emptyTransitionScore = 0;
-            _pourScore = 0;
-            _starBonus = 0;
-            _currentScore = Mathf.Max(_progress?.CurrentScore ?? 0, baseScore);
+            _isFailing = false;
+            _usedUndo = false;
+            _usedHints = false;
+            _scoreSession?.FailLevel();
+            if (_progress != null)
+            {
+                _scoreSession?.ResetTotal(_progress.CurrentScore);
+            }
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
+        }
+
+        private void RestartCurrentLevel()
+        {
+            if (_initialState == null)
+            {
+                LoadLevel(_currentLevel, _currentSeed);
+                return;
+            }
+
+            var restartState = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed);
+            ApplyLoadedState(restartState, _currentLevel, _initialState.Seed);
+        }
+
+        private void CaptureInitialState(LevelState state)
+        {
+            if (state == null) return;
+            _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed);
         }
 
         public void OnBottleTapped(int index)
@@ -237,7 +262,7 @@ namespace Decantra.Presentation.Controller
                 yield return new WaitForSeconds(duration);
                 Render();
             }
-            _inputLocked = false;
+            _inputLocked = _state != null && (_state.IsWin() || _state.IsFail());
         }
 
         private IEnumerator AnimateMove(int sourceIndex, int targetIndex, int poured, ColorId? color, float duration, BottleView sourceView, BottleView targetView)
@@ -260,7 +285,7 @@ namespace Decantra.Presentation.Controller
             Render();
             sourceView?.ClearOutgoing();
             targetView?.ClearIncoming();
-            _inputLocked = false;
+            _inputLocked = _state != null && (_state.IsWin() || _state.IsFail());
         }
 
         private BottleView GetBottleView(int index)
@@ -294,22 +319,22 @@ namespace Decantra.Presentation.Controller
 
             if (hudView != null)
             {
-                int score = ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _pourScore, _starBonus);
-                _currentScore = Mathf.Max(_currentScore, score);
-                _lastBonus = _starBonus;
-                if (_progress != null && _currentScore > _progress.HighScore)
-                {
-                    _progress.HighScore = _currentScore;
-                    _progressStore.Save(_progress);
-                }
-                int highScore = _progress?.HighScore ?? 0;
+                int total = _scoreSession?.TotalScore ?? 0;
+                int provisional = _scoreSession?.ProvisionalScore ?? 0;
+                int displayScore = total + provisional;
+                int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
-                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, _currentScore, highScore, maxLevel);
+                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel);
             }
 
             if (_state.IsWin() && !_isCompleting)
             {
                 StartCoroutine(HandleLevelComplete());
+            }
+
+            if (_state.IsFail() && !_isFailing && !_isCompleting)
+            {
+                StartCoroutine(HandleOutOfMoves());
             }
         }
 
@@ -324,31 +349,39 @@ namespace Decantra.Presentation.Controller
             }
 
             int nextLevel = _currentLevel + 1;
+            float efficiency = ScoreCalculator.CalculateEfficiency(_state.OptimalMoves, _state.MovesUsed);
+            _lastGrade = ScoreCalculator.CalculateGrade(_state.OptimalMoves, _state.MovesUsed);
+            _lastStars = CalculateStars(_lastGrade);
+
+            _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
+            _scoreSession?.CommitLevel();
+            _completionStreak++;
+
+            bool finished = false;
             if (_progress != null)
             {
                 _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
                 _progress.CurrentLevel = nextLevel;
                 _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
-                _progress.CurrentScore = _currentScore;
-                _progressStore.Save(_progress);
-            }
-
-            bool finished = false;
-            _lastStars = CalculateStars(_state.MovesUsed, _state.OptimalMoves);
-            _starBonus = Mathf.Max(_starBonus, ScoreCalculator.CalculateStarBonus(_state.LevelIndex, _lastStars));
-            _currentScore = Mathf.Max(_currentScore, ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _pourScore, _starBonus));
-            if (_progress != null)
-            {
-                _progress.CurrentScore = _currentScore;
-                if (_currentScore > _progress.HighScore)
+                _progress.CurrentScore = _scoreSession?.TotalScore ?? _progress.CurrentScore;
+                if (_progress.CurrentScore > _progress.HighScore)
                 {
-                    _progress.HighScore = _currentScore;
+                    _progress.HighScore = _progress.CurrentScore;
                 }
+
+                PerformanceTracker.UpdateBest(_progress, new Decantra.Domain.Persistence.LevelPerformanceRecord
+                {
+                    LevelIndex = _state.LevelIndex,
+                    BestMoves = _state.MovesUsed,
+                    BestEfficiency = efficiency,
+                    BestGrade = _lastGrade
+                });
+
                 _progressStore.Save(_progress);
             }
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, _sfxEnabled, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastStars, _lastGrade, _sfxEnabled, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -368,6 +401,34 @@ namespace Decantra.Presentation.Controller
 
             int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
             yield return TransitionToLevel(nextLevel, targetSeed);
+        }
+
+        private IEnumerator HandleOutOfMoves()
+        {
+            _isFailing = true;
+            _inputLocked = true;
+            _completionStreak = 0;
+            _scoreSession?.FailLevel();
+
+            bool finished = false;
+            if (outOfMovesBanner != null)
+            {
+                outOfMovesBanner.Show("Out of moves. Try again.", _sfxEnabled, () => finished = true);
+                float wait = 0f;
+                while (!finished && wait < BannerTimeoutSeconds)
+                {
+                    wait += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+            }
+            else
+            {
+                yield return new WaitForSeconds(0.5f);
+            }
+
+            RestartCurrentLevel();
+            _inputLocked = false;
+            _isFailing = false;
         }
 
         private void StartPrecomputeNextLevel()
@@ -471,20 +532,24 @@ namespace Decantra.Presentation.Controller
             if (_progress == null) return;
             _progress.CurrentLevel = Mathf.Max(1, levelIndex);
             _progress.CurrentSeed = seed > 0 ? seed : _progress.CurrentSeed;
-            _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, _progress.CurrentLevel);
             _progressStore.Save(_progress);
         }
 
-        private int CalculateStars(int movesUsed, int optimalMoves)
+        private int CalculateStars(PerformanceGrade grade)
         {
-            if (optimalMoves <= 0) return 1;
-
-            float ratio = movesUsed / (float)optimalMoves;
-            if (ratio <= 1.0f) return 5;
-            if (ratio <= 1.2f) return 4;
-            if (ratio <= 1.4f) return 3;
-            if (ratio <= 1.7f) return 2;
-            return 1;
+            switch (grade)
+            {
+                case PerformanceGrade.S:
+                    return 5;
+                case PerformanceGrade.A:
+                    return 4;
+                case PerformanceGrade.B:
+                    return 3;
+                case PerformanceGrade.C:
+                    return 2;
+                default:
+                    return 1;
+            }
         }
 
         private bool TryApplyMoveAndScore(int sourceIndex, int targetIndex, out int poured)
@@ -493,37 +558,17 @@ namespace Decantra.Presentation.Controller
             if (_state == null) return false;
             if (sourceIndex < 0 || sourceIndex >= _state.Bottles.Count) return false;
             if (targetIndex < 0 || targetIndex >= _state.Bottles.Count) return false;
-
-            int sourceCountBefore = _state.Bottles[sourceIndex].Count;
             bool applied = _state.TryApplyMove(sourceIndex, targetIndex, out poured);
             if (!applied) return false;
 
-            if (sourceCountBefore > 0 && _state.Bottles[sourceIndex].IsEmpty)
-            {
-                _emptyTransitionScore += ScoreCalculator.CalculateEmptyTransitionIncrement(_state.LevelIndex, sourceCountBefore);
-            }
-
-            if (poured > 0)
-            {
-                _pourScore += ScoreCalculator.CalculatePourIncrement(_state.LevelIndex, poured);
-            }
-
-            _currentScore = Mathf.Max(_currentScore, ScoreCalculator.CalculateScore(baseScore, _emptyTransitionScore, _pourScore, _starBonus));
+            _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.Log($"Decantra ScoreUpdate level={_state.LevelIndex} poured={poured} emptyScore={_emptyTransitionScore} pourScore={_pourScore} starBonus={_starBonus} total={_currentScore}");
-            AppendDebugLog($"ScoreUpdate level={_state.LevelIndex} poured={poured} emptyScore={_emptyTransitionScore} pourScore={_pourScore} starBonus={_starBonus} total={_currentScore}");
+            Debug.Log($"Decantra ScoreUpdate level={_state.LevelIndex} movesUsed={_state.MovesUsed} optimal={_state.OptimalMoves} provisional={_scoreSession?.ProvisionalScore ?? 0}");
+            AppendDebugLog($"ScoreUpdate level={_state.LevelIndex} movesUsed={_state.MovesUsed} optimal={_state.OptimalMoves} provisional={_scoreSession?.ProvisionalScore ?? 0}");
 #endif
 
             return true;
-        }
-
-        private void SetupAudio()
-        {
-            _audioSource = gameObject.AddComponent<AudioSource>();
-            _audioSource.playOnAwake = false;
-            _audioSource.loop = false;
-            _pourClip = CreatePourClip();
         }
 
         private void PlayPourSfx(int targetIndex, int amount)
@@ -535,6 +580,14 @@ namespace Decantra.Presentation.Controller
             _audioSource.pitch = Mathf.Lerp(0.8f, 1.2f, ratio);
             _audioSource.volume = Mathf.Lerp(0.35f, 0.7f, 1f - ratio);
             _audioSource.PlayOneShot(_pourClip);
+        }
+
+        private void SetupAudio()
+        {
+            _audioSource = gameObject.AddComponent<AudioSource>();
+            _audioSource.playOnAwake = false;
+            _audioSource.loop = false;
+            _pourClip = CreatePourClip();
         }
 
         private AudioClip CreatePourClip()
@@ -690,12 +743,17 @@ namespace Decantra.Presentation.Controller
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
             _state = state;
+            CaptureInitialState(_state);
             _selectedIndex = -1;
             _isCompleting = false;
-            _emptyTransitionScore = 0;
-            _pourScore = 0;
-            _starBonus = 0;
-            _currentScore = Mathf.Max(_progress?.CurrentScore ?? 0, baseScore);
+            _isFailing = false;
+            _usedUndo = false;
+            _usedHints = false;
+            _scoreSession?.FailLevel();
+            if (_progress != null)
+            {
+                _scoreSession?.ResetTotal(_progress.CurrentScore);
+            }
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();

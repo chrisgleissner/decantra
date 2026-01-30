@@ -4,43 +4,45 @@ namespace Decantra.Domain.Scoring
 {
     public static class ScoreCalculator
     {
-        public static int CalculateEmptyTransitionIncrement(int levelIndex, int emptiedUnits)
+        public static float CalculateEfficiency(int optimalMoves, int movesUsed)
         {
-            if (levelIndex < 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
-            if (emptiedUnits < 0) throw new ArgumentOutOfRangeException(nameof(emptiedUnits));
+            if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
+            if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
+            if (optimalMoves == 0) return 1f;
 
-            int scaledLevel = Math.Max(1, levelIndex);
-            return emptiedUnits * scaledLevel * 10;
+            int clampedMoves = Math.Max(movesUsed, optimalMoves);
+            return optimalMoves / (float)clampedMoves;
         }
 
-        public static int CalculatePourIncrement(int levelIndex, int pouredUnits)
+        public static PerformanceGrade CalculateGrade(int optimalMoves, int movesUsed)
         {
-            if (levelIndex < 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
-            if (pouredUnits < 0) throw new ArgumentOutOfRangeException(nameof(pouredUnits));
-
-            int scaledLevel = Math.Max(1, levelIndex);
-            int perUnit = 8 + scaledLevel * 2;
-            return pouredUnits * perUnit;
+            float efficiency = CalculateEfficiency(optimalMoves, movesUsed);
+            if (efficiency >= 1.0f) return PerformanceGrade.S;
+            if (efficiency >= 0.9f) return PerformanceGrade.A;
+            if (efficiency >= 0.8f) return PerformanceGrade.B;
+            if (efficiency >= 0.66f) return PerformanceGrade.C;
+            if (efficiency >= 0.5f) return PerformanceGrade.D;
+            return PerformanceGrade.E;
         }
 
-        public static int CalculateStarBonus(int levelIndex, int stars)
+        public static int CalculateLevelScore(int levelIndex, int optimalMoves, int movesUsed, bool usedUndo, bool usedHints, int streak)
         {
             if (levelIndex < 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
-            if (stars < 0) throw new ArgumentOutOfRangeException(nameof(stars));
+            if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
+            if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
+            if (streak < 0) throw new ArgumentOutOfRangeException(nameof(streak));
 
             int scaledLevel = Math.Max(1, levelIndex);
-            int clampedStars = Math.Min(5, Math.Max(0, stars));
-            return clampedStars * (200 + scaledLevel * 20);
-        }
+            float efficiency = CalculateEfficiency(optimalMoves, movesUsed);
+            float baseScore = 180f + scaledLevel * 20f;
 
-        public static int CalculateScore(int baseScore, int emptyTransitionScore, int pourScore, int starBonus)
-        {
-            if (baseScore < 0) throw new ArgumentOutOfRangeException(nameof(baseScore));
-            if (emptyTransitionScore < 0) throw new ArgumentOutOfRangeException(nameof(emptyTransitionScore));
-            if (pourScore < 0) throw new ArgumentOutOfRangeException(nameof(pourScore));
-            if (starBonus < 0) throw new ArgumentOutOfRangeException(nameof(starBonus));
+            float bonus = 1f;
+            if (!usedUndo) bonus += 0.05f;
+            if (!usedHints) bonus += 0.05f;
+            bonus += Math.Min(5, streak) * 0.02f;
 
-            return baseScore + emptyTransitionScore + pourScore + starBonus;
+            float score = baseScore * efficiency * bonus;
+            return Math.Max(0, (int)Math.Round(score));
         }
     }
 }

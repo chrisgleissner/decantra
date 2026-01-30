@@ -7,7 +7,7 @@ namespace Decantra.Tests.EditMode
     public sealed class ProgressPersistenceTests
     {
         [Test]
-        public void ResumePolicy_UsesLastPlayableLevel()
+        public void ResumePolicy_UsesCurrentLevelWhenAvailable()
         {
             var data = new ProgressData
             {
@@ -16,7 +16,7 @@ namespace Decantra.Tests.EditMode
             };
 
             int resume = ProgressionResumePolicy.ResolveResumeLevel(data);
-            Assert.AreEqual(12, resume);
+            Assert.AreEqual(4, resume);
         }
 
         [Test]

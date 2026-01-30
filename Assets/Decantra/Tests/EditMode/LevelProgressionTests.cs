@@ -8,18 +8,19 @@ namespace Decantra.Tests.EditMode
     public sealed class LevelProgressionTests
     {
         [Test]
-        public void Levels_1_To_10_Are_Solvable()
+        public void Levels_1_To_15_Are_Solvable()
         {
             var solver = new BfsSolver();
             var generator = new LevelGenerator(solver);
 
             int seed = 0;
-            for (int level = 1; level <= 10; level++)
+            for (int level = 1; level <= 15; level++)
             {
                 seed = NextSeed(level, seed);
                 var profile = LevelDifficultyEngine.GetProfile(level);
                 var state = generator.Generate(seed, profile);
                 Assert.GreaterOrEqual(state.OptimalMoves, 0, $"Unsolvable level {level}");
+                Assert.GreaterOrEqual(state.MovesAllowed, state.OptimalMoves, $"Allowed moves below optimal at level {level}");
             }
         }
 

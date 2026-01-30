@@ -41,5 +41,37 @@ namespace Decantra.Tests.EditMode
             var keyB = StateEncoder.Encode(stateB);
             Assert.AreNotEqual(keyA, keyB);
         }
+
+        [Test]
+        public void Solve_KnownConfiguration_ReturnsMinimumMoves()
+        {
+            var solver = new BfsSolver();
+            var state = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Blue, ColorId.Blue }),
+                new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, ColorId.Red, ColorId.Red }),
+                new Bottle(new ColorId?[4])
+            }, 0, 20, 0, 1, 42);
+
+            var result = solver.Solve(state);
+            Assert.AreEqual(3, result.OptimalMoves);
+        }
+
+        [Test]
+        public void Solve_IsDeterministicForSameState()
+        {
+            var solver = new BfsSolver();
+            var state = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Blue, ColorId.Blue }),
+                new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, ColorId.Red, ColorId.Red }),
+                new Bottle(new ColorId?[4])
+            }, 0, 20, 0, 1, 99);
+
+            var resultA = solver.Solve(state);
+            var resultB = solver.Solve(state);
+
+            Assert.AreEqual(resultA.OptimalMoves, resultB.OptimalMoves);
+        }
     }
 }

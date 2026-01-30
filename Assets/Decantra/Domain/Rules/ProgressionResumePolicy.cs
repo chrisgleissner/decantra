@@ -8,10 +8,14 @@ namespace Decantra.Domain.Rules
         public static int ResolveResumeLevel(ProgressData data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            int highest = data.HighestUnlockedLevel;
             int current = data.CurrentLevel;
-            int resume = Math.Max(highest, current);
-            return Math.Max(1, resume);
+            if (current > 0)
+            {
+                return Math.Max(1, current);
+            }
+
+            int highest = data.HighestUnlockedLevel;
+            return Math.Max(1, highest);
         }
     }
 }
