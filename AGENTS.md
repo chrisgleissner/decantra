@@ -1,6 +1,6 @@
 # AGENTS
 
-Concise guide for agents working on Decantra. Use these sources of truth: [SPEC.md](SPEC.md), [PLANS.md](PLANS.md), [DECISIONS.md](DECISIONS.md), [STATUS.md](STATUS.md), [MEMORY.md](MEMORY.md).
+Concise guide for agents working on Decantra. Use these sources of truth: [PLANS.md](PLANS.md)
 
 ## Facts (verify before changes)
 
@@ -38,3 +38,16 @@ Concise guide for agents working on Decantra. Use these sources of truth: [SPEC.
 - Unity Test Framework: <https://docs.unity3d.com/Packages/com.unity.test-framework@latest>
 - Code Coverage: <https://docs.unity3d.com/Packages/com.unity.testtools.codecoverage@latest>
 - URP 2D: <https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@latest>
+
+## Tools
+
+- [`tools/test.sh`](tools/test.sh): Unity batchmode EditMode test runner.
+- [`tools/build_android.sh`](tools/build_android.sh): Builds debug Android APK via Unity batchmode.
+- [`tools/install_android.sh`](tools/install_android.sh): Installs APK on first connected ADB device.
+- [`tools/dev_install_run.sh`](tools/dev_install_run.sh): Builds, installs, and launches the app on device.
+- [`tools/coverage_gate.sh`](tools/coverage_gate.sh): Fails if coverage is below the required threshold.
+- [`local-build.sh`](local-build.sh): Runs tests, builds APK, and optionally installs/launches on device.
+
+## App (Editor)
+
+- [`Assets/Decantra/App/Editor/AndroidBuild.cs`](Assets/Decantra/App/Editor/AndroidBuild.cs): Unity batchmode Android build entry point.

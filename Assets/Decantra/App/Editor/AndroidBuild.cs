@@ -13,6 +13,16 @@ namespace Decantra.App.Editor
 
         public static void BuildDebugApk()
         {
+            BuildApk(BuildOptions.Development);
+        }
+
+        public static void BuildReleaseApk()
+        {
+            BuildApk(BuildOptions.None);
+        }
+
+        private static void BuildApk(BuildOptions options)
+        {
             ConfigureAndroidToolchainFromEnv();
             string[] args = Environment.GetCommandLineArgs();
             string outputPath = DefaultApkPath;
@@ -44,7 +54,7 @@ namespace Decantra.App.Editor
                 scenes = new[] { "Assets/Decantra/Scenes/Main.unity" },
                 locationPathName = outputPath,
                 target = BuildTarget.Android,
-                options = BuildOptions.Development
+                options = options
             };
 
             BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
