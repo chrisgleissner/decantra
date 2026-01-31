@@ -962,6 +962,8 @@ namespace Decantra.Presentation
                 if (shareRootTransform == null) return;
             }
             var shareRoot = shareRootTransform.gameObject;
+            // Ensure ShareButtonRoot starts inactive (may have been left active by previous test)
+            shareRoot.SetActive(false);
 
             var shareTransform = shareRoot.transform.Find("ShareButton");
             var shareGo = shareTransform != null ? shareTransform.gameObject : null;
