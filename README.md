@@ -17,11 +17,11 @@ Decantra is a mobile-first bottle sorting puzzle built in Unity. Pour colors bet
 ## Quick Start
 
 - Build a debug APK:
-  - `./local-build.sh`
+  - `./build.sh`
 - Build and install on a device:
-  - `./local-build.sh --install`
+  - `./build.sh --install`
 - Skip tests:
-  - `./local-build.sh --skip-tests`
+  - `./build.sh --skip-tests`
 
 ## Developer docs
 

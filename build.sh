@@ -20,10 +20,10 @@ APT_UPDATED=false
 
 usage() {
   cat <<'EOF'
-local-build.sh - Decantra Android build helper
+build.sh - Decantra Android build helper
 
 Usage:
-  ./local-build.sh [options]
+  ./build.sh [options]
 
 Default (no options):
   - Run EditMode + PlayMode tests
