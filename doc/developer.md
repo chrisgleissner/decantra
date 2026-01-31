@@ -37,14 +37,3 @@ The APK will be produced at:
 1. Copy `Builds/Android/Decantra.apk` to the device.
 2. Enable "Install unknown apps" for your file manager/browser.
 3. Tap the APK to install.
-
-## Sharing the APK (200MiB)
-
-Recommended options:
-- **GitHub Releases**: Suitable for a 200MiB APK. GitHub release assets allow files up to 2GiB each, so this size is fine. This is the simplest distribution for internal testers.
-- **Firebase App Distribution**: Purpose-built for Android tester distribution with email invites and release notes.
-- **Cloud storage (S3/R2/Drive)**: Share a private link; include checksums to verify integrity.
-
-Notes:
-- GitHub Actions build artifacts are also fine for 200MiB, but they expire and are less discoverable than Releases.
-- Add a SHA-256 checksum next to the download link for integrity verification.
