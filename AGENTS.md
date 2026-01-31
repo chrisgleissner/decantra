@@ -46,7 +46,7 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
 - [`tools/install_android.sh`](tools/install_android.sh): Installs APK on first connected ADB device.
 - [`tools/dev_install_run.sh`](tools/dev_install_run.sh): Builds, installs, and launches the app on device.
 - [`tools/coverage_gate.sh`](tools/coverage_gate.sh): Fails if coverage is below the required threshold.
-- [`build.sh`](build.sh): Runs tests, builds APK, and optionally installs/launches on device.
+- [`build`](build): Runs tests, builds APK, and optionally installs/launches on device.
 
 ## App (Editor)
 
