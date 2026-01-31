@@ -7,6 +7,7 @@ LOG_PATH="${PROJECT_PATH}/Logs/build_android.log"
 BUILD_PATH="${PROJECT_PATH}/Builds/Android"
 APK_PATH="${BUILD_PATH}/Decantra.apk"
 UNITY_BUILD_TIMEOUT="${UNITY_BUILD_TIMEOUT:-20m}"
+DECANTRA_BUILD_VARIANT="${DECANTRA_BUILD_VARIANT:-debug}"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
@@ -24,11 +25,16 @@ fi
 mkdir -p "${PROJECT_PATH}/Logs"
 mkdir -p "${BUILD_PATH}"
 
+UNITY_BUILD_METHOD="Decantra.App.Editor.AndroidBuild.BuildDebugApk"
+if [[ "${DECANTRA_BUILD_VARIANT}" == "release" ]]; then
+  UNITY_BUILD_METHOD="Decantra.App.Editor.AndroidBuild.BuildReleaseApk"
+fi
+
 timeout "${UNITY_BUILD_TIMEOUT}" "${UNITY_PATH}" \
   -batchmode \
   -nographics \
   -projectPath "${PROJECT_PATH}" \
-  -executeMethod Decantra.App.Editor.AndroidBuild.BuildDebugApk \
+  -executeMethod "${UNITY_BUILD_METHOD}" \
   -logFile "${LOG_PATH}" \
   -quit \
   -buildPath "${APK_PATH}"

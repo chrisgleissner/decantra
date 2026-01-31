@@ -12,6 +12,7 @@ export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
 RUN_TESTS=true
 RUN_BUILD=true
 RUN_INSTALL=false
+BUILD_VARIANT="debug"
 
 DEVICE_ID=""
 APK_PATH=""
@@ -37,6 +38,7 @@ Options:
   --apk-path <path>    APK path to install (default: Builds/Android/Decantra.apk)
   --skip-tests         Skip Unity tests
   --skip-build         Skip APK build
+  --release            Build the release APK
   -h, --help           Show this help
 EOF
 }
@@ -47,6 +49,52 @@ log() {
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+ensure_adb_daemon() {
+  local attempt=1
+  local max_attempts=4
+  local adb_log="/tmp/adb.${UID}.log"
+  local inotify_limit=""
+  local desired_inotify=512
+
+  if ! have_cmd adb; then
+    echo "adb not found in PATH" >&2
+    return 1
+  fi
+
+  inotify_limit="$(cat /proc/sys/fs/inotify/max_user_instances 2>/dev/null || echo "")"
+  if [[ -n "${inotify_limit}" && "${inotify_limit}" -lt ${desired_inotify} ]]; then
+    if have_cmd sudo; then
+      sudo sysctl -w "fs.inotify.max_user_instances=${desired_inotify}" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  while [[ ${attempt} -le ${max_attempts} ]]; do
+    ulimit -n 8192 >/dev/null 2>&1 || true
+    adb kill-server >/dev/null 2>&1 || true
+    pkill -f "[a]db" >/dev/null 2>&1 || true
+    rm -f "${adb_log}" >/dev/null 2>&1 || true
+    adb start-server >/dev/null 2>&1 || true
+    sleep 0.6
+
+    if adb devices >/dev/null 2>&1; then
+      return 0
+    fi
+
+    echo "adb daemon failed to start (attempt ${attempt}/${max_attempts})." >&2
+    if [[ -f "${adb_log}" ]]; then
+      tail -n 5 "${adb_log}" >&2 || true
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.8
+  done
+
+  echo "adb daemon failed to start after ${max_attempts} attempts." >&2
+  if [[ -f "${adb_log}" ]]; then
+    tail -n 20 "${adb_log}" >&2 || true
+  fi
+  return 1
 }
 
 run_with_sudo_if_needed() {
@@ -464,6 +512,10 @@ while [[ $# -gt 0 ]]; do
       RUN_BUILD=false
       shift
       ;;
+    --release)
+      BUILD_VARIANT="release"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -502,12 +554,17 @@ if [[ "${RUN_TESTS}" == "true" ]]; then
 fi
 
 if [[ "${RUN_BUILD}" == "true" ]]; then
-  log "Building debug APK"
-  "${ROOT_DIR}/tools/build_android.sh"
+  if [[ "${BUILD_VARIANT}" == "release" ]]; then
+    log "Building release APK"
+  else
+    log "Building debug APK"
+  fi
+  DECANTRA_BUILD_VARIANT="${BUILD_VARIANT}" "${ROOT_DIR}/tools/build_android.sh"
 fi
 
 if [[ "${RUN_INSTALL}" == "true" ]]; then
   ensure_command adb android-tools-adb
+  ensure_adb_daemon
   APK_PATH="${APK_PATH:-$APK_DEFAULT}"
 
   if [[ ! -f "$APK_PATH" ]]; then
