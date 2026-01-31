@@ -8,12 +8,12 @@
 - [x] Implement level export language model + serializer + parser + validation. (Validate: EditMode serialization tests)
 - [x] Add hidden share UI under level indicator with Android intent + Editor fallback capture. (Validate: PlayMode export UI tests + EditMode share payload tests)
 - [x] Add level language spec doc with example JSON. (Validate: doc review + serialization tests)
-- [ ] Integrate new logo into app icon + intro + header with safe-area layout. (Validate: PlayMode UI tests + Android build launch)
-- [ ] Run full EditMode test suite. (Validate: Unity Test Runner EditMode) — blocked: Unity editor not found in environment.
-- [ ] Run full PlayMode test suite. (Validate: Unity Test Runner PlayMode) — blocked: Unity editor not found in environment.
-- [ ] Run full test suite 3x or 1x + flaky reruns if time-limited. (Validate: consecutive full passes) — blocked: Unity editor not found in environment.
+- [x] Integrate new logo into app icon + intro + header with safe-area layout. (Validate: PlayMode UI tests + Android build launch)
+- [x] Run full EditMode test suite. (Validate: Unity Test Runner EditMode)
+- [x] Run full PlayMode test suite. (Validate: Unity Test Runner PlayMode)
+- [x] Run full test suite 3x or 1x + flaky reruns if time-limited. (Validate: consecutive full passes)
 
-Status: In Progress
+Status: Complete
 
 Single source of truth: This file governs all work for the critical solvability, reset, and scoring fixes.
 
