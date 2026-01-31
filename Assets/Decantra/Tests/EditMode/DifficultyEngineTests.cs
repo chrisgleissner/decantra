@@ -34,7 +34,14 @@ namespace Decantra.Tests.EditMode
                 var profile = LevelDifficultyEngine.GetProfile(level);
                 Assert.GreaterOrEqual(profile.ColorCount, previousColors, $"Color count regressed at level {level}");
                 Assert.GreaterOrEqual(profile.BottleCount, previousBottles, $"Bottle count regressed at level {level}");
-                Assert.LessOrEqual(profile.EmptyBottleCount, previousEmpty, $"Empty bottle count increased at level {level}");
+                if (level < 18)
+                {
+                    Assert.LessOrEqual(profile.EmptyBottleCount, previousEmpty, $"Empty bottle count increased at level {level}");
+                }
+                else
+                {
+                    Assert.LessOrEqual(profile.EmptyBottleCount, 2, $"Empty bottle count exceeded sink slack at level {level}");
+                }
                 Assert.AreEqual(profile.ColorCount + profile.EmptyBottleCount, profile.BottleCount);
                 previousColors = profile.ColorCount;
                 previousBottles = profile.BottleCount;
@@ -50,11 +57,11 @@ namespace Decantra.Tests.EditMode
 
             Assert.GreaterOrEqual(profile20.BottleCount, 9);
             Assert.GreaterOrEqual(profile20.ColorCount, 6);
-            Assert.LessOrEqual(profile20.EmptyBottleCount, 1);
+            Assert.LessOrEqual(profile20.EmptyBottleCount, 2);
 
             Assert.GreaterOrEqual(profile25.BottleCount, 9);
             Assert.GreaterOrEqual(profile25.ColorCount, 6);
-            Assert.LessOrEqual(profile25.EmptyBottleCount, 1);
+            Assert.LessOrEqual(profile25.EmptyBottleCount, 2);
         }
 
         [Test]

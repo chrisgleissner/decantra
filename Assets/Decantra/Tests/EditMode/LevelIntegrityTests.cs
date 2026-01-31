@@ -31,5 +31,18 @@ namespace Decantra.Tests.EditMode
 
             Assert.IsFalse(LevelIntegrity.TryValidate(state, out _));
         }
+
+        [Test]
+        public void NonFullSinkWithMixedColors_IsInvalid()
+        {
+            var bottles = new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Blue, null, ColorId.Red, null }, true),
+                new Bottle(new ColorId?[4])
+            };
+            var state = new LevelState(bottles, 0, 5, 0, 1, 1);
+
+            Assert.IsFalse(LevelIntegrity.TryValidate(state, out _));
+        }
     }
 }

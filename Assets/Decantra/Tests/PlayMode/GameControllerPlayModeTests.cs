@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Decantra.App.Services;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
+using Decantra.Domain.Rules;
 using Decantra.Domain.Scoring;
 using Decantra.Domain.Solver;
 using Decantra.Presentation;
@@ -12,6 +13,7 @@ using Decantra.Presentation.Controller;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Decantra.Tests.PlayMode
@@ -252,6 +254,140 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ResetButton_PreservesBackground()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            controller.LoadLevel(3, 12345);
+            yield return null;
+
+            var imageField = typeof(GameController).GetField("backgroundImage", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(imageField);
+            var image = imageField.GetValue(controller) as Image;
+            Assert.IsNotNull(image);
+
+            var initialColor = image.color;
+
+            var resetGo = GameObject.Find("ResetButton");
+            Assert.IsNotNull(resetGo, "Reset button should exist in scene.");
+            var button = resetGo.GetComponent<Button>();
+            Assert.IsNotNull(button, "Reset button should have Button component.");
+            button.onClick.Invoke();
+
+            yield return null;
+
+            var afterColor = image.color;
+            Assert.AreEqual(initialColor, afterColor, "Reset should keep the same background.");
+        }
+
+        [UnityTest]
+        public IEnumerator SinkBottle_CannotStartDrag_ButNormalBottleCan()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            controller.LoadLevel(24, 901);
+            yield return null;
+
+            var state = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(state);
+
+            int sinkIndex = -1;
+            int normalIndex = -1;
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                if (state.Bottles[i].IsSink)
+                {
+                    sinkIndex = i;
+                }
+                else if (normalIndex < 0)
+                {
+                    normalIndex = i;
+                }
+            }
+
+            Assert.GreaterOrEqual(sinkIndex, 0, "Expected a sink bottle by level 24.");
+            Assert.GreaterOrEqual(normalIndex, 0, "Expected a normal bottle.");
+
+            var sinkInput = GetBottleInputForIndex(controller, sinkIndex);
+            var normalInput = GetBottleInputForIndex(controller, normalIndex);
+
+            var eventData = new PointerEventData(EventSystem.current)
+            {
+                position = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f)
+            };
+
+            sinkInput.OnBeginDrag(eventData);
+            Assert.IsFalse(sinkInput.IsDragging, "Sink bottle should not start dragging.");
+
+            normalInput.OnBeginDrag(eventData);
+            Assert.IsTrue(normalInput.IsDragging, "Normal bottle should start dragging.");
+            normalInput.OnEndDrag(eventData);
+
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator RestartGame_ConfirmationResetsProgress()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            string root = Path.Combine(Path.GetTempPath(), "decantra-tests", System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "progress.json");
+
+            var store = new ProgressStore(new[] { path });
+            var progress = new ProgressData
+            {
+                HighestUnlockedLevel = 7,
+                CurrentLevel = 7,
+                CurrentSeed = 777,
+                CurrentScore = 120,
+                HighScore = 200
+            };
+
+            SetPrivateField(controller, "_progressStore", store);
+            SetPrivateField(controller, "_progress", progress);
+
+            var restartGo = GameObject.Find("RestartButton");
+            Assert.IsNotNull(restartGo, "Restart button should exist in scene.");
+            var restartButton = restartGo.GetComponent<Button>();
+            Assert.IsNotNull(restartButton, "Restart button should have Button component.");
+            restartButton.onClick.Invoke();
+
+            yield return null;
+
+            var dialog = GetPrivateField(controller, "restartDialog");
+            Assert.IsNotNull(dialog, "Restart dialog should be wired.");
+
+            var confirmGo = GameObject.Find("ConfirmRestartButton");
+            Assert.IsNotNull(confirmGo, "Confirm restart button should exist.");
+            var confirmButton = confirmGo.GetComponent<Button>();
+            Assert.IsNotNull(confirmButton, "Confirm restart button should have Button component.");
+            confirmButton.onClick.Invoke();
+
+            yield return null;
+
+            var updated = GetPrivateField(controller, "_progress") as ProgressData;
+            Assert.IsNotNull(updated);
+            Assert.AreEqual(1, updated.HighestUnlockedLevel);
+            Assert.AreEqual(1, updated.CurrentLevel);
+            Assert.AreEqual(0, updated.CurrentScore);
+            Assert.AreEqual(0, updated.HighScore);
+        }
+
+        [UnityTest]
         public IEnumerator Win_CommitsScoreAndAdvancesLevel()
         {
             SceneBootstrap.EnsureScene();
@@ -347,7 +483,7 @@ namespace Decantra.Tests.PlayMode
                 for (int j = 0; j < state.Bottles.Count; j++)
                 {
                     if (i == j) continue;
-                    if (state.Bottles[i].MaxPourAmountInto(state.Bottles[j]) > 0)
+                    if (MoveRules.GetPourAmount(state, i, j) > 0)
                     {
                         source = i;
                         target = j;
@@ -356,6 +492,20 @@ namespace Decantra.Tests.PlayMode
                 }
             }
             return false;
+        }
+
+        private static Decantra.Presentation.View.BottleInput GetBottleInputForIndex(GameController controller, int index)
+        {
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field, "bottleViews field not found");
+            var views = field.GetValue(controller) as System.Collections.Generic.List<Decantra.Presentation.View.BottleView>;
+            Assert.IsNotNull(views);
+            Assert.Greater(index, -1);
+            var view = views[index];
+            Assert.IsNotNull(view);
+            var input = view.GetComponent<Decantra.Presentation.View.BottleInput>();
+            Assert.IsNotNull(input);
+            return input;
         }
     }
 }

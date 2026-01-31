@@ -25,6 +25,7 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private LevelCompleteBanner levelBanner;
         [SerializeField] private IntroBanner introBanner;
         [SerializeField] private OutOfMovesBanner outOfMovesBanner;
+        [SerializeField] private RestartGameDialog restartDialog;
         [SerializeField] private Image backgroundImage;
         [SerializeField] private Image backgroundDetail;
         [SerializeField] private Image backgroundFlow;
@@ -41,7 +42,6 @@ namespace Decantra.Presentation.Controller
         private int _levelSessionId;
         private int _currentLevel = 1;
         private int _currentSeed;
-        private int _lastBackgroundPaletteIndex = -1;
         private int _lastStars;
         private PerformanceGrade _lastGrade;
         private LevelState _nextState;
@@ -164,7 +164,7 @@ namespace Decantra.Presentation.Controller
             _levelSessionId++;
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
-            _state = GenerateLevelWithRetry(_currentLevel, _currentSeed);
+            _state = EnsureBackground(GenerateLevelWithRetry(_currentLevel, _currentSeed), _currentLevel, _currentSeed);
             CaptureInitialState(_state);
             _selectedIndex = -1;
             _isCompleting = false;
@@ -174,7 +174,7 @@ namespace Decantra.Presentation.Controller
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
-            ApplyBackgroundVariation(_currentLevel, _currentSeed);
+            ApplyBackgroundVariation(_currentLevel, _currentSeed, _state?.BackgroundPaletteIndex ?? -1);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
@@ -207,12 +207,12 @@ namespace Decantra.Presentation.Controller
             var stateToUse = restartState;
             if (stateToUse == null && _initialState != null)
             {
-                stateToUse = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed, _initialState.ScrambleMoves);
+                stateToUse = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed, _initialState.ScrambleMoves, _initialState.BackgroundPaletteIndex);
             }
 
             if (stateToUse == null && _state != null)
             {
-                stateToUse = new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed, _state.ScrambleMoves);
+                stateToUse = new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed, _state.ScrambleMoves, _state.BackgroundPaletteIndex);
             }
 
             if (stateToUse == null)
@@ -227,13 +227,18 @@ namespace Decantra.Presentation.Controller
         private void CaptureInitialState(LevelState state)
         {
             if (state == null) return;
-            _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves);
+            _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, state.BackgroundPaletteIndex);
         }
 
         public void OnBottleTapped(int index)
         {
             if (_inputLocked || _state == null) return;
             if (index < 0 || index >= _state.Bottles.Count) return;
+
+            if (_selectedIndex < 0 && !InteractionRules.CanUseAsSource(_state.Bottles[index]))
+            {
+                return;
+            }
 
             if (_selectedIndex < 0)
             {
@@ -254,9 +259,14 @@ namespace Decantra.Presentation.Controller
         public int GetPourAmount(int sourceIndex, int targetIndex)
         {
             if (_state == null) return 0;
-            if (sourceIndex < 0 || sourceIndex >= _state.Bottles.Count) return 0;
-            if (targetIndex < 0 || targetIndex >= _state.Bottles.Count) return 0;
-            return _state.Bottles[sourceIndex].MaxPourAmountInto(_state.Bottles[targetIndex]);
+            return MoveRules.GetPourAmount(_state, sourceIndex, targetIndex);
+        }
+
+        public bool CanDragBottle(int index)
+        {
+            if (_inputLocked || _state == null) return false;
+            if (index < 0 || index >= _state.Bottles.Count) return false;
+            return InteractionRules.CanDrag(_state.Bottles[index]);
         }
 
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
@@ -480,12 +490,12 @@ namespace Decantra.Presentation.Controller
         {
             if (_initialState != null)
             {
-                return new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed, _initialState.ScrambleMoves);
+                return new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed, _initialState.ScrambleMoves, _initialState.BackgroundPaletteIndex);
             }
 
             if (_state != null)
             {
-                return new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed, _state.ScrambleMoves);
+                return new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed, _state.ScrambleMoves, _state.BackgroundPaletteIndex);
             }
 
             return null;
@@ -689,7 +699,7 @@ namespace Decantra.Presentation.Controller
 #if UNITY_EDITOR
             Debug.Log($"TransitionToLevel start level={nextLevel} seed={seed} precomputeReady={_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully}");
 #endif
-            ApplyBackgroundVariation(nextLevel, seed);
+            ApplyBackgroundVariation(nextLevel, seed, ResolveBackgroundPaletteIndex(nextLevel, seed));
 
             if (_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully)
             {
@@ -801,12 +811,53 @@ namespace Decantra.Presentation.Controller
             _inputLocked = false;
         }
 
+        public void RequestRestartGame()
+        {
+            if (_inputLocked) return;
+            if (restartDialog == null)
+            {
+                RestartGameConfirmed();
+                return;
+            }
+
+            _inputLocked = true;
+            restartDialog.Show(RestartGameConfirmed, () => { _inputLocked = false; });
+        }
+
+        private void RestartGameConfirmed()
+        {
+            CancelPrecompute();
+            _completionStreak = 0;
+            _usedUndo = false;
+            _usedHints = false;
+            _selectedIndex = -1;
+            _isCompleting = false;
+            _isFailing = false;
+
+            _progress = new ProgressData
+            {
+                HighestUnlockedLevel = 1,
+                CurrentLevel = 1,
+                CurrentSeed = 0,
+                CurrentScore = 0,
+                HighScore = 0,
+                BestPerformances = new List<LevelPerformanceRecord>()
+            };
+
+            _progressStore?.Save(_progress);
+
+            _scoreSession = new ScoreSession(0);
+            _scoreSession.BeginAttempt(0);
+
+            int restartSeed = NextSeed(1, 0);
+            LoadLevel(1, restartSeed);
+        }
         private void ApplyLoadedState(LevelState state, int levelIndex, int seed)
         {
             _levelSessionId++;
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
-            _state = state;
+            _state = EnsureBackground(state, _currentLevel, _currentSeed);
             CaptureInitialState(_state);
             _selectedIndex = -1;
             _isCompleting = false;
@@ -816,7 +867,7 @@ namespace Decantra.Presentation.Controller
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
-            ApplyBackgroundVariation(_currentLevel, _currentSeed);
+            ApplyBackgroundVariation(_currentLevel, _currentSeed, _state?.BackgroundPaletteIndex ?? -1);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
@@ -826,18 +877,16 @@ namespace Decantra.Presentation.Controller
 #endif
         }
 
-        private void ApplyBackgroundVariation(int levelIndex, int seed)
+        private void ApplyBackgroundVariation(int levelIndex, int seed, int backgroundPaletteIndex)
         {
             if (backgroundImage == null) return;
 
             var profile = LevelDifficultyEngine.GetProfile(levelIndex);
             var themeStyle = GetThemeStyle(profile.ThemeId);
 
-            int paletteIndex = (Mathf.Abs(levelIndex - 1) + (int)profile.ThemeId) % BackgroundPalettes.Length;
-            if (paletteIndex == _lastBackgroundPaletteIndex)
-            {
-                paletteIndex = (paletteIndex + 1) % BackgroundPalettes.Length;
-            }
+            int paletteIndex = backgroundPaletteIndex >= 0
+                ? backgroundPaletteIndex
+                : BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
             var palette = BackgroundPalettes[paletteIndex];
 
             float jitter = Hash01(seed, levelIndex);
@@ -881,14 +930,25 @@ namespace Decantra.Presentation.Controller
                 backgroundVignette.color = vignetteColor;
             }
 
-            _lastBackgroundPaletteIndex = paletteIndex;
-
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
             AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
 #endif
         }
 
+        private int ResolveBackgroundPaletteIndex(int levelIndex, int seed)
+        {
+            var profile = LevelDifficultyEngine.GetProfile(levelIndex);
+            return BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
+        }
+
+        private LevelState EnsureBackground(LevelState state, int levelIndex, int seed)
+        {
+            if (state == null) return null;
+            if (state.BackgroundPaletteIndex >= 0) return state;
+            int paletteIndex = ResolveBackgroundPaletteIndex(levelIndex, seed);
+            return new LevelState(state.Bottles, state.MovesUsed, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, paletteIndex);
+        }
         private static BackgroundThemeStyle GetThemeStyle(BackgroundThemeId themeId)
         {
             switch (themeId)

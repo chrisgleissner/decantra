@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Decantra.Domain.Model;
+using Decantra.Domain.Rules;
 
 namespace Decantra.Domain.Solver
 {
@@ -121,8 +122,7 @@ namespace Decantra.Domain.Solver
                 for (int j = 0; j < state.Bottles.Count; j++)
                 {
                     if (i == j) continue;
-                    var target = state.Bottles[j];
-                    int amount = source.MaxPourAmountInto(target);
+                    int amount = MoveRules.GetPourAmount(state, i, j);
                     if (amount <= 0) continue;
 
                     yield return new Move(i, j, amount);
@@ -137,7 +137,7 @@ namespace Decantra.Domain.Solver
             {
                 bottles.Add(bottle.Clone());
             }
-            return new LevelState(bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves);
+            return new LevelState(bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, state.BackgroundPaletteIndex);
         }
 
         private sealed class Node

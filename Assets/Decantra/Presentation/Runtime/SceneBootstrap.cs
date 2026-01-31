@@ -71,6 +71,10 @@ namespace Decantra.Presentation
             var settings = CreateSettingsPanel(canvas.transform, controller);
             WireResetButton(controller);
 
+            var restartDialog = CreateRestartDialog(canvas.transform);
+            SetPrivateField(controller, "restartDialog", restartDialog);
+            WireRestartButton(controller);
+
             var toolsGo = new GameObject("RuntimeTools");
             toolsGo.AddComponent<RuntimeScreenshot>();
 
@@ -249,14 +253,14 @@ namespace Decantra.Presentation
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
-            bottomRect.anchorMin = new Vector2(1f, 0f);
-            bottomRect.anchorMax = new Vector2(1f, 0f);
-            bottomRect.pivot = new Vector2(1f, 0f);
-            bottomRect.anchoredPosition = new Vector2(-60, 60);
-            bottomRect.sizeDelta = new Vector2(720, 180);
+            bottomRect.anchorMin = new Vector2(0.5f, 0f);
+            bottomRect.anchorMax = new Vector2(0.5f, 0f);
+            bottomRect.pivot = new Vector2(0.5f, 0f);
+            bottomRect.anchoredPosition = new Vector2(0f, 60f);
+            bottomRect.sizeDelta = new Vector2(900, 180);
 
             var bottomLayout = bottomHud.AddComponent<HorizontalLayoutGroup>();
-            bottomLayout.childAlignment = TextAnchor.MiddleRight;
+            bottomLayout.childAlignment = TextAnchor.MiddleCenter;
             bottomLayout.childForceExpandWidth = false;
             bottomLayout.childForceExpandHeight = false;
             bottomLayout.spacing = 18f;
@@ -264,6 +268,7 @@ namespace Decantra.Presentation
             var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH");
             var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LV");
             CreateResetButton(bottomHud.transform);
+            CreateRestartButton(bottomHud.transform);
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -590,6 +595,84 @@ namespace Decantra.Presentation
             return banner;
         }
 
+        private static RestartGameDialog CreateRestartDialog(Transform parent)
+        {
+            var root = CreateUiChild(parent, "RestartDialog");
+            var rect = root.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var overlay = root.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.45f);
+            overlay.raycastTarget = true;
+
+            var group = root.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(760, 300);
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.color = new Color(1f, 1f, 1f, 0.12f);
+            panelImage.raycastTarget = false;
+
+            var message = CreateHudText(panel.transform, "MessageText");
+            message.fontSize = 38;
+            message.text = "Are you sure? This will reset all progress.";
+            message.color = new Color(1f, 0.95f, 0.7f, 1f);
+
+            var buttonsRoot = CreateUiChild(panel.transform, "Buttons");
+            var buttonsRect = buttonsRoot.GetComponent<RectTransform>();
+            buttonsRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonsRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonsRect.pivot = new Vector2(0.5f, 0f);
+            buttonsRect.anchoredPosition = new Vector2(0f, 20f);
+            buttonsRect.sizeDelta = new Vector2(600, 100);
+
+            var buttonsLayout = buttonsRoot.AddComponent<HorizontalLayoutGroup>();
+            buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
+            buttonsLayout.childForceExpandWidth = false;
+            buttonsLayout.childForceExpandHeight = false;
+            buttonsLayout.spacing = 24f;
+
+            Button CreateDialogButton(string name, string label, Color color)
+            {
+                var buttonGo = CreateUiChild(buttonsRoot.transform, name);
+                var image = buttonGo.AddComponent<Image>();
+                image.color = color;
+                var rectTransform = buttonGo.GetComponent<RectTransform>();
+                rectTransform.sizeDelta = new Vector2(220, 90);
+                var element = buttonGo.AddComponent<LayoutElement>();
+                element.minWidth = 220;
+                element.minHeight = 90;
+                var button = buttonGo.AddComponent<Button>();
+                button.targetGraphic = image;
+                var text = CreateHudText(buttonGo.transform, "Label");
+                text.fontSize = 34;
+                text.text = label;
+                text.color = Color.white;
+                return button;
+            }
+
+            var cancelButton = CreateDialogButton("CancelButton", "CANCEL", new Color(1f, 1f, 1f, 0.28f));
+            var restartButton = CreateDialogButton("ConfirmRestartButton", "RESTART", new Color(1f, 0.4f, 0.35f, 0.75f));
+
+            var dialog = root.AddComponent<RestartGameDialog>();
+            SetPrivateField(dialog, "panel", panelRect);
+            SetPrivateField(dialog, "messageText", message);
+            SetPrivateField(dialog, "cancelButton", cancelButton);
+            SetPrivateField(dialog, "restartButton", restartButton);
+            SetPrivateField(dialog, "canvasGroup", group);
+            dialog.Initialize();
+            return dialog;
+        }
+
         private static Text CreateStatPanel(Transform parent, string name, string label)
         {
             var panel = CreateUiChild(parent, name);
@@ -634,6 +717,29 @@ namespace Decantra.Presentation
             return button;
         }
 
+        private static Button CreateRestartButton(Transform parent)
+        {
+            var panel = CreateUiChild(parent, "RestartButton");
+            var image = panel.AddComponent<Image>();
+            image.color = new Color(1f, 1f, 1f, 0.28f);
+
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(240, 160);
+            var element = panel.AddComponent<LayoutElement>();
+            element.minWidth = 240;
+            element.minHeight = 160;
+
+            var button = panel.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var text = CreateHudText(panel.transform, "Label");
+            text.fontSize = 36;
+            text.text = "RESTART";
+            text.color = Color.white;
+            AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
+            return button;
+        }
+
         private static void WireResetButton(GameController controller)
         {
             if (controller == null) return;
@@ -643,6 +749,17 @@ namespace Decantra.Presentation
             if (button == null) return;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.ResetCurrentLevel);
+        }
+
+        private static void WireRestartButton(GameController controller)
+        {
+            if (controller == null) return;
+            var restartGo = GameObject.Find("RestartButton");
+            if (restartGo == null) return;
+            var button = restartGo.GetComponent<Button>();
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(controller.RequestRestartGame);
         }
 
         private static GameObject CreateUiChild(Transform parent, string name)

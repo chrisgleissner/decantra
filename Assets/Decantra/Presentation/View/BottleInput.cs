@@ -20,6 +20,26 @@ namespace Decantra.Presentation.View
         private Transform originalParent;
         private BottleInput currentTarget;
         private Quaternion originalRotation;
+        private bool _isDragging;
+
+        public bool IsDragging => _isDragging;
+
+        private void EnsureComponents()
+        {
+            rectTransform ??= GetComponent<RectTransform>();
+            if (rootCanvas == null)
+            {
+                rootCanvas = GetComponentInParent<Canvas>();
+                if (rootCanvas == null)
+                {
+                    rootCanvas = Object.FindObjectOfType<Canvas>();
+                }
+            }
+
+            layoutElement ??= GetComponent<LayoutElement>() ?? gameObject.AddComponent<LayoutElement>();
+            canvasGroup ??= GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
+            gridLayout ??= GetComponentInParent<GridLayoutGroup>();
+        }
 
         public void OnPointerClick(PointerEventData eventData)
         {
@@ -29,22 +49,16 @@ namespace Decantra.Presentation.View
 
         private void Awake()
         {
-            rectTransform = GetComponent<RectTransform>();
-            rootCanvas = GetComponentInParent<Canvas>();
-            if (rootCanvas == null)
-            {
-                rootCanvas = Object.FindObjectOfType<Canvas>();
-            }
-            layoutElement = GetComponent<LayoutElement>() ?? gameObject.AddComponent<LayoutElement>();
-            canvasGroup = GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
-            gridLayout = GetComponentInParent<GridLayoutGroup>();
+            EnsureComponents();
         }
 
         public void OnBeginDrag(PointerEventData eventData)
         {
             if (controller == null || bottleView == null) return;
             if (controller.IsInputLocked) return;
+            EnsureComponents();
             if (rootCanvas == null) return;
+            if (!controller.CanDragBottle(bottleView.Index)) return;
 
             originalParent = rectTransform.parent;
             originalPosition = rectTransform.position;
@@ -54,13 +68,18 @@ namespace Decantra.Presentation.View
             {
                 gridLayout.enabled = false;
             }
-            canvasGroup.blocksRaycasts = false;
+            if (canvasGroup != null)
+            {
+                canvasGroup.blocksRaycasts = false;
+            }
+            _isDragging = true;
         }
 
         public void OnDrag(PointerEventData eventData)
         {
             if (controller == null || bottleView == null) return;
             if (rootCanvas == null || rectTransform == null) return;
+            if (!_isDragging) return;
 
             RectTransformUtility.ScreenPointToWorldPointInRectangle(
                 rootCanvas.transform as RectTransform,
@@ -97,6 +116,8 @@ namespace Decantra.Presentation.View
         public void OnEndDrag(PointerEventData eventData)
         {
             if (controller == null || bottleView == null) return;
+            if (!_isDragging) return;
+            _isDragging = false;
             var target = FindDropTarget(eventData);
             ClearPreview();
 
@@ -129,8 +150,14 @@ namespace Decantra.Presentation.View
             {
                 gridLayout.enabled = true;
             }
-            canvasGroup.blocksRaycasts = true;
-            layoutElement.ignoreLayout = false;
+            if (canvasGroup != null)
+            {
+                canvasGroup.blocksRaycasts = true;
+            }
+            if (layoutElement != null)
+            {
+                layoutElement.ignoreLayout = false;
+            }
         }
 
         private BottleInput FindDropTarget(PointerEventData eventData)

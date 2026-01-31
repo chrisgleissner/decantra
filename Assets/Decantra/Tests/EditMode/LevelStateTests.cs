@@ -27,6 +27,21 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
+        public void TryApplyMove_SinkBottleCannotBeSource()
+        {
+            var bottles = new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, null, null }, true),
+                new Bottle(new ColorId?[] { null, null, null })
+            };
+            var state = new LevelState(bottles, 0, 10, 3, 1, 123);
+
+            bool applied = state.TryApplyMove(0, 1, out int poured);
+            Assert.IsFalse(applied);
+            Assert.AreEqual(0, poured);
+        }
+
+        [Test]
         public void TryApplyMove_InvalidMoveRejected()
         {
             var bottles = new[]

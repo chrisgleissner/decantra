@@ -37,17 +37,19 @@ namespace Decantra.Domain.Generation
             int scrambleMoves = 0;
             long solveMs = 0;
             const int minOptimalMoves = 2;
-            const int maxAttempts = 10;
+            const int maxAttempts = 20;
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
                 var attemptRng = attempt == 0 ? rng : new Random(seed + attempt * 7919);
+                int attemptScrambleTarget = Math.Max(4, scrambleMovesTarget - attempt / 2);
                 int minEmptyDuringScramble = 0;
                 int maxEmptyDuringScramble = Math.Max(profile.EmptyBottleCount + 2, profile.EmptyBottleCount);
                 var attemptState = new LevelState(CloneBottles(solved), 0, 0, 0, profile.LevelIndex, seed);
-                int appliedMoves = ScrambleState(attemptState, attemptRng, scrambleMovesTarget, minEmptyDuringScramble, maxEmptyDuringScramble);
+                int appliedMoves = ScrambleState(attemptState, attemptRng, attemptScrambleTarget, minEmptyDuringScramble, maxEmptyDuringScramble);
                 if (appliedMoves <= 0)
                 {
                     lastFailure = "scramble";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                     continue;
                 }
 
@@ -56,6 +58,7 @@ namespace Decantra.Domain.Generation
                     if (!BreakSolvedBottles(attemptState, attemptRng, minEmptyDuringScramble, maxEmptyDuringScramble, Math.Max(1, appliedMoves) * 6))
                     {
                         lastFailure = "break_solved";
+                        ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                         continue;
                     }
                 }
@@ -65,6 +68,7 @@ namespace Decantra.Domain.Generation
                     if (!ReduceEmptyCount(attemptState, attemptRng, profile.EmptyBottleCount, Math.Max(1, appliedMoves) * 8))
                     {
                         lastFailure = "reduce_empty";
+                        ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                         continue;
                     }
                 }
@@ -72,10 +76,16 @@ namespace Decantra.Domain.Generation
                 if (!IsAcceptableStart(attemptState, profile))
                 {
                     lastFailure = "accept";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                     continue;
                 }
 
-                LevelIntegrity.ValidateOrThrow(attemptState);
+                if (!LevelIntegrity.TryValidate(attemptState, out string integrityError))
+                {
+                    lastFailure = $"integrity:{integrityError}";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
+                    continue;
+                }
 
                 var solveTimer = Stopwatch.StartNew();
                 var solveResult = _solver.SolveOptimal(attemptState);
@@ -83,11 +93,13 @@ namespace Decantra.Domain.Generation
                 if (solveResult.OptimalMoves < 0)
                 {
                     lastFailure = "solver";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                     continue;
                 }
                 if (solveResult.OptimalMoves < minOptimalMoves)
                 {
                     lastFailure = "min_optimal";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                     continue;
                 }
 
@@ -109,6 +121,12 @@ namespace Decantra.Domain.Generation
             return scrambled;
         }
 
+        [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
+        private void ReportReject(int levelIndex, int seed, int attempt, string reason)
+        {
+            Log?.Invoke($"LevelGenerator.Reject level={levelIndex} seed={seed} attempt={attempt} reason={reason}");
+        }
+
         private static int ScrambleState(LevelState state, Random rng, int moves, int minEmptyCount, int maxEmptyCount)
         {
             if (state == null) return 0;
@@ -122,7 +140,7 @@ namespace Decantra.Domain.Generation
 
             while (applied < moves && guard-- > 0)
             {
-                var candidates = EnumerateReverseMovePairs(state, buffer, lastMove);
+                var candidates = EnumerateScrambleMovePairs(state, buffer, lastMove);
                 if (candidates.Count == 0)
                 {
                     break;
@@ -130,7 +148,7 @@ namespace Decantra.Domain.Generation
 
                 var move = candidates[rng.Next(candidates.Count)];
                 int poured;
-                if (!TryApplyReverseMove(state, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, out poured))
+                if (!TryApplyScrambleMove(state, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, out poured))
                 {
                     continue;
                 }
@@ -142,7 +160,7 @@ namespace Decantra.Domain.Generation
             return applied;
         }
 
-        private static List<Move> EnumerateReverseMovePairs(LevelState state, List<Move> buffer, Move? lastMove)
+        private static List<Move> EnumerateScrambleMovePairs(LevelState state, List<Move> buffer, Move? lastMove)
         {
             buffer.Clear();
             for (int i = 0; i < state.Bottles.Count; i++)
@@ -157,6 +175,8 @@ namespace Decantra.Domain.Generation
                         continue;
                     }
 
+                    if (state.Bottles[j].IsSink) continue;
+
                     var target = state.Bottles[j];
                     int maxAmount = GetMaxReverseAmount(source, target);
                     if (maxAmount <= 0) continue;
@@ -166,7 +186,7 @@ namespace Decantra.Domain.Generation
             return buffer;
         }
 
-        private static bool TryApplyReverseMove(LevelState state, int sourceIndex, int targetIndex, Random rng, int minEmptyCount, int maxEmptyCount, out int appliedAmount)
+        private static bool TryApplyScrambleMove(LevelState state, int sourceIndex, int targetIndex, Random rng, int minEmptyCount, int maxEmptyCount, out int appliedAmount)
         {
             appliedAmount = 0;
             if (state == null) return false;
@@ -177,12 +197,9 @@ namespace Decantra.Domain.Generation
 
             var source = state.Bottles[sourceIndex];
             var target = state.Bottles[targetIndex];
-            if (source.IsEmpty) return false;
-            if (target.FreeSpace <= 0) return false;
-
+            if (target.IsSink) return false;
             int maxAmount = GetMaxReverseAmount(source, target);
             if (maxAmount <= 0) return false;
-
             int amount = rng.Next(1, maxAmount + 1);
             int emptyCount = CountEmpty(state.Bottles);
             bool targetWasEmpty = target.IsEmpty;
@@ -237,23 +254,24 @@ namespace Decantra.Domain.Generation
             while (CountEmpty(state.Bottles) > targetEmptyCount && attempts-- > 0)
             {
                 candidates.Clear();
+                int emptyCount = CountEmpty(state.Bottles);
                 for (int i = 0; i < state.Bottles.Count; i++)
                 {
                     var source = state.Bottles[i];
                     if (source.IsEmpty) continue;
                     if (source.Count <= 1) continue;
 
-                    int maxFromSource = source.Count - 1;
-                    int maxSourceAmount = Math.Min(source.ContiguousTopCount - 1, maxFromSource);
-                    if (maxSourceAmount <= 0) continue;
-
                     for (int j = 0; j < state.Bottles.Count; j++)
                     {
                         if (i == j) continue;
                         var target = state.Bottles[j];
+                        if (target.IsSink) continue;
                         if (!target.IsEmpty) continue;
-                        int maxAmount = Math.Min(maxSourceAmount, GetMaxReverseAmount(source, target));
+
+                        int maxAmount = GetMaxReverseAmount(source, target);
+                        maxAmount = Math.Min(maxAmount, source.Count - 1);
                         if (maxAmount <= 0) continue;
+
                         candidates.Add(new Move(i, j, maxAmount));
                     }
                 }
@@ -278,17 +296,6 @@ namespace Decantra.Domain.Generation
         {
             if (source == null || target == null) return 0;
             int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
-            if (target.IsSink)
-            {
-                maxAmount = Math.Min(maxAmount, target.FreeSpace - 1);
-            }
-            if (maxAmount <= 0) return 0;
-
-            if (source.ContiguousTopCount < source.Count)
-            {
-                maxAmount = Math.Min(maxAmount, source.ContiguousTopCount - 1);
-            }
-
             return Math.Max(0, maxAmount);
         }
 
@@ -347,6 +354,7 @@ namespace Decantra.Domain.Generation
                     for (int j = 0; j < state.Bottles.Count; j++)
                     {
                         if (i == j) continue;
+                        if (state.Bottles[j].IsSink) continue;
                         var target = state.Bottles[j];
                         int maxAmount = GetMaxReverseAmount(source, target);
                         if (maxAmount <= 0) continue;
@@ -356,8 +364,18 @@ namespace Decantra.Domain.Generation
 
                 if (candidates.Count == 0) break;
                 var move = candidates[rng.Next(candidates.Count)];
-                int poured;
-                TryApplyReverseMove(state, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, out poured);
+                var moveSource = state.Bottles[move.Source];
+                var moveTarget = state.Bottles[move.Target];
+                int moveMaxAmount = GetMaxReverseAmount(moveSource, moveTarget);
+                if (moveMaxAmount <= 0) continue;
+
+                int amount = rng.Next(1, moveMaxAmount + 1);
+                if (moveTarget.IsEmpty && moveSource.Count == moveMaxAmount && amount == moveMaxAmount)
+                {
+                    amount = Math.Max(1, moveMaxAmount - 1);
+                }
+
+                moveSource.TryReversePourInto(moveTarget, amount);
             }
 
             return !HasSolvedBottle(state.Bottles);

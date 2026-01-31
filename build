@@ -21,17 +21,12 @@ APT_UPDATED=false
 
 usage() {
   cat <<'EOF'
-build.sh - Decantra Android build helper
+Decantra - Android Build Script
 
-Usage:
-  ./build.sh [options]
-
-Default (no options):
-  - Run EditMode + PlayMode tests
-  - Build debug APK
+Usage: ./build [OPTIONS]
 
 Options:
-  --install           Install APK to first connected Android device (via adb)
+  --install            Install APK to first connected Android device (via adb)
   --device <id>        Specific device ID for adb (optional)
   --adb-port <port>    ADB server port for Decantra (default: 5039)
   --serial <id>        Device serial to target (env: DECANTRA_ANDROID_SERIAL)
@@ -39,7 +34,14 @@ Options:
   --skip-tests         Skip Unity tests
   --skip-build         Skip APK build
   --release            Build the release APK
-  -h, --help           Show this help
+  -h, --help           Show this help message
+
+Examples:
+  ./build                         Run tests and build debug APK
+  ./build --release               Run tests and build release APK
+  ./build --skip-tests            Build debug APK without running tests
+  ./build --skip-build --install  Install existing APK to device
+  ./build --install --device <id> Build and install to a specific device
 EOF
 }
 

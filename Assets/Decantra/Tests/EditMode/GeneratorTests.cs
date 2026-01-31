@@ -159,6 +159,22 @@ namespace Decantra.Tests.EditMode
             Assert.IsTrue(hasSink, "Expected at least one sink bottle by level 24.");
         }
 
+        [Test]
+        public void Generate_SinkBottleStartsMonochromeOrEmpty()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            var profile = LevelDifficultyEngine.GetProfile(24);
+            var state = generator.Generate(901, profile);
+
+            foreach (var bottle in state.Bottles)
+            {
+                if (!bottle.IsSink) continue;
+                Assert.IsTrue(bottle.IsSingleColorOrEmpty(), "Sink bottle should be empty or monochrome at start.");
+            }
+        }
+
         private static int NextSeed(int level, int previous)
         {
             unchecked

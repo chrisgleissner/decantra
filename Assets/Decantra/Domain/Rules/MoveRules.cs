@@ -13,7 +13,14 @@ namespace Decantra.Domain.Rules
             if (targetIndex < 0 || targetIndex >= state.Bottles.Count) return false;
             var source = state.Bottles[sourceIndex];
             var target = state.Bottles[targetIndex];
+            if (!InteractionRules.CanUseAsSource(source)) return false;
             return source.MaxPourAmountInto(target) > 0;
+        }
+
+        public static int GetPourAmount(LevelState state, int sourceIndex, int targetIndex)
+        {
+            if (!IsValidMove(state, sourceIndex, targetIndex)) return 0;
+            return state.Bottles[sourceIndex].MaxPourAmountInto(state.Bottles[targetIndex]);
         }
     }
 }

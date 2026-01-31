@@ -60,6 +60,11 @@ namespace Decantra.Domain.Rules
                 return false;
             }
 
+            if (!ValidateSinkMonochrome(state.Bottles, out error))
+            {
+                return false;
+            }
+
             if (!ValidateSealedSinks(state.Bottles, volumes, out error))
             {
                 return false;
@@ -127,6 +132,24 @@ namespace Decantra.Domain.Rules
                 if (!volumes.TryGetValue(color.Value, out int volume) || volume != bottle.Capacity)
                 {
                     error = $"Sink bottle {i} seals color {color.Value} volume {volume}, capacity {bottle.Capacity}.";
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static bool ValidateSinkMonochrome(IReadOnlyList<Bottle> bottles, out string error)
+        {
+            error = null;
+            if (bottles == null) return true;
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                var bottle = bottles[i];
+                if (bottle == null) continue;
+                if (!bottle.IsSink) continue;
+                if (!bottle.IsSingleColorOrEmpty())
+                {
+                    error = $"Sink bottle {i} has mixed colors.";
                     return false;
                 }
             }

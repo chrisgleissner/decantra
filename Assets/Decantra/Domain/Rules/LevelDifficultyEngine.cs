@@ -39,6 +39,7 @@ namespace Decantra.Domain.Rules
         private static int ResolveEmptyCount(int levelIndex)
         {
             if (levelIndex <= 6) return 2;
+            if (levelIndex >= 18) return 2;
             return 1;
         }
 

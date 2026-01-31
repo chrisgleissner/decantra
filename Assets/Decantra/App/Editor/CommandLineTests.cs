@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using UnityEditor;
-using UnityEditor.TestTools.CodeCoverage;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
 
@@ -29,11 +28,6 @@ namespace Decantra.App.Editor
             _resultsPath = Path.GetFullPath(_resultsPath);
             SessionState.SetString(ResultsPathKey, _resultsPath);
             EnsureDirectory(_resultsPath);
-
-            if (IsCoverageEnabled())
-            {
-                CodeCoverage.StartRecording();
-            }
 
             _api = ScriptableObject.CreateInstance<TestRunnerApi>();
             _api.RegisterCallbacks(new Callback());
@@ -86,10 +80,6 @@ namespace Decantra.App.Editor
 
             public void RunFinished(ITestResultAdaptor result)
             {
-                if (IsCoverageEnabled())
-                {
-                    CodeCoverage.StopRecording();
-                }
                 if (string.IsNullOrEmpty(_resultsPath))
                 {
                     _resultsPath = SessionState.GetString(ResultsPathKey, "Logs/TestResults.xml");

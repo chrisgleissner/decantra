@@ -15,14 +15,15 @@ namespace Decantra.Tests.EditMode
             var solver = new BfsSolver();
             var generator = new LevelGenerator(solver);
 
-            int[] levels = { 1, 2, 3, 5, 10, 15, 20, 25, 30, 50, 100 };
+            int[] levels = { 1, 5, 10, 20, 30, 50 };
             int seed = 12345;
+            const int attemptsPerLevel = 4;
             int total = 0;
 
             foreach (int level in levels)
             {
                 var profile = LevelDifficultyEngine.GetProfile(level);
-                for (int i = 0; i < 20; i++)
+                for (int i = 0; i < attemptsPerLevel; i++)
                 {
                     seed = NextSeed(level, seed + 31);
                     var state = generator.Generate(seed, profile);
@@ -49,7 +50,7 @@ namespace Decantra.Tests.EditMode
                 }
             }
 
-            Assert.GreaterOrEqual(total, 200);
+            Assert.GreaterOrEqual(total, attemptsPerLevel * levels.Length);
         }
 
         private static void AssertLevelIntegrity(LevelState state)

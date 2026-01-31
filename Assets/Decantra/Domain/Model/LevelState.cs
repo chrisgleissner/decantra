@@ -6,7 +6,7 @@ namespace Decantra.Domain.Model
 {
     public sealed class LevelState
     {
-        public LevelState(IReadOnlyList<Bottle> bottles, int movesUsed, int movesAllowed, int optimalMoves, int levelIndex, int seed, int scrambleMoves = 0)
+        public LevelState(IReadOnlyList<Bottle> bottles, int movesUsed, int movesAllowed, int optimalMoves, int levelIndex, int seed, int scrambleMoves = 0, int backgroundPaletteIndex = -1)
         {
             if (bottles == null) throw new ArgumentNullException(nameof(bottles));
             if (bottles.Count == 0) throw new ArgumentOutOfRangeException(nameof(bottles));
@@ -22,6 +22,7 @@ namespace Decantra.Domain.Model
             LevelIndex = levelIndex;
             Seed = seed;
             ScrambleMoves = scrambleMoves;
+            BackgroundPaletteIndex = backgroundPaletteIndex;
         }
 
         public IReadOnlyList<Bottle> Bottles { get; }
@@ -31,6 +32,7 @@ namespace Decantra.Domain.Model
         public int LevelIndex { get; }
         public int Seed { get; }
         public int ScrambleMoves { get; }
+        public int BackgroundPaletteIndex { get; }
 
         public bool IsWin()
         {
@@ -53,13 +55,10 @@ namespace Decantra.Domain.Model
         public bool TryApplyMove(int sourceIndex, int targetIndex, out int poured)
         {
             poured = 0;
-            if (sourceIndex == targetIndex) return false;
-            if (sourceIndex < 0 || sourceIndex >= Bottles.Count) return false;
-            if (targetIndex < 0 || targetIndex >= Bottles.Count) return false;
+            int amount = Decantra.Domain.Rules.MoveRules.GetPourAmount(this, sourceIndex, targetIndex);
+            if (amount <= 0) return false;
             var source = Bottles[sourceIndex];
             var target = Bottles[targetIndex];
-            int amount = source.MaxPourAmountInto(target);
-            if (amount <= 0) return false;
             source.PourInto(target, amount);
             MovesUsed++;
             poured = amount;
