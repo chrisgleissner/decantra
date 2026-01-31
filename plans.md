@@ -15,6 +15,18 @@
 
 Status: Complete
 
+## Plan - Visual Redesign (2026-01-31)
+- [x] Define new HUD layout: brand lockup, level medallion, stats chips, secondary tools.
+- [x] Overhaul background system with multi-layer organic textures and drift motion.
+- [x] Restyle level/intro/out-of-moves banners for premium presentation.
+- [x] Reposition and restyle export CTA as secondary tool drawer.
+- [x] Update text formatting to match new visual hierarchy.
+- [x] Validate runtime UI creation and wiring.
+- [ ] Run EditMode + PlayMode tests.
+- [ ] Build release Android APK.
+
+Status: In Progress
+
 Single source of truth: This file governs all work for the critical solvability, reset, and scoring fixes.
 
 ## Scope summary

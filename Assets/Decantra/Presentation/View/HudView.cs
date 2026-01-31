@@ -22,12 +22,12 @@ namespace Decantra.Presentation.View
 
             if (levelText != null)
             {
-                levelText.text = $"LEVEL\n{levelIndex}";
+                levelText.text = $"LEVEL\n<size=72>{levelIndex}</size>";
             }
 
             if (movesText != null)
             {
-                movesText.text = $"MOVES\n{movesUsed}/{movesAllowed}";
+                movesText.text = $"MOVES\n<size=52>{movesUsed}/{movesAllowed}</size>";
             }
 
             if (optimalText != null)
@@ -41,17 +41,17 @@ namespace Decantra.Presentation.View
 
             if (scoreText != null)
             {
-                scoreText.text = $"SCORE\n{score}";
+                scoreText.text = $"SCORE\n<size=52>{score}</size>";
             }
 
             if (highScoreText != null)
             {
-                highScoreText.text = $"HIGH\n{highScore}";
+                highScoreText.text = $"BEST\n<size=44>{highScore}</size>";
             }
 
             if (maxLevelText != null)
             {
-                maxLevelText.text = $"MAX LV\n{maxLevel}";
+                maxLevelText.text = $"MAX\n<size=44>{maxLevel}</size>";
             }
         }
     }

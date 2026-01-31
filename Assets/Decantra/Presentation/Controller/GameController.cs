@@ -887,7 +887,6 @@ namespace Decantra.Presentation.Controller
 
         public void RequestRestartGame()
         {
-            if (_inputLocked) return;
             if (restartDialog == null)
             {
                 RestartGameConfirmed();
@@ -987,6 +986,9 @@ namespace Decantra.Presentation.Controller
                 flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter) * themeStyle.FlowAlphaScale;
                 backgroundFlow.color = flowTint;
                 backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(-6f, 6f, jitter2));
+                float flowScale = Mathf.Lerp(1.05f, 1.25f, jitter);
+                backgroundFlow.rectTransform.localScale = new Vector3(flowScale, flowScale, 1f);
+                backgroundFlow.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-18f, 18f, jitter2), Mathf.Lerp(-12f, 22f, jitter));
             }
 
             if (backgroundShapes != null)
@@ -995,6 +997,9 @@ namespace Decantra.Presentation.Controller
                 shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2) * themeStyle.ShapeAlphaScale;
                 backgroundShapes.color = shapeTint;
                 backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(4f, -4f, jitter));
+                float shapeScale = Mathf.Lerp(1.0f, 1.2f, jitter2);
+                backgroundShapes.rectTransform.localScale = new Vector3(shapeScale, shapeScale, 1f);
+                backgroundShapes.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(12f, -12f, jitter), Mathf.Lerp(8f, -16f, jitter2));
             }
 
             if (backgroundVignette != null)
@@ -1002,6 +1007,13 @@ namespace Decantra.Presentation.Controller
                 var vignetteColor = backgroundVignette.color;
                 vignetteColor.a = palette.VignetteAlpha * themeStyle.VignetteAlphaScale;
                 backgroundVignette.color = vignetteColor;
+            }
+
+            if (backgroundDetail != null)
+            {
+                float detailScale = Mathf.Lerp(1.0f, 1.15f, jitter2);
+                backgroundDetail.rectTransform.localScale = new Vector3(detailScale, detailScale, 1f);
+                backgroundDetail.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-10f, 10f, jitter), Mathf.Lerp(6f, -6f, jitter2));
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
