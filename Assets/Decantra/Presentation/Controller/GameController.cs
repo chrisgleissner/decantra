@@ -736,6 +736,10 @@ namespace Decantra.Presentation.Controller
             _audioSource.playOnAwake = false;
             _audioSource.loop = false;
             _pourClip = CreatePourClip();
+            if (_pourClip == null)
+            {
+                Debug.LogWarning("[GameController] Failed to create pour audio clip. Audio may not be available in this environment.");
+            }
         }
 
         private AudioClip CreatePourClip()
@@ -743,7 +747,18 @@ namespace Decantra.Presentation.Controller
             int sampleRate = 44100;
             float duration = 0.25f;
             int samples = Mathf.CeilToInt(sampleRate * duration);
+            if (samples <= 0)
+            {
+                Debug.LogWarning("[GameController] Invalid sample count for audio clip.");
+                return null;
+            }
+
             var clip = AudioClip.Create("Pour", samples, 1, sampleRate, false);
+            if (clip == null)
+            {
+                Debug.LogWarning("[GameController] AudioClip.Create returned null. Audio system may not be available.");
+                return null;
+            }
 
             float[] data = new float[samples];
             float freq = 220f;
