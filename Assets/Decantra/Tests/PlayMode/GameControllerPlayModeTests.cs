@@ -22,6 +22,7 @@ namespace Decantra.Tests.PlayMode
             var controller = go.AddComponent<GameController>();
             yield return null;
             Assert.IsNotNull(controller);
+            Object.DestroyImmediate(go);
         }
 
         [UnityTest]

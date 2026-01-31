@@ -425,11 +425,18 @@ namespace Decantra.Presentation.Controller
             if (outOfMovesBanner != null)
             {
                 outOfMovesBanner.Show("Out of moves. Try again.", _sfxEnabled, () => finished = true);
-                float wait = 0f;
-                while (!finished && wait < BannerTimeoutSeconds)
+                if (Application.isBatchMode)
                 {
-                    wait += Time.unscaledDeltaTime;
-                    yield return null;
+                    yield return new WaitForSeconds(0.6f);
+                }
+                else
+                {
+                    float wait = 0f;
+                    while (!finished && wait < BannerTimeoutSeconds)
+                    {
+                        wait += Time.unscaledDeltaTime;
+                        yield return null;
+                    }
                 }
             }
             else

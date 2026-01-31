@@ -31,9 +31,9 @@ Single source of truth: This file governs all work for the current upgrade.
 - [x] Implement level generation complexity scaling (bottles/colors/empties).
 - [x] Implement performance feedback (best moves, efficiency, grade).
 - [x] Implement persistence for current level and best performance.
-- [ ] Run EditMode + PlayMode tests.
-- [ ] Run clean Android build and produce APK.
-- [ ] Final verification and checklist tick-off.
+- [x] Run EditMode + PlayMode tests.
+- [x] Run clean Android build and produce APK.
+- [x] Final verification and checklist tick-off.
 
 ## Explicit timeout policy
 - Unity editor build step: 10 minutes max.
@@ -59,22 +59,23 @@ Single source of truth: This file governs all work for the current upgrade.
 - 2026-01-30: Android build failed due to JAVA_HOME pointing to JDK 25. Action: use JDK 17 and explicit SDK/NDK paths.
 - 2026-01-30: APK install stalled with streamed install. Action: use --no-streaming and verify via package list if output stalls.
 - 2026-01-30: Tests failed to start because Unity Editor was not found. Action: install Unity 6000.3.5f2 and set UNITY_PATH to the editor executable, then rerun tools/test.sh.
+- 2026-01-30: Release APK build crashed (segfault) without toolchain env. Action: rerun with ANDROID_SDK_ROOT, ANDROID_NDK_ROOT, and JAVA_HOME set explicitly.
 
 ## Verification checklist (global)
-- [ ] Optimal solver produces correct minimum moves on known configs.
-- [ ] Allowed moves tighten with level; slack reaches 1.0 at high levels.
-- [ ] Failure on move exhaustion blocks input and restarts level.
-- [ ] Efficiency-based scoring only commits on success.
-- [ ] Level complexity increases and all generated levels are solvable.
-- [ ] Best performance persists and never regresses.
+- [x] Optimal solver produces correct minimum moves on known configs.
+- [x] Allowed moves tighten with level; slack reaches 1.0 at high levels.
+- [x] Failure on move exhaustion blocks input and restarts level.
+- [x] Efficiency-based scoring only commits on success.
+- [x] Level complexity increases and all generated levels are solvable.
+- [x] Best performance persists and never regresses.
 
 ## APK deployment checklist
-- [ ] Unity build (APK) completed within timeouts.
-- [ ] Gradle/signing completed within timeouts.
-- [ ] APK installed within 2 minutes (verified via package list).
-- [ ] App launches and runs on device/emulator.
+- [x] Unity build (APK) completed within timeouts.
+- [x] Gradle/signing completed within timeouts.
+- [x] APK installed within 2 minutes (verified via package list).
+- [x] App launches and runs on device/emulator.
 
 ## Final acceptance checklist
-- [ ] All requirements satisfied and verified by tests.
-- [ ] No build/deploy stalls; failures documented with retries.
-- [ ] plans.md updated with completed tasks and verification notes.
+- [x] All requirements satisfied and verified by tests.
+- [x] No build/deploy stalls; failures documented with retries.
+- [x] plans.md updated with completed tasks and verification notes.
