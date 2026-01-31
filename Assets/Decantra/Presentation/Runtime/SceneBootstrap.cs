@@ -968,6 +968,8 @@ namespace Decantra.Presentation
             var shareTransform = shareRoot.transform.Find("ShareButton");
             var shareGo = shareTransform != null ? shareTransform.gameObject : null;
             if (shareGo == null) return;
+            // Ensure ShareButton itself is also inactive
+            shareGo.SetActive(false);
             var shareButton = shareGo.GetComponent<Button>();
             if (shareButton == null) return;
 
