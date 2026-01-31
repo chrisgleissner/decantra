@@ -25,94 +25,73 @@ namespace Decantra.Domain.Generation
 
             var overallTimer = Stopwatch.StartNew();
             var rng = new Random(seed);
-            var working = CreateSolvedSlots(profile.ColorCount, profile.EmptyBottleCount);
+            var plans = CreateBottlePlans(profile, rng);
+            var working = CreateSolvedSlots(plans, out var sinkFlags);
             int reverseMoves = profile.ReverseMoves;
 
             var reverseTimer = Stopwatch.StartNew();
 
             int applied = 0;
             int guard = 0;
-            int minEmptyCount = profile.EmptyBottleCount > 1 ? 2 : (profile.EmptyBottleCount > 0 ? 1 : 0);
+            int minEmptyCount = 0;
+            int maxEmptyCount = Math.Max(0, profile.EmptyBottleCount);
             var movesBuffer = new List<Move>(working.Count * working.Count);
             var appliedMoves = new List<Move>(reverseMoves + 8);
-            while (applied < reverseMoves && guard < reverseMoves * 20)
+            while (applied < reverseMoves && guard < reverseMoves * 30)
             {
                 guard++;
                 var moves = EnumerateValidReverseMoves(working, movesBuffer);
                 if (moves.Count == 0) break;
                 var move = moves[rng.Next(moves.Count)];
                 int appliedAmount;
-                if (TryApplyReverseMove(working, move.Source, move.Target, rng, minEmptyCount, out appliedAmount))
+                if (TryApplyReverseMove(working, sinkFlags, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, out appliedAmount))
                 {
                     appliedMoves.Add(new Move(move.Source, move.Target, appliedAmount));
                     applied++;
                 }
             }
 
-            int extraGuard = 0;
-            while (HasCappedBottle(working) && extraGuard < reverseMoves * 12)
+            if (!BreakSolvedBottles(working, sinkFlags, rng, minEmptyCount, maxEmptyCount, reverseMoves * 10, appliedMoves))
             {
-                extraGuard++;
-                var moves = EnumerateValidReverseMoves(working, movesBuffer);
-                if (moves.Count == 0) break;
-                var move = moves[rng.Next(moves.Count)];
-                int appliedAmount;
-                if (TryApplyReverseMove(working, move.Source, move.Target, rng, minEmptyCount, out appliedAmount))
-                {
-                    appliedMoves.Add(new Move(move.Source, move.Target, appliedAmount));
-                }
-            }
-
-            if (HasCappedBottle(working))
-            {
-                int uncapGuard = profile.LevelIndex <= 3 ? reverseMoves * 12 : reverseMoves * 6;
-                TryUncapCappedBottles(working, rng, 0, uncapGuard);
+                TryUncapCappedBottles(working, sinkFlags, rng, reverseMoves * 8, appliedMoves);
                 if (HasCappedBottle(working))
                 {
                     throw new InvalidOperationException("Generated level contains capped bottles at start");
                 }
             }
 
-            UndoToEmptyCount(working, appliedMoves, profile.EmptyBottleCount);
+            EnsureAtLeastOneEmpty(working, appliedMoves, sinkFlags);
+            if (profile.EmptyBottleCount > 0 && CountEmpty(working) == 0)
+            {
+                throw new InvalidOperationException("Generated level lacks empty bottles at start");
+            }
             if (HasCappedBottle(working))
             {
-                int uncapGuard = profile.LevelIndex <= 3 ? reverseMoves * 12 : reverseMoves * 6;
-                TryUncapCappedBottles(working, rng, 0, uncapGuard);
-            }
-
-            int postGuard = 0;
-            while (postGuard < reverseMoves * 6 && (HasCappedBottle(working) || CountEmpty(working) < profile.EmptyBottleCount))
-            {
-                postGuard++;
-                if (CountEmpty(working) < profile.EmptyBottleCount)
+                if (!BreakSolvedBottles(working, sinkFlags, rng, minEmptyCount, maxEmptyCount, reverseMoves * 6, appliedMoves))
                 {
-                    EnsureEmptyBottleCount(working, rng, profile.EmptyBottleCount, reverseMoves * 4);
-                }
-
-                if (HasCappedBottle(working))
-                {
-                    int uncapGuard = profile.LevelIndex <= 3 ? reverseMoves * 12 : reverseMoves * 6;
-                    TryUncapCappedBottles(working, rng, 0, uncapGuard);
+                    TryUncapCappedBottles(working, sinkFlags, rng, reverseMoves * 6, appliedMoves);
+                    if (HasCappedBottle(working))
+                    {
+                        throw new InvalidOperationException("Generated level contains capped bottles at start");
+                    }
                 }
             }
 
-            EnsureAtLeastOneEmpty(working, appliedMoves);
-            if (HasCappedBottle(working))
+            if (CountEmpty(working) > maxEmptyCount || CountEmpty(working) < minEmptyCount)
             {
-                int uncapGuard = profile.LevelIndex <= 3 ? reverseMoves * 12 : reverseMoves * 6;
-                TryUncapCappedBottles(working, rng, 0, uncapGuard);
+                throw new InvalidOperationException("Generated level contains too many empty bottles at start");
             }
 
-            if (HasCappedBottle(working))
+            if (HasFullSinkBottle(working, sinkFlags))
             {
-                throw new InvalidOperationException("Generated level contains capped bottles at start");
+                throw new InvalidOperationException("Generated level contains full sink bottles at start");
             }
             reverseTimer.Stop();
 
             var bottles = new List<Bottle>(working.Count);
             for (int i = 0; i < working.Count; i++)
             {
-                bottles.Add(new Bottle(working[i]));
+                bottles.Add(new Bottle(working[i], sinkFlags[i]));
             }
 
             int emptyCount = 0;
@@ -175,6 +154,20 @@ namespace Decantra.Domain.Generation
         {
             if (bottles == null || bottles.Count == 0) return false;
 
+            if (levelIndex >= 6)
+            {
+                var distinctCaps = new HashSet<int>();
+                bool hasLarge = false;
+                for (int i = 0; i < bottles.Count; i++)
+                {
+                    int cap = bottles[i].Capacity;
+                    distinctCaps.Add(cap);
+                    if (cap >= 5) hasLarge = true;
+                }
+                if (distinctCaps.Count < 2) return false;
+                if (levelIndex >= 16 && !hasLarge) return false;
+            }
+
             if (levelIndex <= 8)
             {
                 return true;
@@ -207,7 +200,10 @@ namespace Decantra.Domain.Generation
 
         private static string BottleSignature(Bottle bottle)
         {
-            var sb = new StringBuilder(bottle.Slots.Count + 1);
+            var sb = new StringBuilder(bottle.Slots.Count + 6);
+            sb.Append(bottle.IsSink ? 'S' : 'N');
+            sb.Append(bottle.Capacity);
+            sb.Append(':');
             for (int i = 0; i < bottle.Slots.Count; i++)
             {
                 var color = bottle.Slots[i];
@@ -216,30 +212,117 @@ namespace Decantra.Domain.Generation
             return sb.ToString();
         }
 
-        private static List<ColorId?[]> CreateSolvedSlots(int colorCount, int emptyBottleCount)
+        private static List<ColorId?[]> CreateSolvedSlots(IReadOnlyList<BottlePlan> plans, out bool[] sinkFlags)
         {
-            if (colorCount <= 0) throw new ArgumentOutOfRangeException(nameof(colorCount));
-            if (emptyBottleCount < 0) throw new ArgumentOutOfRangeException(nameof(emptyBottleCount));
+            if (plans == null) throw new ArgumentNullException(nameof(plans));
+            if (plans.Count == 0) throw new ArgumentOutOfRangeException(nameof(plans));
 
-            int available = Enum.GetValues(typeof(ColorId)).Length;
-            if (colorCount > available)
+            sinkFlags = new bool[plans.Count];
+            var bottles = new List<ColorId?[]>(plans.Count);
+            for (int i = 0; i < plans.Count; i++)
             {
-                throw new InvalidOperationException($"Color count {colorCount} exceeds available colors {available}");
-            }
-
-            var bottles = new List<ColorId?[]>(colorCount + emptyBottleCount);
-            for (int i = 0; i < colorCount; i++)
-            {
-                bottles.Add(new ColorId?[]
+                var plan = plans[i];
+                if (plan.Capacity <= 0) throw new InvalidOperationException("Bottle capacity must be positive.");
+                var slots = new ColorId?[plan.Capacity];
+                if (plan.FillColor.HasValue)
                 {
-                    (ColorId)i, (ColorId)i, (ColorId)i, (ColorId)i
-                });
-            }
-            for (int i = 0; i < emptyBottleCount; i++)
-            {
-                bottles.Add(new ColorId?[4]);
+                    for (int s = 0; s < plan.Capacity; s++)
+                    {
+                        slots[s] = plan.FillColor.Value;
+                    }
+                }
+                bottles.Add(slots);
+                sinkFlags[i] = plan.IsSink;
             }
             return bottles;
+        }
+
+        private static List<BottlePlan> CreateBottlePlans(DifficultyProfile profile, Random rng)
+        {
+            if (profile == null) throw new ArgumentNullException(nameof(profile));
+            if (rng == null) throw new ArgumentNullException(nameof(rng));
+
+            int available = Enum.GetValues(typeof(ColorId)).Length;
+            if (profile.ColorCount > available)
+            {
+                throw new InvalidOperationException($"Color count {profile.ColorCount} exceeds available colors {available}");
+            }
+
+            var plans = new List<BottlePlan>(profile.BottleCount);
+            var colorCaps = BuildColorCapacities(profile.LevelIndex, profile.ColorCount, rng);
+            for (int i = 0; i < profile.ColorCount; i++)
+            {
+                plans.Add(new BottlePlan
+                {
+                    Capacity = colorCaps[i],
+                    FillColor = (ColorId)i,
+                    IsSink = false
+                });
+            }
+
+            var emptyCaps = BuildEmptyCapacities(profile.LevelIndex, profile.EmptyBottleCount);
+            int sinkCount = ResolveSinkCount(profile.LevelIndex, profile.EmptyBottleCount);
+            for (int i = 0; i < profile.EmptyBottleCount; i++)
+            {
+                plans.Add(new BottlePlan
+                {
+                    Capacity = emptyCaps[i],
+                    FillColor = null,
+                    IsSink = i < sinkCount
+                });
+            }
+
+            Shuffle(plans, rng);
+            return plans;
+        }
+
+        private static List<int> BuildColorCapacities(int levelIndex, int colorCount, Random rng)
+        {
+            int largeCount = ResolveLargeColorCount(levelIndex, colorCount);
+            var capacities = new List<int>(colorCount);
+            for (int i = 0; i < colorCount - largeCount; i++)
+            {
+                capacities.Add(4);
+            }
+            for (int i = 0; i < largeCount; i++)
+            {
+                capacities.Add(5);
+            }
+            Shuffle(capacities, rng);
+            return capacities;
+        }
+
+        private static List<int> BuildEmptyCapacities(int levelIndex, int emptyCount)
+        {
+            var capacities = new List<int>(emptyCount);
+            int smallCount = ResolveSmallEmptyCount(levelIndex, emptyCount);
+            for (int i = 0; i < emptyCount; i++)
+            {
+                capacities.Add(i < smallCount ? 3 : 4);
+            }
+            return capacities;
+        }
+
+        private static int ResolveLargeColorCount(int levelIndex, int colorCount)
+        {
+            if (levelIndex < 16) return 0;
+            int target = 1 + (levelIndex - 16) / 10;
+            int maxLarge = Math.Max(1, colorCount / 4);
+            return Math.Min(target, Math.Max(0, Math.Min(maxLarge, colorCount)));
+        }
+
+        private static int ResolveSmallEmptyCount(int levelIndex, int emptyCount)
+        {
+            if (emptyCount <= 0) return 0;
+            if (levelIndex < 6) return 0;
+            if (levelIndex < 12) return Math.Min(1, emptyCount);
+            return emptyCount;
+        }
+
+        private static int ResolveSinkCount(int levelIndex, int emptyCount)
+        {
+            if (emptyCount <= 0) return 0;
+            return levelIndex >= 18 ? 1 : 0;
         }
 
         private static List<Move> EnumerateValidReverseMoves(List<ColorId?[]> bottles, List<Move> moves)
@@ -255,7 +338,6 @@ namespace Decantra.Domain.Generation
                 {
                     if (i == j) continue;
                     var target = bottles[j];
-                    if (IsSolvedSlots(source) && IsEmpty(target)) continue;
                     var targetTop = TopColor(target);
                     if (targetTop.HasValue && targetTop.Value != sourceTop.Value) continue;
                     int amount = Math.Min(ContiguousTopCount(source), FreeSpace(target));
@@ -266,17 +348,22 @@ namespace Decantra.Domain.Generation
             return moves;
         }
 
-        private static bool TryApplyReverseMove(List<ColorId?[]> bottles, int sourceIndex, int targetIndex, Random rng, int minEmptyCount, out int appliedAmount)
+        private static bool TryApplyReverseMove(List<ColorId?[]> bottles, bool[] sinkFlags, int sourceIndex, int targetIndex, Random rng, int minEmptyCount, int maxEmptyCount, out int appliedAmount)
         {
             appliedAmount = 0;
             if (sourceIndex == targetIndex) return false;
             if (sourceIndex < 0 || sourceIndex >= bottles.Count) return false;
             if (targetIndex < 0 || targetIndex >= bottles.Count) return false;
+            if (sinkFlags == null || sinkFlags.Length != bottles.Count) throw new ArgumentException("sinkFlags must align with bottles.", nameof(sinkFlags));
 
             var source = bottles[sourceIndex];
             var target = bottles[targetIndex];
 
             int maxAmount = Math.Min(ContiguousTopCount(source), FreeSpace(target));
+            if (sinkFlags[targetIndex])
+            {
+                maxAmount = Math.Min(maxAmount, FreeSpace(target) - 1);
+            }
             if (maxAmount <= 0) return false;
 
             int amount = rng.Next(1, maxAmount + 1);
@@ -317,14 +404,14 @@ namespace Decantra.Domain.Generation
                 return false;
             }
 
-            if (minEmptyCount > 0)
+            if (maxEmptyCount >= 0 || minEmptyCount > 0)
             {
                 int emptyCount = 0;
                 for (int i = 0; i < bottles.Count; i++)
                 {
                     if (IsEmpty(bottles[i])) emptyCount++;
                 }
-                if (emptyCount < minEmptyCount)
+                if (emptyCount > maxEmptyCount || emptyCount < minEmptyCount)
                 {
                     Array.Copy(sourceSnapshot, source, sourceSnapshot.Length);
                     Array.Copy(targetSnapshot, target, targetSnapshot.Length);
@@ -392,6 +479,64 @@ namespace Decantra.Domain.Generation
             return false;
         }
 
+        private static bool BreakSolvedBottles(List<ColorId?[]> bottles, bool[] sinkFlags, Random rng, int minEmptyCount, int maxEmptyCount, int maxAttempts, List<Move> appliedMoves)
+        {
+            if (bottles == null || bottles.Count == 0) return false;
+            if (sinkFlags == null || sinkFlags.Length != bottles.Count) return false;
+            if (!HasCappedBottle(bottles)) return true;
+
+            int attempts = 0;
+            var candidates = new List<Move>(bottles.Count * bottles.Count);
+            while (HasCappedBottle(bottles) && attempts < maxAttempts)
+            {
+                attempts++;
+                candidates.Clear();
+                for (int i = 0; i < bottles.Count; i++)
+                {
+                    if (!IsSolvedSlots(bottles[i])) continue;
+                    var source = bottles[i];
+                    if (IsEmpty(source)) continue;
+                    for (int j = 0; j < bottles.Count; j++)
+                    {
+                        if (i == j) continue;
+                        var target = bottles[j];
+                        var sourceTop = TopColor(source);
+                        var targetTop = TopColor(target);
+                        if (targetTop.HasValue && sourceTop.HasValue && targetTop.Value != sourceTop.Value) continue;
+                        int amount = Math.Min(ContiguousTopCount(source), FreeSpace(target));
+                        if (sinkFlags[j])
+                        {
+                            amount = Math.Min(amount, FreeSpace(target) - 1);
+                        }
+                        if (amount <= 0) continue;
+                        candidates.Add(new Move(i, j, amount));
+                    }
+                }
+
+                if (candidates.Count == 0) break;
+                var move = candidates[rng.Next(candidates.Count)];
+                int appliedAmount;
+                if (TryApplyReverseMove(bottles, sinkFlags, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, out appliedAmount))
+                {
+                    appliedMoves?.Add(new Move(move.Source, move.Target, appliedAmount));
+                    continue;
+                }
+            }
+
+            return !HasCappedBottle(bottles);
+        }
+
+        private static bool HasFullSinkBottle(List<ColorId?[]> bottles, bool[] sinkFlags)
+        {
+            if (sinkFlags == null || sinkFlags.Length != bottles.Count) return false;
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                if (!sinkFlags[i]) continue;
+                if (FreeSpace(bottles[i]) == 0) return true;
+            }
+            return false;
+        }
+
         private static bool IsSolvedSlots(ColorId?[] slots)
         {
             if (slots == null || slots.Length == 0) return false;
@@ -404,9 +549,10 @@ namespace Decantra.Domain.Generation
             return true;
         }
 
-        private static void TryUncapCappedBottles(List<ColorId?[]> bottles, Random rng, int minEmptyCount, int maxAttempts)
+        private static void TryUncapCappedBottles(List<ColorId?[]> bottles, bool[] sinkFlags, Random rng, int maxAttempts, List<Move> appliedMoves)
         {
             if (bottles == null || bottles.Count == 0) return;
+            if (sinkFlags == null || sinkFlags.Length != bottles.Count) return;
             int attempts = 0;
             var candidates = new List<int>(bottles.Count);
 
@@ -424,18 +570,23 @@ namespace Decantra.Domain.Generation
 
                 if (candidates.Count == 0) return;
                 int sourceIndex = candidates[rng.Next(candidates.Count)];
-                int targetIndex = FindUncapTarget(bottles, sourceIndex, rng);
+                int targetIndex = FindUncapTarget(bottles, sinkFlags, sourceIndex, rng);
                 if (targetIndex < 0) return;
 
                 int amount = 1;
+                if (sinkFlags[targetIndex] && FreeSpace(bottles[targetIndex]) == 1)
+                {
+                    continue;
+                }
                 if (!WouldCreateSolvedAfterInsert(bottles[targetIndex], TopColor(bottles[sourceIndex]), amount))
                 {
                     ApplyReverseMove(bottles, sourceIndex, targetIndex, amount);
+                    appliedMoves?.Add(new Move(sourceIndex, targetIndex, amount));
                 }
             }
         }
 
-        private static int FindUncapTarget(List<ColorId?[]> bottles, int sourceIndex, Random rng)
+        private static int FindUncapTarget(List<ColorId?[]> bottles, bool[] sinkFlags, int sourceIndex, Random rng)
         {
             var source = bottles[sourceIndex];
             var sourceColor = TopColor(source);
@@ -446,6 +597,7 @@ namespace Decantra.Domain.Generation
             {
                 if (i == sourceIndex) continue;
                 if (FreeSpace(bottles[i]) <= 0) continue;
+                if (sinkFlags != null && sinkFlags[i] && FreeSpace(bottles[i]) == 1) continue;
 
                 if (!IsEmpty(bottles[i]))
                 {
@@ -528,9 +680,10 @@ namespace Decantra.Domain.Generation
             return CountEmpty(bottles) >= minEmptyCount;
         }
 
-        private static void EnsureAtLeastOneEmpty(List<ColorId?[]> bottles, List<Move> appliedMoves)
+        private static void EnsureAtLeastOneEmpty(List<ColorId?[]> bottles, List<Move> appliedMoves, bool[] sinkFlags)
         {
             if (CountEmpty(bottles) > 0) return;
+            if (sinkFlags == null || sinkFlags.Length != bottles.Count) return;
 
             int guard = 0;
             int maxAttempts = appliedMoves.Count * 2 + 8;
@@ -539,6 +692,10 @@ namespace Decantra.Domain.Generation
                 guard++;
                 var move = appliedMoves[appliedMoves.Count - 1];
                 appliedMoves.RemoveAt(appliedMoves.Count - 1);
+                if (sinkFlags[move.Source] && FreeSpace(bottles[move.Source]) == move.Amount)
+                {
+                    continue;
+                }
                 ApplyReverseMove(bottles, move.Target, move.Source, move.Amount);
             }
         }
@@ -614,6 +771,24 @@ namespace Decantra.Domain.Generation
                 if (IsEmpty(bottles[i])) empty++;
             }
             return empty;
+        }
+
+        private static void Shuffle<T>(IList<T> list, Random rng)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                T temp = list[i];
+                list[i] = list[j];
+                list[j] = temp;
+            }
+        }
+
+        private sealed class BottlePlan
+        {
+            public int Capacity;
+            public ColorId? FillColor;
+            public bool IsSink;
         }
     }
 }

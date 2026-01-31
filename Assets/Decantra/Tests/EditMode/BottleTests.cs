@@ -15,6 +15,36 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
+        public void MaxPourAmount_RespectsTargetFreeSpace()
+        {
+            var source = new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, null });
+            var target = new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, null });
+
+            int amount = source.MaxPourAmountInto(target);
+            Assert.AreEqual(1, amount);
+        }
+
+        [Test]
+        public void FullSinkBottle_CannotPourOut()
+        {
+            var source = new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, ColorId.Blue }, true);
+            var target = new Bottle(new ColorId?[] { null, null, null });
+
+            Assert.IsTrue(source.IsFull);
+            Assert.AreEqual(0, source.MaxPourAmountInto(target));
+        }
+
+        [Test]
+        public void SinkBottle_AllowsPourWhenNotFull()
+        {
+            var source = new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, null }, true);
+            var target = new Bottle(new ColorId?[] { null, null, null });
+
+            Assert.IsFalse(source.IsFull);
+            Assert.Greater(source.MaxPourAmountInto(target), 0);
+        }
+
+        [Test]
         public void PourInto_AllowsMatchingTopOrEmpty()
         {
             var source = new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, null, null });

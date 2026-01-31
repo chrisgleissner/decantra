@@ -11,12 +11,18 @@ namespace Decantra.Presentation.View
         [SerializeField] private List<Image> slots = new List<Image>();
         [SerializeField] private ColorPalette palette;
         [SerializeField] private Image outline;
+        [SerializeField] private Image body;
+        [SerializeField] private Image basePlate;
         [SerializeField] private Image stopper;
 
         private readonly List<int> segmentUnits = new List<int>();
         private readonly List<Image> incomingSlots = new List<Image>();
         private int previewPourCount;
         private Color outlineBaseColor;
+        private Color outlineDefaultColor;
+        private Color bodyDefaultColor;
+        private Color baseDefaultColor;
+        private Vector3 baseScale = Vector3.one;
         private Bottle lastBottle;
 
         public int Index { get; private set; }
@@ -26,7 +32,17 @@ namespace Decantra.Presentation.View
             if (outline != null)
             {
                 outlineBaseColor = outline.color;
+                outlineDefaultColor = outline.color;
             }
+            if (body != null)
+            {
+                bodyDefaultColor = body.color;
+            }
+            if (basePlate != null)
+            {
+                baseDefaultColor = basePlate.color;
+            }
+            baseScale = transform.localScale;
         }
 
         public void Initialize(int index)
@@ -48,6 +64,10 @@ namespace Decantra.Presentation.View
             }
 
             if (slotRoot == null) return;
+
+            EnsureColorsInitialized();
+            ApplyCapacityScale(bottle.Capacity);
+            ApplySinkStyle(bottle);
 
             EnsureSlots(bottle.Capacity);
 
@@ -134,6 +154,86 @@ namespace Decantra.Presentation.View
         {
             if (outline == null) return;
             outline.color = isHighlighted ? new Color(0.4f, 0.8f, 1f, 0.9f) : outlineBaseColor;
+        }
+
+        private void ApplyCapacityScale(int capacity)
+        {
+            float scaleY = 1f;
+            float scaleX = 1f;
+            if (capacity <= 3)
+            {
+                scaleY = 0.88f;
+                scaleX = 0.95f;
+            }
+            else if (capacity >= 5)
+            {
+                scaleY = 1.06f;
+                scaleX = 1.02f;
+            }
+
+            transform.localScale = new Vector3(baseScale.x * scaleX, baseScale.y * scaleY, baseScale.z);
+        }
+
+        private void ApplySinkStyle(Bottle bottle)
+        {
+            if (bottle == null) return;
+
+            if (bottle.IsSink)
+            {
+                if (basePlate != null)
+                {
+                    basePlate.gameObject.SetActive(true);
+                    basePlate.color = new Color(0.12f, 0.12f, 0.16f, 0.95f);
+                }
+
+                if (body != null)
+                {
+                    body.color = Color.Lerp(bodyDefaultColor, new Color(0.05f, 0.05f, 0.08f, bodyDefaultColor.a), 0.35f);
+                }
+
+                if (outline != null)
+                {
+                    var sinkOutline = Color.Lerp(outlineDefaultColor, Color.black, 0.2f);
+                    outlineBaseColor = sinkOutline;
+                    outline.color = sinkOutline;
+                }
+            }
+            else
+            {
+                if (basePlate != null)
+                {
+                    basePlate.gameObject.SetActive(false);
+                    basePlate.color = baseDefaultColor;
+                }
+
+                if (body != null)
+                {
+                    body.color = bodyDefaultColor;
+                }
+
+                if (outline != null)
+                {
+                    outlineBaseColor = outlineDefaultColor;
+                    outline.color = outlineDefaultColor;
+                }
+            }
+        }
+
+        private void EnsureColorsInitialized()
+        {
+            if (outline != null && outlineDefaultColor == default)
+            {
+                outlineBaseColor = outline.color;
+                outlineDefaultColor = outline.color;
+            }
+            if (body != null && bodyDefaultColor == default)
+            {
+                bodyDefaultColor = body.color;
+            }
+            if (basePlate != null && baseDefaultColor == default)
+            {
+                baseDefaultColor = basePlate.color;
+            }
         }
 
         public void PreviewPour(int amount)

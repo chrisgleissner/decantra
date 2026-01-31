@@ -30,7 +30,7 @@ namespace Decantra.Domain.Rules
 
         private static int ResolveColorCount(int levelIndex)
         {
-            int count = 3 + (levelIndex - 1) / 25;
+            int count = 3 + (levelIndex - 1) / 3;
             if (count < 3) count = 3;
             if (count > 8) count = 8;
             return count;
@@ -38,11 +38,8 @@ namespace Decantra.Domain.Rules
 
         private static int ResolveEmptyCount(int levelIndex)
         {
-            int decay = (levelIndex - 1) / 40;
-            int empty = 3 - decay;
-            if (empty < 1) empty = 1;
-            if (empty > 3) empty = 3;
-            return empty;
+            if (levelIndex <= 6) return 2;
+            return 1;
         }
 
         private static BackgroundThemeId ResolveThemeId(LevelBand band, int levelIndex)

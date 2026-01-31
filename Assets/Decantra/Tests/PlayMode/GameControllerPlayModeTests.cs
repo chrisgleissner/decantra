@@ -80,7 +80,7 @@ namespace Decantra.Tests.PlayMode
             SceneBootstrap.EnsureScene();
             yield return null;
 
-            var bottles = Object.FindObjectsOfType<Decantra.Presentation.View.BottleView>();
+            var bottles = Object.FindObjectsByType<Decantra.Presentation.View.BottleView>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             Assert.GreaterOrEqual(bottles.Length, 6);
         }
 

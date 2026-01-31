@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
@@ -61,6 +63,100 @@ namespace Decantra.Tests.EditMode
                 Assert.GreaterOrEqual(state.OptimalMoves, 0);
                 Assert.GreaterOrEqual(state.MovesAllowed, state.OptimalMoves);
             }
+        }
+
+        [Test]
+        public void Generate_UsesVariableCapacities_ByLevel12()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            var profile = LevelDifficultyEngine.GetProfile(12);
+            var state = generator.Generate(321, profile);
+
+            var capacities = new HashSet<int>();
+            foreach (var bottle in state.Bottles)
+            {
+                capacities.Add(bottle.Capacity);
+            }
+
+            Assert.Greater(capacities.Count, 1, "Expected capacity variation by level 12.");
+        }
+
+        [Test]
+        public void Generate_IntroducesLargeCapacity_ByLevel18()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            var profile = LevelDifficultyEngine.GetProfile(18);
+            var state = generator.Generate(555, profile);
+
+            bool hasLarge = false;
+            foreach (var bottle in state.Bottles)
+            {
+                if (bottle.Capacity >= 5)
+                {
+                    hasLarge = true;
+                    break;
+                }
+            }
+
+            Assert.IsTrue(hasLarge, "Expected capacity 5 bottles by level 18.");
+        }
+
+        [Test]
+        public void Generate_RespectsEmptyCountAndReducedSlack()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            var profile = LevelDifficultyEngine.GetProfile(22);
+            var state = generator.Generate(777, profile);
+
+            int empty = 0;
+            int nearFull = 0;
+            int nonEmpty = 0;
+            foreach (var bottle in state.Bottles)
+            {
+                if (bottle.IsEmpty)
+                {
+                    empty++;
+                    continue;
+                }
+                nonEmpty++;
+                if (bottle.FreeSpace <= 1)
+                {
+                    nearFull++;
+                }
+
+                Assert.LessOrEqual(bottle.Count, bottle.Capacity, "Bottle overfilled.");
+            }
+
+            Assert.LessOrEqual(empty, profile.EmptyBottleCount, "Empty bottle count exceeded profile target.");
+            Assert.GreaterOrEqual(nearFull, Math.Max(1, nonEmpty / 2), "Expected many bottles to be nearly full.");
+        }
+
+        [Test]
+        public void Generate_IncludesSinkBottle_ByLevel24()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            var profile = LevelDifficultyEngine.GetProfile(24);
+            var state = generator.Generate(901, profile);
+
+            bool hasSink = false;
+            foreach (var bottle in state.Bottles)
+            {
+                if (bottle.IsSink)
+                {
+                    hasSink = true;
+                    break;
+                }
+            }
+
+            Assert.IsTrue(hasSink, "Expected at least one sink bottle by level 24.");
         }
 
         private static int NextSeed(int level, int previous)

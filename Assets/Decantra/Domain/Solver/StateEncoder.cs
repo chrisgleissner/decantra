@@ -13,6 +13,7 @@ namespace Decantra.Domain.Solver
             for (int i = 0; i < state.Bottles.Count; i++)
             {
                 var bottle = state.Bottles[i];
+                sb.Append(bottle.IsSink ? 'S' : 'N');
                 for (int j = 0; j < bottle.Slots.Count; j++)
                 {
                     var color = bottle.Slots[j];
@@ -30,7 +31,8 @@ namespace Decantra.Domain.Solver
             for (int i = 0; i < state.Bottles.Count; i++)
             {
                 var bottle = state.Bottles[i];
-                var sb = new StringBuilder(bottle.Slots.Count + 1);
+                var sb = new StringBuilder(bottle.Slots.Count + 2);
+                sb.Append(bottle.IsSink ? 'S' : 'N');
                 for (int j = 0; j < bottle.Slots.Count; j++)
                 {
                     var color = bottle.Slots[j];

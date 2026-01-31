@@ -349,6 +349,20 @@ namespace Decantra.Presentation
             bodyRect.sizeDelta = new Vector2(124, 330);
             bodyRect.anchoredPosition = new Vector2(0, -8);
 
+            var baseGo = CreateUiChild(bottleGo.transform, "BasePlate");
+            var basePlate = baseGo.AddComponent<Image>();
+            basePlate.sprite = rounded;
+            basePlate.type = Image.Type.Sliced;
+            basePlate.color = new Color(0.12f, 0.12f, 0.16f, 0.75f);
+            basePlate.raycastTarget = false;
+            var baseRect = baseGo.GetComponent<RectTransform>();
+            baseRect.anchorMin = new Vector2(0.5f, 0f);
+            baseRect.anchorMax = new Vector2(0.5f, 0f);
+            baseRect.pivot = new Vector2(0.5f, 0f);
+            baseRect.sizeDelta = new Vector2(120, 40);
+            baseRect.anchoredPosition = new Vector2(0, 6);
+            baseGo.SetActive(false);
+
             var highlightGo = CreateUiChild(bodyGo.transform, "Highlight");
             var highlight = highlightGo.AddComponent<Image>();
             highlight.sprite = rounded;
@@ -401,6 +415,8 @@ namespace Decantra.Presentation
             SetPrivateField(bottleView, "palette", palette);
             SetPrivateField(bottleView, "slotRoot", liquidRect);
             SetPrivateField(bottleView, "outline", outline);
+            SetPrivateField(bottleView, "body", body);
+            SetPrivateField(bottleView, "basePlate", basePlate);
             SetPrivateField(bottleView, "stopper", stopper);
             SetPrivateField(bottleView, "outlineBaseColor", outline.color);
             return bottleView;

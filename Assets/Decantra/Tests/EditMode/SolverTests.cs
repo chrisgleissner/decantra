@@ -43,6 +43,26 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
+        public void Encode_DistinguishesSinkBottles()
+        {
+            var stateA = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red }, true),
+                new Bottle(new ColorId?[2])
+            }, 0, 10, 1, 0, 3);
+
+            var stateB = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red }),
+                new Bottle(new ColorId?[2])
+            }, 0, 10, 1, 0, 4);
+
+            var keyA = StateEncoder.EncodeCanonical(stateA);
+            var keyB = StateEncoder.EncodeCanonical(stateB);
+            Assert.AreNotEqual(keyA, keyB);
+        }
+
+        [Test]
         public void Solve_KnownConfiguration_ReturnsMinimumMoves()
         {
             var solver = new BfsSolver();

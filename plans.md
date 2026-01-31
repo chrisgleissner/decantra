@@ -1,81 +1,62 @@
-# Decantra Brain-Training Upgrade Plan (Phase 1)
+# Decantra Physical Brain-Teaser Redesign Plan
 
 Status: In progress
 
-Single source of truth: This file governs all work for the current upgrade.
+Single source of truth: This file governs all work for the redesign.
 
 ## Scope summary
-- Add deterministic optimal solver with cached optimal move counts.
-- Replace move caps with optimal-based allowed moves and deterministic slack.
-- Implement failure state on move exhaustion with reset.
-- Rework scoring to be efficiency-based and non-farmable.
-- Increase level structural complexity with solvability guarantees.
-- Add performance feedback, persistence, and fair progression.
-- Full test coverage + Android APK build.
+- Introduce variable bottle capacities with visible size differences.
+- Remove slack via sparse empties and tight initial fills.
+- Optional sink bottle (irreversible when full).
+- Increase structural complexity early (level scaling).
+- Update solver + move limits for capacity constraints.
+- Failure state on move exhaustion with restart.
+- Efficiency-only scoring on success.
+- Learnable progression and visual cues.
+- Full automated test coverage + Android APK build.
 
-## Phase 1: Brain-Training Puzzle Upgrade (TDD)
-- [x] Add domain tests for optimal solver correctness on known configs.
-- [x] Add domain tests for optimal solver determinism and seed consistency.
-- [x] Add domain tests for slack factor progression and allowed moves.
-- [x] Add domain tests for level complexity progression (bottles/colors/empties).
-- [x] Add domain tests for solver solvability on generated levels.
-- [x] Add domain tests for scoring commit/rollback and efficiency ranking.
-- [x] Add domain tests for grades + best-performance persistence rules.
-- [x] Add PlayMode tests for move exhaustion failure UX + input block.
-- [x] Add PlayMode tests for level reset on failure (state parity).
-- [x] Add PlayMode tests for progression lock until success.
-- [x] Implement optimal solver (pure domain) + caching on level config.
-- [x] Implement slack factor curve and allowed move calculation.
-- [x] Implement failure state flow and fly-in message.
-- [x] Implement efficiency-based scoring with provisional commit/rollback.
-- [x] Implement level generation complexity scaling (bottles/colors/empties).
-- [x] Implement performance feedback (best moves, efficiency, grade).
-- [x] Implement persistence for current level and best performance.
-- [x] Run EditMode + PlayMode tests.
+## Phase 0: Recon + constraints
+- [x] Confirm Unity version, packages, and project settings.
+- [x] Audit current domain model for bottles, capacities, solver, and level gen.
+- [x] Identify current UX hooks for failure messaging and reset.
+
+## Phase 1: Tests first (TDD)
+- [x] Add domain tests for variable capacities and overfill prevention.
+- [x] Add domain tests for initial fill legality and reduced slack.
+- [x] Add domain tests for sink bottle irreversibility (if implemented).
+- [x] Add domain tests for solver correctness under capacity constraints.
+- [x] Add domain tests for allowed move limits with tightening slack.
+- [x] Add domain tests for level scaling (bottle count, capacity variance, empties).
+- [x] Add domain tests for solvability of generated levels.
+- [x] Add domain tests for scoring commit only on success + efficiency ranking.
+- [x] Add PlayMode tests for move exhaustion failure and input block.
+- [x] Add PlayMode tests for restart restoring exact initial state.
+
+## Phase 2: Implementation
+- [x] Implement variable capacities with visible bottle sizing.
+- [x] Implement reduced slack initial fills and legality checks.
+- [x] Implement sink bottle type + visuals (if adopted).
+- [x] Update solver + state hashing to include capacity constraints.
+- [x] Update allowed moves to use optimal + tightening slack.
+- [x] Implement failure state + neutral UX + restart flow.
+- [x] Implement efficiency-only scoring commit on success.
+- [x] Update level generator to scale earlier (9+ bottles by ~20-25).
+- [x] Add learning curve staging for capacity asymmetry.
+
+## Phase 3: Validation
+- [x] Run EditMode tests.
+- [x] Run PlayMode tests.
+- [x] Verify coverage >= 80% on domain logic.
+- [x] Validate solver minimality on capacity-constrained configs.
+- [x] Verify failure resets and no score/progression persists on failure.
+
+## Phase 4: Build
 - [x] Run clean Android build and produce APK.
-- [x] Final verification and checklist tick-off.
-
-## Explicit timeout policy
-- Unity editor build step: 10 minutes max.
-- Gradle build step: 8 minutes max.
-- APK signing/packaging: 3 minutes max.
-- Emulator boot: 5 minutes max.
-- APK install: 2 minutes max.
-- Any script/tool invocation: 2 minutes without output.
-
-## Deadlock detection rules
-- Poll for progress at least every 30 seconds.
-- No new output or state change within 60 seconds = stalled.
-- Treat any silent/stalled operation as failed and abort immediately.
-
-## Abort and retry strategy
-- Abort stalled/timeout operations immediately.
-- Capture last logs/state and note in "Build Failure" or "Deadlock Prevention".
-- Adjust approach (smaller scope, alternate command, reduced workload).
-- Retry once with explicit safeguards and tighter scope; no blind retries.
-
-## Build Failure / Deadlock Prevention
-- 2026-01-30: Unity build aborted because another Unity instance was running on the project. Action: terminate Unity batchmode processes and retry build with guarded timeout.
-- 2026-01-30: Android build failed due to JAVA_HOME pointing to JDK 25. Action: use JDK 17 and explicit SDK/NDK paths.
-- 2026-01-30: APK install stalled with streamed install. Action: use --no-streaming and verify via package list if output stalls.
-- 2026-01-30: Tests failed to start because Unity Editor was not found. Action: install Unity 6000.3.5f2 and set UNITY_PATH to the editor executable, then rerun tools/test.sh.
-- 2026-01-30: Release APK build crashed (segfault) without toolchain env. Action: rerun with ANDROID_SDK_ROOT, ANDROID_NDK_ROOT, and JAVA_HOME set explicitly.
-
-## Verification checklist (global)
-- [x] Optimal solver produces correct minimum moves on known configs.
-- [x] Allowed moves tighten with level; slack reaches 1.0 at high levels.
-- [x] Failure on move exhaustion blocks input and restarts level.
-- [x] Efficiency-based scoring only commits on success.
-- [x] Level complexity increases and all generated levels are solvable.
-- [x] Best performance persists and never regresses.
-
-## APK deployment checklist
-- [x] Unity build (APK) completed within timeouts.
-- [x] Gradle/signing completed within timeouts.
-- [x] APK installed within 2 minutes (verified via package list).
-- [x] App launches and runs on device/emulator.
+- [x] Confirm build success in output.
+- [x] Ensure no test-only code ships.
 
 ## Final acceptance checklist
-- [x] All requirements satisfied and verified by tests.
-- [x] No build/deploy stalls; failures documented with retries.
-- [x] plans.md updated with completed tasks and verification notes.
+- [x] All new mechanics tested and passing.
+- [x] Difficulty scales as required by level 20-25.
+- [x] Solver + move limits remain tight and fair.
+- [x] APK built successfully.

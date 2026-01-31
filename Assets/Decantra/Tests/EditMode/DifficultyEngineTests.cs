@@ -43,6 +43,21 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
+        public void Level20To25_MeetsStructuralTargets()
+        {
+            var profile20 = LevelDifficultyEngine.GetProfile(20);
+            var profile25 = LevelDifficultyEngine.GetProfile(25);
+
+            Assert.GreaterOrEqual(profile20.BottleCount, 9);
+            Assert.GreaterOrEqual(profile20.ColorCount, 6);
+            Assert.LessOrEqual(profile20.EmptyBottleCount, 1);
+
+            Assert.GreaterOrEqual(profile25.BottleCount, 9);
+            Assert.GreaterOrEqual(profile25.ColorCount, 6);
+            Assert.LessOrEqual(profile25.EmptyBottleCount, 1);
+        }
+
+        [Test]
         public void DifficultyRating_IsMonotonic()
         {
             int previous = -1;

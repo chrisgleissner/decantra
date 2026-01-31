@@ -6,21 +6,26 @@ namespace Decantra.Domain.Model
     public sealed class Bottle
     {
         private readonly ColorId?[] _slots;
+        private readonly bool _isSink;
 
-        public Bottle(int capacity)
+        public Bottle(int capacity, bool isSink = false)
         {
             if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
             _slots = new ColorId?[capacity];
+            _isSink = isSink;
         }
 
-        public Bottle(ColorId?[] slots)
+        public Bottle(ColorId?[] slots, bool isSink = false)
         {
             if (slots == null) throw new ArgumentNullException(nameof(slots));
             if (slots.Length == 0) throw new ArgumentOutOfRangeException(nameof(slots));
             _slots = (ColorId?[])slots.Clone();
+            _isSink = isSink;
         }
 
         public int Capacity => _slots.Length;
+        public bool IsSink => _isSink;
+        public bool IsSealed => _isSink && IsFull;
         public int Count
         {
             get
@@ -71,12 +76,13 @@ namespace Decantra.Domain.Model
 
         public Bottle Clone()
         {
-            return new Bottle(_slots);
+            return new Bottle(_slots, _isSink);
         }
 
         public bool CanPourInto(Bottle target)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
+            if (IsSealed) return false;
             if (IsEmpty) return false;
             if (target.IsFull) return false;
             var top = TopColor;
