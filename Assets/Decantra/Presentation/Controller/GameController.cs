@@ -411,6 +411,7 @@ namespace Decantra.Presentation.Controller
             _lastStars = CalculateStars(_lastGrade);
 
             _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
+            int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
             _scoreSession?.CommitLevel();
             _completionStreak++;
 
@@ -438,7 +439,7 @@ namespace Decantra.Presentation.Controller
             }
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, _lastGrade, _sfxEnabled, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _lastGrade, _sfxEnabled, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {

@@ -9,7 +9,7 @@ namespace Decantra.Domain.Export
     {
         public const string Language = "decantra-level";
         public const int Version = 1;
-        public const int DefaultVolumePerSlot = 100;
+        public const int DefaultVolumePerSlot = 1;
 
         public static LevelLanguageDocument FromLevelState(LevelState initial, int levelIndex, int gridRows, int gridCols, IReadOnlyList<LevelLanguageMove> moves, int volumePerSlot = DefaultVolumePerSlot)
         {

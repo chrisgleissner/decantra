@@ -154,6 +154,24 @@ namespace Decantra.Presentation
             baseImage.type = Image.Type.Simple;
             baseImage.raycastTarget = false;
 
+            var largeStructureGo = CreateUiChild(parent, "BackgroundLargeStructure");
+            var largeRect = largeStructureGo.GetComponent<RectTransform>();
+            largeRect.anchorMin = Vector2.zero;
+            largeRect.anchorMax = Vector2.one;
+            largeRect.offsetMin = Vector2.zero;
+            largeRect.offsetMax = Vector2.zero;
+
+            var largeImage = largeStructureGo.AddComponent<Image>();
+            largeImage.sprite = CreateLargeStructureSprite();
+            largeImage.color = new Color(1f, 1f, 1f, 0.25f);
+            largeImage.type = Image.Type.Simple;
+            largeImage.raycastTarget = false;
+            var largeDrift = largeStructureGo.AddComponent<BackgroundDrift>();
+            SetPrivateField(largeDrift, "driftAmplitude", new Vector2(45f, 60f));
+            SetPrivateField(largeDrift, "driftSpeed", new Vector2(0.012f, 0.009f));
+            SetPrivateField(largeDrift, "rotationAmplitude", 2.5f);
+            SetPrivateField(largeDrift, "rotationSpeed", 0.015f);
+
             var flowGo = CreateUiChild(parent, "BackgroundFlow");
             var flowRect = flowGo.GetComponent<RectTransform>();
             flowRect.anchorMin = Vector2.zero;
@@ -163,7 +181,7 @@ namespace Decantra.Presentation
 
             var flowImage = flowGo.AddComponent<Image>();
             flowImage.sprite = CreateFlowSprite();
-            flowImage.color = new Color(1f, 1f, 1f, 0.32f);
+            flowImage.color = new Color(1f, 1f, 1f, 0.38f);
             flowImage.type = Image.Type.Simple;
             flowImage.raycastTarget = false;
             var flowDrift = flowGo.AddComponent<BackgroundDrift>();
@@ -181,7 +199,7 @@ namespace Decantra.Presentation
 
             var shapesImage = shapesGo.AddComponent<Image>();
             shapesImage.sprite = CreateOrganicShapesSprite();
-            shapesImage.color = new Color(1f, 1f, 1f, 0.18f);
+            shapesImage.color = new Color(1f, 1f, 1f, 0.22f);
             shapesImage.type = Image.Type.Simple;
             shapesImage.raycastTarget = false;
             var shapesDrift = shapesGo.AddComponent<BackgroundDrift>();
@@ -199,7 +217,7 @@ namespace Decantra.Presentation
 
             var detailImage = detailGo.AddComponent<Image>();
             detailImage.sprite = CreateSoftNoiseSprite();
-            detailImage.color = new Color(1f, 1f, 1f, 0.18f);
+            detailImage.color = new Color(1f, 1f, 1f, 0.2f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
             var detailDrift = detailGo.AddComponent<BackgroundDrift>();
@@ -217,15 +235,16 @@ namespace Decantra.Presentation
 
             var vignetteImage = vignetteGo.AddComponent<Image>();
             vignetteImage.sprite = CreateVignetteSprite();
-            vignetteImage.color = new Color(0f, 0f, 0f, 0.35f);
+            vignetteImage.color = new Color(0f, 0f, 0f, 0.3f);
             vignetteImage.type = Image.Type.Simple;
             vignetteImage.raycastTarget = false;
 
             bg.transform.SetAsFirstSibling();
-            flowGo.transform.SetSiblingIndex(1);
-            shapesGo.transform.SetSiblingIndex(2);
-            detailGo.transform.SetSiblingIndex(3);
-            vignetteGo.transform.SetSiblingIndex(4);
+            largeStructureGo.transform.SetSiblingIndex(1);
+            flowGo.transform.SetSiblingIndex(2);
+            shapesGo.transform.SetSiblingIndex(3);
+            detailGo.transform.SetSiblingIndex(4);
+            vignetteGo.transform.SetSiblingIndex(5);
 
             return new BackgroundLayers
             {
@@ -270,20 +289,21 @@ namespace Decantra.Presentation
             brandRect.anchorMin = new Vector2(0.5f, 1f);
             brandRect.anchorMax = new Vector2(0.5f, 1f);
             brandRect.pivot = new Vector2(0.5f, 1f);
-            brandRect.anchoredPosition = new Vector2(0, -80);
-            brandRect.sizeDelta = new Vector2(780, 120);
+            brandRect.anchoredPosition = new Vector2(0, -20);
+            brandRect.sizeDelta = new Vector2(600, 100);
 
             var brandImage = brandGo.AddComponent<Image>();
             brandImage.sprite = GetRoundedSprite();
             brandImage.type = Image.Type.Sliced;
-            brandImage.color = new Color(1f, 1f, 1f, 0.12f);
+            brandImage.color = new Color(1f, 1f, 1f, 0.15f);
             brandImage.raycastTarget = false;
 
             var brandLayout = brandGo.AddComponent<HorizontalLayoutGroup>();
             brandLayout.childAlignment = TextAnchor.MiddleCenter;
             brandLayout.childForceExpandHeight = false;
             brandLayout.childForceExpandWidth = false;
-            brandLayout.spacing = 14f;
+            brandLayout.spacing = 12f;
+            brandLayout.padding = new RectOffset(16, 16, 8, 8);
 
             var logoSprite = Resources.Load<Sprite>("DecantraLogo");
             var logoGo = CreateUiChild(brandGo.transform, "TitleLogo");
@@ -292,64 +312,35 @@ namespace Decantra.Presentation
             logoImage.preserveAspect = true;
             logoImage.color = Color.white;
             var logoRect = logoGo.GetComponent<RectTransform>();
-            logoRect.sizeDelta = new Vector2(88, 88);
+            logoRect.sizeDelta = new Vector2(72, 72);
 
             var titleText = CreateTitleText(brandGo.transform, "TitleText", "Decantra");
-            titleText.fontSize = 68;
+            titleText.fontSize = 56;
             titleText.color = new Color(1f, 0.97f, 0.9f, 1f);
 
             var hudViewGo = CreateUiChild(hudRoot.transform, "HudView");
             var hudView = hudViewGo.GetComponent<HudView>() ?? hudViewGo.AddComponent<HudView>();
-
-            var levelPanel = CreateUiChild(safeRoot.transform, "LevelPanel");
-            var levelRect = levelPanel.GetComponent<RectTransform>();
-            levelRect.anchorMin = new Vector2(0.5f, 1f);
-            levelRect.anchorMax = new Vector2(0.5f, 1f);
-            levelRect.pivot = new Vector2(0.5f, 1f);
-            levelRect.anchoredPosition = new Vector2(0, -220);
-            levelRect.sizeDelta = new Vector2(220, 220);
-
-            var levelBase = levelPanel.AddComponent<Image>();
-            levelBase.sprite = CreateSoftCircleSprite();
-            levelBase.type = Image.Type.Simple;
-            levelBase.color = new Color(1f, 1f, 1f, 0.2f);
-            levelBase.raycastTarget = false;
-
-            var ringGo = CreateUiChild(levelPanel.transform, "LevelRing");
-            var ringImage = ringGo.AddComponent<Image>();
-            ringImage.sprite = CreateRingSprite();
-            ringImage.type = Image.Type.Simple;
-            ringImage.color = new Color(1f, 0.95f, 0.75f, 0.7f);
-            ringImage.raycastTarget = false;
-            var ringRect = ringGo.GetComponent<RectTransform>();
-            ringRect.anchorMin = new Vector2(0.5f, 0.5f);
-            ringRect.anchorMax = new Vector2(0.5f, 0.5f);
-            ringRect.pivot = new Vector2(0.5f, 0.5f);
-            ringRect.sizeDelta = new Vector2(210, 210);
-
-            var levelText = CreateHudText(levelPanel.transform, "LevelText");
-            levelText.fontSize = 40;
-            levelText.color = new Color(1f, 0.97f, 0.9f, 1f);
-
-            _ = AddPanelButton(levelPanel);
-            _ = CreateShareButton(levelPanel.transform);
 
             var topHud = CreateUiChild(safeRoot.transform, "TopHud");
             var topRect = topHud.GetComponent<RectTransform>();
             topRect.anchorMin = new Vector2(0.5f, 1f);
             topRect.anchorMax = new Vector2(0.5f, 1f);
             topRect.pivot = new Vector2(0.5f, 1f);
-            topRect.anchoredPosition = new Vector2(0, -420);
-            topRect.sizeDelta = new Vector2(900, 160);
+            topRect.anchoredPosition = new Vector2(0, -140);
+            topRect.sizeDelta = new Vector2(1000, 150);
 
             var topLayout = topHud.AddComponent<HorizontalLayoutGroup>();
             topLayout.childAlignment = TextAnchor.MiddleCenter;
             topLayout.childForceExpandWidth = false;
             topLayout.childForceExpandHeight = false;
-            topLayout.spacing = 24f;
+            topLayout.spacing = 16f;
 
+            var levelText = CreateStatPanel(topHud.transform, "LevelPanel", "LEVEL", out var levelPanel);
             var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES", out _);
             var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out _);
+
+            _ = AddPanelButton(levelPanel);
+            _ = CreateShareButton(topHud.transform);
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
@@ -813,14 +804,15 @@ namespace Decantra.Presentation
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
-            image.color = new Color(1f, 1f, 1f, 0.16f);
+            image.color = new Color(1f, 1f, 1f, 0.18f);
             image.raycastTarget = false;
 
             var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(260, 140);
+            rect.sizeDelta = new Vector2(300, 140);
             var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 260;
+            element.minWidth = 300;
             element.minHeight = 140;
+            element.flexibleWidth = 1f;
 
             var text = CreateHudText(panel.transform, "Value");
             text.fontSize = 38;
@@ -845,29 +837,36 @@ namespace Decantra.Presentation
 
         private static Button CreateShareButton(Transform parent)
         {
-            var shareGo = CreateUiChild(parent, "ShareButton");
+            var shareRoot = CreateUiChild(parent, "ShareButtonRoot");
+            var shareRootRect = shareRoot.GetComponent<RectTransform>();
+            shareRootRect.anchorMin = new Vector2(0.5f, 0f);
+            shareRootRect.anchorMax = new Vector2(0.5f, 0f);
+            shareRootRect.pivot = new Vector2(0.5f, 1f);
+            shareRootRect.anchoredPosition = new Vector2(0f, -18f);
+            shareRootRect.sizeDelta = new Vector2(180, 64);
+
+            var shareGo = CreateUiChild(shareRoot.transform, "ShareButton");
             var image = shareGo.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
-            image.color = new Color(1f, 1f, 1f, 0.16f);
+            image.color = new Color(1f, 1f, 1f, 0.22f);
 
             var rect = shareGo.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 0f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -6f);
-            rect.sizeDelta = new Vector2(160, 56);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
 
             var button = shareGo.AddComponent<Button>();
             button.targetGraphic = image;
 
             var text = CreateHudText(shareGo.transform, "Label");
-            text.fontSize = 24;
+            text.fontSize = 28;
             text.text = "EXPORT";
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
 
-            shareGo.SetActive(false);
+            shareRoot.SetActive(false);
             return button;
         }
 
@@ -946,12 +945,19 @@ namespace Decantra.Presentation
         private static void WireShareButton(GameController controller)
         {
             if (controller == null) return;
-            var levelPanel = GameObject.Find("LevelPanel");
+            var topHud = GameObject.Find("TopHud");
+            if (topHud == null) return;
+
+            var levelPanel = topHud.transform.Find("LevelPanel");
             if (levelPanel == null) return;
             var levelButton = levelPanel.GetComponent<Button>();
             if (levelButton == null) return;
 
-            var shareTransform = levelPanel.transform.Find("ShareButton");
+            var shareRootTransform = topHud.transform.Find("ShareButtonRoot");
+            if (shareRootTransform == null) return;
+            var shareRoot = shareRootTransform.gameObject;
+
+            var shareTransform = shareRoot.transform.Find("ShareButton");
             var shareGo = shareTransform != null ? shareTransform.gameObject : null;
             if (shareGo == null) return;
             var shareButton = shareGo.GetComponent<Button>();
@@ -959,7 +965,7 @@ namespace Decantra.Presentation
 
             SetPrivateField(controller, "levelPanelButton", levelButton);
             SetPrivateField(controller, "shareButton", shareButton);
-            SetPrivateField(controller, "shareButtonRoot", shareGo);
+            SetPrivateField(controller, "shareButtonRoot", shareRoot);
 
             levelButton.onClick.RemoveAllListeners();
             levelButton.onClick.AddListener(controller.ToggleShareButton);
@@ -1006,6 +1012,12 @@ namespace Decantra.Presentation
             starsText.fontSize = 72;
             starsText.color = new Color(1f, 0.95f, 0.75f, 1f);
 
+            var scoreText = CreateTitleText(panel.transform, "ScoreText", "+0");
+            scoreText.fontSize = 48;
+            scoreText.color = new Color(0.5f, 1f, 0.5f, 1f);
+            var scoreRect = scoreText.GetComponent<RectTransform>();
+            scoreRect.anchoredPosition = new Vector2(0, -60);
+
             var levelText = CreateTitleText(panel.transform, "LevelText", "LEVEL 1");
             levelText.fontSize = 52;
             levelText.color = new Color(1f, 0.95f, 0.78f, 1f);
@@ -1026,6 +1038,7 @@ namespace Decantra.Presentation
             var banner = root.AddComponent<LevelCompleteBanner>();
             SetPrivateField(banner, "panel", panelRect);
             SetPrivateField(banner, "starsText", starsText);
+            SetPrivateField(banner, "scoreText", scoreText);
             SetPrivateField(banner, "levelText", levelText);
             SetPrivateField(banner, "starBurst", burstImage);
             SetPrivateField(banner, "canvasGroup", group);
@@ -1165,6 +1178,50 @@ namespace Decantra.Presentation
 
             texture.Apply();
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 192f);
+        }
+
+        private static Sprite CreateLargeStructureSprite()
+        {
+            const int width = 256;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            var centers = new List<Vector2>(4);
+            var radii = new List<float>(4);
+            var rand = new System.Random(7331);
+            for (int i = 0; i < 4; i++)
+            {
+                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                radii.Add(Mathf.Lerp(80f, 140f, (float)rand.NextDouble()));
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < centers.Count; i++)
+                    {
+                        float dist = Vector2.Distance(new Vector2(x, y), centers[i]);
+                        float t = Mathf.Clamp01(1f - dist / radii[i]);
+                        float eased = t * t * (3f - 2f * t);
+                        v = Mathf.Max(v, eased);
+                    }
+
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float noise = Mathf.PerlinNoise(nx * 2.5f + 5.2f, ny * 2.5f + 3.7f);
+                    v = Mathf.Lerp(v, v * noise, 0.35f);
+
+                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
         }
 
         private static Sprite CreateVignetteSprite()
