@@ -242,19 +242,43 @@ namespace Decantra.Presentation
             hudRect.offsetMin = Vector2.zero;
             hudRect.offsetMax = Vector2.zero;
 
-            var titleGo = CreateUiChild(hudRoot.transform, "Title");
+            var safeRoot = CreateUiChild(hudRoot.transform, "SafeAreaTop");
+            var safeRect = safeRoot.GetComponent<RectTransform>();
+            safeRect.anchorMin = Vector2.zero;
+            safeRect.anchorMax = Vector2.one;
+            safeRect.offsetMin = Vector2.zero;
+            safeRect.offsetMax = Vector2.zero;
+            safeRoot.AddComponent<Decantra.Presentation.View.SafeAreaInset>();
+
+            var titleGo = CreateUiChild(safeRoot.transform, "Title");
             var titleRect = titleGo.GetComponent<RectTransform>();
             titleRect.anchorMin = new Vector2(0.5f, 1f);
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
             titleRect.anchoredPosition = new Vector2(0, -120);
             titleRect.sizeDelta = new Vector2(900, 140);
+
+            var titleLayout = titleGo.AddComponent<HorizontalLayoutGroup>();
+            titleLayout.childAlignment = TextAnchor.MiddleCenter;
+            titleLayout.childForceExpandHeight = false;
+            titleLayout.childForceExpandWidth = false;
+            titleLayout.spacing = 18f;
+
+            var logoSprite = Resources.Load<Sprite>("DecantraLogo");
+            var logoGo = CreateUiChild(titleGo.transform, "TitleLogo");
+            var logoImage = logoGo.AddComponent<Image>();
+            logoImage.sprite = logoSprite;
+            logoImage.preserveAspect = true;
+            logoImage.color = Color.white;
+            var logoRect = logoGo.GetComponent<RectTransform>();
+            logoRect.sizeDelta = new Vector2(96, 96);
+
             var titleText = CreateTitleText(titleGo.transform, "TitleText", "DECANTRA");
 
             var hudViewGo = CreateUiChild(hudRoot.transform, "HudView");
             var hudView = hudViewGo.GetComponent<HudView>() ?? hudViewGo.AddComponent<HudView>();
 
-            var topHud = CreateUiChild(hudRoot.transform, "TopHud");
+            var topHud = CreateUiChild(safeRoot.transform, "TopHud");
             var topRect = topHud.GetComponent<RectTransform>();
             topRect.anchorMin = new Vector2(0.5f, 1f);
             topRect.anchorMax = new Vector2(0.5f, 1f);
@@ -573,7 +597,29 @@ namespace Decantra.Presentation
             panelImage.color = new Color(1f, 1f, 1f, 0.08f);
             panelImage.raycastTarget = false;
 
-            var text = CreateTitleText(panel.transform, "IntroTitle", "DECANTRA");
+            var content = CreateUiChild(panel.transform, "Content");
+            var contentRect = content.GetComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0.5f, 0.5f);
+            contentRect.anchorMax = new Vector2(0.5f, 0.5f);
+            contentRect.pivot = new Vector2(0.5f, 0.5f);
+            contentRect.sizeDelta = new Vector2(720, 200);
+
+            var layout = content.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+            layout.spacing = 22f;
+
+            var logoSprite = Resources.Load<Sprite>("DecantraLogo");
+            var logoGo = CreateUiChild(content.transform, "Logo");
+            var logoImage = logoGo.AddComponent<Image>();
+            logoImage.sprite = logoSprite;
+            logoImage.preserveAspect = true;
+            logoImage.color = Color.white;
+            var logoRect = logoGo.GetComponent<RectTransform>();
+            logoRect.sizeDelta = new Vector2(120, 120);
+
+            var text = CreateTitleText(content.transform, "IntroTitle", "DECANTRA");
             text.fontSize = 64;
             text.color = new Color(1f, 0.95f, 0.7f, 1f);
 
