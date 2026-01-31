@@ -77,7 +77,7 @@ Reject a document if any of the following are true:
 3. The resulting state must match the state achieved by the original play-through.
 
 ## Decantra volume convention
-Decantra’s in-game slots are serialized using a fixed unit. The default is **100 ml per slot**. As a result, capacities and layer volumes in exported data are multiples of 100.
+Decantra’s in-game slots are serialized using a fixed unit. The default is **simple integer unit (1-10)**. As a result, capacities and layer volumes range from 1 to 10.
 
 ## Example (verbatim)
 ```json
@@ -89,12 +89,12 @@ Decantra’s in-game slots are serialized using a fixed unit. The default is **1
   "initial": {
     "cells": [
       [
-        { "capacity": 1000, "layers": [["blue", 300], ["orange", 100]] },
-        { "capacity": 1000, "layers": [], "flags": ["sink"] },
-        { "capacity": 1000, "layers": [["purple", 700], ["yellow", 300]] }
+        { "capacity": 10, "layers": [["blue", 3], ["orange", 1]] },
+        { "capacity": 10, "layers": [], "flags": ["sink"] },
+        { "capacity": 10, "layers": [["purple", 7], ["yellow", 3]] }
       ],
       [
-        { "capacity": 500, "layers": [["green", 100]] },
+        { "capacity": 5, "layers": [["green", 1]] },
         null,
         null
       ],
