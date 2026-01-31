@@ -58,7 +58,7 @@ jobs:
                   artifactsPath: TestResults
             - name: Upload coverage to Codecov
               if: ${{ hashFiles('Coverage/decantra-opencov/Recording/*.xml') != '' }}
-              uses: codecov/codecov-action@v4
+              uses: codecov/codecov-action@v5
               with:
                   files: Coverage/decantra-opencov/Recording/*.xml
                   flags: unity
