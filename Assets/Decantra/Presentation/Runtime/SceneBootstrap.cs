@@ -20,6 +20,10 @@ namespace Decantra.Presentation
             var existingController = Object.FindFirstObjectByType<GameController>();
             if (existingController != null && HasRequiredWiring(existingController))
             {
+                EnsureRestartDialog(existingController);
+                WireResetButton(existingController);
+                WireRestartButton(existingController);
+                WireShareButton(existingController);
                 return;
             }
 
@@ -38,6 +42,7 @@ namespace Decantra.Presentation
             for (int i = 0; i < 9; i++)
             {
                 var bottleView = CreateBottle(gridRoot.transform, i + 1, palette);
+                bottleView.Initialize(i);
                 var bottleInput = bottleView.GetComponent<BottleInput>() ?? bottleView.gameObject.AddComponent<BottleInput>();
 
                 bottleViews.Add(bottleView);
@@ -74,6 +79,7 @@ namespace Decantra.Presentation
             var restartDialog = CreateRestartDialog(canvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
             WireRestartButton(controller);
+            WireShareButton(controller);
 
             var toolsGo = new GameObject("RuntimeTools");
             toolsGo.AddComponent<RuntimeScreenshot>();
@@ -85,6 +91,18 @@ namespace Decantra.Presentation
             }
         }
 
+        private static void EnsureRestartDialog(GameController controller)
+        {
+            if (controller == null) return;
+            var existing = GetPrivateField<RestartGameDialog>(controller, "restartDialog");
+            if (existing != null) return;
+            var restartGo = GameObject.Find("RestartDialog");
+            if (restartGo == null) return;
+            var dialog = restartGo.GetComponent<RestartGameDialog>();
+            if (dialog == null) return;
+            SetPrivateField(controller, "restartDialog", dialog);
+        }
+
         private static bool HasRequiredWiring(GameController controller)
         {
             if (controller == null) return false;
@@ -93,7 +111,10 @@ namespace Decantra.Presentation
             var background = GetPrivateField<Image>(controller, "backgroundImage");
             var banner = GetPrivateField<LevelCompleteBanner>(controller, "levelBanner");
             var outOfMoves = GetPrivateField<OutOfMovesBanner>(controller, "outOfMovesBanner");
-            return bottleViews != null && bottleViews.Count > 0 && hud != null && background != null && banner != null && outOfMoves != null;
+            var levelPanelButton = GetPrivateField<Button>(controller, "levelPanelButton");
+            var shareButton = GetPrivateField<Button>(controller, "shareButton");
+            var shareRoot = GetPrivateField<GameObject>(controller, "shareButtonRoot");
+            return bottleViews != null && bottleViews.Count > 0 && hud != null && background != null && banner != null && outOfMoves != null && levelPanelButton != null && shareButton != null && shareRoot != null;
         }
 
         private static Canvas CreateCanvas()
@@ -247,9 +268,12 @@ namespace Decantra.Presentation
             topLayout.childForceExpandHeight = false;
             topLayout.spacing = 18f;
 
-            var levelText = CreateStatPanel(topHud.transform, "LevelPanel", "LEVEL");
-            var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES");
-            var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE");
+            var levelText = CreateStatPanel(topHud.transform, "LevelPanel", "LEVEL", out var levelPanel);
+            var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES", out _);
+            var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out _);
+
+            _ = AddPanelButton(levelPanel);
+            _ = CreateShareButton(levelPanel);
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
@@ -265,8 +289,8 @@ namespace Decantra.Presentation
             bottomLayout.childForceExpandHeight = false;
             bottomLayout.spacing = 18f;
 
-            var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH");
-            var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LV");
+            var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH", out _);
+            var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LV", out _);
             CreateResetButton(bottomHud.transform);
             CreateRestartButton(bottomHud.transform);
 
@@ -673,9 +697,9 @@ namespace Decantra.Presentation
             return dialog;
         }
 
-        private static Text CreateStatPanel(Transform parent, string name, string label)
+        private static Text CreateStatPanel(Transform parent, string name, string label, out GameObject panel)
         {
-            var panel = CreateUiChild(parent, name);
+            panel = CreateUiChild(parent, name);
             var image = panel.AddComponent<Image>();
             image.color = new Color(1f, 1f, 1f, 0.25f);
             image.raycastTarget = false;
@@ -692,6 +716,45 @@ namespace Decantra.Presentation
             text.color = Color.white;
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
             return text;
+        }
+
+        private static Button AddPanelButton(GameObject panel)
+        {
+            if (panel == null) return null;
+            var image = panel.GetComponent<Image>();
+            if (image != null)
+            {
+                image.raycastTarget = true;
+            }
+            var button = panel.GetComponent<Button>() ?? panel.AddComponent<Button>();
+            button.targetGraphic = image;
+            return button;
+        }
+
+        private static Button CreateShareButton(GameObject levelPanel)
+        {
+            var shareGo = CreateUiChild(levelPanel.transform, "ShareButton");
+            var image = shareGo.AddComponent<Image>();
+            image.color = new Color(1f, 1f, 1f, 0.28f);
+
+            var rect = shareGo.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -10f);
+            rect.sizeDelta = new Vector2(150, 56);
+
+            var button = shareGo.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var text = CreateHudText(shareGo.transform, "Label");
+            text.fontSize = 28;
+            text.text = "SHARE";
+            text.color = Color.white;
+            AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
+
+            shareGo.SetActive(false);
+            return button;
         }
 
         private static Button CreateResetButton(Transform parent)
@@ -760,6 +823,31 @@ namespace Decantra.Presentation
             if (button == null) return;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.RequestRestartGame);
+        }
+
+        private static void WireShareButton(GameController controller)
+        {
+            if (controller == null) return;
+            var levelPanel = GameObject.Find("LevelPanel");
+            if (levelPanel == null) return;
+            var levelButton = levelPanel.GetComponent<Button>();
+            if (levelButton == null) return;
+
+            var shareTransform = levelPanel.transform.Find("ShareButton");
+            var shareGo = shareTransform != null ? shareTransform.gameObject : null;
+            if (shareGo == null) return;
+            var shareButton = shareGo.GetComponent<Button>();
+            if (shareButton == null) return;
+
+            SetPrivateField(controller, "levelPanelButton", levelButton);
+            SetPrivateField(controller, "shareButton", shareButton);
+            SetPrivateField(controller, "shareButtonRoot", shareGo);
+
+            levelButton.onClick.RemoveAllListeners();
+            levelButton.onClick.AddListener(controller.ToggleShareButton);
+
+            shareButton.onClick.RemoveAllListeners();
+            shareButton.onClick.AddListener(controller.ShareCurrentLevel);
         }
 
         private static GameObject CreateUiChild(Transform parent, string name)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Decantra.Domain.Export;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
@@ -11,6 +12,7 @@ using Decantra.Domain.Scoring;
 using Decantra.Domain.Solver;
 using Decantra.App.Services;
 using Decantra.Presentation;
+using Decantra.Presentation.Services;
 using Decantra.Presentation.View;
 using UnityEngine;
 using UnityEngine.UI;
@@ -31,6 +33,9 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Image backgroundFlow;
         [SerializeField] private Image backgroundShapes;
         [SerializeField] private Image backgroundVignette;
+        [SerializeField] private Button levelPanelButton;
+        [SerializeField] private Button shareButton;
+        [SerializeField] private GameObject shareButtonRoot;
 
         private LevelState _state;
         private LevelState _initialState;
@@ -65,6 +70,10 @@ namespace Decantra.Presentation.Controller
         private bool _sfxEnabled = true;
         private AudioSource _audioSource;
         private AudioClip _pourClip;
+        private IShareService _shareService;
+        private readonly List<LevelLanguageMove> _moveHistory = new List<LevelLanguageMove>();
+
+        private const int GridColumns = 3;
 
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
@@ -116,6 +125,7 @@ namespace Decantra.Presentation.Controller
             _generator = new LevelGenerator(_solver);
             _progressStore = new ProgressStore();
             _settingsStore = new SettingsStore();
+            _shareService = ShareServiceFactory.CreateDefault();
         }
 
         private void Start()
@@ -136,6 +146,7 @@ namespace Decantra.Presentation.Controller
             _currentLevel = ProgressionResumePolicy.ResolveResumeLevel(_progress);
             _currentSeed = _progress.CurrentSeed > 0 ? _progress.CurrentSeed : NextSeed(_currentLevel, 0);
             PersistCurrentProgress(_currentLevel, _currentSeed);
+            SetupShareUi();
             StartCoroutine(BeginSession());
         }
 
@@ -228,6 +239,8 @@ namespace Decantra.Presentation.Controller
         {
             if (state == null) return;
             _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, state.BackgroundPaletteIndex);
+            _moveHistory.Clear();
+            SetShareButtonVisible(false);
         }
 
         public void OnBottleTapped(int index)
@@ -634,6 +647,8 @@ namespace Decantra.Presentation.Controller
             bool applied = _state.TryApplyMove(sourceIndex, targetIndex, out poured);
             if (!applied) return false;
 
+            RecordMove(sourceIndex, targetIndex);
+
             _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -642,6 +657,65 @@ namespace Decantra.Presentation.Controller
 #endif
 
             return true;
+        }
+
+        public void ToggleShareButton()
+        {
+            if (shareButtonRoot == null) return;
+            bool next = !shareButtonRoot.activeSelf;
+            SetShareButtonVisible(next);
+        }
+
+        public void ShareCurrentLevel()
+        {
+            string payload = BuildSharePayload();
+            if (string.IsNullOrEmpty(payload)) return;
+            _shareService?.ShareText(payload);
+            SetShareButtonVisible(false);
+        }
+
+        private void SetupShareUi()
+        {
+            if (levelPanelButton != null)
+            {
+                levelPanelButton.onClick.RemoveAllListeners();
+                levelPanelButton.onClick.AddListener(ToggleShareButton);
+            }
+
+            if (shareButton != null)
+            {
+                shareButton.onClick.RemoveAllListeners();
+                shareButton.onClick.AddListener(ShareCurrentLevel);
+            }
+
+            SetShareButtonVisible(false);
+        }
+
+        private void SetShareButtonVisible(bool visible)
+        {
+            if (shareButtonRoot == null) return;
+            if (shareButtonRoot.activeSelf != visible)
+            {
+                shareButtonRoot.SetActive(visible);
+            }
+        }
+
+        private void RecordMove(int sourceIndex, int targetIndex)
+        {
+            int fromRow = sourceIndex / GridColumns;
+            int fromCol = sourceIndex % GridColumns;
+            int toRow = targetIndex / GridColumns;
+            int toCol = targetIndex % GridColumns;
+            _moveHistory.Add(new LevelLanguageMove(fromRow, fromCol, toRow, toCol));
+        }
+
+        private string BuildSharePayload()
+        {
+            if (_initialState == null) return null;
+            int count = bottleViews != null && bottleViews.Count > 0 ? bottleViews.Count : _initialState.Bottles.Count;
+            int rows = Mathf.Max(1, Mathf.CeilToInt(count / (float)GridColumns));
+            var document = LevelLanguage.FromLevelState(_initialState, _currentLevel, rows, GridColumns, _moveHistory);
+            return LevelLanguage.Serialize(document);
         }
 
         private void PlayPourSfx(int targetIndex, int amount)

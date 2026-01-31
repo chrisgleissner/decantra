@@ -175,6 +175,22 @@ namespace Decantra.Tests.EditMode
             }
         }
 
+        [Test]
+        public void Generate_HasAtLeastOneLegalOpeningMove()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            int seed = 0;
+            for (int level = 1; level <= 20; level += 3)
+            {
+                seed = NextSeed(level, seed);
+                var profile = LevelDifficultyEngine.GetProfile(level);
+                var state = generator.Generate(seed, profile);
+                Assert.IsTrue(LevelStartValidator.HasAnyLegalMove(state), $"Expected legal opening move at level {level}");
+            }
+        }
+
         private static int NextSeed(int level, int previous)
         {
             unchecked

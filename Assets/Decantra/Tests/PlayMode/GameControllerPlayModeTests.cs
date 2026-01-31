@@ -5,11 +5,13 @@ using System.Threading.Tasks;
 using Decantra.App.Services;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
+using Decantra.Domain.Export;
 using Decantra.Domain.Rules;
 using Decantra.Domain.Scoring;
 using Decantra.Domain.Solver;
 using Decantra.Presentation;
 using Decantra.Presentation.Controller;
+using Decantra.Presentation.Services;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -388,6 +390,67 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ShareButton_RevealsAndExportsPayload()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            var shareService = new TestShareService();
+            SetPrivateField(controller, "_shareService", shareService);
+
+            controller.LoadLevel(1, 123);
+            yield return null;
+
+            var levelPanel = GameObject.Find("LevelPanel");
+            Assert.IsNotNull(levelPanel);
+            var levelButton = levelPanel.GetComponent<Button>();
+            Assert.IsNotNull(levelButton);
+
+            var shareTransform = levelPanel.transform.Find("ShareButton");
+            var shareGo = shareTransform != null ? shareTransform.gameObject : null;
+            Assert.IsNotNull(shareGo);
+            Assert.IsFalse(shareGo.activeSelf, "Share button should start hidden.");
+
+            levelButton.onClick.Invoke();
+            yield return null;
+            Assert.IsTrue(shareGo.activeSelf, "Share button should be revealed after tapping level panel.");
+
+            var state = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(state);
+
+            Assert.IsTrue(TryFindValidMove(state, out int source, out int target));
+            bool started = controller.TryStartMove(source, target, out float duration);
+            Assert.IsTrue(started);
+            yield return new WaitForSeconds(duration + 0.2f);
+
+            levelButton.onClick.Invoke();
+            yield return null;
+
+            var shareButton = shareGo.GetComponent<Button>();
+            Assert.IsNotNull(shareButton);
+            shareButton.onClick.Invoke();
+            yield return null;
+
+            Assert.GreaterOrEqual(shareService.ShareCount, 1);
+            Assert.IsNotNull(shareService.LastSharedText);
+
+            Assert.IsTrue(LevelLanguage.TryParse(shareService.LastSharedText, out var document, out var error), error);
+            Assert.AreEqual(1, document.Level);
+            Assert.AreEqual(1, document.Moves.Count);
+            int expectedFromRow = source / 3;
+            int expectedFromCol = source % 3;
+            int expectedToRow = target / 3;
+            int expectedToCol = target % 3;
+            Assert.AreEqual(expectedFromRow, document.Moves[0].FromRow);
+            Assert.AreEqual(expectedFromCol, document.Moves[0].FromCol);
+            Assert.AreEqual(expectedToRow, document.Moves[0].ToRow);
+            Assert.AreEqual(expectedToCol, document.Moves[0].ToCol);
+        }
+
+        [UnityTest]
         public IEnumerator Win_CommitsScoreAndAdvancesLevel()
         {
             SceneBootstrap.EnsureScene();
@@ -506,6 +569,18 @@ namespace Decantra.Tests.PlayMode
             var input = view.GetComponent<Decantra.Presentation.View.BottleInput>();
             Assert.IsNotNull(input);
             return input;
+        }
+
+        private sealed class TestShareService : IShareService
+        {
+            public string LastSharedText { get; private set; }
+            public int ShareCount { get; private set; }
+
+            public void ShareText(string text)
+            {
+                LastSharedText = text;
+                ShareCount++;
+            }
         }
     }
 }

@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512"
+     height="512"
+     viewBox="0 0 512 512"
+     role="img"
+     aria-label="Decantra logo - laboratory bottle">
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+
+    <!-- Bottle interior clip -->
+    <clipPath id="bottleClip">
+      <path d="
+        M0 18
+        Q0 12 6 12
+        H154
+        Q160 12 160 18
+        V294
+        Q160 300 154 300
+        H6
+        Q0 300 0 294
+        Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Bottle group -->
+  <g transform="translate(176,106)">
+
+    <!-- LIQUIDS FIRST (inside bottle) -->
+    <g clip-path="url(#bottleClip)">
+      <!-- Bottom: green -->
+      <rect x="0" y="228" width="160" height="72" fill="#15803D"/>
+      <!-- Middle: blue -->
+      <rect x="0" y="156" width="160" height="72" fill="#2563EB"/>
+      <!-- Top: golden yellow -->
+      <rect x="0" y="84" width="160" height="72" fill="#F59E0B"/>
+    </g>
+
+    <!-- Bottle body drawn on top -->
+    <path d="
+      M0 18
+      Q0 12 6 12
+      H154
+      Q160 12 160 18
+      V294
+      Q160 300 154 300
+      H6
+      Q0 300 0 294
+      Z"
+      fill="none"
+      stroke="#E5E7EB"
+      stroke-width="12"
+      stroke-linejoin="round"/>
+
+    <!-- Flange (no bottom stroke) -->
+    <path d="
+      M48 -24
+      H112
+      Q120 -24 120 -16
+      V-10
+      H48
+      V-16
+      Q48 -24 56 -24
+      Z"
+      fill="#020617"
+      stroke="#E5E7EB"
+      stroke-width="8"
+      stroke-linejoin="round"/>
+
+    <!-- Single strong glass reflection -->
+    <rect x="100"
+          y="26"
+          width="40"
+          height="246"
+          rx="4"
+          fill="#FFFFFF"
+          opacity="0.34"/>
+  </g>
+</svg>

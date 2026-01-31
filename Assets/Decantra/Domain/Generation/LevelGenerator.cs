@@ -87,6 +87,13 @@ namespace Decantra.Domain.Generation
                     continue;
                 }
 
+                if (!LevelStartValidator.TryValidate(attemptState, out string startError))
+                {
+                    lastFailure = $"start:{startError}";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
+                    continue;
+                }
+
                 var solveTimer = Stopwatch.StartNew();
                 var solveResult = _solver.SolveOptimal(attemptState);
                 solveTimer.Stop();

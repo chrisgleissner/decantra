@@ -1,5 +1,18 @@
 # Decantra Critical Integrity Fix Plan
 
+## Plan - Fix Level 10 + Solvability + Export Language (2026-01-31)
+- [x] Audit Level 10 generation + reproduction seed, identify root cause of unsolvability. (Validate: run EditMode Level 10 regression test once added)
+- [x] Add Level 10 regression test asserting at least one legal move and solvability. (Validate: EditMode Level 10 regression test)
+- [x] Enforce generator validation for initial move + sink constraints + deterministic regeneration. (Validate: EditMode Generator invariants tests)
+- [x] Add pour legality invariant unit tests (non-sink, sink behavior, determinism). (Validate: EditMode Pour legality tests)
+- [x] Implement level export language model + serializer + parser + validation. (Validate: EditMode serialization tests)
+- [x] Add hidden share UI under level indicator with Android intent + Editor fallback capture. (Validate: PlayMode export UI tests + EditMode share payload tests)
+- [x] Add level language spec doc with example JSON. (Validate: doc review + serialization tests)
+- [ ] Integrate new logo into app icon + intro + header with safe-area layout. (Validate: PlayMode UI tests + Android build launch)
+- [ ] Run full EditMode test suite. (Validate: Unity Test Runner EditMode) — blocked: Unity editor not found in environment.
+- [ ] Run full PlayMode test suite. (Validate: Unity Test Runner PlayMode) — blocked: Unity editor not found in environment.
+- [ ] Run full test suite 3x or 1x + flaky reruns if time-limited. (Validate: consecutive full passes) — blocked: Unity editor not found in environment.
+
 Status: In Progress
 
 Single source of truth: This file governs all work for the critical solvability, reset, and scoring fixes.
