@@ -1,6 +1,6 @@
 # Decantra Physical Brain-Teaser Redesign Plan
 
-Status: In progress
+Status: Complete
 
 Single source of truth: This file governs all work for the redesign.
 
@@ -54,9 +54,12 @@ Single source of truth: This file governs all work for the redesign.
 - [x] Run clean Android build and produce APK.
 - [x] Confirm build success in output.
 - [x] Ensure no test-only code ships.
+- [x] Build release APK.
+- [x] Install release APK on first connected Android device.
 
 ## Final acceptance checklist
 - [x] All new mechanics tested and passing.
 - [x] Difficulty scales as required by level 20-25.
 - [x] Solver + move limits remain tight and fair.
 - [x] APK built successfully.
+- [x] Release APK built and installed on device.
