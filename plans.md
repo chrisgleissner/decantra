@@ -22,8 +22,8 @@ Status: Complete
 - [x] Reposition and restyle export CTA as secondary tool drawer.
 - [x] Update text formatting to match new visual hierarchy.
 - [x] Validate runtime UI creation and wiring.
-- [ ] Run EditMode + PlayMode tests.
-- [ ] Build release Android APK.
+- [x] Run EditMode + PlayMode tests.
+- [x] Build release Android APK.
 
 Status: In Progress
 
