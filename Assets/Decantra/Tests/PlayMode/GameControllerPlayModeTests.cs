@@ -409,7 +409,11 @@ namespace Decantra.Tests.PlayMode
             var levelButton = levelPanel.GetComponent<Button>();
             Assert.IsNotNull(levelButton);
 
-            var shareTransform = levelPanel.transform.Find("ShareButton");
+            var topHud = GameObject.Find("TopHud");
+            Assert.IsNotNull(topHud, "TopHud should exist");
+            var shareRootTransform = topHud.transform.Find("ShareButtonRoot");
+            Assert.IsNotNull(shareRootTransform, "ShareButtonRoot should exist under TopHud");
+            var shareTransform = shareRootTransform.Find("ShareButton");
             var shareGo = shareTransform != null ? shareTransform.gameObject : null;
             Assert.IsNotNull(shareGo);
             Assert.IsFalse(shareGo.activeSelf, "Share button should start hidden.");

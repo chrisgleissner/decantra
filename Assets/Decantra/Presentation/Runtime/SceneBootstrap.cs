@@ -954,7 +954,13 @@ namespace Decantra.Presentation
             if (levelButton == null) return;
 
             var shareRootTransform = topHud.transform.Find("ShareButtonRoot");
-            if (shareRootTransform == null) return;
+            if (shareRootTransform == null)
+            {
+                // ShareButtonRoot doesn't exist, create it
+                _ = CreateShareButton(topHud.transform);
+                shareRootTransform = topHud.transform.Find("ShareButtonRoot");
+                if (shareRootTransform == null) return;
+            }
             var shareRoot = shareRootTransform.gameObject;
 
             var shareTransform = shareRoot.transform.Find("ShareButton");
