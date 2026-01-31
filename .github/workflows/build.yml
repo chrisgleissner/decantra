@@ -58,7 +58,7 @@ jobs:
                   artifactsPath: TestResults
             - name: Upload coverage to Codecov
               if: ${{ hashFiles('Coverage/decantra-opencov/Recording/*.xml') != '' }}
-              uses: codecov/codecov-action@v4
+              uses: codecov/codecov-action@v5
               with:
                   files: Coverage/decantra-opencov/Recording/*.xml
                   flags: unity
@@ -127,6 +127,10 @@ jobs:
                   androidExportType: androidPackage
                   androidVersionCode: ${{ steps.build_release.outputs.androidVersionCode }}
                   buildsPath: Builds/Android
+            - name: Normalize build output permissions
+              run: |
+                  sudo chown -R "$USER":"$USER" Builds/Android || true
+                  sudo chmod -R u+rwX Builds/Android || true
             - name: Rename APKs with version
               run: |
                   version="${{ steps.build_release.outputs.buildVersion }}"
@@ -136,6 +140,11 @@ jobs:
                   fi
                   mv Builds/Android/Decantra-release.apk "Builds/Android/decantra-${version}.apk"
                   mv Builds/Android/Decantra-debug.apk "Builds/Android/decantra-${version}-debug.apk"
+            - name: Verify APKs are readable
+              run: |
+                  version="${{ steps.build_release.outputs.buildVersion }}"
+                  test -r "Builds/Android/decantra-${version}.apk"
+                  test -r "Builds/Android/decantra-${version}-debug.apk"
             - uses: actions/upload-artifact@v4
               with:
                   name: Decantra-Android-Release

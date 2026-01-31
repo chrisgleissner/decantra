@@ -1,3 +1,11 @@
+/*
+Decantra - A Unity-based bottle-sorting puzzle game
+Copyright (C) 2026 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -83,6 +91,13 @@ namespace Decantra.Domain.Generation
                 if (!LevelIntegrity.TryValidate(attemptState, out string integrityError))
                 {
                     lastFailure = $"integrity:{integrityError}";
+                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
+                    continue;
+                }
+
+                if (!LevelStartValidator.TryValidate(attemptState, out string startError))
+                {
+                    lastFailure = $"start:{startError}";
                     ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                     continue;
                 }

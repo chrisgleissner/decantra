@@ -1,3 +1,11 @@
+/*
+Decantra - A Unity-based bottle-sorting puzzle game
+Copyright (C) 2026 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
 using System;
 using System.Collections;
 using System.IO;
@@ -12,6 +20,7 @@ namespace Decantra.Presentation
         [SerializeField] private RectTransform panel;
         [SerializeField] private Text starsText;
         [SerializeField] private Text levelText;
+        [SerializeField] private Text scoreText;
         [SerializeField] private Image starBurst;
         [SerializeField] private CanvasGroup canvasGroup;
         [SerializeField] private float enterDuration = 0.35f;
@@ -107,7 +116,7 @@ namespace Decantra.Presentation
             }
         }
 
-        public void Show(int level, int stars, PerformanceGrade grade, bool sfxEnabled, Action onComplete)
+        public void Show(int level, int stars, int awardedScore, PerformanceGrade grade, bool sfxEnabled, Action onComplete)
         {
             if (panel == null || canvasGroup == null || starsText == null || levelText == null)
             {
@@ -121,6 +130,10 @@ namespace Decantra.Presentation
             starsText.text = new string('★', clampedStars);
             var tag = messages[Mathf.Abs(level) % messages.Length];
             levelText.text = $"LEVEL {level + 1}\nGRADE {grade}\n{tag}";
+            if (scoreText != null)
+            {
+                scoreText.text = $"+{awardedScore}";
+            }
             EnsureEffects();
             DisableEffects();
             if (sfxEnabled)
@@ -146,6 +159,7 @@ namespace Decantra.Presentation
 
             if (starsText != null) starsText.gameObject.SetActive(activeText == starsText);
             if (levelText != null) levelText.gameObject.SetActive(activeText == levelText);
+            if (scoreText != null) scoreText.gameObject.SetActive(activeText == starsText);
 
             float time = 0f;
             while (time < enterDuration)

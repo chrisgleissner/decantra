@@ -1,3 +1,11 @@
+/*
+Decantra - A Unity-based bottle-sorting puzzle game
+Copyright (C) 2026 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
 using System;
 using System.Collections.Generic;
 using Decantra.Domain.Generation;
@@ -172,6 +180,22 @@ namespace Decantra.Tests.EditMode
             {
                 if (!bottle.IsSink) continue;
                 Assert.IsTrue(bottle.IsSingleColorOrEmpty(), "Sink bottle should be empty or monochrome at start.");
+            }
+        }
+
+        [Test]
+        public void Generate_HasAtLeastOneLegalOpeningMove()
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver);
+
+            int seed = 0;
+            for (int level = 1; level <= 20; level += 3)
+            {
+                seed = NextSeed(level, seed);
+                var profile = LevelDifficultyEngine.GetProfile(level);
+                var state = generator.Generate(seed, profile);
+                Assert.IsTrue(LevelStartValidator.HasAnyLegalMove(state), $"Expected legal opening move at level {level}");
             }
         }
 

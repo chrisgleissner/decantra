@@ -1,5 +1,30 @@
 # Decantra Critical Integrity Fix Plan
 
+## Plan - Fix Level 10 + Solvability + Export Language (2026-01-31)
+- [x] Audit Level 10 generation + reproduction seed, identify root cause of unsolvability. (Validate: run EditMode Level 10 regression test once added)
+- [x] Add Level 10 regression test asserting at least one legal move and solvability. (Validate: EditMode Level 10 regression test)
+- [x] Enforce generator validation for initial move + sink constraints + deterministic regeneration. (Validate: EditMode Generator invariants tests)
+- [x] Add pour legality invariant unit tests (non-sink, sink behavior, determinism). (Validate: EditMode Pour legality tests)
+- [x] Implement level export language model + serializer + parser + validation. (Validate: EditMode serialization tests)
+- [x] Add hidden share UI under level indicator with Android intent + Editor fallback capture. (Validate: PlayMode export UI tests + EditMode share payload tests)
+- [x] Add level language spec doc with example JSON. (Validate: doc review + serialization tests)
+- [x] Integrate new logo into app icon + intro + header with safe-area layout. (Validate: PlayMode UI tests + Android build launch)
+- [x] Run full EditMode test suite. (Validate: Unity Test Runner EditMode)
+- [x] Run full PlayMode test suite. (Validate: Unity Test Runner PlayMode)
+- [x] Run full test suite 3x or 1x + flaky reruns if time-limited. (Validate: consecutive full passes)
+
+Status: Complete
+
+## Plan - Visual Redesign (2026-01-31)
+- [x] Define new HUD layout: brand lockup, level medallion, stats chips, secondary tools.
+- [x] Overhaul background system with multi-layer organic textures and drift motion.
+- [x] Restyle level/intro/out-of-moves banners for premium presentation.
+- [x] Reposition and restyle export CTA as secondary tool drawer.
+- [x] Update text formatting to match new visual hierarchy.
+- [x] Validate runtime UI creation and wiring.
+- [x] Run EditMode + PlayMode tests.
+- [x] Build release Android APK.
+
 Status: In Progress
 
 Single source of truth: This file governs all work for the critical solvability, reset, and scoring fixes.

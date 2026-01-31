@@ -1,8 +1,17 @@
+/*
+Decantra - A Unity-based bottle-sorting puzzle game
+Copyright (C) 2026 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Decantra.Domain.Export;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
@@ -11,6 +20,7 @@ using Decantra.Domain.Scoring;
 using Decantra.Domain.Solver;
 using Decantra.App.Services;
 using Decantra.Presentation;
+using Decantra.Presentation.Services;
 using Decantra.Presentation.View;
 using UnityEngine;
 using UnityEngine.UI;
@@ -31,6 +41,9 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Image backgroundFlow;
         [SerializeField] private Image backgroundShapes;
         [SerializeField] private Image backgroundVignette;
+        [SerializeField] private Button levelPanelButton;
+        [SerializeField] private Button shareButton;
+        [SerializeField] private GameObject shareButtonRoot;
 
         private LevelState _state;
         private LevelState _initialState;
@@ -65,6 +78,10 @@ namespace Decantra.Presentation.Controller
         private bool _sfxEnabled = true;
         private AudioSource _audioSource;
         private AudioClip _pourClip;
+        private IShareService _shareService;
+        private readonly List<LevelLanguageMove> _moveHistory = new List<LevelLanguageMove>();
+
+        private const int GridColumns = 3;
 
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
@@ -116,6 +133,7 @@ namespace Decantra.Presentation.Controller
             _generator = new LevelGenerator(_solver);
             _progressStore = new ProgressStore();
             _settingsStore = new SettingsStore();
+            _shareService = ShareServiceFactory.CreateDefault();
         }
 
         private void Start()
@@ -136,6 +154,7 @@ namespace Decantra.Presentation.Controller
             _currentLevel = ProgressionResumePolicy.ResolveResumeLevel(_progress);
             _currentSeed = _progress.CurrentSeed > 0 ? _progress.CurrentSeed : NextSeed(_currentLevel, 0);
             PersistCurrentProgress(_currentLevel, _currentSeed);
+            SetupShareUi();
             StartCoroutine(BeginSession());
         }
 
@@ -228,6 +247,8 @@ namespace Decantra.Presentation.Controller
         {
             if (state == null) return;
             _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, state.BackgroundPaletteIndex);
+            _moveHistory.Clear();
+            SetShareButtonVisible(false);
         }
 
         public void OnBottleTapped(int index)
@@ -398,6 +419,7 @@ namespace Decantra.Presentation.Controller
             _lastStars = CalculateStars(_lastGrade);
 
             _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
+            int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
             _scoreSession?.CommitLevel();
             _completionStreak++;
 
@@ -425,7 +447,7 @@ namespace Decantra.Presentation.Controller
             }
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, _lastGrade, _sfxEnabled, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _lastGrade, _sfxEnabled, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -634,6 +656,8 @@ namespace Decantra.Presentation.Controller
             bool applied = _state.TryApplyMove(sourceIndex, targetIndex, out poured);
             if (!applied) return false;
 
+            RecordMove(sourceIndex, targetIndex);
+
             _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -642,6 +666,70 @@ namespace Decantra.Presentation.Controller
 #endif
 
             return true;
+        }
+
+        public void ToggleShareButton()
+        {
+            if (shareButtonRoot == null) return;
+            bool next = !shareButtonRoot.activeSelf;
+            SetShareButtonVisible(next);
+        }
+
+        public void ShareCurrentLevel()
+        {
+            string payload = BuildSharePayload();
+            if (string.IsNullOrEmpty(payload)) return;
+            _shareService?.ShareText(payload);
+            SetShareButtonVisible(false);
+        }
+
+        private void SetupShareUi()
+        {
+            if (levelPanelButton != null)
+            {
+                levelPanelButton.onClick.RemoveAllListeners();
+                levelPanelButton.onClick.AddListener(ToggleShareButton);
+            }
+
+            if (shareButton != null)
+            {
+                shareButton.onClick.RemoveAllListeners();
+                shareButton.onClick.AddListener(ShareCurrentLevel);
+            }
+
+            SetShareButtonVisible(false);
+        }
+
+        private void SetShareButtonVisible(bool visible)
+        {
+            if (shareButtonRoot == null) return;
+            if (shareButtonRoot.activeSelf != visible)
+            {
+                shareButtonRoot.SetActive(visible);
+            }
+            // Also set the button itself
+            if (shareButton != null && shareButton.gameObject.activeSelf != visible)
+            {
+                shareButton.gameObject.SetActive(visible);
+            }
+        }
+
+        private void RecordMove(int sourceIndex, int targetIndex)
+        {
+            int fromRow = sourceIndex / GridColumns;
+            int fromCol = sourceIndex % GridColumns;
+            int toRow = targetIndex / GridColumns;
+            int toCol = targetIndex % GridColumns;
+            _moveHistory.Add(new LevelLanguageMove(fromRow, fromCol, toRow, toCol));
+        }
+
+        private string BuildSharePayload()
+        {
+            if (_initialState == null) return null;
+            int count = bottleViews != null && bottleViews.Count > 0 ? bottleViews.Count : _initialState.Bottles.Count;
+            int rows = Mathf.Max(1, Mathf.CeilToInt(count / (float)GridColumns));
+            var document = LevelLanguage.FromLevelState(_initialState, _currentLevel, rows, GridColumns, _moveHistory);
+            return LevelLanguage.Serialize(document);
         }
 
         private void PlayPourSfx(int targetIndex, int amount)
@@ -661,6 +749,10 @@ namespace Decantra.Presentation.Controller
             _audioSource.playOnAwake = false;
             _audioSource.loop = false;
             _pourClip = CreatePourClip();
+            if (_pourClip == null)
+            {
+                Debug.LogWarning("[GameController] Failed to create pour audio clip. Audio may not be available in this environment.");
+            }
         }
 
         private AudioClip CreatePourClip()
@@ -668,7 +760,18 @@ namespace Decantra.Presentation.Controller
             int sampleRate = 44100;
             float duration = 0.25f;
             int samples = Mathf.CeilToInt(sampleRate * duration);
+            if (samples <= 0)
+            {
+                Debug.LogWarning("[GameController] Invalid sample count for audio clip.");
+                return null;
+            }
+
             var clip = AudioClip.Create("Pour", samples, 1, sampleRate, false);
+            if (clip == null)
+            {
+                Debug.LogWarning("[GameController] AudioClip.Create returned null. Audio system may not be available.");
+                return null;
+            }
 
             float[] data = new float[samples];
             float freq = 220f;
@@ -813,7 +916,6 @@ namespace Decantra.Presentation.Controller
 
         public void RequestRestartGame()
         {
-            if (_inputLocked) return;
             if (restartDialog == null)
             {
                 RestartGameConfirmed();
@@ -913,6 +1015,9 @@ namespace Decantra.Presentation.Controller
                 flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter) * themeStyle.FlowAlphaScale;
                 backgroundFlow.color = flowTint;
                 backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(-6f, 6f, jitter2));
+                float flowScale = Mathf.Lerp(1.05f, 1.25f, jitter);
+                backgroundFlow.rectTransform.localScale = new Vector3(flowScale, flowScale, 1f);
+                backgroundFlow.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-18f, 18f, jitter2), Mathf.Lerp(-12f, 22f, jitter));
             }
 
             if (backgroundShapes != null)
@@ -921,6 +1026,9 @@ namespace Decantra.Presentation.Controller
                 shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2) * themeStyle.ShapeAlphaScale;
                 backgroundShapes.color = shapeTint;
                 backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(4f, -4f, jitter));
+                float shapeScale = Mathf.Lerp(1.0f, 1.2f, jitter2);
+                backgroundShapes.rectTransform.localScale = new Vector3(shapeScale, shapeScale, 1f);
+                backgroundShapes.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(12f, -12f, jitter), Mathf.Lerp(8f, -16f, jitter2));
             }
 
             if (backgroundVignette != null)
@@ -928,6 +1036,13 @@ namespace Decantra.Presentation.Controller
                 var vignetteColor = backgroundVignette.color;
                 vignetteColor.a = palette.VignetteAlpha * themeStyle.VignetteAlphaScale;
                 backgroundVignette.color = vignetteColor;
+            }
+
+            if (backgroundDetail != null)
+            {
+                float detailScale = Mathf.Lerp(1.0f, 1.15f, jitter2);
+                backgroundDetail.rectTransform.localScale = new Vector3(detailScale, detailScale, 1f);
+                backgroundDetail.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-10f, 10f, jitter), Mathf.Lerp(6f, -6f, jitter2));
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
