@@ -699,6 +699,11 @@ namespace Decantra.Presentation.Controller
             {
                 shareButtonRoot.SetActive(visible);
             }
+            // Also set the button itself
+            if (shareButton != null && shareButton.gameObject.activeSelf != visible)
+            {
+                shareButton.gameObject.SetActive(visible);
+            }
         }
 
         private void RecordMove(int sourceIndex, int targetIndex)
