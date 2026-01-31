@@ -70,5 +70,16 @@ namespace Decantra.Tests.EditMode
             var state = new LevelState(bottles, 0, 10, 3, 1, 123);
             Assert.IsFalse(state.IsWin());
         }
+
+        [Test]
+        public void IsWin_AllowsEmptyBottlesWithVariableCapacities()
+        {
+            var bottles = new Bottle[2];
+            bottles[0] = new Bottle(new ColorId?[] { ColorId.Green, ColorId.Green, ColorId.Green });
+            bottles[1] = new Bottle(new ColorId?[4]);
+
+            var state = new LevelState(bottles, 0, 10, 1, 1, 5);
+            Assert.IsTrue(state.IsWin());
+        }
     }
 }

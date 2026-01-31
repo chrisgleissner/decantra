@@ -24,12 +24,18 @@ namespace Decantra.Domain.Solver
                 return new SolverResult(cached, new List<Move>());
             }
 
-            var result = SolveInternal(initial, -1, -1, false);
+            var result = SolveInternal(initial, -1, -1, false, false);
             if (result.OptimalMoves >= 0)
             {
                 _optimalCache.TryAdd(key, result.OptimalMoves);
             }
             return result;
+        }
+
+        public SolverResult SolveWithPath(LevelState initial)
+        {
+            if (initial == null) throw new ArgumentNullException(nameof(initial));
+            return SolveInternal(initial, -1, -1, false, true);
         }
 
         public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)
@@ -38,10 +44,10 @@ namespace Decantra.Domain.Solver
             if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
             if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
 
-            return SolveInternal(initial, maxNodes, maxMillis, true);
+            return SolveInternal(initial, maxNodes, maxMillis, true, false);
         }
 
-        private SolverResult SolveInternal(LevelState initial, int maxNodes, int maxMillis, bool useLimits)
+        private SolverResult SolveInternal(LevelState initial, int maxNodes, int maxMillis, bool useLimits, bool trackPath)
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
 
@@ -51,7 +57,7 @@ namespace Decantra.Domain.Solver
 
             var startKey = StateEncoder.EncodeCanonical(initial);
             visited.Add(startKey);
-            queue.Enqueue(new Node(CloneState(initial), 0));
+            queue.Enqueue(new Node(CloneState(initial), 0, null, default));
 
             int processed = 0;
             while (queue.Count > 0)
@@ -65,7 +71,7 @@ namespace Decantra.Domain.Solver
                 processed++;
                 if (node.State.IsWin())
                 {
-                    return new SolverResult(node.Depth, new List<Move>());
+                    return BuildResult(node, trackPath);
                 }
 
                 foreach (var move in EnumerateMoves(node.State))
@@ -80,12 +86,30 @@ namespace Decantra.Domain.Solver
                     var key = StateEncoder.EncodeCanonical(next);
                     if (visited.Add(key))
                     {
-                        queue.Enqueue(new Node(next, node.Depth + 1));
+                        queue.Enqueue(new Node(next, node.Depth + 1, trackPath ? node : null, trackPath ? new Move(move.Source, move.Target, poured) : default));
                     }
                 }
             }
 
             return new SolverResult(-1, new List<Move>());
+        }
+
+        private static SolverResult BuildResult(Node node, bool trackPath)
+        {
+            if (!trackPath)
+            {
+                return new SolverResult(node.Depth, new List<Move>());
+            }
+
+            var path = new List<Move>(node.Depth);
+            var current = node;
+            while (current != null && current.Parent != null)
+            {
+                path.Add(current.MoveFromParent);
+                current = current.Parent;
+            }
+            path.Reverse();
+            return new SolverResult(path.Count, path);
         }
 
         private static IEnumerable<Move> EnumerateMoves(LevelState state)
@@ -101,11 +125,6 @@ namespace Decantra.Domain.Solver
                     int amount = source.MaxPourAmountInto(target);
                     if (amount <= 0) continue;
 
-                    if (target.IsEmpty && source.IsSolvedBottle())
-                    {
-                        continue;
-                    }
-
                     yield return new Move(i, j, amount);
                 }
             }
@@ -118,19 +137,23 @@ namespace Decantra.Domain.Solver
             {
                 bottles.Add(bottle.Clone());
             }
-            return new LevelState(bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed);
+            return new LevelState(bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves);
         }
 
         private sealed class Node
         {
-            public Node(LevelState state, int depth)
+            public Node(LevelState state, int depth, Node parent, Move moveFromParent)
             {
                 State = state;
                 Depth = depth;
+                Parent = parent;
+                MoveFromParent = moveFromParent;
             }
 
             public LevelState State { get; }
             public int Depth { get; }
+            public Node Parent { get; }
+            public Move MoveFromParent { get; }
         }
     }
 }

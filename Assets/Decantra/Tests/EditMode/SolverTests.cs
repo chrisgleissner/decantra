@@ -93,5 +93,30 @@ namespace Decantra.Tests.EditMode
 
             Assert.AreEqual(resultA.OptimalMoves, resultB.OptimalMoves);
         }
+
+        [Test]
+        public void SolveWithPath_ReturnsValidSolution()
+        {
+            var solver = new BfsSolver();
+            var state = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Blue, ColorId.Blue }),
+                new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, ColorId.Red, ColorId.Red }),
+                new Bottle(new ColorId?[4])
+            }, 0, 20, 0, 1, 100);
+
+            var result = solver.SolveWithPath(state);
+            Assert.GreaterOrEqual(result.OptimalMoves, 0);
+            Assert.AreEqual(result.OptimalMoves, result.Path.Count);
+
+            var replay = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed);
+            foreach (var move in result.Path)
+            {
+                int poured;
+                Assert.IsTrue(replay.TryApplyMove(move.Source, move.Target, out poured));
+            }
+
+            Assert.IsTrue(replay.IsWin());
+        }
     }
 }

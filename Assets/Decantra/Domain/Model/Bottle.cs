@@ -130,6 +130,44 @@ namespace Decantra.Domain.Model
             }
         }
 
+        internal bool TryReversePourInto(Bottle target, int amount)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            if (amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount));
+            var color = TopColor;
+            if (!color.HasValue) return false;
+            if (amount > ContiguousTopCount) return false;
+            if (target.FreeSpace < amount) return false;
+
+            int removed = 0;
+            for (int i = _slots.Length - 1; i >= 0 && removed < amount; i--)
+            {
+                if (_slots[i] == color)
+                {
+                    _slots[i] = null;
+                    removed++;
+                }
+                else if (_slots[i].HasValue)
+                {
+                    break;
+                }
+            }
+
+            if (removed != amount) return false;
+
+            int inserted = 0;
+            for (int i = 0; i < target._slots.Length && inserted < amount; i++)
+            {
+                if (!target._slots[i].HasValue)
+                {
+                    target._slots[i] = color;
+                    inserted++;
+                }
+            }
+
+            return inserted == amount;
+        }
+
         public bool IsSolvedBottle()
         {
             if (IsEmpty) return false;

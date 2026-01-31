@@ -1,65 +1,49 @@
-# Decantra Physical Brain-Teaser Redesign Plan
+# Decantra Critical Integrity Fix Plan
 
-Status: Complete
+Status: In Progress
 
-Single source of truth: This file governs all work for the redesign.
+Single source of truth: This file governs all work for the critical solvability, reset, and scoring fixes.
 
 ## Scope summary
-- Introduce variable bottle capacities with visible size differences.
-- Remove slack via sparse empties and tight initial fills.
-- Optional sink bottle (irreversible when full).
-- Increase structural complexity early (level scaling).
-- Update solver + move limits for capacity constraints.
-- Failure state on move exhaustion with restart.
-- Efficiency-only scoring on success.
-- Learnable progression and visual cues.
-- Full automated test coverage + Android APK build.
+- Guarantee solvable-by-construction levels with stored optimal move counts.
+- Enforce capacity-consistent win conditions (including sink bottles).
+- Add reset-for-retry UI and per-attempt score integrity.
+- Unify rules engine for gameplay, solver, and generator.
+- Add exhaustive deterministic tests (unit, solver, fuzz/property, PlayMode).
+- Build a working Android APK after all tests pass.
 
 ## Phase 0: Recon + constraints
 - [x] Confirm Unity version, packages, and project settings.
-- [x] Audit current domain model for bottles, capacities, solver, and level gen.
-- [x] Identify current UX hooks for failure messaging and reset.
+- [x] Audit domain model for bottle capacities, sink rules, solver, and generator invariants.
+- [x] Locate scoring persistence + per-attempt logic in app/presentation.
+- [x] Identify UI layout anchor for Reset button near "MAX LV".
 
 ## Phase 1: Tests first (TDD)
-- [x] Add domain tests for variable capacities and overfill prevention.
-- [x] Add domain tests for initial fill legality and reduced slack.
-- [x] Add domain tests for sink bottle irreversibility (if implemented).
-- [x] Add domain tests for solver correctness under capacity constraints.
-- [x] Add domain tests for allowed move limits with tightening slack.
-- [x] Add domain tests for level scaling (bottle count, capacity variance, empties).
-- [x] Add domain tests for solvability of generated levels.
-- [x] Add domain tests for scoring commit only on success + efficiency ranking.
-- [x] Add PlayMode tests for move exhaustion failure and input block.
-- [x] Add PlayMode tests for restart restoring exact initial state.
+- [x] Add unit tests for pour legality, capacity enforcement, and sink behavior.
+- [x] Add unit tests for win condition under variable capacities.
+- [x] Add generator invariant tests (volume conservation, capacity compatibility, solvable end state).
+- [x] Add solver tests for known optimal move counts and determinism.
+- [x] Add deterministic fuzz tests (>=200 levels across early/mid/high levels).
+- [x] Add PlayMode tests for reset behavior and score rollback/commit.
 
 ## Phase 2: Implementation
-- [x] Implement variable capacities with visible bottle sizing.
-- [x] Implement reduced slack initial fills and legality checks.
-- [x] Implement sink bottle type + visuals (if adopted).
-- [x] Update solver + state hashing to include capacity constraints.
-- [x] Update allowed moves to use optimal + tightening slack.
-- [x] Implement failure state + neutral UX + restart flow.
-- [x] Implement efficiency-only scoring commit on success.
-- [x] Update level generator to scale earlier (9+ bottles by ~20-25).
-- [x] Add learning curve staging for capacity asymmetry.
+- [x] Refactor to single authoritative rules engine for gameplay/solver/generator.
+- [x] Fix win condition to align with capacity and sink constraints.
+- [x] Implement solvable-by-construction generation + optimal solver validation.
+- [x] Store and propagate optimalMoves + allowedMoves from solver results.
+- [x] Implement reset-for-retry UI + semantics next to "MAX LV".
+- [x] Implement provisional score tracking with commit on win + rollback on reset/fail.
+- [x] Add development assertions for illegal states and capacity mismatches.
 
-## Phase 3: Validation
+## Phase 3: Test + verify
 - [x] Run EditMode tests.
 - [x] Run PlayMode tests.
-- [x] Verify coverage >= 80% on domain logic.
-- [x] Validate solver minimality on capacity-constrained configs.
-- [x] Verify failure resets and no score/progression persists on failure.
+- [x] Verify coverage >= 80% for domain logic.
+- [x] Validate generator + solver determinism across multiple seeds.
 
 ## Phase 4: Build
-- [x] Run clean Android build and produce APK.
-- [x] Confirm build success in output.
-- [x] Ensure no test-only code ships.
-- [x] Build release APK.
-- [x] Install release APK on first connected Android device.
+- [x] Build Android APK via batchmode.
+- [x] Confirm build success and APK output path.
 
-## Final acceptance checklist
-- [x] All new mechanics tested and passing.
-- [x] Difficulty scales as required by level 20-25.
-- [x] Solver + move limits remain tight and fair.
-- [x] APK built successfully.
-- [x] Release APK built and installed on device.
+Notes:
+- Android build succeeded with external SDK/NDK paths set (ANDROID_SDK_ROOT=/home/chris/Android/Sdk, ANDROID_NDK_ROOT=/home/chris/Android/Sdk/ndk/27.2.12479018).

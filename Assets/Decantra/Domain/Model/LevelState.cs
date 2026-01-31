@@ -6,13 +6,14 @@ namespace Decantra.Domain.Model
 {
     public sealed class LevelState
     {
-        public LevelState(IReadOnlyList<Bottle> bottles, int movesUsed, int movesAllowed, int optimalMoves, int levelIndex, int seed)
+        public LevelState(IReadOnlyList<Bottle> bottles, int movesUsed, int movesAllowed, int optimalMoves, int levelIndex, int seed, int scrambleMoves = 0)
         {
             if (bottles == null) throw new ArgumentNullException(nameof(bottles));
             if (bottles.Count == 0) throw new ArgumentOutOfRangeException(nameof(bottles));
             if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
             if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
             if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
+            if (scrambleMoves < 0) throw new ArgumentOutOfRangeException(nameof(scrambleMoves));
 
             Bottles = bottles.Select(b => b.Clone()).ToList();
             MovesUsed = movesUsed;
@@ -20,6 +21,7 @@ namespace Decantra.Domain.Model
             OptimalMoves = optimalMoves;
             LevelIndex = levelIndex;
             Seed = seed;
+            ScrambleMoves = scrambleMoves;
         }
 
         public IReadOnlyList<Bottle> Bottles { get; }
@@ -28,6 +30,7 @@ namespace Decantra.Domain.Model
         public int OptimalMoves { get; }
         public int LevelIndex { get; }
         public int Seed { get; }
+        public int ScrambleMoves { get; }
 
         public bool IsWin()
         {

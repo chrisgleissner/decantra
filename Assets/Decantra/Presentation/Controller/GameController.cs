@@ -37,6 +37,8 @@ namespace Decantra.Presentation.Controller
         private int _selectedIndex = -1;
         private bool _isCompleting;
         private bool _isFailing;
+        private bool _isResetting;
+        private int _levelSessionId;
         private int _currentLevel = 1;
         private int _currentSeed;
         private int _lastBackgroundPaletteIndex = -1;
@@ -129,6 +131,7 @@ namespace Decantra.Presentation.Controller
             SetupAudio();
 
             _scoreSession = new ScoreSession(_progress?.CurrentScore ?? 0);
+            _scoreSession.BeginAttempt(_progress?.CurrentScore ?? 0);
 
             _currentLevel = ProgressionResumePolicy.ResolveResumeLevel(_progress);
             _currentSeed = _progress.CurrentSeed > 0 ? _progress.CurrentSeed : NextSeed(_currentLevel, 0);
@@ -158,6 +161,7 @@ namespace Decantra.Presentation.Controller
 
         public void LoadLevel(int levelIndex, int seed)
         {
+            _levelSessionId++;
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
             _state = GenerateLevelWithRetry(_currentLevel, _currentSeed);
@@ -167,16 +171,35 @@ namespace Decantra.Presentation.Controller
             _isFailing = false;
             _usedUndo = false;
             _usedHints = false;
-            _scoreSession?.FailLevel();
-            if (_progress != null)
-            {
-                _scoreSession?.ResetTotal(_progress.CurrentScore);
-            }
+            int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
+            _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
+            _inputLocked = false;
+        }
+
+        public void ResetCurrentLevel()
+        {
+            if (_isResetting || _state == null) return;
+            if (_inputLocked) return;
+            if (_isCompleting) return;
+
+            _isResetting = true;
+            _inputLocked = true;
+
+            _scoreSession?.ResetAttempt();
+            _usedUndo = false;
+            _usedHints = false;
+            _selectedIndex = -1;
+            _isFailing = false;
+            _isCompleting = false;
+
+            RestartCurrentLevel();
+            _inputLocked = false;
+            _isResetting = false;
         }
 
         private void RestartCurrentLevel(LevelState restartState = null)
@@ -184,12 +207,12 @@ namespace Decantra.Presentation.Controller
             var stateToUse = restartState;
             if (stateToUse == null && _initialState != null)
             {
-                stateToUse = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed);
+                stateToUse = new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed, _initialState.ScrambleMoves);
             }
 
             if (stateToUse == null && _state != null)
             {
-                stateToUse = new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed);
+                stateToUse = new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed, _state.ScrambleMoves);
             }
 
             if (stateToUse == null)
@@ -204,7 +227,7 @@ namespace Decantra.Presentation.Controller
         private void CaptureInitialState(LevelState state)
         {
             if (state == null) return;
-            _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed);
+            _initialState = new LevelState(state.Bottles, 0, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves);
         }
 
         public void OnBottleTapped(int index)
@@ -350,6 +373,7 @@ namespace Decantra.Presentation.Controller
 
         private IEnumerator HandleLevelComplete()
         {
+            int sessionId = _levelSessionId;
             _isCompleting = true;
             _inputLocked = true;
 
@@ -410,15 +434,16 @@ namespace Decantra.Presentation.Controller
             }
 
             int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
+            if (sessionId != _levelSessionId) yield break;
             yield return TransitionToLevel(nextLevel, targetSeed);
         }
 
         private IEnumerator HandleOutOfMoves()
         {
+            int sessionId = _levelSessionId;
             _isFailing = true;
             _inputLocked = true;
             _completionStreak = 0;
-            _scoreSession?.FailLevel();
             var restartSnapshot = CreateRestartSnapshot();
 
             bool finished = false;
@@ -444,6 +469,8 @@ namespace Decantra.Presentation.Controller
                 yield return new WaitForSeconds(0.5f);
             }
 
+            if (sessionId != _levelSessionId) yield break;
+            _scoreSession?.FailLevel();
             RestartCurrentLevel(restartSnapshot);
             _inputLocked = false;
             _isFailing = false;
@@ -453,12 +480,12 @@ namespace Decantra.Presentation.Controller
         {
             if (_initialState != null)
             {
-                return new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed);
+                return new LevelState(_initialState.Bottles, 0, _initialState.MovesAllowed, _initialState.OptimalMoves, _initialState.LevelIndex, _initialState.Seed, _initialState.ScrambleMoves);
             }
 
             if (_state != null)
             {
-                return new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed);
+                return new LevelState(_state.Bottles, 0, _state.MovesAllowed, _state.OptimalMoves, _state.LevelIndex, _state.Seed, _state.ScrambleMoves);
             }
 
             return null;
@@ -776,6 +803,7 @@ namespace Decantra.Presentation.Controller
 
         private void ApplyLoadedState(LevelState state, int levelIndex, int seed)
         {
+            _levelSessionId++;
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
             _state = state;
@@ -785,11 +813,8 @@ namespace Decantra.Presentation.Controller
             _isFailing = false;
             _usedUndo = false;
             _usedHints = false;
-            _scoreSession?.FailLevel();
-            if (_progress != null)
-            {
-                _scoreSession?.ResetTotal(_progress.CurrentScore);
-            }
+            int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
+            _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
             ApplyBackgroundVariation(_currentLevel, _currentSeed);
             StartPrecomputeNextLevel();

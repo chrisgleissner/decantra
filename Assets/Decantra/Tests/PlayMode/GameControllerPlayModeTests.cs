@@ -1,15 +1,18 @@
 using System.Collections;
 using System.IO;
 using System.Reflection;
+using System.Threading.Tasks;
 using Decantra.App.Services;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
+using Decantra.Domain.Scoring;
 using Decantra.Domain.Solver;
 using Decantra.Presentation;
 using Decantra.Presentation.Controller;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace Decantra.Tests.PlayMode
 {
@@ -196,6 +199,122 @@ namespace Decantra.Tests.PlayMode
             yield return new WaitForSeconds(duration + 0.8f);
 
             Assert.AreEqual(3, progress.HighestUnlockedLevel, "Failure should not unlock the next level.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResetButton_RestoresInitialStateAndScore()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            controller.LoadLevel(1, 123);
+            yield return null;
+
+            var initial = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(initial);
+            string initialKey = StateEncoder.Encode(initial);
+
+            var session = GetPrivateField(controller, "_scoreSession") as ScoreSession;
+            Assert.IsNotNull(session);
+            int startTotal = session.TotalScore;
+
+            Assert.IsTrue(TryFindValidMove(initial, out int source, out int target));
+            bool started = controller.TryStartMove(source, target, out float duration);
+            Assert.IsTrue(started);
+            yield return new WaitForSeconds(duration + 0.2f);
+
+            var midSession = GetPrivateField(controller, "_scoreSession") as ScoreSession;
+            Assert.IsNotNull(midSession);
+            Assert.Greater(midSession.ProvisionalScore, 0);
+            Assert.AreEqual(startTotal, midSession.TotalScore);
+
+            var resetGo = GameObject.Find("ResetButton");
+            Assert.IsNotNull(resetGo, "Reset button should exist in scene.");
+            var button = resetGo.GetComponent<Button>();
+            Assert.IsNotNull(button, "Reset button should have Button component.");
+            button.onClick.Invoke();
+
+            yield return null;
+
+            var resetState = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(resetState);
+            string resetKey = StateEncoder.Encode(resetState);
+            Assert.AreEqual(initialKey, resetKey, "Reset should restore the original level layout.");
+            Assert.AreEqual(0, resetState.MovesUsed);
+
+            var resetSession = GetPrivateField(controller, "_scoreSession") as ScoreSession;
+            Assert.IsNotNull(resetSession);
+            Assert.AreEqual(startTotal, resetSession.TotalScore);
+            Assert.AreEqual(0, resetSession.ProvisionalScore);
+        }
+
+        [UnityTest]
+        public IEnumerator Win_CommitsScoreAndAdvancesLevel()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            string root = Path.Combine(Path.GetTempPath(), "decantra-tests", System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "progress.json");
+
+            var store = new ProgressStore(new[] { path });
+            var progress = new ProgressData
+            {
+                HighestUnlockedLevel = 1,
+                CurrentLevel = 1,
+                CurrentSeed = 111,
+                CurrentScore = 100,
+                HighScore = 100
+            };
+
+            SetPrivateField(controller, "_progressStore", store);
+            SetPrivateField(controller, "_progress", progress);
+            SetPrivateField(controller, "_currentLevel", 1);
+            SetPrivateField(controller, "_currentSeed", 111);
+
+            var session = new ScoreSession(progress.CurrentScore);
+            session.BeginAttempt(progress.CurrentScore);
+            SetPrivateField(controller, "_scoreSession", session);
+
+            var solved = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, ColorId.Red }),
+                new Bottle(new ColorId?[4])
+            }, 0, 10, 0, 1, 111);
+
+            SetPrivateField(controller, "_state", solved);
+            SetPrivateField(controller, "_initialState", solved);
+            SetPrivateField(controller, "_isCompleting", false);
+            SetPrivateField(controller, "_isFailing", false);
+
+            var nextState = new LevelState(new[]
+            {
+                new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, ColorId.Blue, ColorId.Blue }),
+                new Bottle(new ColorId?[4])
+            }, 0, 10, 0, 2, 222);
+
+            SetPrivateField(controller, "_nextLevel", 2);
+            SetPrivateField(controller, "_nextSeed", 222);
+            SetPrivateField(controller, "_nextState", nextState);
+            SetPrivateField(controller, "_precomputeTask", Task.FromResult(nextState));
+
+            SetPrivateField(controller, "levelBanner", null);
+            SetPrivateField(controller, "introBanner", null);
+
+            InvokePrivate(controller, "Render");
+
+            yield return new WaitForSeconds(0.8f);
+
+            Assert.Greater(progress.CurrentScore, 100, "Winning should commit score.");
+            Assert.GreaterOrEqual(progress.HighScore, progress.CurrentScore);
+            Assert.GreaterOrEqual(progress.CurrentLevel, 2, "Winning should advance level.");
         }
 
         private static void SetPrivateField(object instance, string name, object value)

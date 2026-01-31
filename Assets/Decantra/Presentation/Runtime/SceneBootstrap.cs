@@ -69,6 +69,7 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "outOfMovesBanner", outOfMoves);
 
             var settings = CreateSettingsPanel(canvas.transform, controller);
+            WireResetButton(controller);
 
             var toolsGo = new GameObject("RuntimeTools");
             toolsGo.AddComponent<RuntimeScreenshot>();
@@ -248,20 +249,21 @@ namespace Decantra.Presentation
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
-            bottomRect.anchorMin = new Vector2(0.5f, 0f);
-            bottomRect.anchorMax = new Vector2(0.5f, 0f);
-            bottomRect.pivot = new Vector2(0.5f, 0f);
-            bottomRect.anchoredPosition = new Vector2(0, 60);
+            bottomRect.anchorMin = new Vector2(1f, 0f);
+            bottomRect.anchorMax = new Vector2(1f, 0f);
+            bottomRect.pivot = new Vector2(1f, 0f);
+            bottomRect.anchoredPosition = new Vector2(-60, 60);
             bottomRect.sizeDelta = new Vector2(720, 180);
 
             var bottomLayout = bottomHud.AddComponent<HorizontalLayoutGroup>();
-            bottomLayout.childAlignment = TextAnchor.MiddleCenter;
+            bottomLayout.childAlignment = TextAnchor.MiddleRight;
             bottomLayout.childForceExpandWidth = false;
             bottomLayout.childForceExpandHeight = false;
             bottomLayout.spacing = 18f;
 
             var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH");
             var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LV");
+            CreateResetButton(bottomHud.transform);
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -607,6 +609,40 @@ namespace Decantra.Presentation
             text.color = Color.white;
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
             return text;
+        }
+
+        private static Button CreateResetButton(Transform parent)
+        {
+            var panel = CreateUiChild(parent, "ResetButton");
+            var image = panel.AddComponent<Image>();
+            image.color = new Color(1f, 1f, 1f, 0.35f);
+
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(200, 160);
+            var element = panel.AddComponent<LayoutElement>();
+            element.minWidth = 200;
+            element.minHeight = 160;
+
+            var button = panel.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var text = CreateHudText(panel.transform, "Label");
+            text.fontSize = 40;
+            text.text = "RESET";
+            text.color = Color.white;
+            AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
+            return button;
+        }
+
+        private static void WireResetButton(GameController controller)
+        {
+            if (controller == null) return;
+            var resetGo = GameObject.Find("ResetButton");
+            if (resetGo == null) return;
+            var button = resetGo.GetComponent<Button>();
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(controller.ResetCurrentLevel);
         }
 
         private static GameObject CreateUiChild(Transform parent, string name)

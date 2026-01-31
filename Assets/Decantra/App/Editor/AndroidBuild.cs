@@ -129,27 +129,44 @@ namespace Decantra.App.Editor
                 return;
             }
 
-            SetStringProperty(settingsType, "sdkRootPath", sdkRoot);
-            SetStringProperty(settingsType, "ndkRootPath", ndkRoot);
-            SetStringProperty(settingsType, "jdkRootPath", jdkRoot);
+            TrySetStringProperty(settingsType, "sdkRootPath", sdkRoot);
+            TrySetStringProperty(settingsType, "ndkRootPath", ndkRoot);
+            bool jdkSet = TrySetStringProperty(settingsType, "jdkRootPath", jdkRoot);
 
             SetBoolProperty(settingsType, "UseEmbeddedSdk", false, sdkRoot);
             SetBoolProperty(settingsType, "UseEmbeddedNdk", false, ndkRoot);
-            SetBoolProperty(settingsType, "UseEmbeddedJdk", false, jdkRoot);
+            if (jdkSet)
+            {
+                SetBoolProperty(settingsType, "UseEmbeddedJdk", false, jdkRoot);
+            }
+            else
+            {
+                SetBoolProperty(settingsType, "UseEmbeddedJdk", true);
+            }
         }
 
-        private static void SetStringProperty(Type settingsType, string propertyName, string value)
+        private static bool TrySetStringProperty(Type settingsType, string propertyName, string value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                return;
+                return false;
             }
 
             var prop = settingsType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static);
             if (prop != null && prop.CanWrite && prop.PropertyType == typeof(string))
             {
-                prop.SetValue(null, value);
+                try
+                {
+                    prop.SetValue(null, value);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"AndroidBuild: Unable to set {propertyName} from env: {ex.Message}");
+                }
             }
+
+            return false;
         }
 
         private static void SetBoolProperty(Type settingsType, string propertyName, bool value, string guardValue)
@@ -159,6 +176,15 @@ namespace Decantra.App.Editor
                 return;
             }
 
+            var prop = settingsType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static);
+            if (prop != null && prop.CanWrite && prop.PropertyType == typeof(bool))
+            {
+                prop.SetValue(null, value);
+            }
+        }
+
+        private static void SetBoolProperty(Type settingsType, string propertyName, bool value)
+        {
             var prop = settingsType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static);
             if (prop != null && prop.CanWrite && prop.PropertyType == typeof(bool))
             {

@@ -6,11 +6,21 @@ namespace Decantra.Domain.Scoring
     {
         public int TotalScore { get; private set; }
         public int ProvisionalScore { get; private set; }
+        public int AttemptStartTotalScore { get; private set; }
 
         public ScoreSession(int startingTotal = 0)
         {
             if (startingTotal < 0) throw new ArgumentOutOfRangeException(nameof(startingTotal));
             TotalScore = startingTotal;
+            AttemptStartTotalScore = startingTotal;
+            ProvisionalScore = 0;
+        }
+
+        public void BeginAttempt(int totalScore)
+        {
+            if (totalScore < 0) throw new ArgumentOutOfRangeException(nameof(totalScore));
+            AttemptStartTotalScore = totalScore;
+            TotalScore = totalScore;
             ProvisionalScore = 0;
         }
 
@@ -21,19 +31,25 @@ namespace Decantra.Domain.Scoring
 
         public void CommitLevel()
         {
-            TotalScore += ProvisionalScore;
+            TotalScore = AttemptStartTotalScore + ProvisionalScore;
             ProvisionalScore = 0;
+            AttemptStartTotalScore = TotalScore;
         }
 
         public void FailLevel()
         {
+            ResetAttempt();
+        }
+
+        public void ResetAttempt()
+        {
+            TotalScore = AttemptStartTotalScore;
             ProvisionalScore = 0;
         }
 
         public void ResetTotal(int total)
         {
-            if (total < 0) throw new ArgumentOutOfRangeException(nameof(total));
-            TotalScore = total;
+            BeginAttempt(total);
         }
     }
 }
