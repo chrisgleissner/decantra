@@ -27,6 +27,12 @@ namespace Decantra.Presentation
         private static Sprite curvedHighlightSprite;
         private static Sprite softCircleSprite;
         private static Sprite topReflectionSprite;
+
+        // Cached structural background sprites keyed by groupIndex (levelIndex / 10)
+        private static readonly Dictionary<int, Sprite> _organicShapesByGroup = new Dictionary<int, Sprite>();
+        private static readonly Dictionary<int, Sprite> _bubblesByGroup = new Dictionary<int, Sprite>();
+        private static readonly Dictionary<int, Sprite> _largeStructureByGroup = new Dictionary<int, Sprite>();
+        private static int _lastLevelIndex = -1;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         [Preserve]
         public static void EnsureScene()
@@ -77,6 +83,8 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "backgroundFlow", backgroundLayers.Flow);
             SetPrivateField(controller, "backgroundShapes", backgroundLayers.Shapes);
             SetPrivateField(controller, "backgroundVignette", backgroundLayers.Vignette);
+            SetPrivateField(controller, "backgroundBubbles", backgroundLayers.Bubbles);
+            SetPrivateField(controller, "backgroundLargeStructure", backgroundLayers.LargeStructure);
 
             var banner = CreateLevelBanner(canvas.transform);
             SetPrivateField(controller, "levelBanner", banner);
@@ -151,6 +159,8 @@ namespace Decantra.Presentation
             public Image Flow;
             public Image Shapes;
             public Image Vignette;
+            public Image Bubbles;
+            public Image LargeStructure;
         }
 
         private static BackgroundLayers CreateBackground(Transform parent)
@@ -285,7 +295,9 @@ namespace Decantra.Presentation
                 Detail = detailImage,
                 Flow = flowImage,
                 Shapes = shapesImage,
-                Vignette = vignetteImage
+                Vignette = vignetteImage,
+                Bubbles = bubblesImage,
+                LargeStructure = largeImage
             };
         }
 
@@ -480,7 +492,7 @@ namespace Decantra.Presentation
             var liquidMask = liquidMaskGo.AddComponent<Image>();
             liquidMask.sprite = inner;
             liquidMask.type = Image.Type.Sliced;
-            liquidMask.color = new Color(1f, 1f, 1f, 0.12f);
+            liquidMask.color = Color.white;
             liquidMask.raycastTarget = false;
             var mask = liquidMaskGo.AddComponent<Mask>();
             mask.showMaskGraphic = false;
@@ -518,7 +530,7 @@ namespace Decantra.Presentation
             glassFront.sprite = rounded;
             glassFront.type = Image.Type.Sliced;
             // FIXED: Reduced alpha and used cool tint instead of pure white to avoid bleaching liquid
-            glassFront.color = new Color(0.75f, 0.85f, 0.96f, 0.02f);
+            glassFront.color = new Color(0.7f, 0.8f, 0.9f, 0.01f);
             glassFront.raycastTarget = false;
             var glassFrontRect = glassFrontGo.GetComponent<RectTransform>();
             glassFrontRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -614,6 +626,7 @@ namespace Decantra.Presentation
             var flange = flangeGo.AddComponent<Image>();
             flange.sprite = rounded;
             flange.type = Image.Type.Sliced;
+            flange.fillCenter = false; // Fixed: Only draw edges, not solid overlay
             flange.color = new Color(0.65f, 0.75f, 0.9f, 0.75f);
             flange.raycastTarget = false;
             var flangeRect = flangeGo.GetComponent<RectTransform>();
@@ -628,7 +641,7 @@ namespace Decantra.Presentation
             highlight.sprite = highlightSprite;
             highlight.type = Image.Type.Simple;
             // FIXED: Significant alpha reduction to prevent color washout
-            highlight.color = new Color(0.9f, 0.95f, 1f, 0.06f);
+            highlight.color = new Color(0.9f, 0.95f, 1f, 0.04f);
             highlight.raycastTarget = false;
             var highlightRect = highlightGo.GetComponent<RectTransform>();
             highlightRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -641,6 +654,7 @@ namespace Decantra.Presentation
             var outline = outlineGo.AddComponent<Image>();
             outline.sprite = rounded;
             outline.type = Image.Type.Sliced;
+            outline.fillCenter = false; // Fixed: Only draw edges, not solid overlay covering the liquid
             outline.color = new Color(0.65f, 0.75f, 0.88f, 0.75f);
             outline.raycastTarget = false;
             var outlineRect = outlineGo.GetComponent<RectTransform>();
@@ -1025,8 +1039,8 @@ namespace Decantra.Presentation
             shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
             shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
             shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(208, 128);
-            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowRect.sizeDelta = new Vector2(260, 140);
+            shadowRect.anchoredPosition = new Vector2(4f, -6f);
             shadowGo.transform.SetAsFirstSibling();
 
             var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
@@ -1039,11 +1053,11 @@ namespace Decantra.Presentation
             glassRect.anchorMin = new Vector2(0.5f, 0.5f);
             glassRect.anchorMax = new Vector2(0.5f, 0.5f);
             glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(192, 52);
-            glassRect.anchoredPosition = new Vector2(0f, 26f);
+            glassRect.sizeDelta = new Vector2(220, 56);
+            glassRect.anchoredPosition = new Vector2(0f, 28f);
 
             var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(200, 120);
+            rect.sizeDelta = new Vector2(240, 120);
             var element = panel.AddComponent<LayoutElement>();
             element.minWidth = 200;
             element.minHeight = 120;
@@ -1518,7 +1532,112 @@ namespace Decantra.Presentation
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 192f);
         }
 
+        /// <summary>
+        /// Deterministic hash combining two integers for seed derivation.
+        /// </summary>
+        private static int HashSeed(string prefix, int value)
+        {
+            unchecked
+            {
+                int hash = 17;
+                foreach (char c in prefix)
+                {
+                    hash = hash * 31 + c;
+                }
+                hash = hash * 31 + value;
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// Get or create organic shapes sprite for the given level.
+        /// Sprites are cached per group (groupIndex = levelIndex / 10).
+        /// </summary>
+        public static Sprite GetOrganicShapesSpriteForLevel(int levelIndex)
+        {
+            int groupIndex = levelIndex / 10;
+            if (_organicShapesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            int groupSeed = HashSeed("bg-group", groupIndex);
+            int levelSeed = HashSeed("bg-level", levelIndex);
+            var sprite = CreateOrganicShapesSprite(groupSeed ^ levelSeed);
+            _organicShapesByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
+        /// <summary>
+        /// Get or create bubbles sprite for the given level.
+        /// Sprites are cached per group (groupIndex = levelIndex / 10).
+        /// </summary>
+        public static Sprite GetBubblesSpriteForLevel(int levelIndex)
+        {
+            int groupIndex = levelIndex / 10;
+            if (_bubblesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            int groupSeed = HashSeed("bg-group", groupIndex);
+            int levelSeed = HashSeed("bg-level", levelIndex);
+            var sprite = CreateBubblesSprite(groupSeed ^ levelSeed);
+            _bubblesByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
+        /// <summary>
+        /// Get or create large structure sprite for the given level.
+        /// Sprites are cached per group (groupIndex = levelIndex / 10).
+        /// </summary>
+        public static Sprite GetLargeStructureSpriteForLevel(int levelIndex)
+        {
+            int groupIndex = levelIndex / 10;
+            if (_largeStructureByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            int groupSeed = HashSeed("bg-group", groupIndex);
+            int levelSeed = HashSeed("bg-level", levelIndex);
+            var sprite = CreateLargeStructureSprite(groupSeed ^ levelSeed);
+            _largeStructureByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
+        /// <summary>
+        /// Updates background structural sprites for a given level.
+        /// Call this from GameController when transitioning levels.
+        /// </summary>
+        public static void UpdateBackgroundSpritesForLevel(int levelIndex, Image shapesImage, Image bubblesImage, Image largeStructureImage)
+        {
+            if (_lastLevelIndex == levelIndex) return;
+            _lastLevelIndex = levelIndex;
+
+            if (shapesImage != null)
+            {
+                shapesImage.sprite = GetOrganicShapesSpriteForLevel(levelIndex);
+            }
+
+            // Find bubbles image by name if not passed directly
+            if (bubblesImage != null)
+            {
+                bubblesImage.sprite = GetBubblesSpriteForLevel(levelIndex);
+            }
+
+            if (largeStructureImage != null)
+            {
+                largeStructureImage.sprite = GetLargeStructureSpriteForLevel(levelIndex);
+            }
+        }
+
         private static Sprite CreateOrganicShapesSprite()
+        {
+            return CreateOrganicShapesSprite(HashSeed("bg-group", 0) ^ HashSeed("bg-level", 0));
+        }
+
+        private static Sprite CreateOrganicShapesSprite(int seed)
         {
             const int width = 192;
             const int height = 192;
@@ -1528,7 +1647,7 @@ namespace Decantra.Presentation
 
             var centers = new List<Vector2>(8);
             var radii = new List<float>(8);
-            var rand = new System.Random(1337);
+            var rand = new System.Random(seed);
             for (int i = 0; i < 8; i++)
             {
                 centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
@@ -1557,6 +1676,11 @@ namespace Decantra.Presentation
 
         private static Sprite CreateBubblesSprite()
         {
+            return CreateBubblesSprite(HashSeed("bg-group", 0) ^ HashSeed("bg-level", 0));
+        }
+
+        private static Sprite CreateBubblesSprite(int seed)
+        {
             const int width = 256;
             const int height = 256;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
@@ -1565,7 +1689,7 @@ namespace Decantra.Presentation
 
             var centers = new List<Vector2>();
             var radii = new List<float>();
-            var rand = new System.Random(4269);
+            var rand = new System.Random(seed);
 
             for (int i = 0; i < 18; i++)
             {
@@ -1600,6 +1724,11 @@ namespace Decantra.Presentation
 
         private static Sprite CreateLargeStructureSprite()
         {
+            return CreateLargeStructureSprite(HashSeed("bg-group", 0) ^ HashSeed("bg-level", 0));
+        }
+
+        private static Sprite CreateLargeStructureSprite(int seed)
+        {
             const int width = 256;
             const int height = 256;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
@@ -1608,7 +1737,7 @@ namespace Decantra.Presentation
 
             var centers = new List<Vector2>(4);
             var radii = new List<float>(4);
-            var rand = new System.Random(7331);
+            var rand = new System.Random(seed);
             for (int i = 0; i < 4; i++)
             {
                 centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
@@ -1814,7 +1943,7 @@ namespace Decantra.Presentation
                     float center = 1f - Mathf.Abs(nx - 0.5f) * 2f;
                     center = Mathf.SmoothStep(0f, 1f, center);
                     // FIXED: Lowered brightness range (was 0.6->1.0) to mid-tone to allow color saturation
-                    float brightness = Mathf.Lerp(0.48f, 0.62f, center);
+                    float brightness = Mathf.Lerp(0.40f, 0.55f, center);
                     texture.SetPixel(x, y, new Color(brightness, brightness, brightness, 1f));
                 }
             }

@@ -42,6 +42,8 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Image backgroundFlow;
         [SerializeField] private Image backgroundShapes;
         [SerializeField] private Image backgroundVignette;
+        [SerializeField] private Image backgroundBubbles;
+        [SerializeField] private Image backgroundLargeStructure;
         [SerializeField] private Button levelPanelButton;
         [SerializeField] private Button shareButton;
         [SerializeField] private GameObject shareButtonRoot;
@@ -491,7 +493,7 @@ namespace Decantra.Presentation.Controller
 
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _lastGrade, _sfxEnabled, onScoreApply, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _sfxEnabled, onScoreApply, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -1030,6 +1032,9 @@ namespace Decantra.Presentation.Controller
         private void ApplyBackgroundVariation(int levelIndex, int seed, int backgroundPaletteIndex)
         {
             if (backgroundImage == null) return;
+
+            // Update structural background sprites based on level (deterministic per group/level)
+            SceneBootstrap.UpdateBackgroundSpritesForLevel(levelIndex, backgroundShapes, backgroundBubbles, backgroundLargeStructure);
 
             int familyIndex = GetThemeFamilyIndex(levelIndex);
             var profile = LevelDifficultyEngine.GetProfile(levelIndex);

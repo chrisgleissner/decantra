@@ -9,7 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 using System;
 using System.Collections;
 using System.IO;
-using Decantra.Domain.Scoring;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.UI;
@@ -136,7 +135,7 @@ namespace Decantra.Presentation
             }
         }
 
-        public void Show(int level, int stars, int awardedScore, PerformanceGrade grade, bool sfxEnabled, Action onScoreApply, Action onComplete)
+        public void Show(int level, int stars, int awardedScore, bool sfxEnabled, Action onScoreApply, Action onComplete)
         {
             if (panel == null || canvasGroup == null || starsText == null || levelText == null)
             {
@@ -151,7 +150,7 @@ namespace Decantra.Presentation
             _lastStarCount = clampedStars;
             starsText.text = new string('★', clampedStars);
             var tag = messages[Mathf.Abs(level) % messages.Length];
-            levelText.text = $"LEVEL {level + 1}\nGRADE {grade}\n{tag}";
+            levelText.text = $"LEVEL {level + 1}\n{tag}";
             if (scoreText != null)
             {
                 scoreText.text = $"+{awardedScore}";

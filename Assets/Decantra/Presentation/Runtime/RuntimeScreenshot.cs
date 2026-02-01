@@ -9,7 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 using System;
 using System.Collections;
 using System.IO;
-using Decantra.Domain.Scoring;
 using Decantra.Presentation.Controller;
 using UnityEngine;
 
@@ -134,7 +133,7 @@ namespace Decantra.Presentation
 
             bool complete = false;
             banner.EnableScreenshotMode();
-            banner.Show(2, 4, 280, PerformanceGrade.A, false, () => { }, () => complete = true);
+            banner.Show(2, 4, 280, false, () => { }, () => complete = true);
             yield return WaitForInterstitialVisible();
             yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[2]));
