@@ -81,7 +81,7 @@ namespace Decantra.Presentation.View
             if (curvedHighlight != null)
             {
                 curvedHighlight.gameObject.SetActive(true);
-                curvedHighlight.color = new Color(1f, 1f, 1f, 0.15f);
+                curvedHighlight.color = new Color(1f, 1f, 1f, 0.08f);
                 curvedHighlight.raycastTarget = false;
 
                 var rect = curvedHighlight.rectTransform;
@@ -582,8 +582,8 @@ namespace Decantra.Presentation.View
 
                 // Boost brightness significantly while maintaining saturation
                 Color.RGBToHSV(c, out float h, out float s, out float v);
-                v = Mathf.Clamp01(v * 1.5f); // Make it very bright
-                s = Mathf.Clamp01(s * 1.1f); // Check saturation
+                v = Mathf.Clamp01(v * 1.8f); // Increase brightness significantly
+                s = Mathf.Clamp01(s * 1.8f); // Boost saturation to counter any washout
                 c = Color.HSVToRGB(h, s, v);
 
                 c.a = 1f;
