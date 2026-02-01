@@ -61,6 +61,9 @@ namespace Decantra.Presentation.Controller
         private LevelState _nextState;
         private int _nextLevel;
         private int _nextSeed;
+        private bool _introDismissed;
+        private int _currentBackgroundFamily = -1;
+        private Coroutine _backgroundTransition;
         private CancellationTokenSource _precomputeCts;
         private Task<LevelState> _precomputeTask;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -115,6 +118,22 @@ namespace Decantra.Presentation.Controller
             public float VignetteAlphaScale;
         }
 
+        private struct BackgroundFamilyProfile
+        {
+            public float Hue;
+            public float Saturation;
+            public float Value;
+            public float DetailAlphaScale;
+            public float FlowAlphaScale;
+            public float ShapeAlphaScale;
+            public float VignetteAlphaScale;
+            public float DetailScale;
+            public float FlowScale;
+            public float ShapeScale;
+            public Color GradientTop;
+            public Color GradientBottom;
+        }
+
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
             new BackgroundPalette { Hue = 0.56f, Saturation = 0.28f, Value = 0.55f, DetailSaturation = 0.2f, DetailValue = 0.6f, FlowSaturation = 0.22f, FlowValue = 0.66f, FlowAlpha = 0.1f, ShapeSaturation = 0.18f, ShapeValue = 0.62f, ShapeAlpha = 0.08f, VignetteAlpha = 0.22f },
@@ -124,6 +143,9 @@ namespace Decantra.Presentation.Controller
             new BackgroundPalette { Hue = 0.46f, Saturation = 0.26f, Value = 0.5f, DetailSaturation = 0.18f, DetailValue = 0.56f, FlowSaturation = 0.2f, FlowValue = 0.62f, FlowAlpha = 0.11f, ShapeSaturation = 0.16f, ShapeValue = 0.58f, ShapeAlpha = 0.1f, VignetteAlpha = 0.25f },
             new BackgroundPalette { Hue = 0.62f, Saturation = 0.2f, Value = 0.58f, DetailSaturation = 0.15f, DetailValue = 0.64f, FlowSaturation = 0.18f, FlowValue = 0.7f, FlowAlpha = 0.1f, ShapeSaturation = 0.14f, ShapeValue = 0.66f, ShapeAlpha = 0.08f, VignetteAlpha = 0.21f }
         };
+
+        private const float BackgroundFamilyTransitionSeconds = 0.75f;
+        private static readonly Dictionary<int, Sprite> BackgroundFamilyGradients = new Dictionary<int, Sprite>();
 
         public bool IsInputLocked => _inputLocked;
         public bool IsSfxEnabled => _sfxEnabled;
@@ -260,6 +282,7 @@ namespace Decantra.Presentation.Controller
 
             if (_selectedIndex < 0 && !InteractionRules.CanUseAsSource(_state.Bottles[index]))
             {
+                GetBottleView(index)?.PlayResistanceFeedback();
                 return;
             }
 
@@ -290,6 +313,16 @@ namespace Decantra.Presentation.Controller
             if (_inputLocked || _state == null) return false;
             if (index < 0 || index >= _state.Bottles.Count) return false;
             return InteractionRules.CanDrag(_state.Bottles[index]);
+        }
+
+        public void NotifyFirstInteraction()
+        {
+            if (_introDismissed) return;
+            _introDismissed = true;
+            if (introBanner != null)
+            {
+                introBanner.DismissEarly();
+            }
         }
 
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
@@ -623,15 +656,12 @@ namespace Decantra.Presentation.Controller
         private IEnumerator BeginSession()
         {
             _inputLocked = true;
-            if (introBanner != null)
-            {
-                yield return introBanner.Play();
-            }
             if (_state == null)
             {
                 LoadLevel(_currentLevel, _currentSeed);
             }
             _inputLocked = false;
+            yield break;
         }
 
         private void PersistCurrentProgress(int levelIndex, int seed)
@@ -1001,6 +1031,7 @@ namespace Decantra.Presentation.Controller
         {
             if (backgroundImage == null) return;
 
+            int familyIndex = GetThemeFamilyIndex(levelIndex);
             var profile = LevelDifficultyEngine.GetProfile(levelIndex);
             var themeStyle = GetThemeStyle(profile.ThemeId);
 
@@ -1009,64 +1040,227 @@ namespace Decantra.Presentation.Controller
                 : BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
             var palette = BackgroundPalettes[paletteIndex];
 
-            float jitter = Hash01(seed, levelIndex);
-            float jitter2 = Hash01(levelIndex * 31, seed ^ 0x4f1d);
+            float jitter = Hash01(familyIndex, levelIndex);
+            float jitter2 = Hash01(levelIndex * 31, familyIndex ^ 0x4f1d);
+
+            var family = GetBackgroundFamilyProfile(familyIndex);
             float hueOffset = Mathf.Lerp(-themeStyle.HueRange, themeStyle.HueRange, jitter);
-            float hue = Mathf.Repeat(palette.Hue + hueOffset + themeStyle.HueShift, 1f);
-            float sat = Mathf.Clamp01(palette.Saturation + themeStyle.SaturationBoost + Mathf.Lerp(-0.04f, 0.04f, jitter2));
-            float val = Mathf.Clamp01(palette.Value + themeStyle.ValueBoost + Mathf.Lerp(-0.05f, 0.05f, 1f - jitter));
+            float hue = Mathf.Repeat(family.Hue + hueOffset + themeStyle.HueShift, 1f);
+            float sat = Mathf.Clamp01(family.Saturation + themeStyle.SaturationBoost + Mathf.Lerp(-0.03f, 0.03f, jitter2));
+            float val = Mathf.Clamp01(family.Value + themeStyle.ValueBoost + Mathf.Lerp(-0.04f, 0.04f, 1f - jitter));
 
             Color baseTint = Color.HSVToRGB(hue, sat, val);
             baseTint.a = 1f;
-            backgroundImage.color = baseTint;
 
-            if (backgroundDetail != null)
+            Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.04f * (jitter - 0.5f)));
+            detailTint.a = Mathf.Lerp(0.1f, 0.2f, jitter2) * themeStyle.DetailAlphaScale * family.DetailAlphaScale;
+
+            Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
+            flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.75f, palette.FlowAlpha * 1.35f, jitter) * themeStyle.FlowAlphaScale * family.FlowAlphaScale;
+
+            Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.05f, 1f), palette.ShapeSaturation, palette.ShapeValue);
+            shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.25f, jitter2) * themeStyle.ShapeAlphaScale * family.ShapeAlphaScale;
+
+            float vignetteAlpha = palette.VignetteAlpha * themeStyle.VignetteAlphaScale * family.VignetteAlphaScale;
+
+            float detailScale = Mathf.Lerp(1.0f, 1.2f, jitter2) * family.DetailScale;
+            Vector2 detailOffset = new Vector2(Mathf.Lerp(-12f, 12f, jitter), Mathf.Lerp(6f, -8f, jitter2));
+
+            float flowScale = Mathf.Lerp(1.05f, 1.3f, jitter) * family.FlowScale;
+            Vector2 flowOffset = new Vector2(Mathf.Lerp(-20f, 20f, jitter2), Mathf.Lerp(-14f, 24f, jitter));
+
+            float shapeScale = Mathf.Lerp(1.0f, 1.25f, jitter2) * family.ShapeScale;
+            Vector2 shapeOffset = new Vector2(Mathf.Lerp(14f, -14f, jitter), Mathf.Lerp(10f, -18f, jitter2));
+
+            float flowRotation = Mathf.Lerp(-7f, 7f, jitter2);
+            float shapeRotation = Mathf.Lerp(5f, -5f, jitter);
+
+            if (_currentBackgroundFamily != familyIndex)
             {
-                Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.03f * (jitter - 0.5f)));
-                detailTint.a = Mathf.Lerp(0.12f, 0.22f, jitter2) * themeStyle.DetailAlphaScale;
-                backgroundDetail.color = detailTint;
+                if (_backgroundTransition != null)
+                {
+                    StopCoroutine(_backgroundTransition);
+                }
+                _backgroundTransition = StartCoroutine(AnimateBackgroundTransition(baseTint, detailTint, flowTint, shapeTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, familyIndex, family));
+                _currentBackgroundFamily = familyIndex;
             }
-
-            if (backgroundFlow != null)
+            else
             {
-                Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
-                flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter) * themeStyle.FlowAlphaScale;
-                backgroundFlow.color = flowTint;
-                backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(-6f, 6f, jitter2));
-                float flowScale = Mathf.Lerp(1.05f, 1.25f, jitter);
-                backgroundFlow.rectTransform.localScale = new Vector3(flowScale, flowScale, 1f);
-                backgroundFlow.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-18f, 18f, jitter2), Mathf.Lerp(-12f, 22f, jitter));
-            }
-
-            if (backgroundShapes != null)
-            {
-                Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.04f, 1f), palette.ShapeSaturation, palette.ShapeValue);
-                shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2) * themeStyle.ShapeAlphaScale;
-                backgroundShapes.color = shapeTint;
-                backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(4f, -4f, jitter));
-                float shapeScale = Mathf.Lerp(1.0f, 1.2f, jitter2);
-                backgroundShapes.rectTransform.localScale = new Vector3(shapeScale, shapeScale, 1f);
-                backgroundShapes.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(12f, -12f, jitter), Mathf.Lerp(8f, -16f, jitter2));
-            }
-
-            if (backgroundVignette != null)
-            {
-                var vignetteColor = backgroundVignette.color;
-                vignetteColor.a = palette.VignetteAlpha * themeStyle.VignetteAlphaScale;
-                backgroundVignette.color = vignetteColor;
-            }
-
-            if (backgroundDetail != null)
-            {
-                float detailScale = Mathf.Lerp(1.0f, 1.15f, jitter2);
-                backgroundDetail.rectTransform.localScale = new Vector3(detailScale, detailScale, 1f);
-                backgroundDetail.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-10f, 10f, jitter), Mathf.Lerp(6f, -6f, jitter2));
+                ApplyBackgroundVisuals(baseTint, detailTint, flowTint, shapeTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, familyIndex, family);
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
             AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
 #endif
+        }
+
+        private static int GetThemeFamilyIndex(int levelIndex)
+        {
+            if (levelIndex <= 0) return 0;
+            return BackgroundRules.GetLanguageId(levelIndex);
+        }
+
+        private static BackgroundFamilyProfile GetBackgroundFamilyProfile(int familyIndex)
+        {
+            // Use the domain-layer DesignLanguage for determinism
+            var language = BackgroundRules.GetDesignLanguage(familyIndex);
+
+            float hue = language.BaseHue;
+            float saturation = language.BaseSaturation;
+            float value = language.BaseValue;
+            float gradientShift = language.GradientShift;
+
+            float topValue = Mathf.Clamp01(value + Mathf.Lerp(0.08f, 0.16f, language.ParallaxIntensity - 0.5f));
+            float bottomValue = Mathf.Clamp01(value - Mathf.Lerp(0.08f, 0.14f, language.MotifDensity));
+
+            Color top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.9f), topValue);
+            Color bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 1.05f), bottomValue);
+
+            // Scale factors derived from design language
+            float detailAlpha = Mathf.Lerp(0.85f, 1.2f, language.MicroParticleDensity);
+            float flowAlpha = Mathf.Lerp(0.9f, 1.25f, language.NoiseIntensity * 2f);
+            float shapeAlpha = Mathf.Lerp(0.85f, 1.2f, language.MacroShapeScale - 0.8f);
+            float vignetteAlpha = Mathf.Lerp(0.9f, 1.2f, 1f - language.MotifDensity);
+
+            float detailScale = Mathf.Lerp(0.95f, 1.2f, language.MotifScale - 0.6f);
+            float flowScale = Mathf.Lerp(0.95f, 1.25f, language.ParallaxIntensity - 0.5f);
+            float shapeScale = Mathf.Lerp(0.95f, 1.25f, language.MacroShapeScale - 0.8f);
+
+            return new BackgroundFamilyProfile
+            {
+                Hue = hue,
+                Saturation = saturation,
+                Value = value,
+                DetailAlphaScale = detailAlpha,
+                FlowAlphaScale = flowAlpha,
+                ShapeAlphaScale = shapeAlpha,
+                VignetteAlphaScale = vignetteAlpha,
+                DetailScale = detailScale,
+                FlowScale = flowScale,
+                ShapeScale = shapeScale,
+                GradientTop = top,
+                GradientBottom = bottom
+            };
+        }
+
+        private void ApplyBackgroundVisuals(Color baseTint, Color detailTint, Color flowTint, Color shapeTint, float vignetteAlpha, float detailScale, Vector2 detailOffset, float flowScale, Vector2 flowOffset, float flowRotation, float shapeScale, Vector2 shapeOffset, float shapeRotation, int familyIndex, BackgroundFamilyProfile family)
+        {
+            if (backgroundImage != null)
+            {
+                backgroundImage.color = baseTint;
+                backgroundImage.sprite = GetFamilyGradientSprite(familyIndex, family);
+            }
+
+            if (backgroundDetail != null)
+            {
+                backgroundDetail.color = detailTint;
+                backgroundDetail.rectTransform.localScale = new Vector3(detailScale, detailScale, 1f);
+                backgroundDetail.rectTransform.anchoredPosition = detailOffset;
+            }
+
+            if (backgroundFlow != null)
+            {
+                backgroundFlow.color = flowTint;
+                backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, flowRotation);
+                backgroundFlow.rectTransform.localScale = new Vector3(flowScale, flowScale, 1f);
+                backgroundFlow.rectTransform.anchoredPosition = flowOffset;
+            }
+
+            if (backgroundShapes != null)
+            {
+                backgroundShapes.color = shapeTint;
+                backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, shapeRotation);
+                backgroundShapes.rectTransform.localScale = new Vector3(shapeScale, shapeScale, 1f);
+                backgroundShapes.rectTransform.anchoredPosition = shapeOffset;
+            }
+
+            if (backgroundVignette != null)
+            {
+                var vignetteColor = backgroundVignette.color;
+                vignetteColor.a = vignetteAlpha;
+                backgroundVignette.color = vignetteColor;
+            }
+        }
+
+        private IEnumerator AnimateBackgroundTransition(Color baseTint, Color detailTint, Color flowTint, Color shapeTint, float vignetteAlpha, float detailScale, Vector2 detailOffset, float flowScale, Vector2 flowOffset, float flowRotation, float shapeScale, Vector2 shapeOffset, float shapeRotation, int familyIndex, BackgroundFamilyProfile family)
+        {
+            float time = 0f;
+            Color startBase = backgroundImage != null ? backgroundImage.color : baseTint;
+            Color startDetail = backgroundDetail != null ? backgroundDetail.color : detailTint;
+            Color startFlow = backgroundFlow != null ? backgroundFlow.color : flowTint;
+            Color startShape = backgroundShapes != null ? backgroundShapes.color : shapeTint;
+            float startVignette = backgroundVignette != null ? backgroundVignette.color.a : vignetteAlpha;
+
+            Vector3 startDetailScale = backgroundDetail != null ? backgroundDetail.rectTransform.localScale : Vector3.one;
+            Vector2 startDetailOffset = backgroundDetail != null ? backgroundDetail.rectTransform.anchoredPosition : Vector2.zero;
+            Vector3 startFlowScale = backgroundFlow != null ? backgroundFlow.rectTransform.localScale : Vector3.one;
+            Vector2 startFlowOffset = backgroundFlow != null ? backgroundFlow.rectTransform.anchoredPosition : Vector2.zero;
+            float startFlowRotation = backgroundFlow != null ? backgroundFlow.rectTransform.localEulerAngles.z : 0f;
+            Vector3 startShapeScale = backgroundShapes != null ? backgroundShapes.rectTransform.localScale : Vector3.one;
+            Vector2 startShapeOffset = backgroundShapes != null ? backgroundShapes.rectTransform.anchoredPosition : Vector2.zero;
+            float startShapeRotation = backgroundShapes != null ? backgroundShapes.rectTransform.localEulerAngles.z : 0f;
+
+            while (time < BackgroundFamilyTransitionSeconds)
+            {
+                time += Time.deltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, time / BackgroundFamilyTransitionSeconds);
+                ApplyBackgroundVisuals(
+                    Color.Lerp(startBase, baseTint, t),
+                    Color.Lerp(startDetail, detailTint, t),
+                    Color.Lerp(startFlow, flowTint, t),
+                    Color.Lerp(startShape, shapeTint, t),
+                    Mathf.Lerp(startVignette, vignetteAlpha, t),
+                    Mathf.Lerp(startDetailScale.x, detailScale, t),
+                    Vector2.Lerp(startDetailOffset, detailOffset, t),
+                    Mathf.Lerp(startFlowScale.x, flowScale, t),
+                    Vector2.Lerp(startFlowOffset, flowOffset, t),
+                    Mathf.Lerp(startFlowRotation, flowRotation, t),
+                    Mathf.Lerp(startShapeScale.x, shapeScale, t),
+                    Vector2.Lerp(startShapeOffset, shapeOffset, t),
+                    Mathf.Lerp(startShapeRotation, shapeRotation, t),
+                    familyIndex,
+                    family);
+                yield return null;
+            }
+
+            ApplyBackgroundVisuals(baseTint, detailTint, flowTint, shapeTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, familyIndex, family);
+            _backgroundTransition = null;
+        }
+
+        private static Sprite GetFamilyGradientSprite(int familyIndex, BackgroundFamilyProfile family)
+        {
+            if (BackgroundFamilyGradients.TryGetValue(familyIndex, out var sprite) && sprite != null)
+            {
+                return sprite;
+            }
+
+            var created = CreateGradientSprite(family.GradientTop, family.GradientBottom);
+            BackgroundFamilyGradients[familyIndex] = created;
+            return created;
+        }
+
+        private static Sprite CreateGradientSprite(Color top, Color bottom)
+        {
+            const int width = 2;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                float t = y / (float)(height - 1);
+                float curve = Mathf.SmoothStep(0f, 1f, t);
+                var color = Color.Lerp(bottom, top, curve);
+                for (int x = 0; x < width; x++)
+                {
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 96f);
         }
 
         private int ResolveBackgroundPaletteIndex(int levelIndex, int seed)

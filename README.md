@@ -1,47 +1,47 @@
 # Decantra
 
-<img src="./doc/img/logo.png" alt="Decantra Logo" width="100"/>
+![Decantra Banner](./doc/play-store-assets/feature-graphic/feature-graphic-1024x500.png "Decantra Banner")
 
-Decantra is a mobile-first bottle-sorting puzzle game built in Unity.
+Decantra is a mobile-first bottle-sorting puzzle game. Levels are endlessly generated so every run stays fresh, and each level gives you a move budget to beat.
+
+Sort liquids by color using a small set of rules and complete each level by leaving bottles either empty or single-colored.
 
 ## How to Play
 
 - Drag one bottle onto another to pour liquid.
-- You can only pour onto the same colour or into an empty segment.
-- A level is complete when all bottles are either empty or contain exactly one colour.
-- As levels progress, the number of bottles and colours increases.
-- Bottles may have different capacity.
-- You cannot lift bottles with a dark bottom.
+- You can only pour onto the same color or into an empty segment.
+- A level is complete when all bottles are either empty or contain exactly one color.
+- Some bottles are anchored (dark base): they can receive liquid but cannot be lifted.
+- Bottles may have different capacity, and later levels add more colors and constraints.
 
-## Requirements
+## Features
 
-- Unity 6000.3.5f2
-- Android SDK + NDK r27c + JDK 17 (automatically handled by the build script)
-- A connected Android device for install and run (optional)
+- Infinite, procedurally generated puzzles.
+- Move budgets that reward efficient play.
+- Varied bottle sizes and anchored sink bottles for added challenge.
+- Smooth, mobile-first controls designed for short sessions.
 
-## Quick Start
+## Screenshots
 
-- Build a debug APK:
-  - `./build`
-- Build and install directly on a connected device:
-  - `./build --install`
-- Build without running tests:
-  - `./build --skip-tests`
-- Capture Play Store screenshots:
-  - `./build --screenshots`
+<table>
+  <tr>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-01-launch.png" alt="Launch screen" width="180"/></td>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-02-initial-level.png" alt="Initial level" width="180"/></td>
+  </tr>
+  <tr>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-03-interstitial.png" alt="Interstitial" width="180"/></td>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-04-advanced-level.png" alt="Advanced level" width="180"/></td>
+  </tr>
+</table>
 
-## Developer Documentation
+## Installation
 
-- Build, install, and distribution details: [doc/developer.md](doc/developer.md)
+1. Download the APK from the latest GitHub release (`decantra-<version>.apk` for normal installs; use `decantra-<version>-debug.apk` only if you need a debug build).
+2. Open the downloaded file on your Android device (Files app or notification).
+3. If prompted, allow installs from unknown sources for the browser/files app.
+4. Tap Install to finish.
 
-## Project Structure
+## Further Information
 
-- Domain logic: `Assets/Decantra/Domain`
-- Application services: `Assets/Decantra/App`
-- Presentation layer (Unity): `Assets/Decantra/Presentation`
-- Tests: `Assets/Decantra/Tests`
-
-## Notes
-
-- To run the game directly in the Unity Editor, use the menu item `Decantra/Setup Scene`.
-- The build script automatically detects existing Android tooling and installs only what is missing.
+- Developer info and build instructions: [doc/developer.md](doc/developer.md)
+- [LICENSE](LICENSE)

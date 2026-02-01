@@ -103,13 +103,6 @@ namespace Decantra.Presentation
         {
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
-            var intro = UnityEngine.Object.FindFirstObjectByType<IntroBanner>();
-            if (intro != null)
-            {
-                intro.EnableScreenshotMode();
-                StartCoroutine(intro.Play());
-                yield return new WaitForSeconds(intro.GetCaptureDelay());
-            }
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[0]));
         }

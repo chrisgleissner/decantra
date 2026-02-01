@@ -21,6 +21,11 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
 - Use menu item “Decantra/Setup Scene” to wire the scene.
 - Press Play to run deterministic level load.
 
+## Build/run (automation)
+
+- Capture Play Store screenshots via `./build --screenshots` (full build) or `./build --screenshots-only` (reuse existing APK).
+- Screenshot outputs land under `Builds/Android/DecantraScreenshots` on the device/emulator via the runtime capture flow.
+
 ## Testing + gatekeepers
 
 - Run EditMode + PlayMode tests via Unity Test Runner.

@@ -30,7 +30,7 @@ namespace Decantra.Presentation
         [SerializeField] private float starsHoldDuration = 0.2f;
         [SerializeField] private float levelHoldDuration = 0.35f;
         [SerializeField] private float exitDuration = 0.35f;
-        [SerializeField] private float dimmerAlpha = 0.25f;
+        [SerializeField] private float dimmerAlpha = 0.8f;
         [SerializeField] private float burstDuration = 0.45f;
         [SerializeField] private float burstMaxScale = 3.0f;
         [SerializeField] private float burstMaxAlpha = 0.85f;

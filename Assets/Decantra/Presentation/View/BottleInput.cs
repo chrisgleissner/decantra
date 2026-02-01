@@ -52,6 +52,7 @@ namespace Decantra.Presentation.View
         public void OnPointerClick(PointerEventData eventData)
         {
             if (bottleView == null || controller == null) return;
+            controller.NotifyFirstInteraction();
             controller.OnBottleTapped(bottleView.Index);
         }
 
@@ -66,7 +67,17 @@ namespace Decantra.Presentation.View
             if (controller.IsInputLocked) return;
             EnsureComponents();
             if (rootCanvas == null) return;
-            if (!controller.CanDragBottle(bottleView.Index)) return;
+            if (!controller.CanDragBottle(bottleView.Index))
+            {
+                if (bottleView.IsSink)
+                {
+                    controller.NotifyFirstInteraction();
+                    bottleView.PlayResistanceFeedback();
+                }
+                return;
+            }
+
+            controller.NotifyFirstInteraction();
 
             originalParent = rectTransform.parent;
             originalPosition = rectTransform.position;

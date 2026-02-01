@@ -21,6 +21,12 @@ namespace Decantra.Presentation
     public static class SceneBootstrap
     {
         private static Sprite roundedSprite;
+        private static Sprite innerBottleSprite;
+        private static Sprite liquidFillSprite;
+        private static Sprite liquidSurfaceSprite;
+        private static Sprite curvedHighlightSprite;
+        private static Sprite softCircleSprite;
+        private static Sprite topReflectionSprite;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         [Preserve]
         public static void EnsureScene()
@@ -171,7 +177,7 @@ namespace Decantra.Presentation
 
             var largeImage = largeStructureGo.AddComponent<Image>();
             largeImage.sprite = CreateLargeStructureSprite();
-            largeImage.color = new Color(1f, 1f, 1f, 0.25f);
+            largeImage.color = new Color(1f, 1f, 1f, 0.35f);
             largeImage.type = Image.Type.Simple;
             largeImage.raycastTarget = false;
             var largeDrift = largeStructureGo.AddComponent<BackgroundDrift>();
@@ -189,7 +195,7 @@ namespace Decantra.Presentation
 
             var flowImage = flowGo.AddComponent<Image>();
             flowImage.sprite = CreateFlowSprite();
-            flowImage.color = new Color(1f, 1f, 1f, 0.38f);
+            flowImage.color = new Color(1f, 1f, 1f, 0.45f);
             flowImage.type = Image.Type.Simple;
             flowImage.raycastTarget = false;
             var flowDrift = flowGo.AddComponent<BackgroundDrift>();
@@ -207,7 +213,7 @@ namespace Decantra.Presentation
 
             var shapesImage = shapesGo.AddComponent<Image>();
             shapesImage.sprite = CreateOrganicShapesSprite();
-            shapesImage.color = new Color(1f, 1f, 1f, 0.22f);
+            shapesImage.color = new Color(1f, 1f, 1f, 0.32f);
             shapesImage.type = Image.Type.Simple;
             shapesImage.raycastTarget = false;
             var shapesDrift = shapesGo.AddComponent<BackgroundDrift>();
@@ -225,7 +231,7 @@ namespace Decantra.Presentation
 
             var detailImage = detailGo.AddComponent<Image>();
             detailImage.sprite = CreateSoftNoiseSprite();
-            detailImage.color = new Color(1f, 1f, 1f, 0.2f);
+            detailImage.color = new Color(1f, 1f, 1f, 0.28f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
             var detailDrift = detailGo.AddComponent<BackgroundDrift>();
@@ -233,6 +239,24 @@ namespace Decantra.Presentation
             SetPrivateField(detailDrift, "driftSpeed", new Vector2(0.06f, 0.05f));
             SetPrivateField(detailDrift, "rotationAmplitude", 0.2f);
             SetPrivateField(detailDrift, "rotationSpeed", 0.05f);
+
+            var bubblesGo = CreateUiChild(parent, "BackgroundBubbles");
+            var bubblesRect = bubblesGo.GetComponent<RectTransform>();
+            bubblesRect.anchorMin = Vector2.zero;
+            bubblesRect.anchorMax = Vector2.one;
+            bubblesRect.offsetMin = Vector2.zero;
+            bubblesRect.offsetMax = Vector2.zero;
+
+            var bubblesImage = bubblesGo.AddComponent<Image>();
+            bubblesImage.sprite = CreateBubblesSprite();
+            bubblesImage.color = new Color(1f, 1f, 1f, 0.28f);
+            bubblesImage.type = Image.Type.Simple;
+            bubblesImage.raycastTarget = false;
+            var bubblesDrift = bubblesGo.AddComponent<BackgroundDrift>();
+            SetPrivateField(bubblesDrift, "driftAmplitude", new Vector2(8f, 12f));
+            SetPrivateField(bubblesDrift, "driftSpeed", new Vector2(0.018f, 0.025f));
+            SetPrivateField(bubblesDrift, "rotationAmplitude", 0.4f);
+            SetPrivateField(bubblesDrift, "rotationSpeed", 0.012f);
 
             var vignetteGo = CreateUiChild(parent, "BackgroundVignette");
             var vignetteRect = vignetteGo.GetComponent<RectTransform>();
@@ -251,8 +275,9 @@ namespace Decantra.Presentation
             largeStructureGo.transform.SetSiblingIndex(1);
             flowGo.transform.SetSiblingIndex(2);
             shapesGo.transform.SetSiblingIndex(3);
-            detailGo.transform.SetSiblingIndex(4);
-            vignetteGo.transform.SetSiblingIndex(5);
+            bubblesGo.transform.SetSiblingIndex(4);
+            detailGo.transform.SetSiblingIndex(5);
+            vignetteGo.transform.SetSiblingIndex(6);
 
             return new BackgroundLayers
             {
@@ -298,7 +323,7 @@ namespace Decantra.Presentation
             brandRect.anchorMax = new Vector2(0.5f, 1f);
             brandRect.pivot = new Vector2(0.5f, 1f);
             brandRect.anchoredPosition = new Vector2(0, -18);
-            brandRect.sizeDelta = new Vector2(720, 190);
+            brandRect.sizeDelta = new Vector2(932, 190);
 
             var brandSprite = Resources.Load<Sprite>("DecantraBanner");
             var brandImage = brandGo.AddComponent<Image>();
@@ -361,8 +386,14 @@ namespace Decantra.Presentation
             bottomLayout.childForceExpandHeight = false;
             bottomLayout.spacing = 16f;
 
-            var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH", out _);
-            var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LV", out _);
+            var bottomImage = bottomHud.GetComponent<Image>();
+            if (bottomImage != null)
+            {
+                Object.Destroy(bottomImage);
+            }
+
+            var highScoreText = CreateBottomStatText(bottomHud.transform, "HighScorePanel", "BEST");
+            var maxLevelText = CreateBottomStatText(bottomHud.transform, "MaxLevelPanel", "MAX");
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -407,6 +438,12 @@ namespace Decantra.Presentation
             bottleRect.sizeDelta = new Vector2(220, 420);
 
             var rounded = GetRoundedSprite();
+            var inner = GetBottleInnerSprite();
+            var liquidSprite = GetLiquidFillSprite();
+            var surfaceSprite = GetLiquidSurfaceSprite();
+            var highlightSprite = GetCurvedHighlightSprite();
+            var softCircle = GetSoftCircleSprite();
+            var topReflection = GetTopReflectionSprite();
 
             var hitArea = bottleGo.AddComponent<Image>();
             hitArea.color = new Color(0, 0, 0, 0);
@@ -414,47 +451,98 @@ namespace Decantra.Presentation
 
             var shadowGo = CreateUiChild(bottleGo.transform, "Shadow");
             var shadow = shadowGo.AddComponent<Image>();
-            shadow.sprite = rounded;
-            shadow.type = Image.Type.Sliced;
-            shadow.color = new Color(0f, 0f, 0f, 0.28f);
+            shadow.sprite = softCircle;
+            shadow.type = Image.Type.Simple;
+            shadow.color = new Color(0f, 0f, 0f, 0f);
             shadow.raycastTarget = false;
             var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMin = new Vector2(0.5f, 0f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0f);
             shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(150, 370);
-            shadowRect.anchoredPosition = new Vector2(8, -6);
+            shadowRect.sizeDelta = new Vector2(140, 30);
+            shadowRect.anchoredPosition = new Vector2(0, -180);
+            shadowGo.SetActive(false);
 
-            var outlineGo = CreateUiChild(bottleGo.transform, "Outline");
-            var outline = outlineGo.AddComponent<Image>();
-            outline.sprite = rounded;
-            outline.type = Image.Type.Sliced;
-            outline.color = new Color(0.72f, 0.78f, 0.88f, 0.92f);
-            outline.raycastTarget = false;
-            var outlineRect = outlineGo.GetComponent<RectTransform>();
-            outlineRect.anchorMin = new Vector2(0.5f, 0.5f);
-            outlineRect.anchorMax = new Vector2(0.5f, 0.5f);
-            outlineRect.pivot = new Vector2(0.5f, 0.5f);
-            outlineRect.sizeDelta = new Vector2(140, 360);
+            var glassBackGo = CreateUiChild(bottleGo.transform, "GlassBack");
+            var glassBack = glassBackGo.AddComponent<Image>();
+            glassBack.sprite = rounded;
+            glassBack.type = Image.Type.Sliced;
+            glassBack.color = new Color(0.3f, 0.4f, 0.55f, 0.12f);
+            glassBack.raycastTarget = false;
+            var glassBackRect = glassBackGo.GetComponent<RectTransform>();
+            glassBackRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassBackRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassBackRect.pivot = new Vector2(0.5f, 0.5f);
+            glassBackRect.sizeDelta = new Vector2(136, 350);
+            glassBackRect.anchoredPosition = new Vector2(0, -8);
 
-            var bodyGo = CreateUiChild(bottleGo.transform, "Body");
-            var body = bodyGo.AddComponent<Image>();
-            body.sprite = rounded;
-            body.type = Image.Type.Sliced;
-            body.color = new Color(0.56f, 0.62f, 0.74f, 0.2f);
-            body.raycastTarget = false;
-            var bodyRect = bodyGo.GetComponent<RectTransform>();
-            bodyRect.anchorMin = new Vector2(0.5f, 0.5f);
-            bodyRect.anchorMax = new Vector2(0.5f, 0.5f);
-            bodyRect.pivot = new Vector2(0.5f, 0.5f);
-            bodyRect.sizeDelta = new Vector2(124, 330);
-            bodyRect.anchoredPosition = new Vector2(0, -8);
+            var liquidMaskGo = CreateUiChild(bottleGo.transform, "LiquidMask");
+            var liquidMask = liquidMaskGo.AddComponent<Image>();
+            liquidMask.sprite = inner;
+            liquidMask.type = Image.Type.Sliced;
+            liquidMask.color = new Color(1f, 1f, 1f, 0.12f);
+            liquidMask.raycastTarget = false;
+            var mask = liquidMaskGo.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+            var liquidMaskRect = liquidMaskGo.GetComponent<RectTransform>();
+            liquidMaskRect.anchorMin = new Vector2(0.5f, 0.5f);
+            liquidMaskRect.anchorMax = new Vector2(0.5f, 0.5f);
+            liquidMaskRect.pivot = new Vector2(0.5f, 0.5f);
+            liquidMaskRect.sizeDelta = new Vector2(128, 320);
+            liquidMaskRect.anchoredPosition = new Vector2(0, -10);
+
+            var liquidRoot = CreateUiChild(liquidMaskGo.transform, "LiquidRoot");
+            var liquidRect = liquidRoot.GetComponent<RectTransform>();
+            liquidRect.anchorMin = new Vector2(0.5f, 0f);
+            liquidRect.anchorMax = new Vector2(0.5f, 0f);
+            liquidRect.pivot = new Vector2(0.5f, 0f);
+            liquidRect.sizeDelta = new Vector2(112, 300);
+            liquidRect.anchoredPosition = new Vector2(0, -2);
+
+            var liquidSurfaceGo = CreateUiChild(liquidMaskGo.transform, "LiquidSurface");
+            var liquidSurface = liquidSurfaceGo.AddComponent<Image>();
+            liquidSurface.sprite = surfaceSprite;
+            liquidSurface.type = Image.Type.Simple;
+            liquidSurface.color = new Color(1f, 1f, 1f, 0.22f);
+            liquidSurface.raycastTarget = false;
+            var liquidSurfaceRect = liquidSurfaceGo.GetComponent<RectTransform>();
+            liquidSurfaceRect.anchorMin = new Vector2(0.5f, 0f);
+            liquidSurfaceRect.anchorMax = new Vector2(0.5f, 0f);
+            liquidSurfaceRect.pivot = new Vector2(0.5f, 0.5f);
+            liquidSurfaceRect.sizeDelta = new Vector2(112, 22);
+            liquidSurfaceRect.anchoredPosition = new Vector2(0, 220);
+
+            var glassFrontGo = CreateUiChild(bottleGo.transform, "GlassFront");
+            var glassFront = glassFrontGo.AddComponent<Image>();
+            glassFront.sprite = rounded;
+            glassFront.type = Image.Type.Sliced;
+            glassFront.color = new Color(0.9f, 0.95f, 1f, 0.03f);
+            glassFront.raycastTarget = false;
+            var glassFrontRect = glassFrontGo.GetComponent<RectTransform>();
+            glassFrontRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassFrontRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassFrontRect.pivot = new Vector2(0.5f, 0.5f);
+            glassFrontRect.sizeDelta = new Vector2(140, 356);
+            glassFrontRect.anchoredPosition = new Vector2(0, -8);
+
+            var topReflectionGo = CreateUiChild(bottleGo.transform, "TopReflection");
+            var topReflectionImage = topReflectionGo.AddComponent<Image>();
+            topReflectionImage.sprite = topReflection;
+            topReflectionImage.type = Image.Type.Simple;
+            topReflectionImage.color = new Color(1f, 1f, 1f, 0.08f);
+            topReflectionImage.raycastTarget = false;
+            var topReflectionRect = topReflectionGo.GetComponent<RectTransform>();
+            topReflectionRect.anchorMin = new Vector2(0.5f, 0.5f);
+            topReflectionRect.anchorMax = new Vector2(0.5f, 0.5f);
+            topReflectionRect.pivot = new Vector2(0.5f, 0.5f);
+            topReflectionRect.sizeDelta = new Vector2(100, 140);
+            topReflectionRect.anchoredPosition = new Vector2(0, 115);
 
             var baseGo = CreateUiChild(bottleGo.transform, "BasePlate");
             var basePlate = baseGo.AddComponent<Image>();
             basePlate.sprite = rounded;
             basePlate.type = Image.Type.Sliced;
-            basePlate.color = new Color(0.12f, 0.12f, 0.16f, 0.75f);
+            basePlate.color = new Color(0.6f, 0.7f, 0.82f, 0.3f);
             basePlate.raycastTarget = false;
             var baseRect = baseGo.GetComponent<RectTransform>();
             baseRect.anchorMin = new Vector2(0.5f, 0f);
@@ -464,44 +552,128 @@ namespace Decantra.Presentation
             baseRect.anchoredPosition = new Vector2(0, 6);
             baseGo.SetActive(false);
 
-            var highlightGo = CreateUiChild(bodyGo.transform, "Highlight");
+            var rimGo = CreateUiChild(bottleGo.transform, "Rim");
+            var rim = rimGo.AddComponent<Image>();
+            rim.sprite = rounded;
+            rim.type = Image.Type.Sliced;
+            rim.color = new Color(0.75f, 0.85f, 0.96f, 0.9f);
+            rim.raycastTarget = false;
+            var rimRect = rimGo.GetComponent<RectTransform>();
+            rimRect.anchorMin = new Vector2(0.5f, 0.5f);
+            rimRect.anchorMax = new Vector2(0.5f, 0.5f);
+            rimRect.pivot = new Vector2(0.5f, 0.5f);
+            rimRect.sizeDelta = new Vector2(96, 18);
+            rimRect.anchoredPosition = new Vector2(0, 188);
+
+            var neckGo = CreateUiChild(bottleGo.transform, "BottleNeck");
+            var neck = neckGo.AddComponent<Image>();
+            neck.sprite = rounded;
+            neck.type = Image.Type.Sliced;
+            neck.color = new Color(0.55f, 0.68f, 0.85f, 0.6f);
+            neck.raycastTarget = false;
+            var neckRect = neckGo.GetComponent<RectTransform>();
+            neckRect.anchorMin = new Vector2(0.5f, 0.5f);
+            neckRect.anchorMax = new Vector2(0.5f, 0.5f);
+            neckRect.pivot = new Vector2(0.5f, 0.5f);
+            neckRect.sizeDelta = new Vector2(78, 56);
+            neckRect.anchoredPosition = new Vector2(0, 162);
+
+            // Inner neck shadow for 3D depth
+            var neckInnerGo = CreateUiChild(bottleGo.transform, "NeckInnerShadow");
+            var neckInner = neckInnerGo.AddComponent<Image>();
+            neckInner.sprite = rounded;
+            neckInner.type = Image.Type.Sliced;
+            neckInner.color = new Color(0.15f, 0.2f, 0.35f, 0.45f);
+            neckInner.raycastTarget = false;
+            var neckInnerRect = neckInnerGo.GetComponent<RectTransform>();
+            neckInnerRect.anchorMin = new Vector2(0.5f, 0.5f);
+            neckInnerRect.anchorMax = new Vector2(0.5f, 0.5f);
+            neckInnerRect.pivot = new Vector2(0.5f, 0.5f);
+            neckInnerRect.sizeDelta = new Vector2(62, 48);
+            neckInnerRect.anchoredPosition = new Vector2(0, 168);
+
+            // Lip highlight at rim edge
+            var lipHighlightGo = CreateUiChild(bottleGo.transform, "LipHighlight");
+            var lipHighlight = lipHighlightGo.AddComponent<Image>();
+            lipHighlight.sprite = rounded;
+            lipHighlight.type = Image.Type.Sliced;
+            lipHighlight.color = new Color(1f, 1f, 1f, 0.25f);
+            lipHighlight.raycastTarget = false;
+            var lipHighlightRect = lipHighlightGo.GetComponent<RectTransform>();
+            lipHighlightRect.anchorMin = new Vector2(0.5f, 0.5f);
+            lipHighlightRect.anchorMax = new Vector2(0.5f, 0.5f);
+            lipHighlightRect.pivot = new Vector2(0.5f, 0.5f);
+            lipHighlightRect.sizeDelta = new Vector2(88, 10);
+            lipHighlightRect.anchoredPosition = new Vector2(0, 194);
+
+            var flangeGo = CreateUiChild(bottleGo.transform, "BottleFlange");
+            var flange = flangeGo.AddComponent<Image>();
+            flange.sprite = rounded;
+            flange.type = Image.Type.Sliced;
+            flange.color = new Color(0.65f, 0.75f, 0.9f, 0.75f);
+            flange.raycastTarget = false;
+            var flangeRect = flangeGo.GetComponent<RectTransform>();
+            flangeRect.anchorMin = new Vector2(0.5f, 0.5f);
+            flangeRect.anchorMax = new Vector2(0.5f, 0.5f);
+            flangeRect.pivot = new Vector2(0.5f, 0.5f);
+            flangeRect.sizeDelta = new Vector2(104, 14);
+            flangeRect.anchoredPosition = new Vector2(0, 138);
+
+            var highlightGo = CreateUiChild(bottleGo.transform, "CurvedHighlight");
             var highlight = highlightGo.AddComponent<Image>();
-            highlight.sprite = rounded;
-            highlight.type = Image.Type.Sliced;
+            highlight.sprite = highlightSprite;
+            highlight.type = Image.Type.Simple;
             highlight.color = new Color(1f, 1f, 1f, 0.12f);
             highlight.raycastTarget = false;
             var highlightRect = highlightGo.GetComponent<RectTransform>();
             highlightRect.anchorMin = new Vector2(0.5f, 0.5f);
             highlightRect.anchorMax = new Vector2(0.5f, 0.5f);
             highlightRect.pivot = new Vector2(0.5f, 0.5f);
-            highlightRect.sizeDelta = new Vector2(70, 240);
-            highlightRect.anchoredPosition = new Vector2(24, 30);
+            highlightRect.sizeDelta = new Vector2(22, 280);
+            highlightRect.anchoredPosition = new Vector2(48, 10);
 
-            var glassGo = CreateUiChild(bodyGo.transform, "GlassOverlay");
-            var glass = glassGo.AddComponent<Image>();
-            glass.sprite = rounded;
-            glass.type = Image.Type.Sliced;
-            glass.color = new Color(1f, 1f, 1f, 0.06f);
-            glass.raycastTarget = false;
-            var glassRect = glassGo.GetComponent<RectTransform>();
-            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
-            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
-            glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(120, 320);
-            glassRect.anchoredPosition = new Vector2(-8f, 18f);
+            var outlineGo = CreateUiChild(bottleGo.transform, "Outline");
+            var outline = outlineGo.AddComponent<Image>();
+            outline.sprite = rounded;
+            outline.type = Image.Type.Sliced;
+            outline.color = new Color(0.65f, 0.75f, 0.88f, 0.75f);
+            outline.raycastTarget = false;
+            var outlineRect = outlineGo.GetComponent<RectTransform>();
+            outlineRect.anchorMin = new Vector2(0.5f, 0.5f);
+            outlineRect.anchorMax = new Vector2(0.5f, 0.5f);
+            outlineRect.pivot = new Vector2(0.5f, 0.5f);
+            outlineRect.sizeDelta = new Vector2(150, 372);
+            outlineRect.anchoredPosition = new Vector2(0, -6);
 
-            var neckGo = CreateUiChild(bottleGo.transform, "Neck");
-            var neck = neckGo.AddComponent<Image>();
-            neck.sprite = rounded;
-            neck.type = Image.Type.Sliced;
-            neck.color = new Color(0.5f, 0.55f, 0.65f, 0.18f);
-            neck.raycastTarget = false;
-            var neckRect = neckGo.GetComponent<RectTransform>();
-            neckRect.anchorMin = new Vector2(0.5f, 0.5f);
-            neckRect.anchorMax = new Vector2(0.5f, 0.5f);
-            neckRect.pivot = new Vector2(0.5f, 0.5f);
-            neckRect.sizeDelta = new Vector2(60, 50);
-            neckRect.anchoredPosition = new Vector2(0, 178);
+            var anchorCollarGo = CreateUiChild(bottleGo.transform, "AnchorCollar");
+            var anchorCollar = anchorCollarGo.AddComponent<Image>();
+            anchorCollar.sprite = rounded;
+            anchorCollar.type = Image.Type.Sliced;
+            anchorCollar.color = new Color(0.18f, 0.2f, 0.26f, 0.88f);
+            anchorCollar.raycastTarget = false;
+            var anchorCollarRect = anchorCollarGo.GetComponent<RectTransform>();
+            anchorCollarRect.anchorMin = new Vector2(0.5f, 0.5f);
+            anchorCollarRect.anchorMax = new Vector2(0.5f, 0.5f);
+            anchorCollarRect.pivot = new Vector2(0.5f, 0.5f);
+            anchorCollarRect.sizeDelta = new Vector2(128, 56);
+            anchorCollarRect.anchoredPosition = new Vector2(0, -152);
+            anchorCollarGo.SetActive(false);
+
+            var anchorShadowGo = CreateUiChild(bottleGo.transform, "AnchorShadow");
+            var anchorShadow = anchorShadowGo.AddComponent<Image>();
+            anchorShadow.sprite = softCircle;
+            anchorShadow.type = Image.Type.Simple;
+            anchorShadow.color = new Color(0f, 0f, 0f, 0.35f);
+            anchorShadow.raycastTarget = false;
+            var anchorShadowRect = anchorShadowGo.GetComponent<RectTransform>();
+            anchorShadowRect.anchorMin = new Vector2(0.5f, 0f);
+            anchorShadowRect.anchorMax = new Vector2(0.5f, 0f);
+            anchorShadowRect.pivot = new Vector2(0.5f, 0.5f);
+            anchorShadowRect.sizeDelta = new Vector2(170, 40);
+            anchorShadowRect.anchoredPosition = new Vector2(0, -186);
+            anchorShadowGo.SetActive(false);
+            anchorShadowGo.transform.SetAsFirstSibling();
+            shadowGo.transform.SetAsFirstSibling();
 
             var stopperGo = CreateUiChild(bottleGo.transform, "Stopper");
             var stopper = stopperGo.AddComponent<Image>();
@@ -516,23 +688,26 @@ namespace Decantra.Presentation
             stopperRect.sizeDelta = new Vector2(80, 24);
             stopperRect.anchoredPosition = new Vector2(0, 168);
             stopper.gameObject.SetActive(false);
-
-            var liquidRoot = CreateUiChild(bodyGo.transform, "LiquidRoot");
-            var liquidRect = liquidRoot.GetComponent<RectTransform>();
-            liquidRect.anchorMin = new Vector2(0.5f, 0);
-            liquidRect.anchorMax = new Vector2(0.5f, 0);
-            liquidRect.pivot = new Vector2(0.5f, 0);
-            liquidRect.sizeDelta = new Vector2(100, 280);
-            liquidRect.anchoredPosition = new Vector2(0, 10);
+            rimGo.transform.SetSiblingIndex(stopperGo.transform.GetSiblingIndex());
 
             var bottleView = bottleGo.GetComponent<BottleView>() ?? bottleGo.AddComponent<BottleView>();
             SetPrivateField(bottleView, "palette", palette);
             SetPrivateField(bottleView, "slotRoot", liquidRect);
             SetPrivateField(bottleView, "outline", outline);
-            SetPrivateField(bottleView, "body", body);
+            SetPrivateField(bottleView, "body", glassBack);
             SetPrivateField(bottleView, "basePlate", basePlate);
             SetPrivateField(bottleView, "stopper", stopper);
             SetPrivateField(bottleView, "outlineBaseColor", outline.color);
+            SetPrivateField(bottleView, "glassBack", glassBack);
+            SetPrivateField(bottleView, "glassFront", glassFront);
+            SetPrivateField(bottleView, "rim", rim);
+            SetPrivateField(bottleView, "baseAccent", basePlate);
+            SetPrivateField(bottleView, "curvedHighlight", highlight);
+            SetPrivateField(bottleView, "anchorCollar", anchorCollar);
+            SetPrivateField(bottleView, "anchorShadow", anchorShadow);
+            SetPrivateField(bottleView, "normalShadow", shadow);
+            SetPrivateField(bottleView, "liquidSurface", liquidSurface);
+            SetPrivateField(bottleView, "liquidSprite", liquidSprite);
             return bottleView;
         }
 
@@ -643,35 +818,48 @@ namespace Decantra.Presentation
         {
             var root = CreateUiChild(parent, "IntroBanner");
             var rect = root.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(860, 260);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
 
             var group = root.AddComponent<CanvasGroup>();
             group.alpha = 0f;
 
             var panel = CreateUiChild(root.transform, "Panel");
             var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(860, 260);
+            panelRect.anchorMin = new Vector2(0f, 1f);
+            panelRect.anchorMax = new Vector2(1f, 1f);
+            panelRect.pivot = new Vector2(0.5f, 1f);
+            panelRect.sizeDelta = new Vector2(0f, 320);
+            panelRect.anchoredPosition = new Vector2(0f, 0f);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
             panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(1f, 1f, 1f, 0.14f);
+            panelImage.color = new Color(1f, 1f, 1f, 0f);
             panelImage.raycastTarget = false;
+
+            var dimmerGo = CreateUiChild(root.transform, "Dimmer");
+            var dimmerRect = dimmerGo.GetComponent<RectTransform>();
+            dimmerRect.anchorMin = Vector2.zero;
+            dimmerRect.anchorMax = Vector2.one;
+            dimmerRect.offsetMin = Vector2.zero;
+            dimmerRect.offsetMax = new Vector2(0f, -320f);
+            var dimmerImage = dimmerGo.AddComponent<Image>();
+            dimmerImage.color = new Color(0f, 0f, 0f, 0.9f);
+            dimmerImage.raycastTarget = false;
+            dimmerGo.transform.SetAsFirstSibling();
 
             var content = CreateUiChild(panel.transform, "Content");
             var contentRect = content.GetComponent<RectTransform>();
-            contentRect.anchorMin = new Vector2(0.5f, 0.5f);
-            contentRect.anchorMax = new Vector2(0.5f, 0.5f);
+            contentRect.anchorMin = new Vector2(0f, 0f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
             contentRect.pivot = new Vector2(0.5f, 0.5f);
-            contentRect.sizeDelta = new Vector2(720, 190);
+            contentRect.sizeDelta = new Vector2(0f, 0f);
 
-            var logoSprite = Resources.Load<Sprite>("DecantraFeatureGraphic")
+            var logoSprite = Resources.Load<Sprite>("DecantraBanner")
                 ?? Resources.Load<Sprite>("DecantraLogo");
             var logoGo = CreateUiChild(content.transform, "FeatureGraphic");
             var logoImage = logoGo.AddComponent<Image>();
@@ -679,12 +867,16 @@ namespace Decantra.Presentation
             logoImage.preserveAspect = true;
             logoImage.color = Color.white;
             var logoRect = logoGo.GetComponent<RectTransform>();
-            logoRect.sizeDelta = new Vector2(720, 190);
+            logoRect.anchorMin = new Vector2(0f, 0f);
+            logoRect.anchorMax = new Vector2(1f, 1f);
+            logoRect.pivot = new Vector2(0.5f, 0.5f);
+            logoRect.sizeDelta = new Vector2(-80f, -20f);
 
             var banner = root.AddComponent<IntroBanner>();
             SetPrivateField(banner, "panel", panelRect);
             SetPrivateField<Text>(banner, "titleText", null);
             SetPrivateField(banner, "canvasGroup", group);
+            SetPrivateField(banner, "dimmer", dimmerImage);
             return banner;
         }
 
@@ -807,6 +999,59 @@ namespace Decantra.Presentation
             return dialog;
         }
 
+        private static Text CreateBottomStatText(Transform parent, string name, string label)
+        {
+            var panel = CreateUiChild(parent, name);
+
+            // Add dark glass treatment matching top HUD panels
+            var image = panel.AddComponent<Image>();
+            image.sprite = GetRoundedSprite();
+            image.type = Image.Type.Sliced;
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+            image.raycastTarget = false;
+
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(208, 128);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(192, 52);
+            glassRect.anchoredPosition = new Vector2(0f, 26f);
+
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(200, 120);
+            var element = panel.AddComponent<LayoutElement>();
+            element.minWidth = 200;
+            element.minHeight = 120;
+            element.flexibleWidth = 1f;
+
+            var text = CreateHudText(panel.transform, "Value");
+            text.fontSize = 48;
+            text.text = label;
+            text.color = new Color(1f, 0.98f, 0.92f, 1f);
+            AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
+            return text;
+        }
+
         private static Text CreateStatPanel(Transform parent, string name, string label, out GameObject panel)
         {
             panel = CreateUiChild(parent, name);
@@ -912,7 +1157,34 @@ namespace Decantra.Presentation
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
-            image.color = new Color(1f, 1f, 1f, 0.22f);
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(308, 148);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(292, 64);
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
 
             var rect = panel.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(300, 140);
@@ -937,7 +1209,34 @@ namespace Decantra.Presentation
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
-            image.color = new Color(1f, 1f, 1f, 0.18f);
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(308, 148);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(292, 64);
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
 
             var rect = panel.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(300, 140);
@@ -1251,6 +1550,49 @@ namespace Decantra.Presentation
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 192f);
         }
 
+        private static Sprite CreateBubblesSprite()
+        {
+            const int width = 256;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            var centers = new List<Vector2>();
+            var radii = new List<float>();
+            var rand = new System.Random(4269);
+
+            for (int i = 0; i < 18; i++)
+            {
+                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                radii.Add(Mathf.Lerp(8f, 32f, (float)rand.NextDouble()));
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < centers.Count; i++)
+                    {
+                        float dist = Vector2.Distance(new Vector2(x, y), centers[i]);
+                        float r = radii[i];
+                        float t = Mathf.Clamp01(1f - dist / r);
+                        float ring = Mathf.Abs(dist - r * 0.8f) / (r * 0.35f);
+                        float ringVal = Mathf.Clamp01(1f - ring);
+                        float center = t * t * 0.4f;
+                        float bubble = Mathf.Max(ringVal * ringVal * 0.7f, center);
+                        v = Mathf.Max(v, bubble);
+                    }
+                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
+        }
+
         private static Sprite CreateLargeStructureSprite()
         {
             const int width = 256;
@@ -1402,11 +1744,156 @@ namespace Decantra.Presentation
             return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
         }
 
+        private static Sprite GetBottleInnerSprite()
+        {
+            if (innerBottleSprite != null) return innerBottleSprite;
+            innerBottleSprite = CreateRoundedRectSprite(64, 16);
+            return innerBottleSprite;
+        }
+
+        private static Sprite GetLiquidFillSprite()
+        {
+            if (liquidFillSprite != null) return liquidFillSprite;
+            liquidFillSprite = CreateLiquidFillSprite();
+            return liquidFillSprite;
+        }
+
+        private static Sprite GetLiquidSurfaceSprite()
+        {
+            if (liquidSurfaceSprite != null) return liquidSurfaceSprite;
+            liquidSurfaceSprite = CreateLiquidSurfaceSprite();
+            return liquidSurfaceSprite;
+        }
+
+        private static Sprite GetCurvedHighlightSprite()
+        {
+            if (curvedHighlightSprite != null) return curvedHighlightSprite;
+            curvedHighlightSprite = CreateCurvedHighlightSprite();
+            return curvedHighlightSprite;
+        }
+
+        private static Sprite GetSoftCircleSprite()
+        {
+            if (softCircleSprite != null) return softCircleSprite;
+            softCircleSprite = CreateSoftCircleSprite();
+            return softCircleSprite;
+        }
+
+        private static Sprite GetTopReflectionSprite()
+        {
+            if (topReflectionSprite != null) return topReflectionSprite;
+            topReflectionSprite = CreateTopReflectionSprite();
+            return topReflectionSprite;
+        }
+
         private static Sprite GetRoundedSprite()
         {
             if (roundedSprite != null) return roundedSprite;
             roundedSprite = CreateRoundedRectSprite(64, 12);
             return roundedSprite;
+        }
+
+        private static Sprite CreateLiquidFillSprite()
+        {
+            const int width = 64;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)(width - 1);
+                    float center = 1f - Mathf.Abs(nx - 0.5f) * 2f;
+                    center = Mathf.SmoothStep(0f, 1f, center);
+                    float brightness = Mathf.Lerp(0.6f, 1f, center);
+                    texture.SetPixel(x, y, new Color(brightness, brightness, brightness, 1f));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        private static Sprite CreateLiquidSurfaceSprite()
+        {
+            const int width = 128;
+            const int height = 32;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)(height - 1);
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)(width - 1);
+                    float curve = 0.55f + Mathf.Sin(nx * Mathf.PI) * 0.12f;
+                    float dist = Mathf.Abs(ny - curve);
+                    float band = Mathf.Clamp01(1f - dist / 0.18f);
+                    float taper = Mathf.SmoothStep(0f, 1f, 1f - Mathf.Abs(nx - 0.5f) * 2f);
+                    float alpha = band * taper;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        private static Sprite CreateCurvedHighlightSprite()
+        {
+            const int width = 128;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)(height - 1);
+                float centerX = 0.58f + Mathf.Sin(ny * Mathf.PI) * 0.08f;
+                float thickness = Mathf.Lerp(0.24f, 0.08f, ny);
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)(width - 1);
+                    float dist = Mathf.Abs(nx - centerX);
+                    float alpha = Mathf.Clamp01(1f - dist / thickness);
+                    alpha *= Mathf.SmoothStep(0.85f, 0.15f, ny);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        private static Sprite CreateTopReflectionSprite()
+        {
+            const int width = 128;
+            const int height = 128;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)(height - 1);
+                float alpha = Mathf.SmoothStep(0f, 1f, ny);
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)(width - 1);
+                    float edge = Mathf.SmoothStep(0f, 1f, 1f - Mathf.Abs(nx - 0.5f) * 2f);
+                    float a = alpha * edge;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 128f);
         }
 
         private static Sprite CreateRoundedRectSprite(int size, int radius)
