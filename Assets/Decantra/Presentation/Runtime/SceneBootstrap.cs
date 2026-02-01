@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 using System.Collections.Generic;
 using System.Reflection;
 using Decantra.Domain.Model;
+using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
 using UnityEngine;
@@ -33,6 +34,9 @@ namespace Decantra.Presentation
         private static readonly Dictionary<int, Sprite> _organicShapesByGroup = new Dictionary<int, Sprite>();
         private static readonly Dictionary<int, Sprite> _bubblesByGroup = new Dictionary<int, Sprite>();
         private static readonly Dictionary<int, Sprite> _largeStructureByGroup = new Dictionary<int, Sprite>();
+        private static readonly Dictionary<int, Sprite> _geometricShapesByGroup = new Dictionary<int, Sprite>();
+        private static readonly Dictionary<int, Sprite> _ribbonStreamsByGroup = new Dictionary<int, Sprite>();
+        private static readonly Dictionary<int, Sprite> _geometricStructuresByGroup = new Dictionary<int, Sprite>();
         private static int _lastLevelIndex = -1;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         [Preserve]
@@ -45,6 +49,8 @@ namespace Decantra.Presentation
                 WireResetButton(existingController);
                 WireRestartButton(existingController);
                 WireShareButton(existingController);
+                EnsureLevelJumpOverlay(existingController);
+                WireLevelJumpOverlay(existingController);
                 return;
             }
 
@@ -90,6 +96,12 @@ namespace Decantra.Presentation
             var banner = CreateLevelBanner(canvas.transform);
             SetPrivateField(controller, "levelBanner", banner);
 
+            var levelJumpOverlay = CreateLevelJumpOverlay(canvas.transform);
+            SetPrivateField(controller, "levelJumpOverlay", levelJumpOverlay.Root);
+            SetPrivateField(controller, "levelJumpInput", levelJumpOverlay.Input);
+            SetPrivateField(controller, "levelJumpGoButton", levelJumpOverlay.GoButton);
+            SetPrivateField(controller, "levelJumpDismissButton", levelJumpOverlay.DismissButton);
+
             var intro = CreateIntroBanner(canvas.transform);
             SetPrivateField(controller, "introBanner", intro);
 
@@ -103,6 +115,7 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "restartDialog", restartDialog);
             WireRestartButton(controller);
             WireShareButton(controller);
+            WireLevelJumpOverlay(controller);
 
             var toolsGo = new GameObject("RuntimeTools");
             toolsGo.AddComponent<RuntimeScreenshot>();
@@ -124,6 +137,34 @@ namespace Decantra.Presentation
             var dialog = restartGo.GetComponent<RestartGameDialog>();
             if (dialog == null) return;
             SetPrivateField(controller, "restartDialog", dialog);
+        }
+
+        private static void EnsureLevelJumpOverlay(GameController controller)
+        {
+            if (controller == null) return;
+            var existing = GetPrivateField<GameObject>(controller, "levelJumpOverlay");
+            if (existing != null) return;
+
+            var overlayGo = GameObject.Find("LevelJumpOverlay");
+            if (overlayGo == null)
+            {
+                var canvas = Object.FindFirstObjectByType<Canvas>();
+                if (canvas == null) return;
+                var created = CreateLevelJumpOverlay(canvas.transform);
+                SetPrivateField(controller, "levelJumpOverlay", created.Root);
+                SetPrivateField(controller, "levelJumpInput", created.Input);
+                SetPrivateField(controller, "levelJumpGoButton", created.GoButton);
+                SetPrivateField(controller, "levelJumpDismissButton", created.DismissButton);
+                return;
+            }
+
+            var input = overlayGo.GetComponentInChildren<InputField>(true);
+            var goButton = overlayGo.transform.Find("Panel/GoButton")?.GetComponent<Button>();
+            var dismissButton = overlayGo.transform.Find("DimmerButton")?.GetComponent<Button>();
+            SetPrivateField(controller, "levelJumpOverlay", overlayGo);
+            SetPrivateField(controller, "levelJumpInput", input);
+            SetPrivateField(controller, "levelJumpGoButton", goButton);
+            SetPrivateField(controller, "levelJumpDismissButton", dismissButton);
         }
 
         private static bool HasRequiredWiring(GameController controller)
@@ -405,8 +446,8 @@ namespace Decantra.Presentation
                 Object.Destroy(bottomImage);
             }
 
-            var highScoreText = CreateBottomStatText(bottomHud.transform, "HighScorePanel", "BEST");
-            var maxLevelText = CreateBottomStatText(bottomHud.transform, "MaxLevelPanel", "MAX");
+            var maxLevelText = CreateBottomStatText(bottomHud.transform, "MaxLevelPanel", "MAX LEVEL");
+            var highScoreText = CreateBottomStatText(bottomHud.transform, "HighScorePanel", "HIGH SCORE");
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -774,7 +815,7 @@ namespace Decantra.Presentation
             var text = go.GetComponent<Text>() ?? go.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.fontSize = 80;
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAnchor.MiddleCenter;
             text.fontStyle = FontStyle.Bold;
             text.color = Color.white;
             text.text = value;
@@ -1072,14 +1113,14 @@ namespace Decantra.Presentation
             glassRect.anchoredPosition = new Vector2(0f, 28f);
 
             var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(240, 120);
+            rect.sizeDelta = new Vector2(300, 140);
             var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 200;
-            element.minHeight = 120;
+            element.minWidth = 300;
+            element.minHeight = 140;
             element.flexibleWidth = 1f;
 
             var text = CreateHudText(panel.transform, "Value");
-            text.fontSize = 48;
+            text.fontSize = 44;
             text.text = label;
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
@@ -1353,6 +1394,57 @@ namespace Decantra.Presentation
             shareButton.onClick.AddListener(controller.ShareCurrentLevel);
         }
 
+        private static void WireLevelJumpOverlay(GameController controller)
+        {
+            if (controller == null) return;
+            EnsureLevelJumpOverlay(controller);
+
+            var levelButton = GetPrivateField<Button>(controller, "levelPanelButton");
+            if (levelButton == null)
+            {
+                var topHud = GameObject.Find("TopHud");
+                var levelPanel = topHud != null ? topHud.transform.Find("LevelPanel") : null;
+                levelButton = levelPanel != null ? levelPanel.GetComponent<Button>() : null;
+                if (levelButton != null)
+                {
+                    SetPrivateField(controller, "levelPanelButton", levelButton);
+                }
+            }
+
+            var overlayRoot = GetPrivateField<GameObject>(controller, "levelJumpOverlay");
+            var input = GetPrivateField<InputField>(controller, "levelJumpInput");
+            var goButton = GetPrivateField<Button>(controller, "levelJumpGoButton");
+            var dismissButton = GetPrivateField<Button>(controller, "levelJumpDismissButton");
+
+            if (goButton != null)
+            {
+                goButton.onClick.RemoveAllListeners();
+                goButton.onClick.AddListener(controller.JumpToLevelFromOverlay);
+            }
+
+            if (dismissButton != null)
+            {
+                dismissButton.onClick.RemoveAllListeners();
+                dismissButton.onClick.AddListener(controller.HideLevelJumpOverlay);
+            }
+
+            if (overlayRoot != null)
+            {
+                overlayRoot.SetActive(false);
+            }
+
+            if (levelButton != null)
+            {
+                var longPress = levelButton.GetComponent<LongPressButton>() ?? levelButton.gameObject.AddComponent<LongPressButton>();
+                longPress.Configure(6f, controller.ShowLevelJumpOverlay);
+            }
+
+            if (input != null)
+            {
+                input.onEndEdit.RemoveAllListeners();
+            }
+        }
+
         private static GameObject CreateUiChild(Transform parent, string name)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -1402,7 +1494,7 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(760, 240);
+            panelRect.sizeDelta = new Vector2(780, 280);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
@@ -1411,14 +1503,14 @@ namespace Decantra.Presentation
             panelImage.raycastTarget = false;
 
             var starsText = CreateTitleText(panel.transform, "StarsText", "★★★");
-            starsText.fontSize = 72;
+            starsText.fontSize = 104;
             starsText.color = new Color(1f, 0.95f, 0.75f, 1f);
 
             var scoreText = CreateTitleText(panel.transform, "ScoreText", "+0");
-            scoreText.fontSize = 48;
+            scoreText.fontSize = 72;
             scoreText.color = new Color(0.5f, 1f, 0.5f, 1f);
             var scoreRect = scoreText.GetComponent<RectTransform>();
-            scoreRect.anchoredPosition = new Vector2(0, -60);
+            scoreRect.anchoredPosition = new Vector2(0, -96);
 
             var levelText = CreateTitleText(panel.transform, "LevelText", "LEVEL 1");
             levelText.fontSize = 52;
@@ -1447,6 +1539,142 @@ namespace Decantra.Presentation
             SetPrivateField(banner, "blurBackdrop", blurImage);
             SetPrivateField(banner, "canvasGroup", group);
             return banner;
+        }
+
+        private struct LevelJumpOverlayElements
+        {
+            public GameObject Root;
+            public InputField Input;
+            public Button GoButton;
+            public Button DismissButton;
+        }
+
+        private static LevelJumpOverlayElements CreateLevelJumpOverlay(Transform parent)
+        {
+            var root = CreateUiChild(parent, "LevelJumpOverlay");
+            var rect = root.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var dimmerGo = CreateUiChild(root.transform, "DimmerButton");
+            var dimmerRect = dimmerGo.GetComponent<RectTransform>();
+            dimmerRect.anchorMin = Vector2.zero;
+            dimmerRect.anchorMax = Vector2.one;
+            dimmerRect.offsetMin = Vector2.zero;
+            dimmerRect.offsetMax = Vector2.zero;
+            var dimmerImage = dimmerGo.AddComponent<Image>();
+            dimmerImage.color = new Color(0f, 0f, 0f, 0.78f);
+            dimmerImage.raycastTarget = true;
+            var dimmerButton = dimmerGo.AddComponent<Button>();
+            dimmerButton.targetGraphic = dimmerImage;
+            dimmerButton.transition = Selectable.Transition.None;
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(720, 320);
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = new Color(0.08f, 0.1f, 0.14f, 0.92f);
+            panelImage.raycastTarget = true;
+
+            var layout = panel.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+            layout.spacing = 18f;
+            layout.padding = new RectOffset(36, 36, 30, 30);
+
+            var title = CreateHudText(panel.transform, "Title");
+            title.fontSize = 44;
+            title.text = "GO TO LEVEL";
+            title.alignment = TextAnchor.MiddleCenter;
+            title.color = new Color(1f, 0.98f, 0.92f, 1f);
+            var titleElement = title.gameObject.AddComponent<LayoutElement>();
+            titleElement.minHeight = 64;
+
+            var inputGo = CreateUiChild(panel.transform, "LevelInput");
+            var inputRect = inputGo.GetComponent<RectTransform>();
+            inputRect.sizeDelta = new Vector2(320, 84);
+            var inputImage = inputGo.AddComponent<Image>();
+            inputImage.sprite = GetRoundedSprite();
+            inputImage.type = Image.Type.Sliced;
+            inputImage.color = new Color(0.2f, 0.24f, 0.3f, 0.95f);
+            var inputField = inputGo.AddComponent<InputField>();
+            inputField.targetGraphic = inputImage;
+            inputField.contentType = InputField.ContentType.IntegerNumber;
+            inputField.lineType = InputField.LineType.SingleLine;
+            inputField.keyboardType = TouchScreenKeyboardType.NumberPad;
+            inputField.characterValidation = InputField.CharacterValidation.Integer;
+
+            var inputTextGo = CreateUiChild(inputGo.transform, "Text");
+            var inputText = inputTextGo.AddComponent<Text>();
+            inputText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            inputText.fontSize = 46;
+            inputText.alignment = TextAnchor.MiddleCenter;
+            inputText.color = Color.white;
+            inputText.supportRichText = false;
+            var inputTextRect = inputTextGo.GetComponent<RectTransform>();
+            inputTextRect.anchorMin = Vector2.zero;
+            inputTextRect.anchorMax = Vector2.one;
+            inputTextRect.offsetMin = new Vector2(16, 8);
+            inputTextRect.offsetMax = new Vector2(-16, -8);
+
+            var placeholderGo = CreateUiChild(inputGo.transform, "Placeholder");
+            var placeholder = placeholderGo.AddComponent<Text>();
+            placeholder.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            placeholder.fontSize = 38;
+            placeholder.alignment = TextAnchor.MiddleCenter;
+            placeholder.text = "Enter level";
+            placeholder.color = new Color(1f, 1f, 1f, 0.55f);
+            var placeholderRect = placeholderGo.GetComponent<RectTransform>();
+            placeholderRect.anchorMin = Vector2.zero;
+            placeholderRect.anchorMax = Vector2.one;
+            placeholderRect.offsetMin = new Vector2(16, 8);
+            placeholderRect.offsetMax = new Vector2(-16, -8);
+
+            inputField.textComponent = inputText;
+            inputField.placeholder = placeholder;
+
+            var inputElement = inputGo.AddComponent<LayoutElement>();
+            inputElement.minHeight = 84;
+            inputElement.minWidth = 320;
+
+            var goButtonGo = CreateUiChild(panel.transform, "GoButton");
+            var goButtonRect = goButtonGo.GetComponent<RectTransform>();
+            goButtonRect.sizeDelta = new Vector2(240, 80);
+            var goButtonImage = goButtonGo.AddComponent<Image>();
+            goButtonImage.sprite = GetRoundedSprite();
+            goButtonImage.type = Image.Type.Sliced;
+            goButtonImage.color = new Color(0.3f, 0.85f, 0.4f, 0.85f);
+            var goButton = goButtonGo.AddComponent<Button>();
+            goButton.targetGraphic = goButtonImage;
+
+            var goText = CreateHudText(goButtonGo.transform, "Label");
+            goText.fontSize = 34;
+            goText.text = "GO TO LEVEL";
+            goText.alignment = TextAnchor.MiddleCenter;
+            goText.color = Color.white;
+
+            var goElement = goButtonGo.AddComponent<LayoutElement>();
+            goElement.minHeight = 80;
+            goElement.minWidth = 240;
+
+            root.SetActive(false);
+
+            return new LevelJumpOverlayElements
+            {
+                Root = root,
+                Input = inputField,
+                GoButton = goButton,
+                DismissButton = dimmerButton
+            };
         }
 
         private static void AddTextEffects(Text text, Color shadowColor)
@@ -1566,11 +1794,11 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create organic shapes sprite for the given level.
-        /// Sprites are cached per group (groupIndex = levelIndex / 10).
+        /// Sprites are cached per group (language group).
         /// </summary>
         public static Sprite GetOrganicShapesSpriteForLevel(int levelIndex)
         {
-            int groupIndex = levelIndex / 10;
+            int groupIndex = GetBackgroundGroupIndex(levelIndex);
             if (_organicShapesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
             {
                 return cached;
@@ -1585,11 +1813,11 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create bubbles sprite for the given level.
-        /// Sprites are cached per group (groupIndex = levelIndex / 10).
+        /// Sprites are cached per group (language group).
         /// </summary>
         public static Sprite GetBubblesSpriteForLevel(int levelIndex)
         {
-            int groupIndex = levelIndex / 10;
+            int groupIndex = GetBackgroundGroupIndex(levelIndex);
             if (_bubblesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
             {
                 return cached;
@@ -1604,20 +1832,81 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create large structure sprite for the given level.
-        /// Sprites are cached per group (groupIndex = levelIndex / 10).
+        /// Sprites are cached per group (language group).
         /// </summary>
         public static Sprite GetLargeStructureSpriteForLevel(int levelIndex)
         {
-            int groupIndex = levelIndex / 10;
+            int groupIndex = GetBackgroundGroupIndex(levelIndex);
             if (_largeStructureByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
             {
                 return cached;
             }
+        private static int GetBackgroundGroupIndex(int levelIndex)
+        {
+            return BackgroundRules.GetLanguageId(levelIndex);
+        }
 
-            int groupSeed = HashSeed("bg-group", groupIndex);
-            int levelSeed = HashSeed("bg-level", levelIndex);
-            var sprite = CreateLargeStructureSprite(groupSeed ^ levelSeed);
-            _largeStructureByGroup[groupIndex] = sprite;
+        /// <summary>
+        /// Get or create geometric shapes sprite for the given level.
+        /// Sprites are cached per group (language group).
+        /// </summary>
+        public static Sprite GetGeometricShapesSpriteForLevel(int levelIndex)
+        {
+            int groupIndex = GetBackgroundGroupIndex(levelIndex);
+            if (_geometricShapesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            int groupSeed = HashSeed("bg-geom-group", groupIndex);
+            int levelSeed = HashSeed("bg-geom-level", levelIndex);
+            var sprite = CreateGeometricShapesSprite(groupSeed ^ levelSeed);
+            _geometricShapesByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
+        /// <summary>
+        /// Get or create ribbon streams sprite for the given level.
+        /// Sprites are cached per group (language group).
+        /// </summary>
+        public static Sprite GetRibbonStreamsSpriteForLevel(int levelIndex)
+        {
+            int groupIndex = GetBackgroundGroupIndex(levelIndex);
+            if (_ribbonStreamsByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            int groupSeed = HashSeed("bg-ribbon-group", groupIndex);
+            int levelSeed = HashSeed("bg-ribbon-level", levelIndex);
+            var sprite = CreateRibbonStreamsSprite(groupSeed ^ levelSeed);
+            _ribbonStreamsByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
+        /// <summary>
+        /// Get or create geometric structure sprite for the given level.
+        /// Sprites are cached per group (language group).
+        /// </summary>
+        public static Sprite GetGeometricStructureSpriteForLevel(int levelIndex)
+        {
+            int groupIndex = GetBackgroundGroupIndex(levelIndex);
+            if (_geometricStructuresByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            int groupSeed = HashSeed("bg-structure-group", groupIndex);
+            int levelSeed = HashSeed("bg-structure-level", levelIndex);
+            var sprite = CreateGeometricStructureSprite(groupSeed ^ levelSeed);
+            _geometricStructuresByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
+        int groupSeed = HashSeed("bg-group", groupIndex);
+        int levelSeed = HashSeed("bg-level", levelIndex);
+        var sprite = CreateLargeStructureSprite(groupSeed ^ levelSeed);
+        _largeStructureByGroup[groupIndex] = sprite;
             return sprite;
         }
 
@@ -1630,20 +1919,36 @@ namespace Decantra.Presentation
             if (_lastLevelIndex == levelIndex) return;
             _lastLevelIndex = levelIndex;
 
+            int languageId = BackgroundRules.GetLanguageId(levelIndex);
+            var language = BackgroundRules.GetDesignLanguage(languageId);
+            bool useGeometric = languageId % 2 == 1
+                                || language.PrimaryMotif == MotifFamily.GeometricShapes
+                                || language.PrimaryMotif == MotifFamily.CrystallineShards
+                                || language.PrimaryMotif == MotifFamily.StarField;
+            bool useRibbons = language.PrimaryMotif == MotifFamily.RibbonStreams
+                              || language.PrimaryMotif == MotifFamily.AquaticFlow
+                              || language.PrimaryMotif == MotifFamily.LightRays;
+
             if (shapesImage != null)
             {
-                shapesImage.sprite = GetOrganicShapesSpriteForLevel(levelIndex);
+                shapesImage.sprite = useGeometric
+                    ? GetGeometricShapesSpriteForLevel(levelIndex)
+                    : GetOrganicShapesSpriteForLevel(levelIndex);
             }
 
             // Find bubbles image by name if not passed directly
             if (bubblesImage != null)
             {
-                bubblesImage.sprite = GetBubblesSpriteForLevel(levelIndex);
+                bubblesImage.sprite = useGeometric || useRibbons
+                    ? GetRibbonStreamsSpriteForLevel(levelIndex)
+                    : GetBubblesSpriteForLevel(levelIndex);
             }
 
             if (largeStructureImage != null)
             {
-                largeStructureImage.sprite = GetLargeStructureSpriteForLevel(levelIndex);
+                largeStructureImage.sprite = useGeometric
+                    ? GetGeometricStructureSpriteForLevel(levelIndex)
+                    : GetLargeStructureSpriteForLevel(levelIndex);
             }
         }
 
@@ -1737,6 +2042,81 @@ namespace Decantra.Presentation
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
         }
 
+        private static Sprite CreateGeometricShapesSprite(int seed)
+        {
+            const int width = 192;
+            const int height = 192;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            var centers = new List<Vector2>(10);
+            var sizes = new List<Vector2>(10);
+            var rand = new System.Random(seed);
+            int shapeCount = 10 + rand.Next(0, 4);
+            for (int i = 0; i < shapeCount; i++)
+            {
+                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                sizes.Add(new Vector2(Mathf.Lerp(20f, 60f, (float)rand.NextDouble()), Mathf.Lerp(18f, 52f, (float)rand.NextDouble())));
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < centers.Count; i++)
+                    {
+                        float dx = Mathf.Abs(x - centers[i].x);
+                        float dy = Mathf.Abs(y - centers[i].y);
+                        float rx = sizes[i].x;
+                        float ry = sizes[i].y;
+                        float diamond = 1f - ((dx / rx) + (dy / ry));
+                        if (diamond > 0f)
+                        {
+                            v = Mathf.Max(v, diamond * diamond);
+                        }
+                    }
+                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 192f);
+        }
+
+        private static Sprite CreateRibbonStreamsSprite(int seed)
+        {
+            const int width = 256;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            var rand = new System.Random(seed);
+            float phaseA = (float)rand.NextDouble() * Mathf.PI * 2f;
+            float phaseB = (float)rand.NextDouble() * Mathf.PI * 2f;
+            float freqA = Mathf.Lerp(0.035f, 0.065f, (float)rand.NextDouble());
+            float freqB = Mathf.Lerp(0.025f, 0.055f, (float)rand.NextDouble());
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float primary = Mathf.Sin((x * freqA + y * freqB) + phaseA);
+                    float secondary = Mathf.Sin((x * freqB - y * freqA) + phaseB);
+                    float combined = (primary + secondary) * 0.5f;
+                    float band = Mathf.Abs(combined);
+                    float alpha = Mathf.SmoothStep(0.2f, 0.8f, 1f - band);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
+        }
+
         private static Sprite CreateLargeStructureSprite()
         {
             return CreateLargeStructureSprite(HashSeed("bg-group", 0) ^ HashSeed("bg-level", 0));
@@ -1776,6 +2156,56 @@ namespace Decantra.Presentation
                     float ny = y / (float)height;
                     float noise = Mathf.PerlinNoise(nx * 2.5f + 5.2f, ny * 2.5f + 3.7f);
                     v = Mathf.Lerp(v, v * noise, 0.35f);
+
+                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
+        }
+
+        private static Sprite CreateGeometricStructureSprite(int seed)
+        {
+            const int width = 256;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            var rand = new System.Random(seed);
+            int shardCount = 6 + rand.Next(0, 4);
+            var centers = new List<Vector2>(shardCount);
+            var sizes = new List<Vector2>(shardCount);
+            for (int i = 0; i < shardCount; i++)
+            {
+                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                sizes.Add(new Vector2(Mathf.Lerp(60f, 120f, (float)rand.NextDouble()), Mathf.Lerp(30f, 80f, (float)rand.NextDouble())));
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < centers.Count; i++)
+                    {
+                        float dx = Mathf.Abs(x - centers[i].x);
+                        float dy = Mathf.Abs(y - centers[i].y);
+                        float rx = sizes[i].x;
+                        float ry = sizes[i].y;
+                        float shard = 1f - ((dx / rx) + (dy / ry) * 0.7f);
+                        if (shard > 0f)
+                        {
+                            v = Mathf.Max(v, shard * shard);
+                        }
+                    }
+
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float noise = Mathf.PerlinNoise(nx * 3.1f + 2.4f, ny * 3.1f + 4.6f);
+                    v = Mathf.Lerp(v, v * noise, 0.4f);
 
                     float alpha = Mathf.SmoothStep(0f, 1f, v);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));

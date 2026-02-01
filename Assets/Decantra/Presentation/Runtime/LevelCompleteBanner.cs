@@ -144,6 +144,20 @@ namespace Decantra.Presentation
                 return;
             }
 
+            // If a previous animation was in progress, ensure its score apply callback is not lost.
+            var previousOnScoreApply = _onScoreApply;
+            if (previousOnScoreApply != null && previousOnScoreApply != onScoreApply)
+            {
+                try
+                {
+                    previousOnScoreApply();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error while invoking previous score apply callback: {ex}");
+                }
+            }
+
             StopAllCoroutines();
             _onScoreApply = onScoreApply;
             int clampedStars = Mathf.Clamp(stars, 1, 5);
@@ -186,7 +200,6 @@ namespace Decantra.Presentation
         private IEnumerator AnimateSequence(Action onComplete)
         {
             yield return AnimatePanel(starsText, starsHoldDuration);
-            yield return AnimatePanel(levelText, levelHoldDuration);
             onComplete?.Invoke();
         }
 

@@ -155,7 +155,8 @@ namespace Decantra.App.Editor
             PlayerSettings.Android.targetSdkVersion =
                 AndroidSdkVersions.AndroidApiLevel35;
             ConfigureAndroidToolchainFromEnv();
-            ConfigureAndroidSigningFromEnv();
+            ConfigureVersioningFromEnv();
+            ConfigureAndroidSigningFromEnv(ShouldRequireKeystore(options));
             string[] args = Environment.GetCommandLineArgs();
             string outputPath = defaultPath;
             for (int i = 0; i < args.Length - 1; i++)
@@ -203,6 +204,40 @@ namespace Decantra.App.Editor
             Debug.Log($"Android {artifactLabel} built at {outputPath}");
         }
 
+        private static bool ShouldRequireKeystore(BuildOptions options)
+        {
+            if ((options & BuildOptions.Development) == BuildOptions.Development)
+            {
+                return false;
+            }
+
+            if (IsTruthyEnv("DECANTRA_REQUIRE_KEYSTORE")
+                || IsTruthyEnv("REQUIRE_ANDROID_KEYSTORE"))
+            {
+                return true;
+            }
+
+            if (IsTruthyEnv("CI") && IsTagBuild())
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsTagBuild()
+        {
+            string refType = Environment.GetEnvironmentVariable("GITHUB_REF_TYPE");
+            if (string.Equals(refType, "tag", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string refName = Environment.GetEnvironmentVariable("GITHUB_REF");
+            return !string.IsNullOrWhiteSpace(refName)
+                && refName.StartsWith("refs/tags/", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static void ConfigureAndroidToolchainFromEnv()
         {
             var sdkRoot = Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT")
@@ -232,7 +267,7 @@ namespace Decantra.App.Editor
             }
         }
 
-        private static void ConfigureAndroidSigningFromEnv()
+        private static void ConfigureAndroidSigningFromEnv(bool requireKeystore)
         {
             string keystorePath = Environment.GetEnvironmentVariable("KEYSTORE_STORE_FILE");
             string keystorePass = Environment.GetEnvironmentVariable("KEYSTORE_STORE_PASSWORD");
@@ -257,7 +292,187 @@ namespace Decantra.App.Editor
             {
                 PlayerSettings.Android.useCustomKeystore = false;
                 Debug.LogWarning("AndroidBuild: Keystore env vars missing or file not found; using default signing.");
+                if (requireKeystore)
+                {
+                    throw new InvalidOperationException(
+                        "AndroidBuild: Release signing required but keystore env vars are missing."
+                    );
+                }
             }
+        }
+
+        private static void ConfigureVersioningFromEnv()
+        {
+            string resolvedVersionName = ResolveVersionName();
+            if (!string.IsNullOrWhiteSpace(resolvedVersionName))
+            {
+                PlayerSettings.bundleVersion = resolvedVersionName.Trim();
+            }
+
+            int? resolvedVersionCode = ResolveVersionCode();
+            if (resolvedVersionCode.HasValue && resolvedVersionCode.Value > 0)
+            {
+                PlayerSettings.Android.bundleVersionCode = resolvedVersionCode.Value;
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log(
+                $"AndroidBuild: VersionName={PlayerSettings.bundleVersion}, VersionCode={PlayerSettings.Android.bundleVersionCode}"
+            );
+        }
+
+        private static string ResolveVersionName()
+        {
+            string envVersion = FirstNonEmptyEnv("VERSION_NAME", "DECANTRA_VERSION_NAME", "VITE_APP_VERSION");
+            if (!string.IsNullOrWhiteSpace(envVersion))
+            {
+                return envVersion;
+            }
+
+            string refType = Environment.GetEnvironmentVariable("GITHUB_REF_TYPE");
+            string refName = Environment.GetEnvironmentVariable("GITHUB_REF_NAME");
+            if (string.Equals(refType, "tag", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(refName))
+            {
+                return refName;
+            }
+
+            string gitTag = TryRunGit("describe", "--tags", "--abbrev=0");
+            if (!string.IsNullOrWhiteSpace(gitTag))
+            {
+                return gitTag;
+            }
+
+            return PlayerSettings.bundleVersion;
+        }
+
+        private static int? ResolveVersionCode()
+        {
+            string envVersionCode = FirstNonEmptyEnv("VERSION_CODE", "DECANTRA_VERSION_CODE");
+            if (TryParsePositiveInt(envVersionCode, out int code))
+            {
+                return ClampVersionCode(code);
+            }
+
+            string runNumberRaw = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
+            if (TryParsePositiveInt(runNumberRaw, out int runNumber))
+            {
+                int runAttempt = 1;
+                string runAttemptRaw = Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT");
+                if (TryParsePositiveInt(runAttemptRaw, out int attempt))
+                {
+                    runAttempt = attempt;
+                }
+
+                long computed = 1000L + (long)runNumber * 10L + Math.Max(0, runAttempt - 1);
+                return ClampVersionCode(computed);
+            }
+
+            string commitCountRaw = TryRunGit("rev-list", "--count", "HEAD");
+            if (TryParsePositiveInt(commitCountRaw, out int commitCount))
+            {
+                return ClampVersionCode(1000L + commitCount);
+            }
+
+            int existing = PlayerSettings.Android.bundleVersionCode;
+            return existing > 0 ? existing : 1;
+        }
+
+        private static int ClampVersionCode(long value)
+        {
+            if (value > int.MaxValue)
+            {
+                return int.MaxValue;
+            }
+
+            if (value < 1)
+            {
+                return 1;
+            }
+
+            return (int)value;
+        }
+
+        private static string FirstNonEmptyEnv(params string[] names)
+        {
+            foreach (string name in names)
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryParsePositiveInt(string value, out int result)
+        {
+            result = 0;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string trimmed = value.Trim();
+            return int.TryParse(trimmed, out result) && result > 0;
+        }
+
+        private static string TryRunGit(string command, params string[] args)
+        {
+            try
+            {
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = $"{command} {string.Join(" ", args)}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = System.Diagnostics.Process.Start(startInfo))
+                {
+                    if (process == null)
+                    {
+                        return null;
+                    }
+
+                    string output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit(3000);
+                    if (process.ExitCode != 0)
+                    {
+                        return null;
+                    }
+
+                    return output.Trim();
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static bool IsTruthyEnv(string name)
+        {
+            return IsTruthy(Environment.GetEnvironmentVariable(name));
+        }
+
+        private static bool IsTruthy(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string normalized = value.Trim();
+            return string.Equals(normalized, "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "yes", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "y", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TrySetStringProperty(Type settingsType, string propertyName, string value)

@@ -22,6 +22,8 @@ namespace Decantra.Presentation.View
         [SerializeField] private Text maxLevelText;
         [SerializeField] private Text titleText;
 
+        private Coroutine _scoreEffectRoutine;
+
         public void Render(int levelIndex, int movesUsed, int movesAllowed, int optimalMoves, int score, int highScore, int maxLevel)
         {
             if (titleText != null)
@@ -55,20 +57,23 @@ namespace Decantra.Presentation.View
 
             if (highScoreText != null)
             {
-                highScoreText.text = $"BEST\n{highScore}";
+                highScoreText.text = $"HIGH SCORE\n{highScore}";
             }
 
             if (maxLevelText != null)
             {
-                maxLevelText.text = $"MAX\n{maxLevel}";
+                maxLevelText.text = $"MAX LEVEL\n{maxLevel}";
             }
         }
 
         public void AnimateScoreUpdate()
         {
             if (scoreText == null) return;
-            StopAllCoroutines();
-            StartCoroutine(ScoreEffect());
+            if (_scoreEffectRoutine != null)
+            {
+                StopCoroutine(_scoreEffectRoutine);
+            }
+            _scoreEffectRoutine = StartCoroutine(ScoreEffect());
         }
 
         private IEnumerator ScoreEffect()
@@ -80,6 +85,11 @@ namespace Decantra.Presentation.View
 
             while (time < duration)
             {
+                if (scoreText == null)
+                {
+                    _scoreEffectRoutine = null;
+                    yield break;
+                }
                 time += Time.deltaTime;
                 float t = Mathf.Clamp01(time / duration);
                 float curve = Mathf.Sin(t * Mathf.PI);
@@ -90,8 +100,12 @@ namespace Decantra.Presentation.View
 
                 yield return null;
             }
-            scoreText.rectTransform.localScale = originalScale;
-            scoreText.color = originalColor;
+            if (scoreText != null)
+            {
+                scoreText.rectTransform.localScale = originalScale;
+                scoreText.color = originalColor;
+            }
+            _scoreEffectRoutine = null;
         }
     }
 }

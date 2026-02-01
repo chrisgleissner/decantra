@@ -37,29 +37,29 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void GetLanguageId_ReturnsCorrectGroupingForLevels()
         {
-            // Levels 1-10 => languageId 0
-            for (int level = 1; level <= 10; level++)
+            // Levels 1-9 => languageId 0
+            for (int level = 1; level <= 9; level++)
             {
                 Assert.AreEqual(0, BackgroundRules.GetLanguageId(level), $"Level {level} should be languageId 0");
             }
 
-            // Levels 11-20 => languageId 1
-            for (int level = 11; level <= 20; level++)
+            // Levels 10-19 => languageId 1
+            for (int level = 10; level <= 19; level++)
             {
                 Assert.AreEqual(1, BackgroundRules.GetLanguageId(level), $"Level {level} should be languageId 1");
             }
 
-            // Levels 21-30 => languageId 2
-            for (int level = 21; level <= 30; level++)
+            // Levels 20-29 => languageId 2
+            for (int level = 20; level <= 29; level++)
             {
                 Assert.AreEqual(2, BackgroundRules.GetLanguageId(level), $"Level {level} should be languageId 2");
             }
 
-            // Edge case: Level 100 => languageId 9
-            Assert.AreEqual(9, BackgroundRules.GetLanguageId(100));
+            // Edge case: Level 100 => languageId 10
+            Assert.AreEqual(10, BackgroundRules.GetLanguageId(100));
 
-            // Level 1000 => languageId 99
-            Assert.AreEqual(99, BackgroundRules.GetLanguageId(1000));
+            // Level 1000 => languageId 100
+            Assert.AreEqual(100, BackgroundRules.GetLanguageId(1000));
 
             // Level 1001 => languageId 100
             Assert.AreEqual(100, BackgroundRules.GetLanguageId(1001));
@@ -68,11 +68,18 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void GetLanguageId_ConsecutiveLevelsGroupCorrectly()
         {
-            // Verify that exactly 10 consecutive levels share the same languageId
-            for (int group = 0; group < 100; group++)
+            // Group 0: levels 1-9
+            for (int level = 1; level <= 9; level++)
+            {
+                Assert.AreEqual(0, BackgroundRules.GetLanguageId(level),
+                    $"Level {level} should be in group 0");
+            }
+
+            // Subsequent groups: 10 levels each starting at level 10
+            for (int group = 1; group <= 100; group++)
             {
                 int expectedLanguageId = group;
-                int firstLevelInGroup = group * 10 + 1;
+                int firstLevelInGroup = 10 + (group - 1) * 10;
                 int lastLevelInGroup = firstLevelInGroup + 9;
 
                 for (int level = firstLevelInGroup; level <= lastLevelInGroup; level++)
@@ -165,17 +172,17 @@ namespace Decantra.Tests.EditMode
             var usedLanguageIds = new HashSet<int>();
 
             // For first 1000 levels, no languageId should repeat
-            // Since there are exactly 100 groups of 10 levels each, and 100 unique languageIds
-            for (int group = 0; group < 100; group++)
+            // Since there are 101 groups (1 group of 9, then 100 groups of 10), and 101 unique languageIds
+            for (int group = 0; group <= 100; group++)
             {
-                int levelInGroup = group * 10 + 1;
+                int levelInGroup = group == 0 ? 1 : 10 + (group - 1) * 10;
                 int languageId = BackgroundRules.GetLanguageId(levelInGroup);
 
                 Assert.IsTrue(usedLanguageIds.Add(languageId),
                     $"LanguageId {languageId} repeated at group {group} (level {levelInGroup})");
             }
 
-            Assert.AreEqual(100, usedLanguageIds.Count, "First 1000 levels must use exactly 100 unique language IDs");
+            Assert.AreEqual(101, usedLanguageIds.Count, "First 1000 levels must use exactly 101 unique language IDs");
         }
 
         [Test]

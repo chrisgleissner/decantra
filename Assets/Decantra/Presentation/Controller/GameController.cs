@@ -47,6 +47,10 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Button levelPanelButton;
         [SerializeField] private Button shareButton;
         [SerializeField] private GameObject shareButtonRoot;
+        [SerializeField] private GameObject levelJumpOverlay;
+        [SerializeField] private InputField levelJumpInput;
+        [SerializeField] private Button levelJumpGoButton;
+        [SerializeField] private Button levelJumpDismissButton;
 
         private LevelState _state;
         private LevelState _initialState;
@@ -68,6 +72,7 @@ namespace Decantra.Presentation.Controller
         private Coroutine _backgroundTransition;
         private CancellationTokenSource _precomputeCts;
         private Task<LevelState> _precomputeTask;
+        private bool _wasInputLockedBeforeOverlay;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
 #endif
@@ -224,6 +229,58 @@ namespace Decantra.Presentation.Controller
             PersistCurrentProgress(_currentLevel, _currentSeed);
             Render();
             _inputLocked = false;
+        }
+
+        public void ShowLevelJumpOverlay()
+        {
+            if (levelJumpOverlay == null) return;
+            if (levelJumpOverlay.activeSelf) return;
+
+            _wasInputLockedBeforeOverlay = _inputLocked;
+            _inputLocked = true;
+            levelJumpOverlay.SetActive(true);
+
+            if (levelPanelButton != null)
+            {
+                levelPanelButton.interactable = false;
+            }
+
+            if (levelJumpInput != null)
+            {
+                levelJumpInput.text = _currentLevel.ToString();
+                levelJumpInput.caretPosition = levelJumpInput.text.Length;
+                levelJumpInput.ActivateInputField();
+            }
+        }
+
+        public void HideLevelJumpOverlay()
+        {
+            if (levelJumpOverlay == null) return;
+            levelJumpOverlay.SetActive(false);
+            if (levelPanelButton != null)
+            {
+                levelPanelButton.interactable = true;
+            }
+            _inputLocked = _wasInputLockedBeforeOverlay;
+        }
+
+        public void JumpToLevelFromOverlay()
+        {
+            if (levelJumpInput == null)
+            {
+                HideLevelJumpOverlay();
+                return;
+            }
+
+            if (!int.TryParse(levelJumpInput.text, out int targetLevel))
+            {
+                return;
+            }
+
+            targetLevel = Mathf.Max(1, targetLevel);
+            int seed = CalculateSeedForLevel(targetLevel);
+            HideLevelJumpOverlay();
+            LoadLevel(targetLevel, seed);
         }
 
         public void ResetCurrentLevel()
@@ -736,7 +793,7 @@ namespace Decantra.Presentation.Controller
                 levelPanelButton.onClick.AddListener(ShareCurrentLevel);
             }
 
-            // ShareButton logic removed as UI element is removed
+            // ShareButton logic disabled as UI element is hidden/deactivated
             if (shareButton != null)
             {
                 shareButton.onClick.RemoveAllListeners();
@@ -746,8 +803,6 @@ namespace Decantra.Presentation.Controller
             {
                 shareButtonRoot.SetActive(false);
             }
-
-            SetShareButtonVisible(false);
         }
 
         private void SetShareButtonVisible(bool visible)
@@ -845,6 +900,17 @@ namespace Decantra.Presentation.Controller
                 int mix = baseSeed * 1103515245 + 12345 + level * 97;
                 return Mathf.Abs(mix == 0 ? level * 7919 : mix);
             }
+        }
+
+        private int CalculateSeedForLevel(int targetLevel)
+        {
+            int seed = 0;
+            int clampedLevel = Mathf.Max(1, targetLevel);
+            for (int level = 1; level <= clampedLevel; level++)
+            {
+                seed = NextSeed(level, seed);
+            }
+            return seed;
         }
 
         private IEnumerator TransitionToLevel(int nextLevel, int seed)

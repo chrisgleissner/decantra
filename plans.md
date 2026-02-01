@@ -178,3 +178,56 @@ Notes:
 
 CI run verification:
 - Build Decantra run 21569871324 (success)
+
+---
+
+# Procedural Background System Implementation Plan (2026-02-01)
+
+## Step 1: Align terminology and mapping
+- [ ] Replace deprecated naming with Zone Theme in domain logic
+- [ ] Ensure Zone indexing rules match spec (Levels 1–9 → Zone 0, then 10-level Zones)
+
+## Step 2: Define canonical data models
+- [ ] Add Zone Theme data model (geometry vocabulary, generator family, symmetry, layer stack, depth, motion, fingerprint)
+- [ ] Add LayerSpec data model (role, scale band, generator variant, compositing, crispness)
+- [ ] Add Level Variant data model (palette/gradients + minor modulation only)
+
+## Step 3: Implement Zone Theme generation
+- [ ] Implement zoneSeed = hash(globalSeed, zoneIndex)
+- [ ] Implement weighted geometry vocabulary selection excluding adjacent Zones
+- [ ] Implement primary generator family selection different from previous Zone
+- [ ] Implement symmetry selection compatible with generator
+- [ ] Implement progression-aware layerCount distribution
+- [ ] Implement scale-band allocation with richness constraints
+- [ ] Implement per-layer parameter generation and deterministic depth ordering
+- [ ] Implement optional motion assignment (≤ 2 layers, cyclic only)
+
+## Step 4: Implement Level Variant generation
+- [ ] Implement levelSeed = hash(globalSeed, levelIndex)
+- [ ] Implement palette/gradient derivation from levelSeed only
+- [ ] Implement minor phase/density/amplitude/jitter modulation only
+
+## Step 5: Fingerprint and anti-repetition gate
+- [ ] Implement Zone Theme fingerprint
+- [ ] Implement similarity checks vs previous N Zones (N ≥ 3)
+- [ ] Implement regeneration on threshold exceed
+
+## Step 6: Rendering integration
+- [ ] Implement layer compositing rules and opacity/contrast falloffs
+- [ ] Implement deterministic grayscale recognisability validation
+- [ ] Implement optional parallax and motion for designated layers
+
+## Step 7: Async precompute pipeline
+- [ ] Precompute Zone Theme and Level Variant for next Level off main thread
+- [ ] Ensure swap-only on Level switch (no blocking work)
+- [ ] Ensure no dynamic allocation in render loop
+
+## Step 8: Tests and validation
+- [ ] Add tests for Zone indexing, determinism, and caching
+- [ ] Add tests for layer count and scale-band constraints
+- [ ] Add tests for fingerprint uniqueness
+- [ ] Add performance guardrails for generation time budget
+
+## Step 9: Documentation and review
+- [ ] Link spec in docs and confirm implementation matches all invariants
+- [ ] Review against grayscale recognisability and performance constraints

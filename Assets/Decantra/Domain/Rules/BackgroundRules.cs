@@ -129,14 +129,32 @@ namespace Decantra.Domain.Rules
     {
         private const int DesignLanguageSalt = 0x1F3D5B79;
         private const int LevelsPerLanguage = 10;
+        private const int FirstLanguageSize = 9;
 
         /// <summary>
         /// Computes the language family index for a given level.
-        /// Language 0 = levels 1-10, Language 1 = levels 11-20, etc.
+        /// Language 0 = levels 1-9, Language 1 = levels 10-19, etc.
         /// </summary>
         public static int GetLanguageId(int levelIndex)
         {
-            return Math.Max(0, (levelIndex - 1) / LevelsPerLanguage);
+            if (levelIndex <= 0) return 0;
+            if (levelIndex <= FirstLanguageSize) return 0;
+            int remaining = levelIndex - FirstLanguageSize - 1;
+            return 1 + Math.Max(0, remaining / LevelsPerLanguage);
+        }
+
+        /// <summary>
+        /// Computes the position within the current language.
+        /// </summary>
+        private static int GetPositionInLanguage(int levelIndex)
+        {
+            if (levelIndex <= FirstLanguageSize)
+            {
+                return Math.Max(0, levelIndex - 1);
+            }
+
+            int remaining = levelIndex - FirstLanguageSize - 1;
+            return Math.Max(0, remaining % LevelsPerLanguage);
         }
 
         /// <summary>
@@ -235,7 +253,7 @@ namespace Decantra.Domain.Rules
         public static void GetLevelVariation(int levelIndex, out float jitter1, out float jitter2, out float jitter3)
         {
             int languageId = GetLanguageId(levelIndex);
-            int positionInLanguage = (levelIndex - 1) % LevelsPerLanguage;
+            int positionInLanguage = GetPositionInLanguage(levelIndex);
 
             unchecked
             {
