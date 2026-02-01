@@ -174,4 +174,7 @@ Notes:
 - [x] Add ReflectionStrip overlay to bottle glass (pos/size per spec)
 - [x] Update Android app icon to app-icon-512x512.png
 - [x] Regenerate screenshots
-- [ ] CI green (verified via gh)
+- [x] CI green (verified via gh)
+
+CI run verification:
+- Build Decantra run 21569263010 (success)
