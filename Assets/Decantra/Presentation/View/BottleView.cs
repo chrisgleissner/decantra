@@ -79,9 +79,9 @@ namespace Decantra.Presentation.View
             }
             if (curvedHighlight != null)
             {
-                 var c = curvedHighlight.color;
-                 curvedHighlight.color = new Color(c.r, c.g, c.b, 0.2f); // Retain some specularity
-                 curvedHighlight.raycastTarget = false;
+                var c = curvedHighlight.color;
+                curvedHighlight.color = new Color(c.r, c.g, c.b, 0.2f); // Retain some specularity
+                curvedHighlight.raycastTarget = false;
             }
             if (glassBack != null)
             {
