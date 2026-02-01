@@ -2,7 +2,7 @@
 
 <img src="./doc/img/logo.png" alt="Decantra Logo" width="100"/>
 
-Decantra is a mobile-first bottle-sorting puzzle game built in Unity.
+Decantra is a bottle-sorting puzzle game for Android built in Unity.
 
 ## How to Play
 
