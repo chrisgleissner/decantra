@@ -76,14 +76,14 @@ namespace Decantra.Presentation.View
                 // Disable completely to verify
                 glassFront.gameObject.SetActive(false);
             }
-            
+
             // Repurpose curvedHighlight for right-side reflection
             if (curvedHighlight != null)
             {
                 curvedHighlight.gameObject.SetActive(true);
-                curvedHighlight.color = new Color(1f, 1f, 1f, 0.15f); 
+                curvedHighlight.color = new Color(1f, 1f, 1f, 0.15f);
                 curvedHighlight.raycastTarget = false;
-                
+
                 var rect = curvedHighlight.rectTransform;
                 // Right side reflection: 20% width, 70% height, offset from right
                 // Using anchors: X from 0.70 to 0.90, Y from 0.15 to 0.85
