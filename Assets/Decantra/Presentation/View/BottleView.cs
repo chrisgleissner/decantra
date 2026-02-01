@@ -76,18 +76,35 @@ namespace Decantra.Presentation.View
                 // Disable completely to verify
                 glassFront.gameObject.SetActive(false);
             }
+            
+            // Repurpose curvedHighlight for right-side reflection
             if (curvedHighlight != null)
             {
-                // Disable completely
-                curvedHighlight.gameObject.SetActive(false);
+                curvedHighlight.gameObject.SetActive(true);
+                curvedHighlight.color = new Color(1f, 1f, 1f, 0.15f); 
+                curvedHighlight.raycastTarget = false;
+                
+                var rect = curvedHighlight.rectTransform;
+                // Right side reflection: 20% width, 70% height, offset from right
+                // Using anchors: X from 0.70 to 0.90, Y from 0.15 to 0.85
+                rect.anchorMin = new Vector2(0.7f, 0.15f);
+                rect.anchorMax = new Vector2(0.9f, 0.85f);
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
             }
+
             if (glassBack != null)
             {
                 var c = glassBack.color;
                 glassBack.color = new Color(c.r, c.g, c.b, 0.05f);
-                {
-                    Index = index;
-                }
+                glassBack.raycastTarget = false;
+            }
+        }
+
+        public void Initialize(int index)
+        {
+            Index = index;
+        }
 
         public void Render(Bottle bottle)
         {
@@ -562,6 +579,13 @@ namespace Decantra.Presentation.View
             if (color.HasValue && palette != null)
             {
                 var c = palette.GetColor(color.Value);
+
+                // Boost brightness significantly while maintaining saturation
+                Color.RGBToHSV(c, out float h, out float s, out float v);
+                v = Mathf.Clamp01(v * 1.5f); // Make it very bright
+                s = Mathf.Clamp01(s * 1.1f); // Check saturation
+                c = Color.HSVToRGB(h, s, v);
+
                 c.a = 1f;
                 image.color = c;
             }
