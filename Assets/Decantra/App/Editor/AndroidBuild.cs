@@ -62,7 +62,7 @@ namespace Decantra.App.Editor
             PlayerSettings.Android.minSdkVersion =
                 AndroidSdkVersions.AndroidApiLevel30;
             PlayerSettings.Android.targetSdkVersion =
-                AndroidSdkVersions.AndroidApiLevelAuto;
+                AndroidSdkVersions.AndroidApiLevel35;
 
             // ---- Disable unused services ----
             PlayerSettings.enableCrashReportAPI = false;
@@ -115,7 +115,7 @@ namespace Decantra.App.Editor
             PlayerSettings.Android.minSdkVersion =
                 AndroidSdkVersions.AndroidApiLevel30;
             PlayerSettings.Android.targetSdkVersion =
-                AndroidSdkVersions.AndroidApiLevelAuto;
+                AndroidSdkVersions.AndroidApiLevel35;
 
             // ---- Disable unused services ----
             PlayerSettings.enableCrashReportAPI = false;

@@ -127,6 +127,7 @@ namespace Decantra.Presentation.Controller
 
         public bool IsInputLocked => _inputLocked;
         public bool IsSfxEnabled => _sfxEnabled;
+        public bool HasActiveLevel => _state != null;
 
         private void Awake()
         {

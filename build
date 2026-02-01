@@ -13,6 +13,8 @@ RUN_TESTS=true
 RUN_BUILD=true
 RUN_INSTALL=false
 BUILD_VARIANT="debug"
+CAPTURE_SCREENSHOTS=false
+SCREENSHOTS_ONLY=false
 
 DEVICE_ID=""
 APK_PATH=""
@@ -34,6 +36,8 @@ Options:
   --skip-tests         Skip Unity tests
   --skip-build         Skip APK build
   --release            Build the release APK
+  --screenshots        Capture Play Store screenshots after build
+  --screenshots-only   Capture screenshots only (skip tests/build/install)
   -h, --help           Show this help message
 
 Examples:
@@ -42,6 +46,8 @@ Examples:
   ./build --skip-tests            Build debug APK without running tests
   ./build --skip-build --install  Install existing APK to device
   ./build --install --device <id> Build and install to a specific device
+  ./build --screenshots           Build + capture Play Store screenshots
+  ./build --screenshots-only      Capture screenshots from an existing APK
 EOF
 }
 
@@ -344,7 +350,7 @@ ensure_android_toolchain() {
   ensured_java_home="$(ensure_jdk_17 || true)"
 
   sdk_root_pre="$(detect_android_sdk_root || true)"
-  if [[ -n "${sdk_root_pre}" && -d "${sdk_root_pre}/ndk/${required_ndk}" && -d "${sdk_root_pre}/platform-tools" && -d "${sdk_root_pre}/build-tools/36.0.0" && -d "${sdk_root_pre}/cmdline-tools/16.0" ]]; then
+  if [[ -n "${sdk_root_pre}" && -d "${sdk_root_pre}/ndk/${required_ndk}" && -d "${sdk_root_pre}/platform-tools" && -d "${sdk_root_pre}/build-tools/35.0.0" && -d "${sdk_root_pre}/cmdline-tools/16.0" ]]; then
     log "Android SDK/NDK already installed at ${sdk_root_pre}. Skipping apt installs."
   else
     if ! have_cmd adb; then
@@ -395,8 +401,8 @@ ensure_android_toolchain() {
     ensure_sdk_component "${sdk_root}" "cmdline-tools;16.0" "${sdk_root}/cmdline-tools/16.0" "${java_home}" || true
     ensure_cmdline_tools_latest "${sdk_root}" "16.0" || true
     ensure_sdk_component "${sdk_root}" "platform-tools" "${sdk_root}/platform-tools" "${java_home}" || true
-    ensure_sdk_component "${sdk_root}" "build-tools;36.0.0" "${sdk_root}/build-tools/36.0.0" "${java_home}" || true
-    ensure_sdk_component "${sdk_root}" "platforms;android-34" "${sdk_root}/platforms/android-34" "${java_home}" || true
+    ensure_sdk_component "${sdk_root}" "build-tools;35.0.0" "${sdk_root}/build-tools/35.0.0" "${java_home}" || true
+    ensure_sdk_component "${sdk_root}" "platforms;android-35" "${sdk_root}/platforms/android-35" "${java_home}" || true
   fi
 
   if [[ -z "${sdk_root}" || -z "${ndk_root}" || -z "${java_home}" ]]; then
@@ -518,6 +524,18 @@ while [[ $# -gt 0 ]]; do
       BUILD_VARIANT="release"
       shift
       ;;
+    --screenshots)
+      CAPTURE_SCREENSHOTS=true
+      shift
+      ;;
+    --screenshots-only)
+      CAPTURE_SCREENSHOTS=true
+      SCREENSHOTS_ONLY=true
+      RUN_TESTS=false
+      RUN_BUILD=false
+      RUN_INSTALL=false
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -562,6 +580,21 @@ if [[ "${RUN_BUILD}" == "true" ]]; then
     log "Building debug APK"
   fi
   DECANTRA_BUILD_VARIANT="${BUILD_VARIANT}" "${ROOT_DIR}/tools/build_android.sh"
+fi
+
+if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
+  ensure_command adb android-tools-adb
+  ensure_adb_daemon
+  APK_PATH="${APK_PATH:-$APK_DEFAULT}"
+  log "Capturing Play Store screenshots"
+  screenshot_args=("--apk" "${APK_PATH}")
+  if [[ -n "${DEVICE_ID}" ]]; then
+    screenshot_args+=("--device" "${DEVICE_ID}")
+  fi
+  if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
+    screenshot_args+=("--screenshots-only")
+  fi
+  "${ROOT_DIR}/tools/capture_screenshots.sh" "${screenshot_args[@]}"
 fi
 
 if [[ "${RUN_INSTALL}" == "true" ]]; then

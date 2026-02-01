@@ -33,6 +33,21 @@ The APK will be produced at:
 3. Install the APK:
    - `adb install -r --no-streaming Builds/Android/Decantra.apk`
 
+## Capture Play Store screenshots (automated)
+
+### Build + capture (recommended)
+- `./build --screenshots`
+
+### Capture only (APK already built)
+- `./build --screenshots-only --apk-path Builds/Android/Decantra.apk`
+
+Screenshots are saved to:
+- `doc/play-store-assets/screenshots/phone/`
+
+Notes:
+- Screenshot capture installs the APK and uses adb access to pull files from app storage.
+- Use a debug build if adb `run-as` access is required by the device.
+
 ### Manual install (no ADB)
 1. Copy `Builds/Android/Decantra.apk` to the device.
 2. Enable "Install unknown apps" for your file manager/browser.
