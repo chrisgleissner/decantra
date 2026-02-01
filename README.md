@@ -2,9 +2,7 @@
 
 ![Decantra Banner](./doc/play-store-assets/feature-graphic/feature-graphic-1024x500.png "Decantra Banner")
 
-Decantra is a mobile-first bottle-sorting puzzle game. Levels are endlessly generated so every run stays fresh, and each level gives you a move budget to beat.
-
-Sort liquids by color using a small set of rules and complete each level by leaving bottles either empty or single-colored.
+Decantra is a bottle-sorting puzzle game for Android built in Unity.
 
 ## How to Play
 
