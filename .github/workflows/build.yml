@@ -119,18 +119,18 @@ jobs:
                   customParameters: -buildPath Builds/Android/Decantra-release.apk
                   androidExportType: androidPackage
                   buildsPath: Builds/Android
-                        - uses: game-ci/unity-builder@v4
-                            id: build_release_aab
-                            with:
-                                    projectPath: .
-                                    unityVersion: 6000.3.5f2
-                                    targetPlatform: Android
-                                    buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
-                                    versioning: ${{ env.VERSIONING }}
-                                    customParameters: -buildPath Builds/Android/Decantra-release.aab
-                                    androidExportType: androidAppBundle
-                                    androidVersionCode: ${{ steps.build_release.outputs.androidVersionCode }}
-                                    buildsPath: Builds/Android
+            - uses: game-ci/unity-builder@v4
+              id: build_release_aab
+              with:
+                  projectPath: .
+                  unityVersion: 6000.3.5f2
+                  targetPlatform: Android
+                  buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
+                  versioning: ${{ env.VERSIONING }}
+                  customParameters: -buildPath Builds/Android/Decantra-release.aab
+                  androidExportType: androidAppBundle
+                  androidVersionCode: ${{ steps.build_release.outputs.androidVersionCode }}
+                  buildsPath: Builds/Android
             - uses: game-ci/unity-builder@v4
               id: build_debug
               with:
@@ -156,17 +156,17 @@ jobs:
                   fi
                   mv Builds/Android/Decantra-release.apk "Builds/Android/decantra-${version}.apk"
                   mv Builds/Android/Decantra-debug.apk "Builds/Android/decantra-${version}-debug.apk"
-                                    mv Builds/Android/Decantra-release.aab "Builds/Android/decantra-${version}.aab"
+                  mv Builds/Android/Decantra-release.aab "Builds/Android/decantra-${version}.aab"
             - name: Verify APKs are readable
               run: |
                   version="${{ steps.build_release.outputs.buildVersion }}"
                   test -r "Builds/Android/decantra-${version}.apk"
                   test -r "Builds/Android/decantra-${version}-debug.apk"
-                        - name: Verify AAB is readable and non-empty
-                            run: |
-                                    version="${{ steps.build_release.outputs.buildVersion }}"
-                                    test -r "Builds/Android/decantra-${version}.aab"
-                                    test -s "Builds/Android/decantra-${version}.aab"
+            - name: Verify AAB is readable and non-empty
+              run: |
+                  version="${{ steps.build_release.outputs.buildVersion }}"
+                  test -r "Builds/Android/decantra-${version}.aab"
+                  test -s "Builds/Android/decantra-${version}.aab"
             - uses: actions/upload-artifact@v4
               with:
                   name: Decantra-Android-Release
@@ -175,10 +175,10 @@ jobs:
               with:
                   name: Decantra-Android-Debug
                   path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}-debug.apk
-                        - uses: actions/upload-artifact@v4
-                            with:
-                                    name: Decantra-Android-Release-AAB
-                                    path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}.aab
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: Decantra-Android-Release-AAB
+                  path: Builds/Android/decantra-${{ steps.build_release.outputs.buildVersion }}.aab
 
     release:
         name: Create GitHub release
@@ -216,13 +216,13 @@ jobs:
                   files: |
                       release-artifacts/decantra-*.apk
                       release-artifacts/decantra-*.aab
-            - name: Upload AAB to Google Play (internal)
-              if: env.HAS_PLAY_SERVICE == 'true'
+                        - name: Upload AAB to Google Play (internal)
+                            if: env.HAS_PLAY_SERVICE == 'true'
                             continue-on-error: true
-              uses: r0adkll/upload-google-play@v1
-              with:
-                  serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-                  packageName: uk.gleissner.decantra
-                  releaseFiles: release-artifacts/decantra-*.aab
-                  track: internal
-                  status: draft
+                            uses: r0adkll/upload-google-play@v1
+                            with:
+                                    serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+                                    packageName: uk.gleissner.decantra
+                                    releaseFiles: release-artifacts/decantra-*.aab
+                                    track: internal
+                                    status: draft
