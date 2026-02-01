@@ -21,9 +21,21 @@ namespace Decantra.Presentation
         [SerializeField] private float holdDuration = 1.0f;
         [SerializeField] private float exitDuration = 0.6f;
 
+        public void EnableScreenshotMode()
+        {
+            enterDuration = Mathf.Max(enterDuration, 0.7f);
+            holdDuration = Mathf.Max(holdDuration, 1.2f);
+            exitDuration = Mathf.Max(exitDuration, 0.7f);
+        }
+
+        public float GetCaptureDelay()
+        {
+            return enterDuration + Mathf.Min(0.35f, holdDuration * 0.5f);
+        }
+
         public IEnumerator Play()
         {
-            if (panel == null || titleText == null || canvasGroup == null)
+            if (panel == null || canvasGroup == null)
             {
                 yield break;
             }

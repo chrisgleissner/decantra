@@ -11,7 +11,8 @@
         android:usesCleartextTraffic="false">
 
         <activity
-            android:name="com.unity3d.player.UnityPlayerActivity"
+            android:name="com.unity3d.player.UnityPlayerGameActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
             android:exported="true"
             android:screenOrientation="portrait"
             android:resizeableActivity="false"

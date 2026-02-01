@@ -71,6 +71,22 @@ if [[ ! -f "${APK_PATH}" ]]; then
   exit 1
 fi
 
+PACKAGE_NAME="uk.gleissner.decantra"
+ACTIVITY_NAME="com.unity3d.player.UnityPlayerActivity"
+if command -v aapt >/dev/null 2>&1; then
+  apk_info="$(aapt dump badging "${APK_PATH}" 2>/dev/null || true)"
+  if [[ -n "${apk_info}" ]]; then
+    pkg_line="$(printf "%s" "${apk_info}" | grep -m1 "^package: " || true)"
+    if [[ -n "${pkg_line}" ]]; then
+      PACKAGE_NAME="$(printf "%s" "${pkg_line}" | sed -n "s/^package: name='\([^']\+\)'.*/\1/p")"
+    fi
+    activity_line="$(printf "%s" "${apk_info}" | grep -m1 "launchable-activity" || true)"
+    if [[ -n "${activity_line}" ]]; then
+      ACTIVITY_NAME="$(printf "%s" "${activity_line}" | sed -n "s/.*name='\([^']\+\)'.*/\1/p")"
+    fi
+  fi
+fi
+
 if [[ -z "${DEVICE_ID}" ]]; then
   DEVICE_ID="${DECANTRA_ANDROID_SERIAL:-${ANDROID_SERIAL:-}}"
 fi
@@ -85,14 +101,18 @@ fi
 mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DIR}"/*.png || true
 
+adb -s "${DEVICE_ID}" shell pm clear "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+adb -s "${DEVICE_ID}" shell rm -rf "/sdcard/Android/data/${PACKAGE_NAME}/files/DecantraScreenshots" >/dev/null 2>&1 || true
+
 adb -s "${DEVICE_ID}" install -r "${APK_PATH}"
+adb -s "${DEVICE_ID}" shell pm enable "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 
 extras=(--ez decantra_screenshots true)
 if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
   extras+=(--ez decantra_screenshots_only true)
 fi
 
-adb -s "${DEVICE_ID}" shell am start -n uk.gleissner.decantra/com.unity3d.player.UnityPlayerActivity "${extras[@]}" >/dev/null
+adb -s "${DEVICE_ID}" shell am start -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null
 
 expected=(
   "screenshot-01-launch.png"
@@ -132,13 +152,17 @@ while true; do
 
 for file in "${expected[@]}"; do
   dest="${OUTPUT_DIR}/${file}"
-  if [[ "${run_as_ok}" == "true" ]]; then
-    adb -s "${DEVICE_ID}" exec-out run-as uk.gleissner.decantra cat "${remote_dir}/${file}" > "${dest}"
-  else
-    adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/uk.gleissner.decantra/${remote_dir}/${file}" "${dest}" >/dev/null
-  fi
+  pulled=false
+  for attempt in 1 2 3; do
+    adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/${PACKAGE_NAME}/${remote_dir}/${file}" "${dest}" >/dev/null && pulled=true || true
+    if [[ -s "${dest}" ]]; then
+      pulled=true
+      break
+    fi
+    sleep 0.5
+  done
 
-  if [[ ! -s "${dest}" ]]; then
+  if [[ "${pulled}" != "true" || ! -s "${dest}" ]]; then
     echo "Screenshot missing or empty: ${dest}" >&2
     exit 1
   fi

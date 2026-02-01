@@ -101,12 +101,16 @@ namespace Decantra.Presentation
 
         private IEnumerator CaptureLaunchScreenshot(string outputDir)
         {
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
             var intro = UnityEngine.Object.FindFirstObjectByType<IntroBanner>();
             if (intro != null)
             {
+                intro.EnableScreenshotMode();
                 StartCoroutine(intro.Play());
-                yield return new WaitForSeconds(0.55f);
+                yield return new WaitForSeconds(intro.GetCaptureDelay());
             }
+            yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[0]));
         }
 
@@ -118,8 +122,10 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
             controller.LoadLevel(1, 10991);
-            yield return new WaitForSeconds(0.25f);
+            yield return new WaitForSeconds(0.8f);
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[1]));
         }
@@ -134,13 +140,20 @@ namespace Decantra.Presentation
             }
 
             bool complete = false;
+            banner.EnableScreenshotMode();
             banner.Show(2, 4, 280, PerformanceGrade.A, false, () => { }, () => complete = true);
-            yield return new WaitForSeconds(0.45f);
+            yield return WaitForInterstitialVisible();
+            yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[2]));
-            if (!complete)
+            float timeout = 4f;
+            float elapsed = 0f;
+            while (!complete && elapsed < timeout)
             {
-                yield return new WaitForSeconds(0.35f);
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
             }
+            banner.HideImmediate();
+            yield return WaitForInterstitialHidden();
         }
 
         private IEnumerator CaptureAdvancedLevelScreenshot(GameController controller, string outputDir)
@@ -151,10 +164,47 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
             controller.LoadLevel(12, 473921);
-            yield return new WaitForSeconds(0.3f);
+            yield return new WaitForSeconds(0.9f);
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[3]));
+        }
+
+        private static void HideInterstitialIfAny()
+        {
+            var banner = UnityEngine.Object.FindFirstObjectByType<LevelCompleteBanner>();
+            if (banner != null)
+            {
+                banner.HideImmediate();
+            }
+        }
+
+        private static IEnumerator WaitForInterstitialHidden()
+        {
+            var banner = UnityEngine.Object.FindFirstObjectByType<LevelCompleteBanner>();
+            if (banner == null) yield break;
+            float timeout = 2f;
+            float elapsed = 0f;
+            while (banner.IsVisible && elapsed < timeout)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+
+        private static IEnumerator WaitForInterstitialVisible()
+        {
+            var banner = UnityEngine.Object.FindFirstObjectByType<LevelCompleteBanner>();
+            if (banner == null) yield break;
+            float timeout = 2f;
+            float elapsed = 0f;
+            while (!banner.IsVisible && elapsed < timeout)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
         }
 
         private IEnumerator CaptureScreenshot(string path)

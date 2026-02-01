@@ -23,6 +23,9 @@ namespace Decantra.App.Editor
         [MenuItem("Decantra/Build/Android Debug APK")]
         public static void BuildDebugApk()
         {
+            PlayerSettings.Android.targetArchitectures =
+                AndroidArchitecture.ARM64 | AndroidArchitecture.X86_64;
+            PlayerSettings.Android.buildApkPerCpuArchitecture = false;
             BuildApk(BuildOptions.Development);
         }
 
@@ -149,6 +152,8 @@ namespace Decantra.App.Editor
             string artifactLabel
         )
         {
+            PlayerSettings.Android.targetSdkVersion =
+                AndroidSdkVersions.AndroidApiLevel35;
             ConfigureAndroidToolchainFromEnv();
             ConfigureAndroidSigningFromEnv();
             string[] args = Environment.GetCommandLineArgs();

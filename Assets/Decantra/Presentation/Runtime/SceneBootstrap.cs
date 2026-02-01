@@ -297,34 +297,15 @@ namespace Decantra.Presentation
             brandRect.anchorMin = new Vector2(0.5f, 1f);
             brandRect.anchorMax = new Vector2(0.5f, 1f);
             brandRect.pivot = new Vector2(0.5f, 1f);
-            brandRect.anchoredPosition = new Vector2(0, -20);
-            brandRect.sizeDelta = new Vector2(600, 100);
+            brandRect.anchoredPosition = new Vector2(0, -18);
+            brandRect.sizeDelta = new Vector2(720, 190);
 
+            var brandSprite = Resources.Load<Sprite>("DecantraBanner");
             var brandImage = brandGo.AddComponent<Image>();
-            brandImage.sprite = GetRoundedSprite();
-            brandImage.type = Image.Type.Sliced;
-            brandImage.color = new Color(1f, 1f, 1f, 0.15f);
+            brandImage.sprite = brandSprite;
+            brandImage.preserveAspect = true;
+            brandImage.color = Color.white;
             brandImage.raycastTarget = false;
-
-            var brandLayout = brandGo.AddComponent<HorizontalLayoutGroup>();
-            brandLayout.childAlignment = TextAnchor.MiddleCenter;
-            brandLayout.childForceExpandHeight = false;
-            brandLayout.childForceExpandWidth = false;
-            brandLayout.spacing = 12f;
-            brandLayout.padding = new RectOffset(16, 16, 8, 8);
-
-            var logoSprite = Resources.Load<Sprite>("DecantraLogo");
-            var logoGo = CreateUiChild(brandGo.transform, "TitleLogo");
-            var logoImage = logoGo.AddComponent<Image>();
-            logoImage.sprite = logoSprite;
-            logoImage.preserveAspect = true;
-            logoImage.color = Color.white;
-            var logoRect = logoGo.GetComponent<RectTransform>();
-            logoRect.sizeDelta = new Vector2(72, 72);
-
-            var titleText = CreateTitleText(brandGo.transform, "TitleText", "Decantra");
-            titleText.fontSize = 56;
-            titleText.color = new Color(1f, 0.97f, 0.9f, 1f);
 
             var hudViewGo = CreateUiChild(hudRoot.transform, "HudView");
             var hudView = hudViewGo.GetComponent<HudView>() ?? hudViewGo.AddComponent<HudView>();
@@ -334,7 +315,7 @@ namespace Decantra.Presentation
             topRect.anchorMin = new Vector2(0.5f, 1f);
             topRect.anchorMax = new Vector2(0.5f, 1f);
             topRect.pivot = new Vector2(0.5f, 1f);
-            topRect.anchoredPosition = new Vector2(0, -140);
+            topRect.anchoredPosition = new Vector2(0, -232);
             topRect.sizeDelta = new Vector2(1000, 150);
 
             var topLayout = topHud.AddComponent<HorizontalLayoutGroup>();
@@ -354,7 +335,7 @@ namespace Decantra.Presentation
             secondaryRect.anchorMin = new Vector2(0.5f, 1f);
             secondaryRect.anchorMax = new Vector2(0.5f, 1f);
             secondaryRect.pivot = new Vector2(0.5f, 1f);
-            secondaryRect.anchoredPosition = new Vector2(0, -320);
+            secondaryRect.anchoredPosition = new Vector2(0, -406);
             secondaryRect.sizeDelta = new Vector2(800, 150);
 
             var secondaryLayout = secondaryHud.AddComponent<HorizontalLayoutGroup>();
@@ -388,7 +369,7 @@ namespace Decantra.Presentation
             SetPrivateField(hudView, "scoreText", scoreText);
             SetPrivateField(hudView, "highScoreText", highScoreText);
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
-            SetPrivateField(hudView, "titleText", titleText);
+            SetPrivateField<Text>(hudView, "titleText", null);
 
             return hudView;
         }
@@ -435,7 +416,7 @@ namespace Decantra.Presentation
             var shadow = shadowGo.AddComponent<Image>();
             shadow.sprite = rounded;
             shadow.type = Image.Type.Sliced;
-            shadow.color = new Color(0f, 0f, 0f, 0.15f);
+            shadow.color = new Color(0f, 0f, 0f, 0.28f);
             shadow.raycastTarget = false;
             var shadowRect = shadowGo.GetComponent<RectTransform>();
             shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -448,7 +429,7 @@ namespace Decantra.Presentation
             var outline = outlineGo.AddComponent<Image>();
             outline.sprite = rounded;
             outline.type = Image.Type.Sliced;
-            outline.color = new Color(0.55f, 0.6f, 0.68f, 0.85f);
+            outline.color = new Color(0.72f, 0.78f, 0.88f, 0.92f);
             outline.raycastTarget = false;
             var outlineRect = outlineGo.GetComponent<RectTransform>();
             outlineRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -460,7 +441,7 @@ namespace Decantra.Presentation
             var body = bodyGo.AddComponent<Image>();
             body.sprite = rounded;
             body.type = Image.Type.Sliced;
-            body.color = new Color(0.5f, 0.55f, 0.65f, 0.12f);
+            body.color = new Color(0.56f, 0.62f, 0.74f, 0.2f);
             body.raycastTarget = false;
             var bodyRect = bodyGo.GetComponent<RectTransform>();
             bodyRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -487,7 +468,7 @@ namespace Decantra.Presentation
             var highlight = highlightGo.AddComponent<Image>();
             highlight.sprite = rounded;
             highlight.type = Image.Type.Sliced;
-            highlight.color = new Color(1f, 1f, 1f, 0.08f);
+            highlight.color = new Color(1f, 1f, 1f, 0.12f);
             highlight.raycastTarget = false;
             var highlightRect = highlightGo.GetComponent<RectTransform>();
             highlightRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -495,6 +476,19 @@ namespace Decantra.Presentation
             highlightRect.pivot = new Vector2(0.5f, 0.5f);
             highlightRect.sizeDelta = new Vector2(70, 240);
             highlightRect.anchoredPosition = new Vector2(24, 30);
+
+            var glassGo = CreateUiChild(bodyGo.transform, "GlassOverlay");
+            var glass = glassGo.AddComponent<Image>();
+            glass.sprite = rounded;
+            glass.type = Image.Type.Sliced;
+            glass.color = new Color(1f, 1f, 1f, 0.06f);
+            glass.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(120, 320);
+            glassRect.anchoredPosition = new Vector2(-8f, 18f);
 
             var neckGo = CreateUiChild(bottleGo.transform, "Neck");
             var neck = neckGo.AddComponent<Image>();
@@ -675,30 +669,21 @@ namespace Decantra.Presentation
             contentRect.anchorMin = new Vector2(0.5f, 0.5f);
             contentRect.anchorMax = new Vector2(0.5f, 0.5f);
             contentRect.pivot = new Vector2(0.5f, 0.5f);
-            contentRect.sizeDelta = new Vector2(720, 200);
+            contentRect.sizeDelta = new Vector2(720, 190);
 
-            var layout = content.AddComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = false;
-            layout.spacing = 22f;
-
-            var logoSprite = Resources.Load<Sprite>("DecantraLogo");
-            var logoGo = CreateUiChild(content.transform, "Logo");
+            var logoSprite = Resources.Load<Sprite>("DecantraFeatureGraphic")
+                ?? Resources.Load<Sprite>("DecantraLogo");
+            var logoGo = CreateUiChild(content.transform, "FeatureGraphic");
             var logoImage = logoGo.AddComponent<Image>();
             logoImage.sprite = logoSprite;
             logoImage.preserveAspect = true;
             logoImage.color = Color.white;
             var logoRect = logoGo.GetComponent<RectTransform>();
-            logoRect.sizeDelta = new Vector2(110, 110);
-
-            var text = CreateTitleText(content.transform, "IntroTitle", "DECANTRA");
-            text.fontSize = 62;
-            text.color = new Color(1f, 0.96f, 0.85f, 1f);
+            logoRect.sizeDelta = new Vector2(720, 190);
 
             var banner = root.AddComponent<IntroBanner>();
             SetPrivateField(banner, "panel", panelRect);
-            SetPrivateField(banner, "titleText", text);
+            SetPrivateField<Text>(banner, "titleText", null);
             SetPrivateField(banner, "canvasGroup", group);
             return banner;
         }
@@ -828,8 +813,35 @@ namespace Decantra.Presentation
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
-            image.color = new Color(1f, 1f, 1f, 0.18f);
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
             image.raycastTarget = false;
+
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(308, 148);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(292, 64);
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
 
             var rect = panel.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(300, 140);
@@ -1021,13 +1033,36 @@ namespace Decantra.Presentation
         {
             var root = CreateUiChild(parent, "LevelBanner");
             var rect = root.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(760, 240);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
 
             var group = root.AddComponent<CanvasGroup>();
             group.alpha = 0f;
+
+            var dimmerGo = CreateUiChild(root.transform, "Dimmer");
+            var dimmerRect = dimmerGo.GetComponent<RectTransform>();
+            dimmerRect.anchorMin = Vector2.zero;
+            dimmerRect.anchorMax = Vector2.one;
+            dimmerRect.offsetMin = Vector2.zero;
+            dimmerRect.offsetMax = Vector2.zero;
+            var dimmerImage = dimmerGo.AddComponent<Image>();
+            dimmerImage.color = new Color(0f, 0f, 0f, 0f);
+            dimmerImage.raycastTarget = false;
+
+            var blurGo = CreateUiChild(root.transform, "BlurBackdrop");
+            var blurRect = blurGo.GetComponent<RectTransform>();
+            blurRect.anchorMin = Vector2.zero;
+            blurRect.anchorMax = Vector2.one;
+            blurRect.offsetMin = Vector2.zero;
+            blurRect.offsetMax = Vector2.zero;
+            var blurImage = blurGo.AddComponent<RawImage>();
+            blurImage.color = new Color(1f, 1f, 1f, 0f);
+            blurImage.raycastTarget = false;
+            blurGo.transform.SetSiblingIndex(dimmerGo.transform.GetSiblingIndex());
+            dimmerGo.transform.SetSiblingIndex(blurGo.transform.GetSiblingIndex() + 1);
 
             var panel = CreateUiChild(root.transform, "Panel");
             var panelRect = panel.GetComponent<RectTransform>();
@@ -1075,6 +1110,8 @@ namespace Decantra.Presentation
             SetPrivateField(banner, "scoreText", scoreText);
             SetPrivateField(banner, "levelText", levelText);
             SetPrivateField(banner, "starBurst", burstImage);
+            SetPrivateField(banner, "dimmer", dimmerImage);
+            SetPrivateField(banner, "blurBackdrop", blurImage);
             SetPrivateField(banner, "canvasGroup", group);
             return banner;
         }

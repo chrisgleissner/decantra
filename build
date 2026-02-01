@@ -59,6 +59,10 @@ have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+find_adb_device() {
+  adb devices | awk 'NR>1 && $2=="device" {print $1; exit}'
+}
+
 ensure_adb_daemon() {
   local attempt=1
   local max_attempts=4
@@ -585,6 +589,15 @@ fi
 if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
   ensure_command adb android-tools-adb
   ensure_adb_daemon
+  if [[ -z "${DEVICE_ID}" ]]; then
+    DEVICE_ID="$(find_adb_device || true)"
+  fi
+  if [[ -z "${DEVICE_ID}" ]]; then
+    log "No adb devices found. Starting Android emulator."
+    "${ROOT_DIR}/tools/android-emulator.sh" --no-prereqs
+    ensure_adb_daemon
+    DEVICE_ID="$(find_adb_device || true)"
+  fi
   APK_PATH="${APK_PATH:-$APK_DEFAULT}"
   log "Capturing Play Store screenshots"
   screenshot_args=("--apk" "${APK_PATH}")
