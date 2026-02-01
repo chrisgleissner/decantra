@@ -73,28 +73,21 @@ namespace Decantra.Presentation.View
             // Reduce overlay opacity to prevent color washout
             if (glassFront != null)
             {
-                var c = glassFront.color;
-                glassFront.color = new Color(c.r, c.g, c.b, 0.05f); // Very faint glass
-                glassFront.raycastTarget = false;
+                // Disable completely to verify
+                glassFront.gameObject.SetActive(false);
             }
             if (curvedHighlight != null)
             {
-                var c = curvedHighlight.color;
-                curvedHighlight.color = new Color(c.r, c.g, c.b, 0.2f); // Retain some specularity
-                curvedHighlight.raycastTarget = false;
+                // Disable completely
+                curvedHighlight.gameObject.SetActive(false);
             }
             if (glassBack != null)
             {
                 var c = glassBack.color;
-                glassBack.color = new Color(c.r, c.g, c.b, 0.1f);
-                glassBack.raycastTarget = false;
-            }
-        }
-
-        public void Initialize(int index)
-        {
-            Index = index;
-        }
+                glassBack.color = new Color(c.r, c.g, c.b, 0.05f);
+                {
+                    Index = index;
+                }
 
         public void Render(Bottle bottle)
         {
