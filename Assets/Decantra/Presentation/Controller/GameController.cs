@@ -384,8 +384,9 @@ namespace Decantra.Presentation.Controller
             if (hudView != null)
             {
                 int total = _scoreSession?.TotalScore ?? 0;
-                int provisional = _scoreSession?.ProvisionalScore ?? 0;
-                int displayScore = total + provisional;
+                // Requirement #5: Score applies at specific moment in interstitial.
+                // We show only TotalScore during gameplay (Provisional hidden).
+                int displayScore = total;
                 int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
                 hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel);
@@ -420,34 +421,42 @@ namespace Decantra.Presentation.Controller
 
             _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
             int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
-            _scoreSession?.CommitLevel();
+            // CommitLevel delayed to onScoreApply
             _completionStreak++;
 
             bool finished = false;
-            if (_progress != null)
+
+            Action onScoreApply = () =>
             {
-                _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
-                _progress.CurrentLevel = nextLevel;
-                _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
-                _progress.CurrentScore = _scoreSession?.TotalScore ?? _progress.CurrentScore;
-                if (_progress.CurrentScore > _progress.HighScore)
+                _scoreSession?.CommitLevel();
+                if (_progress != null)
                 {
-                    _progress.HighScore = _progress.CurrentScore;
+                    _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
+                    _progress.CurrentLevel = nextLevel;
+                    _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
+                    _progress.CurrentScore = _scoreSession?.TotalScore ?? _progress.CurrentScore;
+                    if (_progress.CurrentScore > _progress.HighScore)
+                    {
+                        _progress.HighScore = _progress.CurrentScore;
+                    }
+
+                    PerformanceTracker.UpdateBest(_progress, new Decantra.Domain.Persistence.LevelPerformanceRecord
+                    {
+                        LevelIndex = _state.LevelIndex,
+                        BestMoves = _state.MovesUsed,
+                        BestEfficiency = efficiency,
+                        BestGrade = _lastGrade
+                    });
+
+                    _progressStore.Save(_progress);
                 }
+                Render();
+                if (hudView != null) hudView.AnimateScoreUpdate();
+            };
 
-                PerformanceTracker.UpdateBest(_progress, new Decantra.Domain.Persistence.LevelPerformanceRecord
-                {
-                    LevelIndex = _state.LevelIndex,
-                    BestMoves = _state.MovesUsed,
-                    BestEfficiency = efficiency,
-                    BestGrade = _lastGrade
-                });
-
-                _progressStore.Save(_progress);
-            }
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _lastGrade, _sfxEnabled, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _lastGrade, _sfxEnabled, onScoreApply, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -457,6 +466,7 @@ namespace Decantra.Presentation.Controller
             }
             else
             {
+                onScoreApply();
                 yield return new WaitForSeconds(0.5f);
             }
 
@@ -688,13 +698,19 @@ namespace Decantra.Presentation.Controller
             if (levelPanelButton != null)
             {
                 levelPanelButton.onClick.RemoveAllListeners();
-                levelPanelButton.onClick.AddListener(ToggleShareButton);
+                // Fix for Regression #6: Share immediately
+                levelPanelButton.onClick.AddListener(ShareCurrentLevel);
             }
 
+            // ShareButton logic removed as UI element is removed
             if (shareButton != null)
             {
                 shareButton.onClick.RemoveAllListeners();
-                shareButton.onClick.AddListener(ShareCurrentLevel);
+                shareButton.gameObject.SetActive(false);
+            }
+            if (shareButtonRoot != null)
+            {
+                shareButtonRoot.SetActive(false);
             }
 
             SetShareButtonVisible(false);

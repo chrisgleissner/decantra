@@ -42,6 +42,7 @@ namespace Decantra.Presentation
         private Image[] _sparkles;
         private Image[] _flyingStars;
         private bool _effectsReady;
+        private Action _onScoreApply;
 
         private static Sprite _sparkleSpriteCache;
         private static Sprite _glistenSpriteCache;
@@ -116,15 +117,17 @@ namespace Decantra.Presentation
             }
         }
 
-        public void Show(int level, int stars, int awardedScore, PerformanceGrade grade, bool sfxEnabled, Action onComplete)
+        public void Show(int level, int stars, int awardedScore, PerformanceGrade grade, bool sfxEnabled, Action onScoreApply, Action onComplete)
         {
             if (panel == null || canvasGroup == null || starsText == null || levelText == null)
             {
+                onScoreApply?.Invoke();
                 onComplete?.Invoke();
                 return;
             }
 
             StopAllCoroutines();
+            _onScoreApply = onScoreApply;
             int clampedStars = Mathf.Clamp(stars, 1, 5);
             _lastStarCount = clampedStars;
             starsText.text = new string('★', clampedStars);
@@ -175,6 +178,8 @@ namespace Decantra.Presentation
             panel.anchoredPosition = Vector2.zero;
             if (activeText == starsText)
             {
+                _onScoreApply?.Invoke();
+                _onScoreApply = null;
                 yield return AnimateCelebration();
             }
             if (holdDuration > 0f)

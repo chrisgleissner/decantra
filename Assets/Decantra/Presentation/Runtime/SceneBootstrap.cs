@@ -348,7 +348,23 @@ namespace Decantra.Presentation
             var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out _);
 
             _ = AddPanelButton(levelPanel);
-            _ = CreateShareButton(topHud.transform);
+
+            var secondaryHud = CreateUiChild(safeRoot.transform, "SecondaryHud");
+            var secondaryRect = secondaryHud.GetComponent<RectTransform>();
+            secondaryRect.anchorMin = new Vector2(0.5f, 1f);
+            secondaryRect.anchorMax = new Vector2(0.5f, 1f);
+            secondaryRect.pivot = new Vector2(0.5f, 1f);
+            secondaryRect.anchoredPosition = new Vector2(0, -320);
+            secondaryRect.sizeDelta = new Vector2(800, 150);
+
+            var secondaryLayout = secondaryHud.AddComponent<HorizontalLayoutGroup>();
+            secondaryLayout.childAlignment = TextAnchor.MiddleCenter;
+            secondaryLayout.childForceExpandWidth = false;
+            secondaryLayout.childForceExpandHeight = false;
+            secondaryLayout.spacing = 32f;
+
+            CreateResetButton(secondaryHud.transform);
+            CreateRestartButton(secondaryHud.transform);
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
@@ -366,8 +382,6 @@ namespace Decantra.Presentation
 
             var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH", out _);
             var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LV", out _);
-            CreateResetButton(bottomHud.transform);
-            CreateRestartButton(bottomHud.transform);
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -387,7 +401,7 @@ namespace Decantra.Presentation
             areaRect.anchorMax = new Vector2(1, 1);
             areaRect.pivot = new Vector2(0.5f, 0.5f);
             areaRect.offsetMin = new Vector2(0, 90);
-            areaRect.offsetMax = new Vector2(0, -300);
+            areaRect.offsetMax = new Vector2(0, -500);
 
             var gridRoot = CreateUiChild(area.transform, "BottleGrid");
             var gridRect = gridRoot.GetComponent<RectTransform>();
@@ -556,17 +570,19 @@ namespace Decantra.Presentation
             var go = CreateUiChild(parent, name);
             var text = go.GetComponent<Text>() ?? go.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 96;
-            text.alignment = TextAnchor.MiddleCenter;
+            text.fontSize = 80;
+            text.alignment = TextAnchor.MiddleLeft;
             text.fontStyle = FontStyle.Bold;
             text.color = Color.white;
             text.text = value;
             text.supportRichText = true;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.9f));
 
             var rect = go.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(900, 90);
+            rect.sizeDelta = new Vector2(400, 90);
             return text;
         }
 
@@ -823,7 +839,7 @@ namespace Decantra.Presentation
             element.flexibleWidth = 1f;
 
             var text = CreateHudText(panel.transform, "Value");
-            text.fontSize = 38;
+            text.fontSize = 56;
             text.text = label;
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
@@ -887,9 +903,9 @@ namespace Decantra.Presentation
             image.color = new Color(1f, 1f, 1f, 0.22f);
 
             var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(200, 140);
+            rect.sizeDelta = new Vector2(300, 140);
             var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 200;
+            element.minWidth = 300;
             element.minHeight = 140;
 
             var button = panel.AddComponent<Button>();
@@ -912,16 +928,16 @@ namespace Decantra.Presentation
             image.color = new Color(1f, 1f, 1f, 0.18f);
 
             var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(240, 140);
+            rect.sizeDelta = new Vector2(300, 140);
             var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 240;
+            element.minWidth = 300;
             element.minHeight = 140;
 
             var button = panel.AddComponent<Button>();
             button.targetGraphic = image;
 
             var text = CreateHudText(panel.transform, "Label");
-            text.fontSize = 30;
+            text.fontSize = 32;
             text.text = "RESTART";
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
