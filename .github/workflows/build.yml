@@ -101,6 +101,40 @@ jobs:
                   key: Library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
                   restore-keys: |
                       Library-${{ runner.os }}-
+            - name: Prepare keystore (optional)
+              env:
+                  KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+                  KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+                  KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+                  KEYSTORE_STORE_FILE: ${{ secrets.KEYSTORE_STORE_FILE }}
+              run: |
+                  HAS_KEYSTORE=false
+                  if [[ -n "$KEYSTORE_STORE_FILE" ]]; then
+                      if [[ -f "$KEYSTORE_STORE_FILE" ]]; then
+                          echo "Using keystore at $KEYSTORE_STORE_FILE"
+                      else
+                          echo "$KEYSTORE_STORE_FILE" | base64 -d > "$RUNNER_TEMP/decantra-release.keystore" 2>/dev/null || true
+                          if [[ -s "$RUNNER_TEMP/decantra-release.keystore" ]]; then
+                              KEYSTORE_STORE_FILE="$RUNNER_TEMP/decantra-release.keystore"
+                              echo "Decoded keystore secret to $KEYSTORE_STORE_FILE"
+                          else
+                              echo "Keystore secret present but could not decode to file; skipping custom keystore."
+                              KEYSTORE_STORE_FILE=""
+                          fi
+                      fi
+                  fi
+
+                  if [[ -n "$KEYSTORE_STORE_FILE" && -f "$KEYSTORE_STORE_FILE" && -n "$KEYSTORE_STORE_PASSWORD" && -n "$KEYSTORE_KEY_ALIAS" ]]; then
+                      HAS_KEYSTORE=true
+                      echo "KEYSTORE_STORE_FILE=$KEYSTORE_STORE_FILE" >> "$GITHUB_ENV"
+                      echo "KEYSTORE_STORE_PASSWORD=$KEYSTORE_STORE_PASSWORD" >> "$GITHUB_ENV"
+                      echo "KEYSTORE_KEY_PASSWORD=$KEYSTORE_KEY_PASSWORD" >> "$GITHUB_ENV"
+                      echo "KEYSTORE_KEY_ALIAS=$KEYSTORE_KEY_ALIAS" >> "$GITHUB_ENV"
+                  else
+                      echo "Keystore secrets missing or incomplete; proceeding with default signing."
+                  fi
+
+                  echo "HAS_KEYSTORE=$HAS_KEYSTORE" >> "$GITHUB_ENV"
             - name: Select versioning strategy
               run: |
                   if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
@@ -216,13 +250,13 @@ jobs:
                   files: |
                       release-artifacts/decantra-*.apk
                       release-artifacts/decantra-*.aab
-                        - name: Upload AAB to Google Play (internal)
-                            if: env.HAS_PLAY_SERVICE == 'true'
-                            continue-on-error: true
-                            uses: r0adkll/upload-google-play@v1
-                            with:
-                                    serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-                                    packageName: uk.gleissner.decantra
-                                    releaseFiles: release-artifacts/decantra-*.aab
-                                    track: internal
-                                    status: draft
+            - name: Upload AAB to Google Play (internal)
+              if: env.HAS_PLAY_SERVICE == 'true'
+              continue-on-error: true
+              uses: r0adkll/upload-google-play@v1
+              with:
+                  serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+                  packageName: uk.gleissner.decantra
+                  releaseFiles: release-artifacts/decantra-*.aab
+                  track: internal
+                  status: draft

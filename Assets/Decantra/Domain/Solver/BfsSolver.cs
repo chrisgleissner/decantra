@@ -13,6 +13,7 @@ using System.Diagnostics;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
 
+
 namespace Decantra.Domain.Solver
 {
     public sealed class BfsSolver
@@ -61,23 +62,33 @@ namespace Decantra.Domain.Solver
             if (initial == null) throw new ArgumentNullException(nameof(initial));
 
             var visited = new HashSet<string>();
-            var queue = new Queue<Node>();
+            // Use PriorityQueue for A* Search. 
+            // Comparator sorts by f = g + h. 
+            // If f is equal, prefer higher g (depth) for DFS-like behavior (often faster) or lower h.
+            var queue = new PriorityQueue<Node>(new NodeComparer());
             var stopwatch = Stopwatch.StartNew();
 
             var startKey = StateEncoder.EncodeCanonical(initial);
             visited.Add(startKey);
-            queue.Enqueue(new Node(CloneState(initial), 0, null, default));
+
+            // Initial node: g=0, h=Heuristic
+            queue.Enqueue(new Node(CloneState(initial), 0, CalculateHeuristic(initial), null, default));
 
             int processed = 0;
+            // Adaptive limit: if unlimited, allow very deep search (10M nodes) to handle Level 153+
+            int safetyLimit = useLimits ? maxNodes : 10_000_000;
+
             while (queue.Count > 0)
             {
-                if (useLimits && (processed >= maxNodes || stopwatch.ElapsedMilliseconds > maxMillis))
+                if (processed >= safetyLimit || (useLimits && stopwatch.ElapsedMilliseconds > maxMillis))
                 {
-                    return new SolverResult(-1, new List<Move>());
+                    // If we hit the safety limit, we return failure to avoid hanging
+                    return new SolverResult(-1, new List<Move>(), SolverStatus.Timeout);
                 }
 
                 var node = queue.Dequeue();
                 processed++;
+
                 if (node.State.IsWin())
                 {
                     return BuildResult(node, trackPath);
@@ -95,12 +106,59 @@ namespace Decantra.Domain.Solver
                     var key = StateEncoder.EncodeCanonical(next);
                     if (visited.Add(key))
                     {
-                        queue.Enqueue(new Node(next, node.Depth + 1, trackPath ? node : null, trackPath ? new Move(move.Source, move.Target, poured) : default));
+                        int g = node.Depth + 1;
+                        int h = CalculateHeuristic(next);
+                        // Optimization: if h=0 (and we think it's admissible), it's a win? 
+                        // IsWin check covers it.
+                        queue.Enqueue(new Node(next, g, h, trackPath ? node : null, trackPath ? new Move(move.Source, move.Target, poured) : default));
                     }
                 }
             }
 
-            return new SolverResult(-1, new List<Move>());
+            return new SolverResult(-1, new List<Move>(), SolverStatus.Unsolvable);
+        }
+
+        private static int CalculateHeuristic(LevelState state)
+        {
+            // Heuristic: Sum of Color Chunks - Unique Colors
+            // This estimates moves needed to merge all chunks of the same color.
+            // Example: [Red], [Red] -> 2 chunks, 1 unique. Cost >= 1.
+            // [Red, Blue], [Red] -> 3 chunks, 2 unique. Cost >= 1.
+
+            int chunks = 0;
+            // Use a bitmask for simple color tracking (assuming max 32 colors, ColorId is small enum)
+            int uniqueColorMask = 0;
+
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                var bottle = state.Bottles[i];
+                if (bottle.IsEmpty) continue;
+
+                var slots = bottle.Slots;
+                ColorId? lastColor = null;
+
+                for (int s = 0; s < slots.Count; s++)
+                {
+                    var color = slots[s];
+                    if (!color.HasValue) break;
+
+                    if (lastColor == null || color.Value != lastColor.Value)
+                    {
+                        chunks++;
+                        uniqueColorMask |= (1 << (int)color.Value);
+                    }
+                    lastColor = color;
+                }
+            }
+
+            int uniqueColors = 0;
+            while (uniqueColorMask != 0)
+            {
+                uniqueColors++;
+                uniqueColorMask &= (uniqueColorMask - 1);
+            }
+
+            return chunks - uniqueColors;
         }
 
         private static SolverResult BuildResult(Node node, bool trackPath)
@@ -130,6 +188,8 @@ namespace Decantra.Domain.Solver
                 for (int j = 0; j < state.Bottles.Count; j++)
                 {
                     if (i == j) continue;
+                    // Optimization: GetPourAmount calls IsValidMove which checks a lot.
+                    // We can duplicate some checks here for speed if needed.
                     int amount = MoveRules.GetPourAmount(state, i, j);
                     if (amount <= 0) continue;
 
@@ -150,18 +210,39 @@ namespace Decantra.Domain.Solver
 
         private sealed class Node
         {
-            public Node(LevelState state, int depth, Node parent, Move moveFromParent)
+            public Node(LevelState state, int depth, int h, Node? parent, Move moveFromParent)
             {
                 State = state;
                 Depth = depth;
+                H = h;
+                F = depth + h;
                 Parent = parent;
                 MoveFromParent = moveFromParent;
             }
 
             public LevelState State { get; }
             public int Depth { get; }
-            public Node Parent { get; }
+            public int H { get; }
+            public int F { get; }
+            public Node? Parent { get; }
             public Move MoveFromParent { get; }
+        }
+
+        private sealed class NodeComparer : IComparer<Node>
+        {
+            public int Compare(Node x, Node y)
+            {
+                // Prefer lower F
+                int cmp = x.F.CompareTo(y.F);
+                if (cmp != 0) return cmp;
+
+                // Tie-breaker: Prefer HIGHER Depth (g) -> This makes it DFS-like for equal costs, 
+                // deeper nodes are processed first. This helps finding deeper solutions faster than pure BFS.
+                // Or prefer LOWER H? Same thing basically since F=G+H.
+                // If F is same, Higher G => Lower H.
+                return y.Depth.CompareTo(x.Depth);
+            }
         }
     }
 }
+

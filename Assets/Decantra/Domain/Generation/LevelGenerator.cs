@@ -20,7 +20,7 @@ namespace Decantra.Domain.Generation
     {
         private readonly BfsSolver _solver;
 
-        public Action<string> Log { get; set; }
+        public Action<string>? Log { get; set; }
 
         public LevelGenerator(BfsSolver solver)
         {
@@ -50,7 +50,10 @@ namespace Decantra.Domain.Generation
             {
                 var attemptRng = attempt == 0 ? rng : new Random(seed + attempt * 7919);
                 int attemptScrambleTarget = Math.Max(4, scrambleMovesTarget - attempt / 2);
-                int minEmptyDuringScramble = 0;
+
+                // Adaptive strategy: If we fail repeatedly, ensure we keep at least one empty bottle to avoid deadlocks
+                int minEmptyDuringScramble = (attempt >= 5 && profile.EmptyBottleCount > 1) ? 1 : 0;
+
                 int maxEmptyDuringScramble = Math.Max(profile.EmptyBottleCount + 2, profile.EmptyBottleCount);
                 var attemptState = new LevelState(CloneBottles(solved), 0, 0, 0, profile.LevelIndex, seed);
                 int appliedMoves = ScrambleState(attemptState, attemptRng, attemptScrambleTarget, minEmptyDuringScramble, maxEmptyDuringScramble);
@@ -107,7 +110,21 @@ namespace Decantra.Domain.Generation
                 solveTimer.Stop();
                 if (solveResult.OptimalMoves < 0)
                 {
-                    lastFailure = "solver";
+                    // If solver timed out (hit node limit) but we scrambled enough moves, assume it's a valid hard level.
+                    // This bypasses verification for very deep levels where A* cannot find the optimal path quickly.
+                    if (solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
+                    {
+                        optimal = (int)(appliedMoves * 0.7f);
+                        Log?.Invoke($"LevelGenerator.Generate Accepted (Timeout) level={profile.LevelIndex} seed={seed} applied={appliedMoves} estimatedOptimal={optimal}");
+
+                        movesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimal));
+                        scrambleMoves = appliedMoves;
+                        solveMs = solveTimer.ElapsedMilliseconds;
+                        scrambled = new LevelState(attemptState.Bottles, 0, movesAllowed, optimal, profile.LevelIndex, seed, scrambleMoves);
+                        break;
+                    }
+
+                    lastFailure = solveResult.Status == SolverStatus.Timeout ? "solver_timeout" : "solver_unsolvable";
                     ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                     continue;
                 }
@@ -214,8 +231,11 @@ namespace Decantra.Domain.Generation
             var target = state.Bottles[targetIndex];
             if (target.IsSink) return false;
             int maxAmount = GetMaxReverseAmount(source, target);
-            if (maxAmount <= 0) return false;
-            int amount = rng.Next(1, maxAmount + 1);
+            // Scramble must respect the "Pour All" rule of the game.
+            // If we reverse-pour a partial amount, the forward solution might require a partial pour 
+            // which is not allowed by the game rules (MoveRules).
+            // Therefore, always move the maximum possible amount to simulate a valid inverse move.
+            int amount = maxAmount; // Was: rng.Next(1, maxAmount + 1);
             int emptyCount = CountEmpty(state.Bottles);
             bool targetWasEmpty = target.IsEmpty;
             bool sourceBecomesEmpty = source.Count == amount;

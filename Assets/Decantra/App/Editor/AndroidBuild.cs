@@ -150,6 +150,7 @@ namespace Decantra.App.Editor
         )
         {
             ConfigureAndroidToolchainFromEnv();
+            ConfigureAndroidSigningFromEnv();
             string[] args = Environment.GetCommandLineArgs();
             string outputPath = defaultPath;
             for (int i = 0; i < args.Length - 1; i++)
@@ -223,6 +224,34 @@ namespace Decantra.App.Editor
             else
             {
                 SetBoolProperty(settingsType, "UseEmbeddedJdk", true);
+            }
+        }
+
+        private static void ConfigureAndroidSigningFromEnv()
+        {
+            string keystorePath = Environment.GetEnvironmentVariable("KEYSTORE_STORE_FILE");
+            string keystorePass = Environment.GetEnvironmentVariable("KEYSTORE_STORE_PASSWORD");
+            string keyAlias = Environment.GetEnvironmentVariable("KEYSTORE_KEY_ALIAS");
+            string keyPass = Environment.GetEnvironmentVariable("KEYSTORE_KEY_PASSWORD");
+
+            if (!string.IsNullOrWhiteSpace(keystorePath)
+                && File.Exists(keystorePath)
+                && !string.IsNullOrWhiteSpace(keystorePass)
+                && !string.IsNullOrWhiteSpace(keyAlias))
+            {
+                PlayerSettings.Android.useCustomKeystore = true;
+                PlayerSettings.Android.keystoreName = keystorePath;
+                PlayerSettings.Android.keystorePass = keystorePass;
+                PlayerSettings.Android.keyaliasName = keyAlias;
+                PlayerSettings.Android.keyaliasPass = string.IsNullOrWhiteSpace(keyPass)
+                    ? keystorePass
+                    : keyPass;
+                Debug.Log("AndroidBuild: Using custom keystore for release signing.");
+            }
+            else
+            {
+                PlayerSettings.Android.useCustomKeystore = false;
+                Debug.LogWarning("AndroidBuild: Keystore env vars missing or file not found; using default signing.");
             }
         }
 
