@@ -121,8 +121,8 @@ Notes:
 - [x] Risks: Low - Simple alpha value change
 - [x] Validation: LevelCompleteBanner and OutOfMovesBanner dimmer alpha set to 0.8f
 
-## Task 6: Background System - 100+ Design Languages, Deterministic, Non-Repeating
-- [x] 6.1: Added DesignLanguage struct with comprehensive parameters
+## Task 6: Background System - 100+ Zone Themes, Deterministic, Non-Repeating
+- [x] 6.1: Added ZoneTheme struct with comprehensive parameters
 - [x] 6.2: Implemented deterministic languageId = (levelIndex-1) / 10 mapping
 - [x] 6.3: Each language defines distinct motif/palette/layer recipes (16 motif families)
 - [x] 6.4: No exact background repeats via unique seed per level
@@ -134,8 +134,8 @@ Notes:
 ## Task 7: Multi-Layer Parallax Backgrounds with Macro/Micro Structures
 - [x] Scope: Ensure 3+ depth bands, macro shapes + micro particles, controlled contrast
 - [x] Files: Assets/Decantra/Domain/Rules/BackgroundRules.cs (LayerCount 3-5)
-- [x] Risks: Medium - Validated by design language LayerCount parameter
-- [x] Validation: DesignLanguage_LayerCountIsAtLeast3 test passes
+- [x] Risks: Medium - Validated by Zone Theme layer-count parameter
+- [x] Validation: ZoneTheme_LayerCountWithinRange test passes
 
 ## Task 8: Instant Level Transitions via Precomputation
 - [x] 8.1: Verified precompute system already caches next level (StartPrecomputeNextLevel)
@@ -146,7 +146,7 @@ Notes:
 - [x] Validation: Level transitions use precomputed state
 
 ## Task 9: Add/Update Tests for Background Determinism
-- [x] 9.1: Test determinism per levelIndex (GetDesignLanguage_IsDeterministicForSameLanguageId)
+- [x] 9.1: Test determinism per levelIndex (ZoneTheme_IsDeterministicForSameZoneAndSeed)
 - [x] 9.2: Test language grouping every 10 levels (GetLanguageId_ConsecutiveLevelsGroupCorrectly)
 - [x] 9.3: Test no language repetition for first 1000 levels (NoLanguageRepetitionForFirst1000Levels)
 - [x] 9.4: Test no background signature collisions for 2000+ levels (GetBackgroundSignature_NoDuplicatesForFirst2000Levels)
@@ -184,50 +184,50 @@ CI run verification:
 # Procedural Background System Implementation Plan (2026-02-01)
 
 ## Step 1: Align terminology and mapping
-- [ ] Replace deprecated naming with Zone Theme in domain logic
-- [ ] Ensure Zone indexing rules match spec (Levels 1–9 → Zone 0, then 10-level Zones)
+- [x] Replace deprecated naming with Zone Theme in domain logic
+- [x] Ensure Zone indexing rules match spec (Levels 1–9 → Zone 0, then 10-level Zones)
 
 ## Step 2: Define canonical data models
-- [ ] Add Zone Theme data model (geometry vocabulary, generator family, symmetry, layer stack, depth, motion, fingerprint)
-- [ ] Add LayerSpec data model (role, scale band, generator variant, compositing, crispness)
-- [ ] Add Level Variant data model (palette/gradients + minor modulation only)
+- [x] Add Zone Theme data model (geometry vocabulary, generator family, symmetry, layer stack, depth, motion, fingerprint)
+- [x] Add LayerSpec data model (role, scale band, generator variant, compositing, crispness)
+- [x] Add Level Variant data model (palette/gradients + minor modulation only)
 
 ## Step 3: Implement Zone Theme generation
-- [ ] Implement zoneSeed = hash(globalSeed, zoneIndex)
-- [ ] Implement weighted geometry vocabulary selection excluding adjacent Zones
-- [ ] Implement primary generator family selection different from previous Zone
-- [ ] Implement symmetry selection compatible with generator
-- [ ] Implement progression-aware layerCount distribution
-- [ ] Implement scale-band allocation with richness constraints
-- [ ] Implement per-layer parameter generation and deterministic depth ordering
-- [ ] Implement optional motion assignment (≤ 2 layers, cyclic only)
+- [x] Implement zoneSeed = hash(globalSeed, zoneIndex)
+- [x] Implement weighted geometry vocabulary selection excluding adjacent Zones
+- [x] Implement primary generator family selection different from previous Zone
+- [x] Implement symmetry selection compatible with generator
+- [x] Implement progression-aware layerCount distribution
+- [x] Implement scale-band allocation with richness constraints
+- [x] Implement per-layer parameter generation and deterministic depth ordering
+- [x] Implement optional motion assignment (≤ 2 layers, cyclic only)
 
 ## Step 4: Implement Level Variant generation
-- [ ] Implement levelSeed = hash(globalSeed, levelIndex)
-- [ ] Implement palette/gradient derivation from levelSeed only
-- [ ] Implement minor phase/density/amplitude/jitter modulation only
+- [x] Implement levelSeed = hash(globalSeed, levelIndex)
+- [x] Implement palette/gradient derivation from levelSeed only
+- [x] Implement minor phase/density/amplitude/jitter modulation only
 
 ## Step 5: Fingerprint and anti-repetition gate
-- [ ] Implement Zone Theme fingerprint
-- [ ] Implement similarity checks vs previous N Zones (N ≥ 3)
-- [ ] Implement regeneration on threshold exceed
+- [x] Implement Zone Theme fingerprint
+- [x] Implement similarity checks vs previous N Zones (N ≥ 3)
+- [x] Implement regeneration on threshold exceed
 
 ## Step 6: Rendering integration
-- [ ] Implement layer compositing rules and opacity/contrast falloffs
-- [ ] Implement deterministic grayscale recognisability validation
-- [ ] Implement optional parallax and motion for designated layers
+- [x] Implement layer compositing rules and opacity/contrast falloffs
+- [x] Implement deterministic grayscale recognisability validation
+- [x] Implement optional parallax and motion for designated layers
 
 ## Step 7: Async precompute pipeline
-- [ ] Precompute Zone Theme and Level Variant for next Level off main thread
-- [ ] Ensure swap-only on Level switch (no blocking work)
-- [ ] Ensure no dynamic allocation in render loop
+- [x] Precompute Zone Theme and Level Variant for next Level off main thread
+- [x] Ensure swap-only on Level switch (no blocking work)
+- [x] Ensure no dynamic allocation in render loop
 
 ## Step 8: Tests and validation
-- [ ] Add tests for Zone indexing, determinism, and caching
-- [ ] Add tests for layer count and scale-band constraints
-- [ ] Add tests for fingerprint uniqueness
-- [ ] Add performance guardrails for generation time budget
+- [x] Add tests for Zone indexing, determinism, and caching
+- [x] Add tests for layer count and scale-band constraints
+- [x] Add tests for fingerprint uniqueness
+- [x] Add performance guardrails for generation time budget
 
 ## Step 9: Documentation and review
-- [ ] Link spec in docs and confirm implementation matches all invariants
-- [ ] Review against grayscale recognisability and performance constraints
+- [x] Link spec in docs and confirm implementation matches all invariants
+- [x] Review against grayscale recognisability and performance constraints

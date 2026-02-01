@@ -19,3 +19,7 @@ Decantra is a mobile-first bottle-sorting puzzle game built in Unity.
 ## Privacy
 
 Read the privacy policy here: [Privacy Policy](privacy-policy.md)
+
+## Development
+
+- Procedural background system: [doc/procedural-background-spec.md](../doc/procedural-background-spec.md)

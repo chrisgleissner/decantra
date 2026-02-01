@@ -113,18 +113,6 @@ namespace Decantra.Presentation.Controller
             public float VignetteAlpha;
         }
 
-        private struct BackgroundThemeStyle
-        {
-            public float HueShift;
-            public float HueRange;
-            public float SaturationBoost;
-            public float ValueBoost;
-            public float DetailAlphaScale;
-            public float FlowAlphaScale;
-            public float ShapeAlphaScale;
-            public float VignetteAlphaScale;
-        }
-
         private struct BackgroundFamilyProfile
         {
             public float Hue;
@@ -661,7 +649,10 @@ namespace Decantra.Presentation.Controller
                 if (token.IsCancellationRequested) return null;
                 try
                 {
-                    return _generator.Generate(currentSeed, profile);
+                    var generated = _generator.Generate(currentSeed, profile);
+                    int zoneIndex = BackgroundRules.GetZoneIndex(level);
+                    BackgroundRules.GetZoneTheme(zoneIndex, currentSeed);
+                    return EnsureBackground(generated, level, currentSeed);
                 }
                 catch
                 {
@@ -1100,39 +1091,38 @@ namespace Decantra.Presentation.Controller
             if (backgroundImage == null) return;
 
             // Update structural background sprites based on level (deterministic per group/level)
-            SceneBootstrap.UpdateBackgroundSpritesForLevel(levelIndex, backgroundShapes, backgroundBubbles, backgroundLargeStructure);
+            SceneBootstrap.UpdateBackgroundSpritesForLevel(levelIndex, seed, backgroundShapes, backgroundBubbles, backgroundLargeStructure);
 
             int familyIndex = GetThemeFamilyIndex(levelIndex);
-            var profile = LevelDifficultyEngine.GetProfile(levelIndex);
-            var themeStyle = GetThemeStyle(profile.ThemeId);
+            var zoneTheme = BackgroundRules.GetZoneTheme(familyIndex, seed);
+            var levelVariant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
 
             int paletteIndex = backgroundPaletteIndex >= 0
                 ? backgroundPaletteIndex
-                : BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
+                : levelVariant.PaletteIndex;
             var palette = BackgroundPalettes[paletteIndex];
 
-            float jitter = Hash01(familyIndex, levelIndex);
-            float jitter2 = Hash01(levelIndex * 31, familyIndex ^ 0x4f1d);
+            float jitter = Mathf.Repeat(levelVariant.PhaseOffset / (Mathf.PI * 2f), 1f);
+            float jitter2 = Mathf.Repeat(levelVariant.PhaseOffset * 0.37f, 1f);
 
-            var family = GetBackgroundFamilyProfile(familyIndex);
-            float hueOffset = Mathf.Lerp(-themeStyle.HueRange, themeStyle.HueRange, jitter);
-            float hue = Mathf.Repeat(family.Hue + hueOffset + themeStyle.HueShift, 1f);
-            float sat = Mathf.Clamp01(family.Saturation + themeStyle.SaturationBoost + Mathf.Lerp(-0.03f, 0.03f, jitter2));
-            float val = Mathf.Clamp01(family.Value + themeStyle.ValueBoost + Mathf.Lerp(-0.04f, 0.04f, 1f - jitter));
+            var family = GetBackgroundFamilyProfile(familyIndex, zoneTheme, levelVariant, palette);
+            float hue = Mathf.Repeat(family.Hue, 1f);
+            float sat = Mathf.Clamp01(family.Saturation + Mathf.Lerp(-0.03f, 0.03f, jitter2));
+            float val = Mathf.Clamp01(family.Value + Mathf.Lerp(-0.04f, 0.04f, 1f - jitter));
 
             Color baseTint = Color.HSVToRGB(hue, sat, val);
             baseTint.a = 1f;
 
             Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.04f * (jitter - 0.5f)));
-            detailTint.a = Mathf.Lerp(0.1f, 0.2f, jitter2) * themeStyle.DetailAlphaScale * family.DetailAlphaScale;
+            detailTint.a = Mathf.Lerp(0.1f, 0.2f, jitter2) * family.DetailAlphaScale;
 
             Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
-            flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.75f, palette.FlowAlpha * 1.35f, jitter) * themeStyle.FlowAlphaScale * family.FlowAlphaScale;
+            flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.75f, palette.FlowAlpha * 1.35f, jitter) * family.FlowAlphaScale;
 
             Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.05f, 1f), palette.ShapeSaturation, palette.ShapeValue);
-            shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.25f, jitter2) * themeStyle.ShapeAlphaScale * family.ShapeAlphaScale;
+            shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.25f, jitter2) * family.ShapeAlphaScale;
 
-            float vignetteAlpha = palette.VignetteAlpha * themeStyle.VignetteAlphaScale * family.VignetteAlphaScale;
+            float vignetteAlpha = palette.VignetteAlpha * family.VignetteAlphaScale;
 
             float detailScale = Mathf.Lerp(1.0f, 1.2f, jitter2) * family.DetailScale;
             Vector2 detailOffset = new Vector2(Mathf.Lerp(-12f, 12f, jitter), Mathf.Lerp(6f, -8f, jitter2));
@@ -1161,42 +1151,42 @@ namespace Decantra.Presentation.Controller
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
-            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
+                Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
+                AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
 #endif
         }
 
         private static int GetThemeFamilyIndex(int levelIndex)
         {
             if (levelIndex <= 0) return 0;
-            return BackgroundRules.GetLanguageId(levelIndex);
+            return BackgroundRules.GetZoneIndex(levelIndex);
         }
 
-        private static BackgroundFamilyProfile GetBackgroundFamilyProfile(int familyIndex)
+        private static BackgroundFamilyProfile GetBackgroundFamilyProfile(int familyIndex, ZoneTheme zoneTheme, LevelVariant levelVariant, BackgroundPalette palette)
         {
-            // Use the domain-layer DesignLanguage for determinism
-            var language = BackgroundRules.GetDesignLanguage(familyIndex);
+            float hue = Mathf.Repeat(palette.Hue + levelVariant.HueShift, 1f);
+            float saturation = Mathf.Lerp(levelVariant.SaturationLow, levelVariant.SaturationHigh, 0.5f);
+            float value = Mathf.Lerp(levelVariant.ValueLow, levelVariant.ValueHigh, 0.5f);
+            float gradientShift = (levelVariant.GradientIntensity - 0.2f) * 0.08f;
 
-            float hue = language.BaseHue;
-            float saturation = language.BaseSaturation;
-            float value = language.BaseValue;
-            float gradientShift = language.GradientShift;
-
-            float topValue = Mathf.Clamp01(value + Mathf.Lerp(0.08f, 0.16f, language.ParallaxIntensity - 0.5f));
-            float bottomValue = Mathf.Clamp01(value - Mathf.Lerp(0.08f, 0.14f, language.MotifDensity));
+            float topValue = Mathf.Clamp01(value + levelVariant.GradientIntensity * 0.18f);
+            float bottomValue = Mathf.Clamp01(value - levelVariant.GradientIntensity * 0.18f);
 
             Color top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.9f), topValue);
             Color bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 1.05f), bottomValue);
 
-            // Scale factors derived from design language
-            float detailAlpha = Mathf.Lerp(0.85f, 1.2f, language.MicroParticleDensity);
-            float flowAlpha = Mathf.Lerp(0.9f, 1.25f, language.NoiseIntensity * 2f);
-            float shapeAlpha = Mathf.Lerp(0.85f, 1.2f, language.MacroShapeScale - 0.8f);
-            float vignetteAlpha = Mathf.Lerp(0.9f, 1.2f, 1f - language.MotifDensity);
+            float macroWeight = zoneTheme.MacroCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
+            float mesoWeight = zoneTheme.MesoCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
+            float microWeight = zoneTheme.MicroCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
 
-            float detailScale = Mathf.Lerp(0.95f, 1.2f, language.MotifScale - 0.6f);
-            float flowScale = Mathf.Lerp(0.95f, 1.25f, language.ParallaxIntensity - 0.5f);
-            float shapeScale = Mathf.Lerp(0.95f, 1.25f, language.MacroShapeScale - 0.8f);
+            float detailAlpha = Mathf.Lerp(0.85f, 1.2f, microWeight);
+            float flowAlpha = Mathf.Lerp(0.9f, 1.2f, mesoWeight);
+            float shapeAlpha = Mathf.Lerp(0.85f, 1.2f, macroWeight);
+            float vignetteAlpha = Mathf.Lerp(0.9f, 1.2f, zoneTheme.DensityProfile == DensityProfile.Dense ? 0.8f : 0.4f);
+
+            float detailScale = Mathf.Lerp(0.95f, 1.25f, microWeight) * levelVariant.MinorAmplitudeMod;
+            float flowScale = Mathf.Lerp(0.95f, 1.3f, mesoWeight) * levelVariant.MinorAmplitudeMod;
+            float shapeScale = Mathf.Lerp(0.95f, 1.35f, macroWeight) * levelVariant.MinorAmplitudeMod;
 
             return new BackgroundFamilyProfile
             {
@@ -1336,8 +1326,8 @@ namespace Decantra.Presentation.Controller
 
         private int ResolveBackgroundPaletteIndex(int levelIndex, int seed)
         {
-            var profile = LevelDifficultyEngine.GetProfile(levelIndex);
-            return BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
+            var variant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
+            return variant.PaletteIndex;
         }
 
         private LevelState EnsureBackground(LevelState state, int levelIndex, int seed)
@@ -1346,34 +1336,6 @@ namespace Decantra.Presentation.Controller
             if (state.BackgroundPaletteIndex >= 0) return state;
             int paletteIndex = ResolveBackgroundPaletteIndex(levelIndex, seed);
             return new LevelState(state.Bottles, state.MovesUsed, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, paletteIndex);
-        }
-        private static BackgroundThemeStyle GetThemeStyle(BackgroundThemeId themeId)
-        {
-            switch (themeId)
-            {
-                case BackgroundThemeId.SoftGradient:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.04f, SaturationBoost = -0.06f, ValueBoost = 0.02f, DetailAlphaScale = 0.9f, FlowAlphaScale = 0.85f, ShapeAlphaScale = 0.85f, VignetteAlphaScale = 1.0f };
-                case BackgroundThemeId.PastelRainbow:
-                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.09f, SaturationBoost = -0.02f, ValueBoost = 0.04f, DetailAlphaScale = 1.05f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 0.95f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.Balloons:
-                    return new BackgroundThemeStyle { HueShift = 0.03f, HueRange = 0.07f, SaturationBoost = 0.02f, ValueBoost = 0.03f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.1f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.LightCarnival:
-                    return new BackgroundThemeStyle { HueShift = 0.01f, HueRange = 0.06f, SaturationBoost = 0.01f, ValueBoost = 0.02f, DetailAlphaScale = 1.05f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.CarnivalPattern:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.03f, ValueBoost = 0.01f, DetailAlphaScale = 1.1f, FlowAlphaScale = 1.05f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.CarnivalContrast:
-                    return new BackgroundThemeStyle { HueShift = 0.04f, HueRange = 0.05f, SaturationBoost = 0.05f, ValueBoost = 0.0f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.05f, VignetteAlphaScale = 0.9f };
-                case BackgroundThemeId.RainbowArcs:
-                    return new BackgroundThemeStyle { HueShift = 0.05f, HueRange = 0.1f, SaturationBoost = 0.02f, ValueBoost = 0.03f, DetailAlphaScale = 1.1f, FlowAlphaScale = 1.05f, ShapeAlphaScale = 1.05f, VignetteAlphaScale = 0.9f };
-                case BackgroundThemeId.PlayfulMotifs:
-                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.08f, SaturationBoost = 0.04f, ValueBoost = 0.02f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.1f, VignetteAlphaScale = 0.9f };
-                case BackgroundThemeId.RefinedCarnival:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.0f, ValueBoost = 0.02f, DetailAlphaScale = 0.95f, FlowAlphaScale = 0.9f, ShapeAlphaScale = 0.85f, VignetteAlphaScale = 1.05f };
-                case BackgroundThemeId.RefinedRainbow:
-                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.07f, SaturationBoost = 0.01f, ValueBoost = 0.03f, DetailAlphaScale = 1.0f, FlowAlphaScale = 0.95f, ShapeAlphaScale = 0.9f, VignetteAlphaScale = 1.0f };
-                default:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.0f, ValueBoost = 0.0f, DetailAlphaScale = 1.0f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 1.0f };
-            }
         }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR

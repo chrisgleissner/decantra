@@ -7,345 +7,882 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System;
+using System.Collections.Generic;
 
 namespace Decantra.Domain.Rules
 {
-    /// <summary>
-    /// Design language parameters for background generation.
-    /// Each language family (every 10 levels) produces a distinct visual style.
-    /// </summary>
-    public struct DesignLanguage
+    public enum GeometryVocabulary
     {
-        public int LanguageId;
-        public float BaseHue;
-        public float BaseSaturation;
-        public float BaseValue;
-        public float HueRange;
-        public float GradientShift;
-        public MotifFamily PrimaryMotif;
-        public MotifFamily SecondaryMotif;
-        public float MotifDensity;
-        public float MotifScale;
-        public float ParallaxIntensity;
-        public float LayerCount;
-        public float MicroParticleDensity;
-        public float MacroShapeScale;
-        public float NoiseIntensity;
-        public float DriftSpeed;
-        public float DriftAngle;
-
-        /// <summary>
-        /// Returns the motif family as a string for validation/testing.
-        /// </summary>
-        public string MotifFamily => PrimaryMotif switch
-        {
-            Rules.MotifFamily.Bubbles => "Bubbles",
-            Rules.MotifFamily.CrystallineShards => "Crystalline",
-            Rules.MotifFamily.Leaves => "Leaves",
-            Rules.MotifFamily.Mist => "Mist",
-            Rules.MotifFamily.Waves => "Waves",
-            Rules.MotifFamily.ParticulateDust => "Particles",
-            Rules.MotifFamily.GeometricShapes => "Geometric",
-            Rules.MotifFamily.OrganicBlobs => "Organic",
-            Rules.MotifFamily.StarField => "Celestial",
-            Rules.MotifFamily.RibbonStreams => "Abstract",
-            Rules.MotifFamily.CellularPatterns => "Organic",
-            Rules.MotifFamily.LightRays => "Celestial",
-            Rules.MotifFamily.CloudWisps => "Mist",
-            Rules.MotifFamily.FlowerPetals => "Leaves",
-            Rules.MotifFamily.FeatherDrift => "Abstract",
-            Rules.MotifFamily.AquaticFlow => "Waves",
-            _ => "Abstract"
-        };
+        CirclesAndArcs = 0,
+        RectanglesAndDiagonals = 1,
+        PointsAndLines = 2,
+        OrganicBlobs = 3,
+        TrianglesOnly = 4,
+        HexagonalTiling = 5
     }
 
-    /// <summary>
-    /// Motif families define the primary visual elements in backgrounds.
-    /// </summary>
-    public enum MotifFamily
+    public enum GeneratorFamily
     {
-        Bubbles = 0,
-        CrystallineShards = 1,
-        Leaves = 2,
-        Mist = 3,
-        Waves = 4,
-        ParticulateDust = 5,
-        GeometricShapes = 6,
-        OrganicBlobs = 7,
-        StarField = 8,
-        RibbonStreams = 9,
-        CellularPatterns = 10,
-        LightRays = 11,
-        CloudWisps = 12,
-        FlowerPetals = 13,
-        FeatherDrift = 14,
-        AquaticFlow = 15
+        RadialPolar = 0,
+        RegularTiling = 1,
+        RecursiveSubdivision = 2,
+        NoiseField = 3,
+        WaveInterference = 4,
+        DistanceFieldShapes = 5,
+        FractalLite = 6
     }
 
-    /// <summary>
-    /// Level variation within a design language.
-    /// </summary>
-    public struct LevelVariation
+    public enum SymmetryClass
     {
-        public float HueJitter;
-        public float SaturationJitter;
-        public float ValueJitter;
-        public float DetailOffsetX;
-        public float DetailOffsetY;
-        public float FlowRotation;
-        public float ShapeRotation;
-
-        public (float x, float y) DetailOffset => (DetailOffsetX, DetailOffsetY);
+        None = 0,
+        Axial = 1,
+        Radial = 2,
+        Grid = 3
     }
 
-    /// <summary>
-    /// Background signature for collision detection.
-    /// Two levels with identical signatures would produce identical backgrounds.
-    /// </summary>
-    public struct BackgroundSignature
+    public enum DensityProfile
     {
-        public int LanguageId;
-        public long ParameterHash;
+        Sparse = 0,
+        Medium = 1,
+        Dense = 2
+    }
 
-        public override bool Equals(object obj)
-        {
-            if (obj is BackgroundSignature other)
-            {
-                return LanguageId == other.LanguageId && ParameterHash == other.ParameterHash;
-            }
-            return false;
-        }
+    public enum ScaleBand
+    {
+        Macro = 0,
+        Meso = 1,
+        Micro = 2
+    }
 
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                return (LanguageId * 397) ^ ParameterHash.GetHashCode();
-            }
-        }
+    public enum LayerRole
+    {
+        Base = 0,
+        Macro = 1,
+        Meso = 2,
+        Micro = 3,
+        Accent = 4,
+        Atmosphere = 5
+    }
+
+    public enum BlendMode
+    {
+        Normal = 0,
+        Add = 1,
+        Multiply = 2,
+        Screen = 3,
+        Overlay = 4,
+        SoftLight = 5
+    }
+
+    public enum Crispness
+    {
+        Soft = 0,
+        Medium = 1,
+        Crisp = 2
+    }
+
+    public enum PlacementRule
+    {
+        Grid = 0,
+        JitteredGrid = 1,
+        Radial = 2,
+        NoiseThreshold = 3,
+        VoronoiCenters = 4
+    }
+
+    public enum MotionType
+    {
+        None = 0,
+        SineDrift = 1,
+        SlowRotation = 2,
+        PhaseOscillation = 3
+    }
+
+    public enum FocalRule
+    {
+        CenterBias = 0,
+        RingFocus = 1,
+        GridIntersection = 2,
+        DiagonalAxis = 3
+    }
+
+    public struct LayerSpec
+    {
+        public int Id;
+        public LayerRole Role;
+        public ScaleBand ScaleBand;
+        public int GeneratorVariant;
+        public float FrequencyOrScale;
+        public float Density;
+        public Crispness EdgeSoftness;
+        public float ShapeSizeMin;
+        public float ShapeSizeMax;
+        public PlacementRule PlacementRule;
+        public BlendMode BlendMode;
+        public float Opacity;
+        public int DepthIndex;
+        public float ContrastMultiplier;
+        public Crispness CrispnessModel;
+        public float BlurRadiusOrFeather;
+        public bool IsGradientOnly;
+    }
+
+    public struct MotionSpec
+    {
+        public int LayerId;
+        public MotionType MotionType;
+        public float Amplitude;
+        public float PeriodSeconds;
+        public float AxisX;
+        public float AxisY;
+    }
+
+    public struct ZoneTheme
+    {
+        public int ZoneIndex;
+        public ulong ZoneSeed;
+        public GeometryVocabulary GeometryVocabulary;
+        public GeneratorFamily PrimaryGeneratorFamily;
+        public GeneratorFamily? SecondaryGeneratorFamily;
+        public SymmetryClass SymmetryClass;
+        public DensityProfile DensityProfile;
+        public FocalRule FocalRule;
+        public int LayerCount;
+        public int MacroCount;
+        public int MesoCount;
+        public int MicroCount;
+        public LayerSpec[] Layers;
+        public float OpacityFalloff;
+        public float ContrastFalloff;
+        public bool HasParallax;
+        public float ParallaxScaleShift;
+        public float ParallaxPhaseOffset;
+        public MotionSpec[] MotionLayers;
+        public ZoneThemeFingerprint Fingerprint;
+    }
+
+    public struct ZoneThemeFingerprint
+    {
+        public GeometryVocabulary GeometryVocabulary;
+        public GeneratorFamily PrimaryGeneratorFamily;
+        public SymmetryClass SymmetryClass;
+        public int LayerCount;
+        public bool MotionPresence;
+        public int MacroCount;
+        public int MesoCount;
+        public int MicroCount;
+        public int CompositingSignature;
+    }
+
+    public struct LevelVariant
+    {
+        public int LevelIndex;
+        public ulong LevelSeed;
+        public int ZoneIndex;
+        public int PaletteIndex;
+        public float HueShift;
+        public float SaturationLow;
+        public float SaturationHigh;
+        public float ValueLow;
+        public float ValueHigh;
+        public float GradientDirection;
+        public float GradientIntensity;
+        public float AccentStrength;
+        public float PhaseOffset;
+        public float MinorAmplitudeMod;
+        public float MinorDensityMod;
+        public float SmallPositionalJitter;
     }
 
     public static class BackgroundRules
     {
-        private const int DesignLanguageSalt = 0x1F3D5B79;
-        private const int LevelsPerLanguage = 10;
-        private const int FirstLanguageSize = 9;
+        private const int ZoneThemeSalt = 0x1F3D5B79;
+        private const int LevelsPerZone = 10;
+        private const int Zone0Size = 9;
+        private const int FingerprintHistoryCount = 3;
 
-        /// <summary>
-        /// Computes the language family index for a given level.
-        /// Language 0 = levels 1-9, Language 1 = levels 10-19, etc.
-        /// </summary>
-        public static int GetLanguageId(int levelIndex)
+        private static readonly Dictionary<ZoneThemeCacheKey, ZoneTheme> ZoneThemeCache = new Dictionary<ZoneThemeCacheKey, ZoneTheme>();
+
+        private readonly struct ZoneThemeCacheKey : IEquatable<ZoneThemeCacheKey>
+        {
+            private readonly int _globalSeed;
+            private readonly int _zoneIndex;
+
+            public ZoneThemeCacheKey(int globalSeed, int zoneIndex)
+            {
+                _globalSeed = globalSeed;
+                _zoneIndex = zoneIndex;
+            }
+
+            public bool Equals(ZoneThemeCacheKey other)
+            {
+                return _globalSeed == other._globalSeed && _zoneIndex == other._zoneIndex;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is ZoneThemeCacheKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (_globalSeed * 397) ^ _zoneIndex;
+                }
+            }
+        }
+
+        public static int GetZoneIndex(int levelIndex)
         {
             if (levelIndex <= 0) return 0;
-            if (levelIndex <= FirstLanguageSize) return 0;
-            int remaining = levelIndex - FirstLanguageSize - 1;
-            return 1 + Math.Max(0, remaining / LevelsPerLanguage);
+            if (levelIndex <= Zone0Size) return 0;
+            int remaining = levelIndex - Zone0Size - 1;
+            return 1 + Math.Max(0, remaining / LevelsPerZone);
         }
 
-        /// <summary>
-        /// Computes the position within the current language.
-        /// </summary>
-        private static int GetPositionInLanguage(int levelIndex)
+        public static ulong GetZoneSeed(int globalSeed, int zoneIndex)
         {
-            if (levelIndex <= FirstLanguageSize)
+            return Hash64((ulong)globalSeed, (ulong)zoneIndex);
+        }
+
+        public static ulong GetLevelSeed(int globalSeed, int levelIndex)
+        {
+            return Hash64((ulong)globalSeed, (ulong)levelIndex);
+        }
+
+        public static ZoneTheme GetZoneTheme(int zoneIndex, int globalSeed)
+        {
+            var key = new ZoneThemeCacheKey(globalSeed, zoneIndex);
+            if (ZoneThemeCache.TryGetValue(key, out var cached))
             {
-                return Math.Max(0, levelIndex - 1);
+                return cached;
             }
 
-            int remaining = levelIndex - FirstLanguageSize - 1;
-            return Math.Max(0, remaining % LevelsPerLanguage);
+            var history = new List<ZoneThemeFingerprint>(FingerprintHistoryCount);
+            int start = Math.Max(0, zoneIndex - FingerprintHistoryCount);
+            for (int i = start; i < zoneIndex; i++)
+            {
+                var previous = GetZoneTheme(i, globalSeed);
+                history.Add(previous.Fingerprint);
+            }
+
+            var theme = GenerateZoneTheme(zoneIndex, globalSeed, history);
+            ZoneThemeCache[key] = theme;
+            return theme;
         }
 
-        /// <summary>
-        /// Computes the palette index within a language family.
-        /// </summary>
-        public static int ComputePaletteIndex(int levelIndex, int seed, BackgroundThemeId themeId, int paletteCount)
+        public static LevelVariant GetLevelVariant(int levelIndex, int globalSeed, int paletteCount)
         {
             if (paletteCount <= 0) throw new ArgumentOutOfRangeException(nameof(paletteCount));
-            unchecked
+            int zoneIndex = GetZoneIndex(levelIndex);
+            ulong levelSeed = GetLevelSeed(globalSeed, levelIndex);
+            var rng = new SeededRng(levelSeed, ZoneThemeSalt ^ 0x62B9D3E7);
+
+            int paletteIndex = rng.NextInt(0, paletteCount);
+            float hueShift = rng.NextSignedFloat(0.08f);
+            float saturationLow = Clamp01(0.15f + rng.NextSignedFloat(0.05f));
+            float saturationHigh = Clamp01(0.35f + rng.NextSignedFloat(0.07f));
+            float valueLow = Clamp01(0.45f + rng.NextSignedFloat(0.08f));
+            float valueHigh = Clamp01(0.68f + rng.NextSignedFloat(0.08f));
+            float gradientDirection = rng.NextFloat() * 360f;
+            float gradientIntensity = Lerp(0.2f, 0.65f, rng.NextFloat());
+            float accentStrength = Lerp(0.25f, 0.8f, rng.NextFloat());
+            float phaseOffset = rng.NextFloat() * 6.2831853f;
+            float minorAmplitudeMod = Lerp(0.92f, 1.08f, rng.NextFloat());
+            float minorDensityMod = Lerp(0.9f, 1.1f, rng.NextFloat());
+            float smallPositionalJitter = Lerp(0.5f, 6f, rng.NextFloat());
+
+            return new LevelVariant
             {
-                int familyIndex = GetLanguageId(levelIndex);
-                int mix = familyIndex * 73856093;
-                mix ^= ((int)themeId + 1) * 83492791;
-                int value = Math.Abs(mix);
-                return value % paletteCount;
-            }
-        }
-
-        /// <summary>
-        /// Generates a deterministic design language for a given language family.
-        /// Each of the 100+ languages has unique visual characteristics.
-        /// </summary>
-        public static DesignLanguage GetDesignLanguage(int languageId)
-        {
-            var rng = new SeededRng(languageId, DesignLanguageSalt);
-
-            // Base hue distributed across the spectrum with variety
-            float hueBase = rng.NextFloat();
-            // Ensure distinct hue sectors for adjacent languages
-            float hueOffset = (languageId % 12) / 12f;
-            float baseHue = (hueBase * 0.4f + hueOffset * 0.6f) % 1f;
-
-            // Saturation and value vary by language family
-            float baseSaturation = Lerp(0.15f, 0.38f, rng.NextFloat());
-            float baseValue = Lerp(0.42f, 0.68f, rng.NextFloat());
-
-            // Hue range determines color variety within the language
-            float hueRange = Lerp(0.04f, 0.12f, rng.NextFloat());
-
-            // Gradient characteristics
-            float gradientShift = Lerp(-0.1f, 0.1f, rng.NextFloat());
-
-            // Motif selection - 16 families, no two adjacent languages use same primary
-            int primaryMotifIndex = (languageId * 7 + rng.NextInt(0, 4)) % 16;
-            int secondaryMotifIndex = (primaryMotifIndex + 4 + rng.NextInt(0, 8)) % 16;
-
-            // Density and scale
-            float motifDensity = Lerp(0.2f, 0.8f, rng.NextFloat());
-            float motifScale = Lerp(0.6f, 1.4f, rng.NextFloat());
-
-            // Parallax intensity varies by language
-            float parallaxIntensity = Lerp(0.5f, 1.2f, rng.NextFloat());
-
-            // Layer count (3-5 visual depth bands)
-            float layerCount = Lerp(3f, 5f, rng.NextFloat());
-
-            // Micro particles (fine detail)
-            float microDensity = Lerp(0.1f, 0.6f, rng.NextFloat());
-
-            // Macro shapes (large background forms)
-            float macroScale = Lerp(0.8f, 1.6f, rng.NextFloat());
-
-            // Noise/texture intensity
-            float noiseIntensity = Lerp(0.05f, 0.25f, rng.NextFloat());
-
-            // Animation parameters
-            float driftSpeed = Lerp(0.3f, 1.2f, rng.NextFloat());
-            float driftAngle = rng.NextFloat() * 360f;
-
-            return new DesignLanguage
-            {
-                LanguageId = languageId,
-                BaseHue = baseHue,
-                BaseSaturation = baseSaturation,
-                BaseValue = baseValue,
-                HueRange = hueRange,
-                GradientShift = gradientShift,
-                PrimaryMotif = (MotifFamily)primaryMotifIndex,
-                SecondaryMotif = (MotifFamily)secondaryMotifIndex,
-                MotifDensity = motifDensity,
-                MotifScale = motifScale,
-                ParallaxIntensity = parallaxIntensity,
-                LayerCount = layerCount,
-                MicroParticleDensity = microDensity,
-                MacroShapeScale = macroScale,
-                NoiseIntensity = noiseIntensity,
-                DriftSpeed = driftSpeed,
-                DriftAngle = driftAngle
+                LevelIndex = levelIndex,
+                LevelSeed = levelSeed,
+                ZoneIndex = zoneIndex,
+                PaletteIndex = paletteIndex,
+                HueShift = hueShift,
+                SaturationLow = Math.Min(saturationLow, saturationHigh),
+                SaturationHigh = Math.Max(saturationLow, saturationHigh),
+                ValueLow = Math.Min(valueLow, valueHigh),
+                ValueHigh = Math.Max(valueLow, valueHigh),
+                GradientDirection = gradientDirection,
+                GradientIntensity = gradientIntensity,
+                AccentStrength = accentStrength,
+                PhaseOffset = phaseOffset,
+                MinorAmplitudeMod = minorAmplitudeMod,
+                MinorDensityMod = minorDensityMod,
+                SmallPositionalJitter = smallPositionalJitter
             };
         }
 
-        /// <summary>
-        /// Generates per-level variation within a design language.
-        /// Returns jitter values (0-1) for visual parameters.
-        /// </summary>
-        public static void GetLevelVariation(int levelIndex, out float jitter1, out float jitter2, out float jitter3)
+        public static string GetBackgroundSignature(int levelIndex, int globalSeed, int paletteCount)
         {
-            int languageId = GetLanguageId(levelIndex);
-            int positionInLanguage = GetPositionInLanguage(levelIndex);
+            var sig = ComputeSignature(levelIndex, globalSeed, paletteCount);
+            return $"{sig.ZoneIndex}:{sig.ParameterHash:X16}";
+        }
+
+        public static BackgroundSignature ComputeSignature(int levelIndex, int globalSeed, int paletteCount)
+        {
+            int zoneIndex = GetZoneIndex(levelIndex);
+            var zoneTheme = GetZoneTheme(zoneIndex, globalSeed);
+            var levelVariant = GetLevelVariant(levelIndex, globalSeed, paletteCount);
 
             unchecked
             {
-                int hash1 = levelIndex * 73856093 ^ languageId * 19349663 ^ unchecked((int)0xA5A5A5A5);
-                int hash2 = levelIndex * 83492791 ^ languageId * 73856093 ^ 0x5A5A5A5A;
-                int hash3 = levelIndex * 19349663 ^ positionInLanguage * 83492791 ^ 0x3C3C3C3C;
-
-                jitter1 = Math.Abs(hash1 % 10000) / 10000f;
-                jitter2 = Math.Abs(hash2 % 10000) / 10000f;
-                jitter3 = Math.Abs(hash3 % 10000) / 10000f;
-            }
-        }
-
-        /// <summary>
-        /// Returns a LevelVariation struct for a given level.
-        /// </summary>
-        public static LevelVariation GetLevelVariation(int levelIndex)
-        {
-            GetLevelVariation(levelIndex, out float j1, out float j2, out float j3);
-
-            // Derive additional variation parameters
-            unchecked
-            {
-                int hash4 = levelIndex * 12345 ^ 0x7F7F7F7F;
-                int hash5 = levelIndex * 67891 ^ unchecked((int)0xABCDEF01);
-                float j4 = Math.Abs(hash4 % 10000) / 10000f;
-                float j5 = Math.Abs(hash5 % 10000) / 10000f;
-
-                return new LevelVariation
-                {
-                    HueJitter = j1,
-                    SaturationJitter = j2,
-                    ValueJitter = j3,
-                    DetailOffsetX = (j1 - 0.5f) * 24f,
-                    DetailOffsetY = (j2 - 0.5f) * 16f,
-                    FlowRotation = (j4 - 0.5f) * 14f,
-                    ShapeRotation = (j5 - 0.5f) * 10f
-                };
-            }
-        }
-
-        /// <summary>
-        /// Returns a unique string signature for a level's background configuration.
-        /// No two level indices should produce the same signature.
-        /// </summary>
-        public static string GetBackgroundSignature(int levelIndex)
-        {
-            var sig = ComputeSignature(levelIndex);
-            return $"{sig.LanguageId}:{sig.ParameterHash:X16}";
-        }
-
-        /// <summary>
-        /// Computes a unique signature for a level's background.
-        /// No two level indices should produce the same signature.
-        /// </summary>
-        public static BackgroundSignature ComputeSignature(int levelIndex)
-        {
-            int languageId = GetLanguageId(levelIndex);
-            var language = GetDesignLanguage(languageId);
-            GetLevelVariation(levelIndex, out float j1, out float j2, out float j3);
-
-            unchecked
-            {
-                // Combine language parameters with level-specific jitter
                 long hash = levelIndex;
-                hash = hash * 31 + languageId;
-                hash = hash * 31 + (int)(language.BaseHue * 10000);
-                hash = hash * 31 + (int)(language.BaseSaturation * 10000);
-                hash = hash * 31 + (int)(language.BaseValue * 10000);
-                hash = hash * 31 + (int)language.PrimaryMotif;
-                hash = hash * 31 + (int)language.SecondaryMotif;
-                hash = hash * 31 + (int)(j1 * 10000);
-                hash = hash * 31 + (int)(j2 * 10000);
-                hash = hash * 31 + (int)(j3 * 10000);
+                hash = hash * 31 + zoneIndex;
+                hash = hash * 31 + (int)zoneTheme.GeometryVocabulary;
+                hash = hash * 31 + (int)zoneTheme.PrimaryGeneratorFamily;
+                hash = hash * 31 + zoneTheme.LayerCount;
+                hash = hash * 31 + zoneTheme.MacroCount;
+                hash = hash * 31 + zoneTheme.MesoCount;
+                hash = hash * 31 + zoneTheme.MicroCount;
+                hash = hash * 31 + zoneTheme.Fingerprint.CompositingSignature;
+                hash = hash * 31 + levelVariant.PaletteIndex;
+                hash = hash * 31 + (int)(levelVariant.HueShift * 10000);
+                hash = hash * 31 + (int)(levelVariant.GradientIntensity * 10000);
+                hash = hash * 31 + (int)(levelVariant.MinorAmplitudeMod * 10000);
+                hash = hash * 31 + (int)(levelVariant.MinorDensityMod * 10000);
 
                 return new BackgroundSignature
                 {
-                    LanguageId = languageId,
+                    ZoneIndex = zoneIndex,
                     ParameterHash = hash
                 };
             }
         }
 
-        /// <summary>
-        /// Verifies that two level indices produce different backgrounds.
-        /// </summary>
-        public static bool AreBackgroundsDistinct(int levelIndex1, int levelIndex2)
+        public static bool AreBackgroundsDistinct(int levelIndex1, int levelIndex2, int globalSeed, int paletteCount)
         {
             if (levelIndex1 == levelIndex2) return false;
-            var sig1 = ComputeSignature(levelIndex1);
-            var sig2 = ComputeSignature(levelIndex2);
+            var sig1 = ComputeSignature(levelIndex1, globalSeed, paletteCount);
+            var sig2 = ComputeSignature(levelIndex2, globalSeed, paletteCount);
             return !sig1.Equals(sig2);
+        }
+
+        public static bool IsGrayscaleRecognisable(ZoneTheme theme)
+        {
+            int softLayers = 0;
+            int crispLayers = 0;
+            bool hasGradient = false;
+
+            foreach (var layer in theme.Layers)
+            {
+                if (layer.EdgeSoftness == Crispness.Soft) softLayers++;
+                if (layer.EdgeSoftness == Crispness.Crisp) crispLayers++;
+                if (layer.IsGradientOnly) hasGradient = true;
+            }
+
+            bool hasMacro = theme.MacroCount > 0;
+            bool hasMeso = theme.MesoCount > 0;
+            bool hasMicro = theme.MicroCount > 0;
+            bool hasScaleDiversity = hasMacro && hasMeso && hasMicro;
+
+            if (theme.LayerCount >= 8)
+            {
+                return hasGradient && hasScaleDiversity && softLayers >= 2 && crispLayers >= 2;
+            }
+
+            return hasGradient && hasScaleDiversity && crispLayers >= 1;
+        }
+
+        public static int EstimateZoneThemeWorkUnits(int layerCount)
+        {
+            return layerCount * 1200;
+        }
+
+        public static int EstimateLevelVariantWorkUnits()
+        {
+            return 2000;
+        }
+
+        private static ZoneTheme GenerateZoneTheme(int zoneIndex, int globalSeed, IReadOnlyList<ZoneThemeFingerprint> recentFingerprints)
+        {
+            ulong zoneSeed = GetZoneSeed(globalSeed, zoneIndex);
+            int attempt = 0;
+            ZoneTheme theme;
+
+            while (true)
+            {
+                var rng = new SeededRng(zoneSeed + (ulong)attempt * 0x9E3779B97F4A7C15ul, ZoneThemeSalt);
+                theme = BuildZoneTheme(zoneIndex, zoneSeed, rng, recentFingerprints);
+                var fingerprint = ComputeFingerprint(theme);
+                theme.Fingerprint = fingerprint;
+
+                if (!IsTooSimilar(fingerprint, recentFingerprints))
+                {
+                    return theme;
+                }
+
+                attempt++;
+                if (attempt > 12)
+                {
+                    return theme;
+                }
+            }
+        }
+
+        private static ZoneTheme BuildZoneTheme(int zoneIndex, ulong zoneSeed, SeededRng rng, IReadOnlyList<ZoneThemeFingerprint> recentFingerprints)
+        {
+            var previous = recentFingerprints != null && recentFingerprints.Count > 0
+                ? recentFingerprints[recentFingerprints.Count - 1]
+                : (ZoneThemeFingerprint?)null;
+
+            GeometryVocabulary geometry = PickGeometryVocabulary(rng, previous?.GeometryVocabulary);
+            GeneratorFamily primaryFamily = PickPrimaryGeneratorFamily(rng, previous?.PrimaryGeneratorFamily);
+            SymmetryClass symmetry = PickSymmetry(primaryFamily, rng);
+            DensityProfile density = (DensityProfile)rng.NextInt(0, 3);
+            FocalRule focalRule = (FocalRule)rng.NextInt(0, 4);
+            int layerCount = PickLayerCount(zoneIndex, rng, previous?.LayerCount);
+
+            var bandCounts = AllocateScaleBands(layerCount, rng);
+            var layers = BuildLayers(layerCount, bandCounts, primaryFamily, density, rng);
+            var motion = BuildMotionLayers(layers, rng);
+
+            return new ZoneTheme
+            {
+                ZoneIndex = zoneIndex,
+                ZoneSeed = zoneSeed,
+                GeometryVocabulary = geometry,
+                PrimaryGeneratorFamily = primaryFamily,
+                SecondaryGeneratorFamily = PickSecondaryGeneratorFamily(primaryFamily, rng),
+                SymmetryClass = symmetry,
+                DensityProfile = density,
+                FocalRule = focalRule,
+                LayerCount = layerCount,
+                MacroCount = bandCounts.macroCount,
+                MesoCount = bandCounts.mesoCount,
+                MicroCount = bandCounts.microCount,
+                Layers = layers,
+                OpacityFalloff = Lerp(0.72f, 0.9f, rng.NextFloat()),
+                ContrastFalloff = Lerp(0.7f, 0.95f, rng.NextFloat()),
+                HasParallax = rng.NextFloat() > 0.4f,
+                ParallaxScaleShift = Lerp(0.98f, 1.04f, rng.NextFloat()),
+                ParallaxPhaseOffset = Lerp(0.0f, 0.25f, rng.NextFloat()),
+                MotionLayers = motion
+            };
+        }
+
+        private static GeometryVocabulary PickGeometryVocabulary(SeededRng rng, GeometryVocabulary? previous)
+        {
+            var options = new List<GeometryVocabulary>
+            {
+                GeometryVocabulary.CirclesAndArcs,
+                GeometryVocabulary.RectanglesAndDiagonals,
+                GeometryVocabulary.PointsAndLines,
+                GeometryVocabulary.OrganicBlobs,
+                GeometryVocabulary.TrianglesOnly,
+                GeometryVocabulary.HexagonalTiling
+            };
+            if (previous.HasValue)
+            {
+                options.Remove(previous.Value);
+            }
+            return options[rng.NextInt(0, options.Count)];
+        }
+
+        private static GeneratorFamily PickPrimaryGeneratorFamily(SeededRng rng, GeneratorFamily? previous)
+        {
+            var options = new List<GeneratorFamily>
+            {
+                GeneratorFamily.RadialPolar,
+                GeneratorFamily.RegularTiling,
+                GeneratorFamily.RecursiveSubdivision,
+                GeneratorFamily.NoiseField,
+                GeneratorFamily.WaveInterference,
+                GeneratorFamily.DistanceFieldShapes,
+                GeneratorFamily.FractalLite
+            };
+            if (previous.HasValue)
+            {
+                options.Remove(previous.Value);
+            }
+            return options[rng.NextInt(0, options.Count)];
+        }
+
+        private static GeneratorFamily? PickSecondaryGeneratorFamily(GeneratorFamily primary, SeededRng rng)
+        {
+            if (rng.NextFloat() < 0.35f)
+            {
+                return null;
+            }
+
+            switch (primary)
+            {
+                case GeneratorFamily.RadialPolar:
+                    return GeneratorFamily.WaveInterference;
+                case GeneratorFamily.RegularTiling:
+                    return GeneratorFamily.DistanceFieldShapes;
+                case GeneratorFamily.RecursiveSubdivision:
+                    return GeneratorFamily.RegularTiling;
+                case GeneratorFamily.NoiseField:
+                    return GeneratorFamily.DistanceFieldShapes;
+                case GeneratorFamily.WaveInterference:
+                    return GeneratorFamily.NoiseField;
+                case GeneratorFamily.DistanceFieldShapes:
+                    return GeneratorFamily.NoiseField;
+                case GeneratorFamily.FractalLite:
+                    return GeneratorFamily.RecursiveSubdivision;
+                default:
+                    return null;
+            }
+        }
+
+        private static SymmetryClass PickSymmetry(GeneratorFamily family, SeededRng rng)
+        {
+            switch (family)
+            {
+                case GeneratorFamily.RadialPolar:
+                    return rng.NextFloat() > 0.2f ? SymmetryClass.Radial : SymmetryClass.Axial;
+                case GeneratorFamily.RegularTiling:
+                    return SymmetryClass.Grid;
+                case GeneratorFamily.RecursiveSubdivision:
+                    return rng.NextFloat() > 0.4f ? SymmetryClass.Grid : SymmetryClass.Axial;
+                case GeneratorFamily.WaveInterference:
+                    return rng.NextFloat() > 0.5f ? SymmetryClass.Axial : SymmetryClass.None;
+                case GeneratorFamily.DistanceFieldShapes:
+                    return rng.NextFloat() > 0.5f ? SymmetryClass.Radial : SymmetryClass.None;
+                case GeneratorFamily.NoiseField:
+                    return SymmetryClass.None;
+                case GeneratorFamily.FractalLite:
+                    return rng.NextFloat() > 0.4f ? SymmetryClass.Axial : SymmetryClass.None;
+                default:
+                    return SymmetryClass.None;
+            }
+        }
+
+        private static int PickLayerCount(int zoneIndex, SeededRng rng, int? previousLayerCount)
+        {
+            if (zoneIndex == 0)
+            {
+                return rng.NextInt(4, 8);
+            }
+
+            float progress = Math.Min(1f, zoneIndex / 8f);
+            int min = (int)Math.Round(Lerp(5f, 10f, progress));
+            int max = (int)Math.Round(Lerp(12f, 20f, progress));
+            int count = rng.NextInt(min, max + 1);
+
+            if (previousLayerCount.HasValue && previousLayerCount.Value == count)
+            {
+                count = Math.Min(20, count + 1);
+                if (count == previousLayerCount.Value)
+                {
+                    count = Math.Max(4, count - 2);
+                }
+            }
+
+            return ClampInt(count, 4, 20);
+        }
+
+        private static (int macroCount, int mesoCount, int microCount) AllocateScaleBands(int layerCount, SeededRng rng)
+        {
+            int macroMin = layerCount >= 8 ? 2 : 1;
+            int mesoMin = layerCount >= 8 ? 2 : 1;
+            int microMin = 1;
+
+            int macroMax = layerCount >= 8 ? 6 : layerCount;
+            int mesoMax = layerCount >= 8 ? 10 : layerCount;
+            int microMax = layerCount >= 8 ? 8 : layerCount;
+
+            int macro = macroMin;
+            int meso = mesoMin;
+            int micro = microMin;
+            int remaining = layerCount - (macro + meso + micro);
+
+            while (remaining > 0)
+            {
+                int pick = rng.NextInt(0, 3);
+                if (pick == 0 && macro < macroMax)
+                {
+                    macro++;
+                    remaining--;
+                }
+                else if (pick == 1 && meso < mesoMax)
+                {
+                    meso++;
+                    remaining--;
+                }
+                else if (pick == 2 && micro < microMax)
+                {
+                    micro++;
+                    remaining--;
+                }
+                else
+                {
+                    if (macro < macroMax)
+                    {
+                        macro++;
+                    }
+                    else if (meso < mesoMax)
+                    {
+                        meso++;
+                    }
+                    else if (micro < microMax)
+                    {
+                        micro++;
+                    }
+                    remaining--;
+                }
+            }
+
+            return (macro, meso, micro);
+        }
+
+        private static LayerSpec[] BuildLayers(int layerCount, (int macroCount, int mesoCount, int microCount) bandCounts, GeneratorFamily family, DensityProfile density, SeededRng rng)
+        {
+            var layers = new List<LayerSpec>(layerCount);
+            int id = 0;
+
+            int gradientLayerIndex = rng.NextInt(0, Math.Max(1, bandCounts.macroCount));
+
+            for (int i = 0; i < bandCounts.macroCount; i++)
+            {
+                layers.Add(BuildLayer(id++, ScaleBand.Macro, LayerRole.Macro, family, density, rng, i == gradientLayerIndex));
+            }
+
+            for (int i = 0; i < bandCounts.mesoCount; i++)
+            {
+                layers.Add(BuildLayer(id++, ScaleBand.Meso, LayerRole.Meso, family, density, rng, false));
+            }
+
+            for (int i = 0; i < bandCounts.microCount; i++)
+            {
+                layers.Add(BuildLayer(id++, ScaleBand.Micro, LayerRole.Micro, family, density, rng, false));
+            }
+
+            var result = layers.ToArray();
+            EnsureCrispLayerMinimum(result, layerCount);
+            return result;
+        }
+
+        private static LayerSpec BuildLayer(int id, ScaleBand scaleBand, LayerRole role, GeneratorFamily family, DensityProfile density, SeededRng rng, bool gradientOnly)
+        {
+            float densityBase = density switch
+            {
+                DensityProfile.Sparse => 0.35f,
+                DensityProfile.Dense => 0.85f,
+                _ => 0.6f
+            };
+
+            float scale = scaleBand switch
+            {
+                ScaleBand.Macro => Lerp(0.18f, 0.45f, rng.NextFloat()),
+                ScaleBand.Meso => Lerp(0.6f, 1.4f, rng.NextFloat()),
+                _ => Lerp(2.0f, 5.0f, rng.NextFloat())
+            };
+
+            float densityAdjusted = scaleBand switch
+            {
+                ScaleBand.Macro => densityBase * 0.7f,
+                ScaleBand.Meso => densityBase,
+                _ => densityBase * 1.15f
+            };
+
+            Crispness edgeSoftness = scaleBand switch
+            {
+                ScaleBand.Macro => Crispness.Soft,
+                ScaleBand.Meso => rng.NextFloat() > 0.6f ? Crispness.Crisp : Crispness.Medium,
+                _ => Crispness.Crisp
+            };
+
+            float shapeMin = scaleBand switch
+            {
+                ScaleBand.Macro => Lerp(120f, 260f, rng.NextFloat()),
+                ScaleBand.Meso => Lerp(40f, 120f, rng.NextFloat()),
+                _ => Lerp(6f, 24f, rng.NextFloat())
+            };
+            float shapeMax = scaleBand switch
+            {
+                ScaleBand.Macro => shapeMin + Lerp(80f, 160f, rng.NextFloat()),
+                ScaleBand.Meso => shapeMin + Lerp(30f, 80f, rng.NextFloat()),
+                _ => shapeMin + Lerp(6f, 18f, rng.NextFloat())
+            };
+
+            BlendMode blendMode = PickBlendMode(scaleBand, rng);
+            float opacity = scaleBand switch
+            {
+                ScaleBand.Macro => Lerp(0.08f, 0.2f, rng.NextFloat()),
+                ScaleBand.Meso => Lerp(0.1f, 0.28f, rng.NextFloat()),
+                _ => Lerp(0.1f, 0.24f, rng.NextFloat())
+            };
+
+            float blurRadius = edgeSoftness switch
+            {
+                Crispness.Soft => Lerp(10f, 22f, rng.NextFloat()),
+                Crispness.Medium => Lerp(4f, 10f, rng.NextFloat()),
+                _ => Lerp(0.5f, 3f, rng.NextFloat())
+            };
+
+            return new LayerSpec
+            {
+                Id = id,
+                Role = role,
+                ScaleBand = scaleBand,
+                GeneratorVariant = PickGeneratorVariant(family, rng),
+                FrequencyOrScale = scale,
+                Density = Clamp01(densityAdjusted),
+                EdgeSoftness = edgeSoftness,
+                ShapeSizeMin = shapeMin,
+                ShapeSizeMax = shapeMax,
+                PlacementRule = PickPlacementRule(family, rng),
+                BlendMode = blendMode,
+                Opacity = opacity,
+                DepthIndex = id,
+                ContrastMultiplier = Lerp(0.7f, 1.25f, id / (float)Math.Max(1, 20)),
+                CrispnessModel = edgeSoftness,
+                BlurRadiusOrFeather = blurRadius,
+                IsGradientOnly = gradientOnly
+            };
+        }
+
+        private static void EnsureCrispLayerMinimum(LayerSpec[] layers, int layerCount)
+        {
+            if (layerCount < 8) return;
+            int crispCount = 0;
+            foreach (var layer in layers)
+            {
+                if (layer.EdgeSoftness == Crispness.Crisp) crispCount++;
+            }
+
+            if (crispCount >= 2) return;
+
+            for (int i = 0; i < layers.Length && crispCount < 2; i++)
+            {
+                if (layers[i].ScaleBand == ScaleBand.Meso && layers[i].EdgeSoftness != Crispness.Crisp)
+                {
+                    layers[i].EdgeSoftness = Crispness.Crisp;
+                    layers[i].CrispnessModel = Crispness.Crisp;
+                    layers[i].BlurRadiusOrFeather = Math.Min(layers[i].BlurRadiusOrFeather, 2f);
+                    crispCount++;
+                }
+            }
+        }
+
+        private static MotionSpec[] BuildMotionLayers(LayerSpec[] layers, SeededRng rng)
+        {
+            if (layers.Length < 5 || rng.NextFloat() < 0.45f)
+            {
+                return Array.Empty<MotionSpec>();
+            }
+
+            int motionCount = rng.NextFloat() > 0.6f ? 2 : 1;
+            var motionLayers = new List<MotionSpec>(motionCount);
+
+            for (int i = 0; i < motionCount; i++)
+            {
+                int index = rng.NextInt(0, layers.Length);
+                var layer = layers[index];
+                MotionType motionType = (MotionType)rng.NextInt(1, 4);
+                motionLayers.Add(new MotionSpec
+                {
+                    LayerId = layer.Id,
+                    MotionType = motionType,
+                    Amplitude = Lerp(2f, 18f, rng.NextFloat()),
+                    PeriodSeconds = Lerp(6f, 22f, rng.NextFloat()),
+                    AxisX = Lerp(-1f, 1f, rng.NextFloat()),
+                    AxisY = Lerp(-1f, 1f, rng.NextFloat())
+                });
+            }
+
+            return motionLayers.ToArray();
+        }
+
+        private static int PickGeneratorVariant(GeneratorFamily family, SeededRng rng)
+        {
+            int variantCount = family switch
+            {
+                GeneratorFamily.RadialPolar => 5,
+                GeneratorFamily.RegularTiling => 4,
+                GeneratorFamily.RecursiveSubdivision => 4,
+                GeneratorFamily.NoiseField => 5,
+                GeneratorFamily.WaveInterference => 4,
+                GeneratorFamily.DistanceFieldShapes => 4,
+                GeneratorFamily.FractalLite => 3,
+                _ => 3
+            };
+            return rng.NextInt(0, variantCount);
+        }
+
+        private static PlacementRule PickPlacementRule(GeneratorFamily family, SeededRng rng)
+        {
+            return family switch
+            {
+                GeneratorFamily.RadialPolar => PlacementRule.Radial,
+                GeneratorFamily.RegularTiling => rng.NextFloat() > 0.5f ? PlacementRule.Grid : PlacementRule.JitteredGrid,
+                GeneratorFamily.RecursiveSubdivision => PlacementRule.Grid,
+                GeneratorFamily.NoiseField => PlacementRule.NoiseThreshold,
+                GeneratorFamily.WaveInterference => PlacementRule.NoiseThreshold,
+                GeneratorFamily.DistanceFieldShapes => PlacementRule.VoronoiCenters,
+                GeneratorFamily.FractalLite => PlacementRule.Grid,
+                _ => PlacementRule.Grid
+            };
+        }
+
+        private static BlendMode PickBlendMode(ScaleBand scaleBand, SeededRng rng)
+        {
+            return scaleBand switch
+            {
+                ScaleBand.Macro => rng.NextFloat() > 0.5f ? BlendMode.Multiply : BlendMode.SoftLight,
+                ScaleBand.Meso => rng.NextFloat() > 0.5f ? BlendMode.Overlay : BlendMode.Screen,
+                _ => rng.NextFloat() > 0.4f ? BlendMode.Add : BlendMode.Screen
+            };
+        }
+
+        private static ZoneThemeFingerprint ComputeFingerprint(ZoneTheme theme)
+        {
+            int compositingMask = 0;
+            foreach (var layer in theme.Layers)
+            {
+                compositingMask |= 1 << (int)layer.BlendMode;
+            }
+
+            return new ZoneThemeFingerprint
+            {
+                GeometryVocabulary = theme.GeometryVocabulary,
+                PrimaryGeneratorFamily = theme.PrimaryGeneratorFamily,
+                SymmetryClass = theme.SymmetryClass,
+                LayerCount = theme.LayerCount,
+                MotionPresence = theme.MotionLayers != null && theme.MotionLayers.Length > 0,
+                MacroCount = theme.MacroCount,
+                MesoCount = theme.MesoCount,
+                MicroCount = theme.MicroCount,
+                CompositingSignature = compositingMask
+            };
+        }
+
+        private static bool IsTooSimilar(ZoneThemeFingerprint candidate, IReadOnlyList<ZoneThemeFingerprint> recent)
+        {
+            if (recent == null || recent.Count == 0) return false;
+
+            foreach (var previous in recent)
+            {
+                int matches = 0;
+                if (candidate.GeometryVocabulary == previous.GeometryVocabulary) matches++;
+                if (candidate.PrimaryGeneratorFamily == previous.PrimaryGeneratorFamily) matches++;
+                if (candidate.SymmetryClass == previous.SymmetryClass) matches++;
+                if (candidate.LayerCount == previous.LayerCount) matches++;
+                if (candidate.MotionPresence == previous.MotionPresence) matches++;
+                if (candidate.MacroCount == previous.MacroCount && candidate.MesoCount == previous.MesoCount && candidate.MicroCount == previous.MicroCount) matches++;
+                if (candidate.CompositingSignature == previous.CompositingSignature) matches++;
+
+                if (matches >= 4)
+                {
+                    return true;
+                }
+
+                bool comboMatch = candidate.PrimaryGeneratorFamily == previous.PrimaryGeneratorFamily
+                                  && candidate.SymmetryClass == previous.SymmetryClass
+                                  && candidate.LayerCount == previous.LayerCount
+                                  && candidate.MacroCount == previous.MacroCount
+                                  && candidate.MesoCount == previous.MesoCount
+                                  && candidate.MicroCount == previous.MicroCount;
+                if (comboMatch)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static float Lerp(float a, float b, float t)
@@ -353,39 +890,94 @@ namespace Decantra.Domain.Rules
             return a + (b - a) * t;
         }
 
-        /// <summary>
-        /// Simple seeded RNG for deterministic design language generation.
-        /// </summary>
-        private sealed class SeededRng
+        private static float Clamp01(float value)
         {
-            private int _state;
+            if (value < 0f) return 0f;
+            if (value > 1f) return 1f;
+            return value;
+        }
 
-            public SeededRng(int seed, int salt)
+        private static int ClampInt(int value, int min, int max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private static ulong Hash64(ulong a, ulong b)
+        {
+            ulong x = a + 0x9E3779B97F4A7C15ul;
+            x ^= b + 0xBF58476D1CE4E5B9ul + (x << 6) + (x >> 2);
+            return SplitMix64(x);
+        }
+
+        private static ulong SplitMix64(ulong x)
+        {
+            x += 0x9E3779B97F4A7C15ul;
+            x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ul;
+            x = (x ^ (x >> 27)) * 0x94D049BB133111EBul;
+            return x ^ (x >> 31);
+        }
+
+        public struct BackgroundSignature
+        {
+            public int ZoneIndex;
+            public long ParameterHash;
+
+            public override bool Equals(object obj)
+            {
+                if (obj is BackgroundSignature other)
+                {
+                    return ZoneIndex == other.ZoneIndex && ParameterHash == other.ParameterHash;
+                }
+                return false;
+            }
+
+            public override int GetHashCode()
             {
                 unchecked
                 {
-                    _state = seed * 1103515245 + salt;
-                    if (_state == 0) _state = salt ^ 0x12345678;
+                    return (ZoneIndex * 397) ^ ParameterHash.GetHashCode();
+                }
+            }
+        }
+
+        private sealed class SeededRng
+        {
+            private ulong _state;
+            private readonly int _salt;
+
+            public SeededRng(ulong seed, int salt)
+            {
+                _salt = salt;
+                _state = SplitMix64(seed + (ulong)salt);
+                if (_state == 0)
+                {
+                    _state = 0xDEADBEEFCAFEBABEu;
                 }
             }
 
             public float NextFloat()
             {
-                unchecked
-                {
-                    _state = _state * 1103515245 + 12345;
-                    return Math.Abs(_state % 10000) / 10000f;
-                }
+                return (NextUInt64() & 0xFFFFFFul) / 16777216f;
+            }
+
+            public float NextSignedFloat(float magnitude)
+            {
+                return (NextFloat() * 2f - 1f) * magnitude;
             }
 
             public int NextInt(int min, int max)
             {
                 if (max <= min) return min;
-                unchecked
-                {
-                    _state = _state * 1103515245 + 12345;
-                    return min + Math.Abs(_state) % (max - min);
-                }
+                ulong span = (ulong)(max - min);
+                return min + (int)(NextUInt64() % span);
+            }
+
+            private ulong NextUInt64()
+            {
+                _state = SplitMix64(_state + (ulong)_salt);
+                return _state;
             }
         }
     }

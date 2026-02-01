@@ -1794,7 +1794,7 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create organic shapes sprite for the given level.
-        /// Sprites are cached per group (language group).
+        /// Sprites are cached per group (Zone group).
         /// </summary>
         public static Sprite GetOrganicShapesSpriteForLevel(int levelIndex)
         {
@@ -1813,7 +1813,7 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create bubbles sprite for the given level.
-        /// Sprites are cached per group (language group).
+        /// Sprites are cached per group (Zone group).
         /// </summary>
         public static Sprite GetBubblesSpriteForLevel(int levelIndex)
         {
@@ -1832,7 +1832,7 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create large structure sprite for the given level.
-        /// Sprites are cached per group (language group).
+        /// Sprites are cached per group (Zone group).
         /// </summary>
         public static Sprite GetLargeStructureSpriteForLevel(int levelIndex)
         {
@@ -1841,14 +1841,22 @@ namespace Decantra.Presentation
             {
                 return cached;
             }
+
+            int groupSeed = HashSeed("bg-group", groupIndex);
+            int levelSeed = HashSeed("bg-level", levelIndex);
+            var sprite = CreateLargeStructureSprite(groupSeed ^ levelSeed);
+            _largeStructureByGroup[groupIndex] = sprite;
+            return sprite;
+        }
+
         private static int GetBackgroundGroupIndex(int levelIndex)
         {
-            return BackgroundRules.GetLanguageId(levelIndex);
+            return BackgroundRules.GetZoneIndex(levelIndex);
         }
 
         /// <summary>
         /// Get or create geometric shapes sprite for the given level.
-        /// Sprites are cached per group (language group).
+        /// Sprites are cached per group (Zone group).
         /// </summary>
         public static Sprite GetGeometricShapesSpriteForLevel(int levelIndex)
         {
@@ -1867,7 +1875,7 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create ribbon streams sprite for the given level.
-        /// Sprites are cached per group (language group).
+        /// Sprites are cached per group (Zone group).
         /// </summary>
         public static Sprite GetRibbonStreamsSpriteForLevel(int levelIndex)
         {
@@ -1886,7 +1894,7 @@ namespace Decantra.Presentation
 
         /// <summary>
         /// Get or create geometric structure sprite for the given level.
-        /// Sprites are cached per group (language group).
+        /// Sprites are cached per group (Zone group).
         /// </summary>
         public static Sprite GetGeometricStructureSpriteForLevel(int levelIndex)
         {
@@ -1903,31 +1911,25 @@ namespace Decantra.Presentation
             return sprite;
         }
 
-        int groupSeed = HashSeed("bg-group", groupIndex);
-        int levelSeed = HashSeed("bg-level", levelIndex);
-        var sprite = CreateLargeStructureSprite(groupSeed ^ levelSeed);
-        _largeStructureByGroup[groupIndex] = sprite;
-            return sprite;
-        }
-
         /// <summary>
         /// Updates background structural sprites for a given level.
         /// Call this from GameController when transitioning levels.
         /// </summary>
-        public static void UpdateBackgroundSpritesForLevel(int levelIndex, Image shapesImage, Image bubblesImage, Image largeStructureImage)
+        public static void UpdateBackgroundSpritesForLevel(int levelIndex, int globalSeed, Image shapesImage, Image bubblesImage, Image largeStructureImage)
         {
             if (_lastLevelIndex == levelIndex) return;
             _lastLevelIndex = levelIndex;
 
-            int languageId = BackgroundRules.GetLanguageId(levelIndex);
-            var language = BackgroundRules.GetDesignLanguage(languageId);
-            bool useGeometric = languageId % 2 == 1
-                                || language.PrimaryMotif == MotifFamily.GeometricShapes
-                                || language.PrimaryMotif == MotifFamily.CrystallineShards
-                                || language.PrimaryMotif == MotifFamily.StarField;
-            bool useRibbons = language.PrimaryMotif == MotifFamily.RibbonStreams
-                              || language.PrimaryMotif == MotifFamily.AquaticFlow
-                              || language.PrimaryMotif == MotifFamily.LightRays;
+            int zoneIndex = BackgroundRules.GetZoneIndex(levelIndex);
+            var zoneTheme = BackgroundRules.GetZoneTheme(zoneIndex, globalSeed);
+
+            bool useGeometric = zoneTheme.GeometryVocabulary == GeometryVocabulary.RectanglesAndDiagonals
+                                || zoneTheme.GeometryVocabulary == GeometryVocabulary.TrianglesOnly
+                                || zoneTheme.GeometryVocabulary == GeometryVocabulary.HexagonalTiling
+                                || zoneTheme.GeometryVocabulary == GeometryVocabulary.PointsAndLines;
+
+            bool useRibbons = zoneTheme.PrimaryGeneratorFamily == GeneratorFamily.WaveInterference
+                              || zoneTheme.PrimaryGeneratorFamily == GeneratorFamily.RadialPolar;
 
             if (shapesImage != null)
             {

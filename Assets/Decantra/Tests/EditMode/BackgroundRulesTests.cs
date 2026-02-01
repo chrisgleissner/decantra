@@ -15,250 +15,198 @@ namespace Decantra.Tests.EditMode
     public sealed class BackgroundRulesTests
     {
         [Test]
-        public void BackgroundPalette_IsDeterministicForSeedAndLevel()
+        public void ZoneIndex_ReturnsCorrectBoundaries()
         {
-            var theme = BackgroundThemeId.PastelRainbow;
-            int first = BackgroundRules.ComputePaletteIndex(3, 12345, theme, 6);
-            int second = BackgroundRules.ComputePaletteIndex(3, 12345, theme, 6);
-            Assert.AreEqual(first, second);
+            Assert.AreEqual(0, BackgroundRules.GetZoneIndex(1));
+            Assert.AreEqual(0, BackgroundRules.GetZoneIndex(9));
+            Assert.AreEqual(1, BackgroundRules.GetZoneIndex(10));
+            Assert.AreEqual(1, BackgroundRules.GetZoneIndex(19));
+            Assert.AreEqual(2, BackgroundRules.GetZoneIndex(20));
         }
 
         [Test]
-        public void BackgroundPalette_ChangesWithSeedOrLevel()
+        public void ZoneIndex_ConsecutiveGroupsMatchSpecification()
         {
-            var theme = BackgroundThemeId.Balloons;
-            int a = BackgroundRules.ComputePaletteIndex(5, 222, theme, 6);
-            int b = BackgroundRules.ComputePaletteIndex(11, 222, theme, 6);
-            int c = BackgroundRules.ComputePaletteIndex(5, 333, theme, 6);
-            Assert.AreNotEqual(a, b);
-            Assert.AreEqual(a, c);
-        }
-
-        [Test]
-        public void GetLanguageId_ReturnsCorrectGroupingForLevels()
-        {
-            // Levels 1-9 => languageId 0
-            for (int level = 1; level <= 9; level++)
+            for (int zone = 1; zone <= 100; zone++)
             {
-                Assert.AreEqual(0, BackgroundRules.GetLanguageId(level), $"Level {level} should be languageId 0");
-            }
+                int firstLevel = 10 + (zone - 1) * 10;
+                int lastLevel = firstLevel + 9;
 
-            // Levels 10-19 => languageId 1
-            for (int level = 10; level <= 19; level++)
-            {
-                Assert.AreEqual(1, BackgroundRules.GetLanguageId(level), $"Level {level} should be languageId 1");
-            }
-
-            // Levels 20-29 => languageId 2
-            for (int level = 20; level <= 29; level++)
-            {
-                Assert.AreEqual(2, BackgroundRules.GetLanguageId(level), $"Level {level} should be languageId 2");
-            }
-
-            // Edge case: Level 100 => languageId 10
-            Assert.AreEqual(10, BackgroundRules.GetLanguageId(100));
-
-            // Level 1000 => languageId 100
-            Assert.AreEqual(100, BackgroundRules.GetLanguageId(1000));
-
-            // Level 1001 => languageId 100
-            Assert.AreEqual(100, BackgroundRules.GetLanguageId(1001));
-        }
-
-        [Test]
-        public void GetLanguageId_ConsecutiveLevelsGroupCorrectly()
-        {
-            // Group 0: levels 1-9
-            for (int level = 1; level <= 9; level++)
-            {
-                Assert.AreEqual(0, BackgroundRules.GetLanguageId(level),
-                    $"Level {level} should be in group 0");
-            }
-
-            // Subsequent groups: 10 levels each starting at level 10
-            for (int group = 1; group <= 100; group++)
-            {
-                int expectedLanguageId = group;
-                int firstLevelInGroup = 10 + (group - 1) * 10;
-                int lastLevelInGroup = firstLevelInGroup + 9;
-
-                for (int level = firstLevelInGroup; level <= lastLevelInGroup; level++)
+                for (int level = firstLevel; level <= lastLevel; level++)
                 {
-                    Assert.AreEqual(expectedLanguageId, BackgroundRules.GetLanguageId(level),
-                        $"Level {level} should be in group {expectedLanguageId}");
+                    Assert.AreEqual(zone, BackgroundRules.GetZoneIndex(level),
+                        $"Level {level} should be in Zone {zone}");
                 }
             }
         }
 
         [Test]
-        public void GetDesignLanguage_IsDeterministicForSameLanguageId()
+        public void ZoneTheme_IsDeterministicForSameZoneAndSeed()
         {
-            for (int languageId = 0; languageId < 100; languageId++)
+            int seed = 12345;
+            for (int zoneIndex = 0; zoneIndex < 20; zoneIndex++)
             {
-                var first = BackgroundRules.GetDesignLanguage(languageId);
-                var second = BackgroundRules.GetDesignLanguage(languageId);
-
-                Assert.AreEqual(first.BaseHue, second.BaseHue, $"LanguageId {languageId} BaseHue not deterministic");
-                Assert.AreEqual(first.BaseSaturation, second.BaseSaturation, $"LanguageId {languageId} BaseSaturation not deterministic");
-                Assert.AreEqual(first.BaseValue, second.BaseValue, $"LanguageId {languageId} BaseValue not deterministic");
-                Assert.AreEqual(first.MotifFamily, second.MotifFamily, $"LanguageId {languageId} MotifFamily not deterministic");
-                Assert.AreEqual(first.MotifDensity, second.MotifDensity, $"LanguageId {languageId} MotifDensity not deterministic");
-                Assert.AreEqual(first.LayerCount, second.LayerCount, $"LanguageId {languageId} LayerCount not deterministic");
+                var first = BackgroundRules.GetZoneTheme(zoneIndex, seed);
+                var second = BackgroundRules.GetZoneTheme(zoneIndex, seed);
+                Assert.AreEqual(first.LayerCount, second.LayerCount, $"Zone {zoneIndex} layerCount not deterministic");
+                Assert.AreEqual(first.GeometryVocabulary, second.GeometryVocabulary, $"Zone {zoneIndex} geometry not deterministic");
+                Assert.AreEqual(first.PrimaryGeneratorFamily, second.PrimaryGeneratorFamily, $"Zone {zoneIndex} generator not deterministic");
+                Assert.AreEqual(first.MacroCount, second.MacroCount, $"Zone {zoneIndex} macro count not deterministic");
+                Assert.AreEqual(first.MicroCount, second.MicroCount, $"Zone {zoneIndex} micro count not deterministic");
             }
         }
 
         [Test]
-        public void GetDesignLanguage_AtLeast100DistinctLanguages()
+        public void ZoneTheme_AdjacentZonesAreStructurallyDistinct()
         {
-            var signatures = new HashSet<string>();
-
-            for (int languageId = 0; languageId < 100; languageId++)
+            int seed = 9876;
+            for (int zoneIndex = 1; zoneIndex < 25; zoneIndex++)
             {
-                var language = BackgroundRules.GetDesignLanguage(languageId);
-                string signature = $"{language.BaseHue:F4}|{language.BaseSaturation:F4}|{language.BaseValue:F4}|{language.MotifFamily}|{language.LayerCount}";
-                signatures.Add(signature);
-            }
+                var current = BackgroundRules.GetZoneTheme(zoneIndex, seed);
+                var previous = BackgroundRules.GetZoneTheme(zoneIndex - 1, seed);
 
-            // All 100 languages must be distinct
-            Assert.AreEqual(100, signatures.Count, "First 100 design languages must all be distinct");
+                Assert.AreNotEqual(previous.GeometryVocabulary, current.GeometryVocabulary,
+                    $"Zone {zoneIndex} geometry vocabulary repeats adjacent zone");
+                Assert.AreNotEqual(previous.PrimaryGeneratorFamily, current.PrimaryGeneratorFamily,
+                    $"Zone {zoneIndex} primary generator repeats adjacent zone");
+            }
         }
 
         [Test]
-        public void GetLevelVariation_IsDeterministicForSameLevel()
+        public void ZoneTheme_LayerCountsAndScaleBandsMeetConstraints()
         {
+            int seed = 1357;
+            for (int zoneIndex = 0; zoneIndex < 30; zoneIndex++)
+            {
+                var theme = BackgroundRules.GetZoneTheme(zoneIndex, seed);
+                Assert.GreaterOrEqual(theme.LayerCount, 4);
+                Assert.LessOrEqual(theme.LayerCount, 20);
+                Assert.AreEqual(theme.LayerCount, theme.Layers.Length);
+
+                if (theme.LayerCount >= 8)
+                {
+                    Assert.GreaterOrEqual(theme.MacroCount, 2);
+                    Assert.GreaterOrEqual(theme.MesoCount, 2);
+                    Assert.GreaterOrEqual(theme.MicroCount, 1);
+                    Assert.LessOrEqual(theme.MacroCount, 6);
+                    Assert.LessOrEqual(theme.MesoCount, 10);
+                    Assert.LessOrEqual(theme.MicroCount, 8);
+                }
+                else
+                {
+                    Assert.GreaterOrEqual(theme.MacroCount, 1);
+                    Assert.GreaterOrEqual(theme.MesoCount, 1);
+                    Assert.GreaterOrEqual(theme.MicroCount, 1);
+                }
+
+                int softLayers = 0;
+                int crispLayers = 0;
+                bool hasGradient = false;
+                foreach (var layer in theme.Layers)
+                {
+                    if (layer.EdgeSoftness == Crispness.Soft) softLayers++;
+                    if (layer.EdgeSoftness == Crispness.Crisp) crispLayers++;
+                    if (layer.IsGradientOnly) hasGradient = true;
+                }
+
+                Assert.IsTrue(hasGradient, $"Zone {zoneIndex} missing gradient-only layer");
+                if (theme.LayerCount >= 8)
+                {
+                    Assert.GreaterOrEqual(softLayers, 2, $"Zone {zoneIndex} missing soft layers");
+                    Assert.GreaterOrEqual(crispLayers, 2, $"Zone {zoneIndex} missing crisp layers");
+                }
+            }
+        }
+
+        [Test]
+        public void LevelVariant_IsDeterministicForSameLevel()
+        {
+            int seed = 2222;
             for (int level = 1; level <= 100; level++)
             {
-                var first = BackgroundRules.GetLevelVariation(level);
-                var second = BackgroundRules.GetLevelVariation(level);
-
-                Assert.AreEqual(first.HueJitter, second.HueJitter, $"Level {level} HueJitter not deterministic");
-                Assert.AreEqual(first.SaturationJitter, second.SaturationJitter, $"Level {level} SaturationJitter not deterministic");
-                Assert.AreEqual(first.DetailOffset.x, second.DetailOffset.x, $"Level {level} DetailOffset.x not deterministic");
-                Assert.AreEqual(first.DetailOffset.y, second.DetailOffset.y, $"Level {level} DetailOffset.y not deterministic");
+                var first = BackgroundRules.GetLevelVariant(level, seed, 6);
+                var second = BackgroundRules.GetLevelVariant(level, seed, 6);
+                Assert.AreEqual(first.PaletteIndex, second.PaletteIndex, $"Level {level} palette not deterministic");
+                Assert.AreEqual(first.HueShift, second.HueShift, $"Level {level} hueShift not deterministic");
+                Assert.AreEqual(first.PhaseOffset, second.PhaseOffset, $"Level {level} phase not deterministic");
             }
         }
 
         [Test]
-        public void GetBackgroundSignature_NoDuplicatesForFirst2000Levels()
+        public void LevelVariant_VariesWithinZone()
         {
-            var signatures = new HashSet<string>();
+            int seed = 3333;
+            var paletteIndices = new HashSet<int>();
+            for (int level = 10; level <= 19; level++)
+            {
+                var variant = BackgroundRules.GetLevelVariant(level, seed, 6);
+                paletteIndices.Add(variant.PaletteIndex);
+            }
+            Assert.GreaterOrEqual(paletteIndices.Count, 2, "Level variants should vary within a Zone");
+        }
 
+        [Test]
+        public void BackgroundSignature_NoDuplicatesForFirst2000Levels()
+        {
+            int seed = 4444;
+            var signatures = new HashSet<string>();
             for (int level = 1; level <= 2000; level++)
             {
-                string signature = BackgroundRules.GetBackgroundSignature(level);
-
-                Assert.IsTrue(signatures.Add(signature),
-                    $"Level {level} has duplicate background signature: {signature}");
+                string signature = BackgroundRules.GetBackgroundSignature(level, seed, 6);
+                Assert.IsTrue(signatures.Add(signature), $"Level {level} duplicate signature {signature}");
             }
-
-            Assert.AreEqual(2000, signatures.Count, "All 2000 levels must have unique background signatures");
+            Assert.AreEqual(2000, signatures.Count);
         }
 
         [Test]
-        public void GetBackgroundSignature_IsDeterministicForSameLevel()
+        public void ZoneTheme_GrayscaleRecognisable()
         {
-            for (int level = 1; level <= 100; level++)
+            int seed = 7777;
+            for (int zoneIndex = 1; zoneIndex < 25; zoneIndex++)
             {
-                string first = BackgroundRules.GetBackgroundSignature(level);
-                string second = BackgroundRules.GetBackgroundSignature(level);
-
-                Assert.AreEqual(first, second, $"Level {level} signature not deterministic");
-            }
-        }
-
-        [Test]
-        public void NoLanguageRepetitionForFirst1000Levels()
-        {
-            var usedLanguageIds = new HashSet<int>();
-
-            // For first 1000 levels, no languageId should repeat
-            // Since there are 101 groups (1 group of 9, then 100 groups of 10), and 101 unique languageIds
-            for (int group = 0; group <= 100; group++)
-            {
-                int levelInGroup = group == 0 ? 1 : 10 + (group - 1) * 10;
-                int languageId = BackgroundRules.GetLanguageId(levelInGroup);
-
-                Assert.IsTrue(usedLanguageIds.Add(languageId),
-                    $"LanguageId {languageId} repeated at group {group} (level {levelInGroup})");
-            }
-
-            Assert.AreEqual(101, usedLanguageIds.Count, "First 1000 levels must use exactly 101 unique language IDs");
-        }
-
-        [Test]
-        public void DesignLanguage_LayerCountIsAtLeast3()
-        {
-            for (int languageId = 0; languageId < 100; languageId++)
-            {
-                var language = BackgroundRules.GetDesignLanguage(languageId);
-                Assert.GreaterOrEqual(language.LayerCount, 3,
-                    $"LanguageId {languageId} must have at least 3 layers for multi-layer parallax");
+                var theme = BackgroundRules.GetZoneTheme(zoneIndex, seed);
+                Assert.IsTrue(BackgroundRules.IsGrayscaleRecognisable(theme),
+                    $"Zone {zoneIndex} should be recognisable in grayscale");
             }
         }
 
         [Test]
-        public void DesignLanguage_HasValidMotifFamilies()
+        public void ZoneTheme_AntiRepetitionAgainstRecentZones()
         {
-            var validMotifs = new HashSet<string>
+            int seed = 8888;
+            var recent = new Queue<ZoneThemeFingerprint>();
+            for (int zoneIndex = 0; zoneIndex < 30; zoneIndex++)
             {
-                "Bubbles", "Crystalline", "Leaves", "Mist", "Waves",
-                "Particles", "Geometric", "Organic", "Celestial", "Abstract"
-            };
+                var theme = BackgroundRules.GetZoneTheme(zoneIndex, seed);
+                if (recent.Count >= 3)
+                {
+                    recent.Dequeue();
+                }
 
-            for (int languageId = 0; languageId < 100; languageId++)
-            {
-                var language = BackgroundRules.GetDesignLanguage(languageId);
-                Assert.IsTrue(validMotifs.Contains(language.MotifFamily),
-                    $"LanguageId {languageId} has invalid motif family: {language.MotifFamily}");
+                foreach (var prev in recent)
+                {
+                    int matches = 0;
+                    if (theme.Fingerprint.GeometryVocabulary == prev.GeometryVocabulary) matches++;
+                    if (theme.Fingerprint.PrimaryGeneratorFamily == prev.PrimaryGeneratorFamily) matches++;
+                    if (theme.Fingerprint.SymmetryClass == prev.SymmetryClass) matches++;
+                    if (theme.Fingerprint.LayerCount == prev.LayerCount) matches++;
+                    if (theme.Fingerprint.MotionPresence == prev.MotionPresence) matches++;
+                    if (theme.Fingerprint.MacroCount == prev.MacroCount && theme.Fingerprint.MesoCount == prev.MesoCount && theme.Fingerprint.MicroCount == prev.MicroCount) matches++;
+                    if (theme.Fingerprint.CompositingSignature == prev.CompositingSignature) matches++;
+
+                    Assert.Less(matches, 4, $"Zone {zoneIndex} too similar to recent zone");
+                }
+
+                recent.Enqueue(theme.Fingerprint);
             }
         }
 
         [Test]
-        public void DesignLanguage_HueCoversFullSpectrum()
+        public void PerformanceEstimates_AreWithinBudget()
         {
-            var hueRanges = new bool[10]; // 10 buckets for 0.0-1.0 hue range
-
-            for (int languageId = 0; languageId < 100; languageId++)
-            {
-                var language = BackgroundRules.GetDesignLanguage(languageId);
-                int bucket = (int)(language.BaseHue * 10);
-                if (bucket >= 10) bucket = 9;
-                hueRanges[bucket] = true;
-            }
-
-            int coveredBuckets = 0;
-            for (int i = 0; i < 10; i++)
-            {
-                if (hueRanges[i]) coveredBuckets++;
-            }
-
-            Assert.GreaterOrEqual(coveredBuckets, 8,
-                "Design languages should cover at least 80% of the hue spectrum");
-        }
-
-        [Test]
-        public void DesignLanguage_ClearlySeparatedEvery10Levels()
-        {
-            // Adjacent language groups (every 10 levels) should have perceptibly different hues
-            for (int languageId = 0; languageId < 99; languageId++)
-            {
-                var current = BackgroundRules.GetDesignLanguage(languageId);
-                var next = BackgroundRules.GetDesignLanguage(languageId + 1);
-
-                // Either hue differs, OR motif family differs, OR saturation/value differs significantly
-                float hueDiff = System.Math.Abs(current.BaseHue - next.BaseHue);
-                // Handle wrap-around for hue
-                hueDiff = System.Math.Min(hueDiff, 1f - hueDiff);
-
-                float satDiff = System.Math.Abs(current.BaseSaturation - next.BaseSaturation);
-                float valDiff = System.Math.Abs(current.BaseValue - next.BaseValue);
-                bool motifDiff = current.MotifFamily != next.MotifFamily;
-
-                bool perceptiblyDifferent = hueDiff > 0.05f || motifDiff || satDiff > 0.1f || valDiff > 0.1f;
-
-                Assert.IsTrue(perceptiblyDifferent,
-                    $"LanguageId {languageId} and {languageId + 1} are too similar");
-            }
+            int estimatedMax = BackgroundRules.EstimateZoneThemeWorkUnits(20);
+            Assert.LessOrEqual(estimatedMax, 24000, "Zone Theme generation estimate too high");
+            Assert.LessOrEqual(BackgroundRules.EstimateLevelVariantWorkUnits(), 5000, "Level Variant generation estimate too high");
         }
     }
 }
