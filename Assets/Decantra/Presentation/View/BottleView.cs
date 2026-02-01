@@ -85,9 +85,9 @@ namespace Decantra.Presentation.View
                 reflectionStrip.raycastTarget = false;
 
                 var rect = reflectionStrip.rectTransform;
-                // Right-side reflection strip: 15% width, 65% height, ~28% inward from right
-                rect.anchorMin = new Vector2(0.64f, 0.18f);
-                rect.anchorMax = new Vector2(0.79f, 0.83f);
+                // Right-side reflection strip: ~12% width, ~72% height, centered ~20% inward from right
+                rect.anchorMin = new Vector2(0.74f, 0.12f);
+                rect.anchorMax = new Vector2(0.86f, 0.84f);
                 rect.offsetMin = Vector2.zero;
                 rect.offsetMax = Vector2.zero;
             }

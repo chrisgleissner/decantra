@@ -283,7 +283,7 @@ namespace Decantra.Presentation
 
             var detailImage = detailGo.AddComponent<Image>();
             detailImage.sprite = CreateSoftNoiseSprite();
-            detailImage.color = new Color(1f, 1f, 1f, 0.28f);
+            detailImage.color = new Color(1f, 1f, 1f, 0.36f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
             var detailDrift = detailGo.AddComponent<BackgroundDrift>();
@@ -589,8 +589,8 @@ namespace Decantra.Presentation
             reflectionStrip.color = new Color(0.96f, 0.98f, 1f, 0.16f);
             reflectionStrip.raycastTarget = false;
             var reflectionRect = reflectionStripGo.GetComponent<RectTransform>();
-            reflectionRect.anchorMin = new Vector2(0.64f, 0.18f);
-            reflectionRect.anchorMax = new Vector2(0.79f, 0.83f);
+            reflectionRect.anchorMin = new Vector2(0.74f, 0.12f);
+            reflectionRect.anchorMax = new Vector2(0.86f, 0.84f);
             reflectionRect.offsetMin = Vector2.zero;
             reflectionRect.offsetMax = Vector2.zero;
 
@@ -1095,8 +1095,8 @@ namespace Decantra.Presentation
             shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
             shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
             shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(260, 140);
-            shadowRect.anchoredPosition = new Vector2(4f, -6f);
+            shadowRect.sizeDelta = new Vector2(308, 148);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
             shadowGo.transform.SetAsFirstSibling();
 
             var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
@@ -1109,8 +1109,8 @@ namespace Decantra.Presentation
             glassRect.anchorMin = new Vector2(0.5f, 0.5f);
             glassRect.anchorMax = new Vector2(0.5f, 0.5f);
             glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(220, 56);
-            glassRect.anchoredPosition = new Vector2(0f, 28f);
+            glassRect.sizeDelta = new Vector2(292, 64);
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
 
             var rect = panel.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(300, 140);
@@ -1120,7 +1120,7 @@ namespace Decantra.Presentation
             element.flexibleWidth = 1f;
 
             var text = CreateHudText(panel.transform, "Value");
-            text.fontSize = 44;
+            text.fontSize = 56;
             text.text = label;
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
@@ -1727,7 +1727,7 @@ namespace Decantra.Presentation
             texture.wrapMode = TextureWrapMode.Repeat;
             texture.filterMode = FilterMode.Bilinear;
 
-            float scale = 9.5f;
+            float scale = 10.5f;
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
@@ -1735,10 +1735,14 @@ namespace Decantra.Presentation
                     float nx = x / (float)width;
                     float ny = y / (float)height;
                     float n1 = Mathf.PerlinNoise(nx * scale, ny * scale);
-                    float n2 = Mathf.PerlinNoise(nx * scale * 1.6f + 11.3f, ny * scale * 1.6f + 6.7f);
-                    float noise = Mathf.Lerp(n1, n2, 0.6f);
-                    float v = Mathf.Lerp(0.7f, 1.2f, noise);
-                    float alpha = Mathf.Lerp(0.2f, 1f, noise);
+                    float n2 = Mathf.PerlinNoise(nx * scale * 2.1f + 11.3f, ny * scale * 2.1f + 6.7f);
+                    float n3 = Mathf.PerlinNoise(nx * scale * 4.3f + 4.8f, ny * scale * 4.3f + 9.2f);
+                    float n4 = Mathf.PerlinNoise(nx * 32.0f + 1.1f, ny * 32.0f + 7.4f);
+                    float fbm = (n1 * 0.5f) + (n2 * 0.3f) + (n3 * 0.2f);
+                    float speck = Mathf.SmoothStep(0.62f, 0.85f, n4);
+                    float noise = Mathf.Clamp01(fbm + speck * 0.35f);
+                    float v = Mathf.Lerp(0.65f, 1.15f, noise);
+                    float alpha = Mathf.Clamp01(Mathf.Lerp(0.12f, 0.55f, noise) + speck * 0.35f);
                     texture.SetPixel(x, y, new Color(v, v, v, alpha));
                 }
             }
