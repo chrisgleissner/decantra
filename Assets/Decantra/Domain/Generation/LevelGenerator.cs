@@ -19,12 +19,19 @@ namespace Decantra.Domain.Generation
     public sealed class LevelGenerator
     {
         private readonly BfsSolver _solver;
+        private readonly DifficultyObjective _difficultyObjective;
+
+        /// <summary>
+        /// Most recent generation report (for telemetry/debugging).
+        /// </summary>
+        public LevelGenerationReport LastReport { get; private set; }
 
         public Action<string>? Log { get; set; }
 
         public LevelGenerator(BfsSolver solver)
         {
             _solver = solver ?? throw new ArgumentNullException(nameof(solver));
+            _difficultyObjective = DifficultyObjective.Default;
         }
 
         public LevelState Generate(int seed, DifficultyProfile profile)
@@ -38,125 +45,337 @@ namespace Decantra.Domain.Generation
             int scrambleMovesTarget = profile.ReverseMoves;
 
             var scrambleTimer = Stopwatch.StartNew();
-            LevelState scrambled = null;
+            LevelState bestCandidate = null;
+            LevelMetrics bestMetrics = null;
+            float bestScore = float.MinValue;
             string lastFailure = null;
             int optimal = -1;
             int movesAllowed = 0;
             int scrambleMoves = 0;
             long solveMs = 0;
+            long metricsMs = 0;
+            int attemptsUsed = 0;
+            bool qualityGatesApplied = true;
+
+            var thresholds = QualityThresholds.ForBand(profile.Band);
             const int minOptimalMoves = 2;
-            const int maxAttempts = 20;
+            const int maxAttempts = 25;
+            const int candidatesPerAttempt = 3; // Hill-climb: generate multiple candidates per attempt
+
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
-                var attemptRng = attempt == 0 ? rng : new Random(seed + attempt * 7919);
-                int attemptScrambleTarget = Math.Max(4, scrambleMovesTarget - attempt / 2);
+                attemptsUsed = attempt + 1;
 
-                // Adaptive strategy: If we fail repeatedly, ensure we keep at least one empty bottle to avoid deadlocks
-                int minEmptyDuringScramble = (attempt >= 5 && profile.EmptyBottleCount > 1) ? 1 : 0;
-
-                int maxEmptyDuringScramble = Math.Max(profile.EmptyBottleCount + 2, profile.EmptyBottleCount);
-                var attemptState = new LevelState(CloneBottles(solved), 0, 0, 0, profile.LevelIndex, seed);
-                int appliedMoves = ScrambleState(attemptState, attemptRng, attemptScrambleTarget, minEmptyDuringScramble, maxEmptyDuringScramble);
-                if (appliedMoves <= 0)
+                // Relaxed mode: after many attempts, disable strict quality gates
+                bool relaxedMode = attempt >= 18;
+                if (relaxedMode)
                 {
-                    lastFailure = "scramble";
-                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                    continue;
+                    qualityGatesApplied = false;
                 }
 
-                if (profile.LevelIndex <= 6 && HasSolvedBottle(attemptState.Bottles))
+                // Generate multiple scramble candidates and pick the best
+                for (int candidateIdx = 0; candidateIdx < candidatesPerAttempt; candidateIdx++)
                 {
-                    if (!BreakSolvedBottles(attemptState, attemptRng, minEmptyDuringScramble, maxEmptyDuringScramble, Math.Max(1, appliedMoves) * 6))
+                    int candidateSeed = seed + attempt * 7919 + candidateIdx * 1307;
+                    var attemptRng = new Random(candidateSeed);
+                    int attemptScrambleTarget = Math.Max(4, scrambleMovesTarget - attempt / 3);
+
+                    // Adaptive strategy: If we fail repeatedly, ensure we keep at least one empty bottle
+                    int minEmptyDuringScramble = (attempt >= 5 && profile.EmptyBottleCount > 1) ? 1 : 0;
+                    int maxEmptyDuringScramble = Math.Max(profile.EmptyBottleCount + 2, profile.EmptyBottleCount);
+
+                    var attemptState = new LevelState(CloneBottles(solved), 0, 0, 0, profile.LevelIndex, seed);
+                    int appliedMoves = ScrambleState(attemptState, attemptRng, attemptScrambleTarget, minEmptyDuringScramble, maxEmptyDuringScramble);
+
+                    if (appliedMoves <= 0)
                     {
-                        lastFailure = "break_solved";
+                        lastFailure = "scramble";
+                        continue;
+                    }
+
+                    if (profile.LevelIndex <= 6 && HasSolvedBottle(attemptState.Bottles))
+                    {
+                        if (!BreakSolvedBottles(attemptState, attemptRng, minEmptyDuringScramble, maxEmptyDuringScramble, Math.Max(1, appliedMoves) * 6))
+                        {
+                            lastFailure = "break_solved";
+                            continue;
+                        }
+                    }
+
+                    if (CountEmpty(attemptState.Bottles) > profile.EmptyBottleCount)
+                    {
+                        if (!ReduceEmptyCount(attemptState, attemptRng, profile.EmptyBottleCount, Math.Max(1, appliedMoves) * 8))
+                        {
+                            lastFailure = "reduce_empty";
+                            continue;
+                        }
+                    }
+
+                    if (!IsAcceptableStart(attemptState, profile))
+                    {
+                        lastFailure = "accept";
+                        continue;
+                    }
+
+                    if (!LevelIntegrity.TryValidate(attemptState, out string integrityError))
+                    {
+                        lastFailure = $"integrity:{integrityError}";
+                        continue;
+                    }
+
+                    if (!LevelStartValidator.TryValidate(attemptState, out string startError))
+                    {
+                        lastFailure = $"start:{startError}";
+                        continue;
+                    }
+
+                    // Check structural complexity (Requirement G)
+                    if (!relaxedMode && !IsStructurallyComplex(attemptState.Bottles, profile.LevelIndex, profile.ColorCount, profile.EmptyBottleCount))
+                    {
+                        lastFailure = "structural_complexity";
+                        continue;
+                    }
+
+                    // Check empty-bottle chain risk (Requirement D)
+                    if (!relaxedMode && HasEmptyBottleChainRisk(attemptState, profile.EmptyBottleCount))
+                    {
+                        lastFailure = "empty_chain_risk";
+                        continue;
+                    }
+
+                    var solveTimer = Stopwatch.StartNew();
+                    var solveResult = _solver.SolveWithPath(attemptState);
+                    solveTimer.Stop();
+                    long candidateSolveMs = solveTimer.ElapsedMilliseconds;
+
+                    if (solveResult.OptimalMoves < 0)
+                    {
+                        // Handle timeout case
+                        if (solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
+                        {
+                            int estimatedOptimal = (int)(appliedMoves * 0.7f);
+                            int estMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, estimatedOptimal));
+
+                            // For timeout cases, use estimated metrics
+                            var timeoutMetrics = new LevelMetrics(0.5f, 1.5f, 1, 0.5f, 0.1f, 1,
+                                CountMixedBottles(attemptState.Bottles),
+                                CountDistinctSignatures(attemptState.Bottles),
+                                CountTopColorVariety(attemptState.Bottles));
+
+                            float timeoutScore = _difficultyObjective.Score(timeoutMetrics);
+
+                            if (timeoutScore > bestScore)
+                            {
+                                bestScore = timeoutScore;
+                                bestMetrics = timeoutMetrics;
+                                bestCandidate = new LevelState(attemptState.Bottles, 0, estMovesAllowed, estimatedOptimal, profile.LevelIndex, seed, appliedMoves);
+                                optimal = estimatedOptimal;
+                                movesAllowed = estMovesAllowed;
+                                scrambleMoves = appliedMoves;
+                                solveMs = candidateSolveMs;
+                            }
+                            continue;
+                        }
+
+                        lastFailure = solveResult.Status == SolverStatus.Timeout ? "solver_timeout" : "solver_unsolvable";
+                        continue;
+                    }
+
+                    if (solveResult.OptimalMoves < minOptimalMoves)
+                    {
+                        lastFailure = "min_optimal";
+                        continue;
+                    }
+
+                    // Compute metrics (Requirements A, B, C)
+                    var metricsTimer = Stopwatch.StartNew();
+                    var pathMetrics = MetricsComputer.ComputePathMetrics(attemptState, solveResult.Path);
+                    var structuralMetrics = MetricsComputer.ComputeStructuralMetrics(attemptState);
+
+                    // Compute trap score (Requirement C) - budget-limited for performance
+                    float trapScore = 0f;
+                    if (!relaxedMode && solveResult.Path.Count > 0)
+                    {
+                        trapScore = MetricsComputer.ComputeTrapScore(attemptState, solveResult.Path, _solver, sampleCount: 10, nodeBudget: 1500);
+                    }
+
+                    // Estimate solution multiplicity (Requirement B) - only for non-relaxed mode
+                    int multiplicity = 1;
+                    if (!relaxedMode && solveResult.OptimalMoves <= 20)
+                    {
+                        multiplicity = MetricsComputer.EstimateSolutionMultiplicity(attemptState, solveResult.OptimalMoves, maxSolutions: 3, nearOptimalMargin: 1);
+                    }
+
+                    metricsTimer.Stop();
+                    long candidateMetricsMs = metricsTimer.ElapsedMilliseconds;
+
+                    var candidateMetrics = new LevelMetrics(
+                        pathMetrics.ForcedMoveRatio,
+                        pathMetrics.AverageBranchingFactor,
+                        pathMetrics.DecisionDepth,
+                        pathMetrics.EmptyBottleUsageRatio,
+                        trapScore,
+                        multiplicity,
+                        structuralMetrics.MixedBottleCount,
+                        structuralMetrics.DistinctSignatureCount,
+                        structuralMetrics.TopColorVariety);
+
+                    // Quality gate check (Requirements A-G)
+                    if (!relaxedMode && !thresholds.Passes(candidateMetrics, out string failureReason))
+                    {
+                        lastFailure = $"quality:{failureReason}";
                         ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
                         continue;
                     }
-                }
 
-                if (CountEmpty(attemptState.Bottles) > profile.EmptyBottleCount)
-                {
-                    if (!ReduceEmptyCount(attemptState, attemptRng, profile.EmptyBottleCount, Math.Max(1, appliedMoves) * 8))
+                    // Compute difficulty score for hill-climb selection
+                    float candidateScore = _difficultyObjective.Score(candidateMetrics);
+
+                    // Keep best candidate
+                    if (candidateScore > bestScore)
                     {
-                        lastFailure = "reduce_empty";
-                        ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                        continue;
-                    }
-                }
-
-                if (!IsAcceptableStart(attemptState, profile))
-                {
-                    lastFailure = "accept";
-                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                    continue;
-                }
-
-                if (!LevelIntegrity.TryValidate(attemptState, out string integrityError))
-                {
-                    lastFailure = $"integrity:{integrityError}";
-                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                    continue;
-                }
-
-                if (!LevelStartValidator.TryValidate(attemptState, out string startError))
-                {
-                    lastFailure = $"start:{startError}";
-                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                    continue;
-                }
-
-                var solveTimer = Stopwatch.StartNew();
-                var solveResult = _solver.SolveOptimal(attemptState);
-                solveTimer.Stop();
-                if (solveResult.OptimalMoves < 0)
-                {
-                    // If solver timed out (hit node limit) but we scrambled enough moves, assume it's a valid hard level.
-                    // This bypasses verification for very deep levels where A* cannot find the optimal path quickly.
-                    if (solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
-                    {
-                        optimal = (int)(appliedMoves * 0.7f);
-                        Log?.Invoke($"LevelGenerator.Generate Accepted (Timeout) level={profile.LevelIndex} seed={seed} applied={appliedMoves} estimatedOptimal={optimal}");
-
-                        movesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimal));
+                        bestScore = candidateScore;
+                        bestMetrics = candidateMetrics;
+                        int candidateMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, solveResult.OptimalMoves));
+                        bestCandidate = new LevelState(attemptState.Bottles, 0, candidateMovesAllowed, solveResult.OptimalMoves, profile.LevelIndex, seed, appliedMoves);
+                        optimal = solveResult.OptimalMoves;
+                        movesAllowed = candidateMovesAllowed;
                         scrambleMoves = appliedMoves;
-                        solveMs = solveTimer.ElapsedMilliseconds;
-                        scrambled = new LevelState(attemptState.Bottles, 0, movesAllowed, optimal, profile.LevelIndex, seed, scrambleMoves);
-                        break;
+                        solveMs = candidateSolveMs;
+                        metricsMs = candidateMetricsMs;
                     }
-
-                    lastFailure = solveResult.Status == SolverStatus.Timeout ? "solver_timeout" : "solver_unsolvable";
-                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                    continue;
                 }
-                if (solveResult.OptimalMoves < minOptimalMoves)
+
+                // If we have a passing candidate, use it
+                if (bestCandidate != null && qualityGatesApplied)
                 {
-                    lastFailure = "min_optimal";
-                    ReportReject(profile.LevelIndex, seed, attempt, lastFailure);
-                    continue;
+                    break;
                 }
-
-                optimal = solveResult.OptimalMoves;
-                movesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimal));
-                scrambleMoves = appliedMoves;
-                solveMs = solveTimer.ElapsedMilliseconds;
-                scrambled = new LevelState(attemptState.Bottles, 0, movesAllowed, optimal, profile.LevelIndex, seed, scrambleMoves);
-                break;
             }
             scrambleTimer.Stop();
 
-            if (scrambled == null)
+            if (bestCandidate == null)
             {
                 throw new InvalidOperationException($"Failed to scramble a valid level state ({lastFailure ?? "unknown"})");
             }
+
             overallTimer.Stop();
-            Log?.Invoke($"LevelGenerator.Generate seed={seed} level={profile.LevelIndex} scrambleMoves={scrambled.ScrambleMoves} movesAllowed={movesAllowed} scrambleMs={scrambleTimer.ElapsedMilliseconds} solveMs={solveMs} totalMs={overallTimer.ElapsedMilliseconds}");
-            return scrambled;
+
+            // Create generation report (Requirement F)
+            LastReport = new LevelGenerationReport(
+                profile.LevelIndex,
+                seed,
+                attemptsUsed,
+                bestMetrics ?? LevelMetrics.Empty,
+                optimal,
+                movesAllowed,
+                scrambleMoves,
+                overallTimer.ElapsedMilliseconds,
+                solveMs,
+                metricsMs,
+                bestScore,
+                qualityGatesApplied,
+                lastFailure);
+
+            Log?.Invoke($"LevelGenerator.Generate seed={seed} level={profile.LevelIndex} scrambleMoves={bestCandidate.ScrambleMoves} movesAllowed={movesAllowed} score={bestScore:F2} attempts={attemptsUsed} scrambleMs={scrambleTimer.ElapsedMilliseconds} solveMs={solveMs} totalMs={overallTimer.ElapsedMilliseconds} metrics={bestMetrics}");
+
+            return bestCandidate;
         }
 
         [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         private void ReportReject(int levelIndex, int seed, int attempt, string reason)
         {
             Log?.Invoke($"LevelGenerator.Reject level={levelIndex} seed={seed} attempt={attempt} reason={reason}");
+        }
+
+        /// <summary>
+        /// Checks for empty-bottle chain risk (Requirement D).
+        /// Returns true if multiple empties exist and are immediately fillable by many sources.
+        /// </summary>
+        private static bool HasEmptyBottleChainRisk(LevelState state, int emptyBottleCount)
+        {
+            if (emptyBottleCount <= 1) return false;
+
+            int emptyCount = CountEmpty(state.Bottles);
+            if (emptyCount <= 1) return false;
+
+            // Count how many sources can pour into each empty bottle
+            int totalFillOptions = 0;
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                var target = state.Bottles[i];
+                if (!target.IsEmpty) continue;
+                if (target.IsSink) continue;
+
+                for (int j = 0; j < state.Bottles.Count; j++)
+                {
+                    if (i == j) continue;
+                    var source = state.Bottles[j];
+                    if (source.IsEmpty) continue;
+
+                    int amount = MoveRules.GetPourAmount(state, j, i);
+                    if (amount > 0)
+                    {
+                        totalFillOptions++;
+                    }
+                }
+            }
+
+            // Chain risk if too many fill options exist across empties
+            // Threshold: more than 4 immediate fill options suggests mechanical chains
+            return totalFillOptions > 4;
+        }
+
+        /// <summary>
+        /// Counts bottles with mixed colors (more than one color).
+        /// </summary>
+        private static int CountMixedBottles(IReadOnlyList<Bottle> bottles)
+        {
+            int count = 0;
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                var bottle = bottles[i];
+                if (!bottle.IsEmpty && !bottle.IsSingleColorOrEmpty())
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Counts distinct bottle content signatures.
+        /// </summary>
+        private static int CountDistinctSignatures(IReadOnlyList<Bottle> bottles)
+        {
+            var signatures = new HashSet<string>();
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                var bottle = bottles[i];
+                if (!bottle.IsEmpty)
+                {
+                    signatures.Add(BottleSignature(bottle));
+                }
+            }
+            return signatures.Count;
+        }
+
+        /// <summary>
+        /// Counts distinct colors appearing at top positions.
+        /// </summary>
+        private static int CountTopColorVariety(IReadOnlyList<Bottle> bottles)
+        {
+            var topColors = new HashSet<ColorId>();
+            for (int i = 0; i < bottles.Count; i++)
+            {
+                var bottle = bottles[i];
+                var topColor = bottle.TopColor;
+                if (topColor.HasValue)
+                {
+                    topColors.Add(topColor.Value);
+                }
+            }
+            return topColors.Count;
         }
 
         private static int ScrambleState(LevelState state, Random rng, int moves, int minEmptyCount, int maxEmptyCount)

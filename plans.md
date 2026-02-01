@@ -168,6 +168,207 @@ Notes:
 
 ---
 
+# Level Generation Decision-Density Overhaul (2026-02-01)
+
+Reference: doc/level-generation-research.md (binding specification)
+
+## Objective
+Eliminate linear "undo-the-scramble" gameplay by implementing research-backed techniques to increase decision density, branching, and strategic risk while preserving solvability, determinism, and performance guarantees.
+
+## Phase 1: Core Metrics Infrastructure
+
+### Step 1.1: Add LevelMetrics Data Model
+- [x] Create LevelMetrics class in Domain/Generation with fields:
+  - ForcedMoveRatio (float): fraction of optimal path states with exactly one legal move
+  - AverageBranchingFactor (float): mean legal moves along optimal path
+  - DecisionDepth (int): steps until first state with >=2 legal moves
+  - EmptyBottleUsageRatio (float): fraction of optimal moves that pour into empty bottles
+  - TrapScore (float): fraction of non-optimal moves that lead to harder/unsolvable states
+  - SolutionMultiplicity (int): estimated count of optimal/near-optimal solutions
+- Files: Assets/Decantra/Domain/Generation/LevelMetrics.cs (new)
+- Validation: Unit test for data model instantiation
+
+### Step 1.2: Extend BfsSolver for Metrics Collection
+- [x] Add SolveWithMetrics method that returns SolverResultWithMetrics
+- [x] Track along optimal path: legal move counts per state, empty-bottle pour count
+- [x] Compute forced-move ratio, branching factor, decision depth, empty-bottle usage
+- Files: Assets/Decantra/Domain/Solver/BfsSolver.cs, MetricsComputer.cs
+- Validation: Unit tests for metrics computation on known states
+
+### Step 1.3: Implement Solution Multiplicity Estimation (Requirement B)
+- [x] Add CountOptimalSolutions method with cap (max 3)
+- [x] Alternative: Implement divergence test - check if N distinct prefixes of length K solve within +1/+2 moves
+- [x] Return multiplicity count in SolverResultWithMetrics
+- Files: Assets/Decantra/Domain/Solver/MetricsComputer.cs
+- Validation: Unit test with known multi-solution puzzles
+
+## Phase 2: Trap Scoring and Dead-End Risk (Requirement C)
+
+### Step 2.1: Implement Trap Score Computation
+- [x] Add ComputeTrapScore method to MetricsComputer class
+- [x] From initial state, sample M non-optimal legal moves (M=10-20)
+- [x] For each, attempt solve with tight node budget (1000-5000 nodes)
+- [x] TrapScore = fraction that are harder (longer) or unsolved within budget
+- Files: Assets/Decantra/Domain/Solver/MetricsComputer.cs
+- Validation: Unit test verifying trap score increases for states with dead-ends
+
+### Step 2.2: Integrate Trap Score into Metrics
+- [x] Call trap scorer during level validation
+- [x] Store trap score in LevelMetrics
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Integration test showing trap score populated
+
+## Phase 3: Acceptance Gates (Requirements A, B, C, G)
+
+### Step 3.1: Define Difficulty Band Thresholds
+- [x] Add QualityThresholds class with per-band configuration:
+  - MaxForcedMoveRatio: 0.60 (Band A-B), 0.50 (Band C+)
+  - MaxDecisionDepth: 3 (Band A), 2 (Band B+)
+  - MinBranchingFactor: 1.3 (Band A-B), 1.5 (Band C+)
+  - MinTrapScore: 0.10 (Band A-B), 0.20 (Band C+)
+  - MinSolutionMultiplicity: 1 (Band A), 2 (Band B+)
+- Files: Assets/Decantra/Domain/Generation/QualityThresholds.cs (new)
+- Validation: Threshold retrieval tests per band
+
+### Step 3.2: Implement Quality Gate in LevelGenerator
+- [x] After solving, compute full LevelMetrics
+- [x] Check against QualityThresholds for current band
+- [x] Reject levels that fail any threshold
+- [x] Log rejection reasons for tuning
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Test that levels failing thresholds are rejected
+
+### Step 3.3: Wire IsStructurallyComplex into Acceptance Gate (Requirement G)
+- [x] Call existing IsStructurallyComplex in acceptance checks
+- [x] Extend to enforce: min mixed bottles, min distinct signatures, min top-position color variety
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Test that structurally simple levels are rejected
+
+## Phase 4: Empty-Bottle Chain Suppression (Requirement D)
+
+### Step 4.1: Tighten Empty Bottle Count Rules
+- [x] Mid-band (levels 7-17): enforce 1 empty bottle strictly (already in place)
+- [x] When 2 empties exist (levels 1-6, 18+): enforce capacity asymmetry (3 vs 4) - already in place
+- [x] Add check for "chain risk": reject if multiple empties are immediately fillable by many sources
+- Files: Assets/Decantra/Domain/Rules/LevelDifficultyEngine.cs, LevelGenerator.cs
+- Validation: Test empty bottle constraints are enforced
+
+### Step 4.2: Add Empty-Bottle Chain Risk Detector
+- [x] Implement method to detect mechanical chain risk
+- [x] Count how many sources can pour into each empty bottle
+- [x] Reject if sum exceeds threshold (e.g., >4 immediate fill options across empties)
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Test detecting and rejecting chain-risk states
+
+## Phase 5: Objective-Guided Scrambling (Requirement E)
+
+### Step 5.1: Implement Difficulty Objective Function
+- [x] Create DifficultyObjective class combining metrics:
+  - Score = w1*(1-ForcedMoveRatio) + w2*BranchingFactor + w3*TrapScore + w4*(1/DecisionDepth) + w5*Multiplicity
+  - Weights tunable per band
+- Files: Assets/Decantra/Domain/Generation/DifficultyObjective.cs (new)
+- Validation: Unit tests for objective scoring
+
+### Step 5.2: Implement Hill-Climb Scramble Selection
+- [x] Generate N candidate scrambles (N=3-5) per attempt
+- [x] Score each with difficulty objective
+- [x] Keep best-scoring scramble
+- [x] Fallback to any valid scramble if all fail quality gates
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Test that hill-climb improves average objective score
+
+### Step 5.3: (Optional) MCTS-Guided Scramble Search
+- [ ] If hill-climb insufficient: implement lightweight MCTS in reverse-move space
+- [ ] Score intermediate states by difficulty objective
+- [ ] Budget: max 100 playouts per level generation
+- Files: Assets/Decantra/Domain/Generation/MctsScrambler.cs (new, if needed)
+- Validation: Performance test ensuring <50ms additional latency
+- Note: Deferred - hill-climb provides sufficient improvement
+
+## Phase 6: Telemetry Architecture (Requirement F)
+
+### Step 6.1: Add Generation Stats Logging
+- [x] Instrument LevelGenerator to log/expose:
+  - Final LevelMetrics for each generated level
+  - Rejection counts and reasons
+  - Generation attempt count
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Log output verification
+
+### Step 6.2: Define Telemetry-Ready Data Structure
+- [x] Create LevelGenerationReport struct with all metrics
+- [x] Include fields for future player telemetry correlation
+- [x] Expose via public property on generator
+- Files: Assets/Decantra/Domain/Generation/LevelGenerationReport.cs (new)
+- Validation: Data structure instantiation test
+
+## Phase 7: Performance Safeguards
+
+### Step 7.1: Budget Metrics Computation
+- [x] Cap trap score sampling to M=15 moves, budget=2000 nodes each
+- [x] Cap solution multiplicity search to 3 solutions
+- [x] Total metrics overhead target: <30ms per level
+- Files: All solver/metrics code
+- Validation: Performance test with timing assertions
+
+### Step 7.2: Ensure Precompute Pipeline Compatibility
+- [x] Verify all new code runs off-main-thread safely
+- [x] No Unity API calls in metrics/solver code
+- [x] Test precompute with new validation gates
+- Files: Assets/Decantra/Presentation/Controller/GameController.cs
+- Validation: Async generation test, no main-thread blocking
+
+### Step 7.3: First-Level Generation Performance
+- [x] Ensure level 1 generates in <100ms total
+- [x] Relaxed mode ensures fast fallback if quality gates too strict
+- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
+- Validation: Timing test for level 1 generation
+
+## Phase 8: Testing and Validation
+
+### Step 8.1: Unit Tests for Metrics
+- [x] Test ForcedMoveRatio computation
+- [x] Test BranchingFactor computation
+- [x] Test DecisionDepth computation
+- [x] Test EmptyBottleUsageRatio computation
+- [x] Test TrapScore computation
+- [x] Test SolutionMultiplicity counting
+- Files: Assets/Decantra/Tests/EditMode/LevelMetricsTests.cs (new)
+
+### Step 8.2: Integration Tests for Quality Gates
+- [x] Test levels passing all thresholds are accepted
+- [x] Test levels failing each threshold individually are rejected
+- [x] Test structural complexity gate
+- Files: Assets/Decantra/Tests/EditMode/QualityGateTests.cs (new)
+
+### Step 8.3: Regression Tests
+- [ ] Verify all existing tests pass
+- [ ] Verify determinism preserved (same seed = same level)
+- [ ] Verify solvability preserved (no unsolvable levels)
+- [ ] Verify performance targets met
+- Files: Existing test files + new validation tests
+
+### Step 8.4: Fuzz Testing for Solvability
+- [ ] Run 100+ levels through generator and solver
+- [ ] Verify all are solvable
+- [ ] Verify metrics are within expected ranges
+- Files: Assets/Decantra/Tests/EditMode/GenerationSolvabilityTests.cs
+
+## Exit Criteria (All Must Be True)
+- [x] Requirement A (Decision-Density Metrics): Implemented and gated
+- [x] Requirement B (Solution Multiplicity): Implemented and gated
+- [x] Requirement C (Trap Potential): Implemented and gated
+- [x] Requirement D (Empty-Bottle Suppression): Implemented and enforced
+- [x] Requirement E (Objective-Guided Scrambling): Implemented
+- [x] Requirement F (Telemetry Architecture): Data structures in place
+- [x] Requirement G (Structural Complexity): Wired into acceptance gate
+- [ ] All tests pass (./tools/test.sh)
+- [ ] Level transitions remain instant (no perceptible delay)
+- [ ] First level appears with no perceptible delay
+- [ ] Determinism preserved (verified by test)
+
+---
+
 # Visual Polish + Release Finish (2026-02-01)
 
 - [x] Brighten palette while preserving saturation (HSV V lift)
