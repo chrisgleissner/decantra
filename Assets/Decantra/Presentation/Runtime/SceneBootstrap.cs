@@ -27,6 +27,7 @@ namespace Decantra.Presentation
         private static Sprite curvedHighlightSprite;
         private static Sprite softCircleSprite;
         private static Sprite topReflectionSprite;
+        private static Sprite reflectionStripSprite;
 
         // Cached structural background sprites keyed by groupIndex (levelIndex / 10)
         private static readonly Dictionary<int, Sprite> _organicShapesByGroup = new Dictionary<int, Sprite>();
@@ -456,6 +457,7 @@ namespace Decantra.Presentation
             var highlightSprite = GetCurvedHighlightSprite();
             var softCircle = GetSoftCircleSprite();
             var topReflection = GetTopReflectionSprite();
+            var reflectionStripSprite = GetReflectionStripSprite();
 
             var hitArea = bottleGo.AddComponent<Image>();
             hitArea.color = new Color(0, 0, 0, 0);
@@ -538,6 +540,18 @@ namespace Decantra.Presentation
             glassFrontRect.pivot = new Vector2(0.5f, 0.5f);
             glassFrontRect.sizeDelta = new Vector2(140, 356);
             glassFrontRect.anchoredPosition = new Vector2(0, -8);
+
+            var reflectionStripGo = CreateUiChild(bottleGo.transform, "ReflectionStrip");
+            var reflectionStrip = reflectionStripGo.AddComponent<Image>();
+            reflectionStrip.sprite = reflectionStripSprite;
+            reflectionStrip.type = Image.Type.Simple;
+            reflectionStrip.color = new Color(0.96f, 0.98f, 1f, 0.16f);
+            reflectionStrip.raycastTarget = false;
+            var reflectionRect = reflectionStripGo.GetComponent<RectTransform>();
+            reflectionRect.anchorMin = new Vector2(0.64f, 0.18f);
+            reflectionRect.anchorMax = new Vector2(0.79f, 0.83f);
+            reflectionRect.offsetMin = Vector2.zero;
+            reflectionRect.offsetMax = Vector2.zero;
 
             var topReflectionGo = CreateUiChild(bottleGo.transform, "TopReflection");
             var topReflectionImage = topReflectionGo.AddComponent<Image>();
@@ -719,6 +733,7 @@ namespace Decantra.Presentation
             SetPrivateField(bottleView, "outlineBaseColor", outline.color);
             SetPrivateField(bottleView, "glassBack", glassBack);
             SetPrivateField(bottleView, "glassFront", glassFront);
+            SetPrivateField(bottleView, "reflectionStrip", reflectionStrip);
             SetPrivateField(bottleView, "rim", rim);
             SetPrivateField(bottleView, "baseAccent", basePlate);
             SetPrivateField(bottleView, "curvedHighlight", highlight);
@@ -1920,6 +1935,13 @@ namespace Decantra.Presentation
             return topReflectionSprite;
         }
 
+        private static Sprite GetReflectionStripSprite()
+        {
+            if (reflectionStripSprite != null) return reflectionStripSprite;
+            reflectionStripSprite = CreateReflectionStripSprite();
+            return reflectionStripSprite;
+        }
+
         private static Sprite GetRoundedSprite()
         {
             if (roundedSprite != null) return roundedSprite;
@@ -1942,8 +1964,8 @@ namespace Decantra.Presentation
                     float nx = x / (float)(width - 1);
                     float center = 1f - Mathf.Abs(nx - 0.5f) * 2f;
                     center = Mathf.SmoothStep(0f, 1f, center);
-                    // FIXED: Lowered brightness range (was 0.6->1.0) to mid-tone to allow color saturation
-                    float brightness = Mathf.Lerp(0.40f, 0.55f, center);
+                    // Brightened to lift liquid value while staying saturated
+                    float brightness = Mathf.Lerp(0.55f, 0.78f, center);
                     texture.SetPixel(x, y, new Color(brightness, brightness, brightness, 1f));
                 }
             }
@@ -2024,6 +2046,33 @@ namespace Decantra.Presentation
                     float edge = Mathf.SmoothStep(0f, 1f, 1f - Mathf.Abs(nx - 0.5f) * 2f);
                     float a = alpha * edge;
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        private static Sprite CreateReflectionStripSprite()
+        {
+            const int width = 64;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)(height - 1);
+                float vFade = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.05f, 0.18f, ny))
+                    * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.05f, 0.18f, 1f - ny));
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)(width - 1);
+                    float dist = Mathf.Abs(nx - 0.5f);
+                    float band = Mathf.Clamp01(1f - dist / 0.45f);
+                    float alpha = Mathf.SmoothStep(0f, 1f, band) * vFade;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
 

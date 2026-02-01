@@ -165,3 +165,13 @@ Notes:
 - [x] All tests pass (./tools/test.sh)
 - [x] Screenshots regenerated and committed
 - [x] Emulator icon verified correct
+
+---
+
+# Visual Polish + Release Finish (2026-02-01)
+
+- [x] Brighten palette while preserving saturation (HSV V lift)
+- [x] Add ReflectionStrip overlay to bottle glass (pos/size per spec)
+- [x] Update Android app icon to app-icon-512x512.png
+- [x] Regenerate screenshots
+- [ ] CI green (verified via gh)

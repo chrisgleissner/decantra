@@ -28,6 +28,7 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image rim;
         [SerializeField] private Image baseAccent;
         [SerializeField] private Image curvedHighlight;
+        [SerializeField] private Image reflectionStrip;
         [SerializeField] private Image anchorCollar;
         [SerializeField] private Image anchorShadow;
         [SerializeField] private Image normalShadow;
@@ -77,18 +78,16 @@ namespace Decantra.Presentation.View
                 glassFront.gameObject.SetActive(false);
             }
 
-            // Repurpose curvedHighlight for right-side reflection
-            if (curvedHighlight != null)
+            if (reflectionStrip != null)
             {
-                curvedHighlight.gameObject.SetActive(true);
-                curvedHighlight.color = new Color(1f, 1f, 1f, 0.08f);
-                curvedHighlight.raycastTarget = false;
+                reflectionStrip.gameObject.SetActive(true);
+                reflectionStrip.color = new Color(0.96f, 0.98f, 1f, 0.16f);
+                reflectionStrip.raycastTarget = false;
 
-                var rect = curvedHighlight.rectTransform;
-                // Right side reflection: 20% width, 70% height, offset from right
-                // Using anchors: X from 0.70 to 0.90, Y from 0.15 to 0.85
-                rect.anchorMin = new Vector2(0.7f, 0.15f);
-                rect.anchorMax = new Vector2(0.9f, 0.85f);
+                var rect = reflectionStrip.rectTransform;
+                // Right-side reflection strip: 15% width, 65% height, ~28% inward from right
+                rect.anchorMin = new Vector2(0.64f, 0.18f);
+                rect.anchorMax = new Vector2(0.79f, 0.83f);
                 rect.offsetMin = Vector2.zero;
                 rect.offsetMax = Vector2.zero;
             }
@@ -580,10 +579,10 @@ namespace Decantra.Presentation.View
             {
                 var c = palette.GetColor(color.Value);
 
-                // Boost brightness significantly while maintaining saturation
+                // Boost brightness while preserving saturation
                 Color.RGBToHSV(c, out float h, out float s, out float v);
-                v = Mathf.Clamp01(v * 1.8f); // Increase brightness significantly
-                s = Mathf.Clamp01(s * 1.8f); // Boost saturation to counter any washout
+                v = Mathf.Clamp01(v * 1.35f + 0.08f);
+                s = Mathf.Clamp01(Mathf.Lerp(s, 1f, 0.12f));
                 c = Color.HSVToRGB(h, s, v);
 
                 c.a = 1f;
@@ -691,7 +690,7 @@ namespace Decantra.Presentation.View
             {
                 var c = palette.GetColor(topColor.Value);
                 Color.RGBToHSV(c, out float h, out float s, out float v);
-                v = Mathf.Clamp01(v + 0.12f);
+                v = Mathf.Clamp01(v + 0.18f);
                 c = Color.HSVToRGB(h, s, v);
                 c.a = 0.55f;
                 liquidSurface.color = c;
