@@ -160,7 +160,7 @@ jobs:
                   unityVersion: 6000.3.5f2
                   targetPlatform: Android
                   buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
-                  versioning: ${{ env.VERSIONING }}
+                  versioning: None
                   customParameters: -buildPath Builds/Android/Decantra-release.aab
                   androidExportType: androidAppBundle
                   androidVersionCode: ${{ steps.build_release.outputs.androidVersionCode }}

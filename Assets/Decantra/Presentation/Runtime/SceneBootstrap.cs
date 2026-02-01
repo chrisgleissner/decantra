@@ -503,7 +503,8 @@ namespace Decantra.Presentation
             var liquidSurface = liquidSurfaceGo.AddComponent<Image>();
             liquidSurface.sprite = surfaceSprite;
             liquidSurface.type = Image.Type.Simple;
-            liquidSurface.color = new Color(1f, 1f, 1f, 0.22f);
+            // FIXED: Reduced alpha and added cool tint to prevent surface washout
+            liquidSurface.color = new Color(0.85f, 0.92f, 1f, 0.15f);
             liquidSurface.raycastTarget = false;
             var liquidSurfaceRect = liquidSurfaceGo.GetComponent<RectTransform>();
             liquidSurfaceRect.anchorMin = new Vector2(0.5f, 0f);
@@ -516,7 +517,8 @@ namespace Decantra.Presentation
             var glassFront = glassFrontGo.AddComponent<Image>();
             glassFront.sprite = rounded;
             glassFront.type = Image.Type.Sliced;
-            glassFront.color = new Color(0.9f, 0.95f, 1f, 0.03f);
+            // FIXED: Reduced alpha and used cool tint instead of pure white to avoid bleaching liquid
+            glassFront.color = new Color(0.75f, 0.85f, 0.96f, 0.02f);
             glassFront.raycastTarget = false;
             var glassFrontRect = glassFrontGo.GetComponent<RectTransform>();
             glassFrontRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -529,7 +531,8 @@ namespace Decantra.Presentation
             var topReflectionImage = topReflectionGo.AddComponent<Image>();
             topReflectionImage.sprite = topReflection;
             topReflectionImage.type = Image.Type.Simple;
-            topReflectionImage.color = new Color(1f, 1f, 1f, 0.08f);
+            // FIXED: Tinted cool white and reduced alpha
+            topReflectionImage.color = new Color(0.85f, 0.92f, 1f, 0.05f);
             topReflectionImage.raycastTarget = false;
             var topReflectionRect = topReflectionGo.GetComponent<RectTransform>();
             topReflectionRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -597,7 +600,8 @@ namespace Decantra.Presentation
             var lipHighlight = lipHighlightGo.AddComponent<Image>();
             lipHighlight.sprite = rounded;
             lipHighlight.type = Image.Type.Sliced;
-            lipHighlight.color = new Color(1f, 1f, 1f, 0.25f);
+            // FIXED: Tinted and reduced alpha
+            lipHighlight.color = new Color(0.85f, 0.92f, 1f, 0.15f);
             lipHighlight.raycastTarget = false;
             var lipHighlightRect = lipHighlightGo.GetComponent<RectTransform>();
             lipHighlightRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -623,7 +627,8 @@ namespace Decantra.Presentation
             var highlight = highlightGo.AddComponent<Image>();
             highlight.sprite = highlightSprite;
             highlight.type = Image.Type.Simple;
-            highlight.color = new Color(1f, 1f, 1f, 0.12f);
+            // FIXED: Significant alpha reduction to prevent color washout
+            highlight.color = new Color(0.9f, 0.95f, 1f, 0.06f);
             highlight.raycastTarget = false;
             var highlightRect = highlightGo.GetComponent<RectTransform>();
             highlightRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -1808,7 +1813,8 @@ namespace Decantra.Presentation
                     float nx = x / (float)(width - 1);
                     float center = 1f - Mathf.Abs(nx - 0.5f) * 2f;
                     center = Mathf.SmoothStep(0f, 1f, center);
-                    float brightness = Mathf.Lerp(0.6f, 1f, center);
+                    // FIXED: Lowered brightness range (was 0.6->1.0) to mid-tone to allow color saturation
+                    float brightness = Mathf.Lerp(0.48f, 0.62f, center);
                     texture.SetPixel(x, y, new Color(brightness, brightness, brightness, 1f));
                 }
             }
