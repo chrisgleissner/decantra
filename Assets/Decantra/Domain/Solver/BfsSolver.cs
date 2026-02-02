@@ -18,7 +18,7 @@ namespace Decantra.Domain.Solver
 {
     public sealed class BfsSolver
     {
-        private readonly ConcurrentDictionary<string, int> _optimalCache = new ConcurrentDictionary<string, int>();
+        private readonly ConcurrentDictionary<StateKey, int> _optimalCache = new ConcurrentDictionary<StateKey, int>();
 
         public SolverResult Solve(LevelState initial)
         {
@@ -28,7 +28,7 @@ namespace Decantra.Domain.Solver
         public SolverResult SolveOptimal(LevelState initial)
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
-            var key = StateEncoder.EncodeCanonical(initial);
+            var key = StateEncoder.EncodeCanonicalKey(initial);
             if (_optimalCache.TryGetValue(key, out int cached))
             {
                 return new SolverResult(cached, new List<Move>());
@@ -48,6 +48,15 @@ namespace Decantra.Domain.Solver
             return SolveInternal(initial, -1, -1, false, true);
         }
 
+        public SolverResult SolveWithPath(LevelState initial, int maxNodes, int maxMillis)
+        {
+            if (initial == null) throw new ArgumentNullException(nameof(initial));
+            if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
+            if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
+
+            return SolveInternal(initial, maxNodes, maxMillis, true, true);
+        }
+
         public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
@@ -61,14 +70,14 @@ namespace Decantra.Domain.Solver
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
 
-            var visited = new HashSet<string>();
+            var visited = new HashSet<StateKey>();
             // Use PriorityQueue for A* Search. 
             // Comparator sorts by f = g + h. 
             // If f is equal, prefer higher g (depth) for DFS-like behavior (often faster) or lower h.
             var queue = new PriorityQueue<Node>(new NodeComparer());
             var stopwatch = Stopwatch.StartNew();
 
-            var startKey = StateEncoder.EncodeCanonical(initial);
+            var startKey = StateEncoder.EncodeCanonicalKey(initial);
             visited.Add(startKey);
 
             // Initial node: g=0, h=Heuristic
@@ -103,7 +112,7 @@ namespace Decantra.Domain.Solver
                         continue;
                     }
 
-                    var key = StateEncoder.EncodeCanonical(next);
+                    var key = StateEncoder.EncodeCanonicalKey(next);
                     if (visited.Add(key))
                     {
                         int g = node.Depth + 1;

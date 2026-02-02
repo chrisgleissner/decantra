@@ -12,6 +12,32 @@ namespace Decantra.Domain.Rules
 {
     public static class LevelDifficultyEngine
     {
+        /// <summary>
+        /// Maximum effective level for difficulty parameters.
+        /// All difficulty-driving parameters clamp at this level.
+        /// Levels beyond this differ only by seed-based layout randomness.
+        /// </summary>
+        public const int MaxEffectiveLevel = 100;
+
+        /// <summary>
+        /// Returns the effective level index for difficulty calculations.
+        /// This enforces the difficulty plateau at level 100+.
+        /// </summary>
+        public static int GetEffectiveLevel(int levelIndex)
+        {
+            return Math.Min(levelIndex, MaxEffectiveLevel);
+        }
+
+        /// <summary>
+        /// Linear interpolation factor for level 1 to MaxEffectiveLevel.
+        /// Returns 0.0 at level 1, 1.0 at level MaxEffectiveLevel.
+        /// </summary>
+        public static float GetLinearProgress(int levelIndex)
+        {
+            int eff = GetEffectiveLevel(levelIndex);
+            return (eff - 1) / (float)(MaxEffectiveLevel - 1);
+        }
+
         public static DifficultyProfile GetProfile(int levelIndex)
         {
             if (levelIndex <= 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
@@ -19,6 +45,25 @@ namespace Decantra.Domain.Rules
             var band = ResolveBand(levelIndex);
             int colorCount = ResolveColorCount(levelIndex);
             int emptyCount = ResolveEmptyCount(levelIndex);
+
+            // Invariant: Max 9 Bottles
+            if (colorCount + emptyCount > 9)
+            {
+                // Prioritize preserving color count for real difficulty; reduce empties first.
+                // Keep the minimum empties required for sinks (>=18) when possible.
+                int overflow = colorCount + emptyCount - 9;
+                int minEmpty = ResolveSinkCount(levelIndex) > 0 ? 2 : 1;
+                int reducibleEmpty = Math.Max(0, emptyCount - minEmpty);
+                int emptyReduction = Math.Min(overflow, reducibleEmpty);
+                emptyCount -= emptyReduction;
+                overflow -= emptyReduction;
+
+                if (overflow > 0)
+                {
+                    colorCount = Math.Max(1, colorCount - overflow);
+                }
+            }
+
             int bottleCount = colorCount + emptyCount;
             int reverseMoves = ComputeReverseMoves(levelIndex, band, colorCount, emptyCount, bottleCount);
             var themeId = ResolveThemeId(band, levelIndex);
@@ -29,25 +74,53 @@ namespace Decantra.Domain.Rules
 
         private static LevelBand ResolveBand(int levelIndex)
         {
-            if (levelIndex <= 10) return LevelBand.A;
-            if (levelIndex <= 25) return LevelBand.B;
-            if (levelIndex <= 50) return LevelBand.C;
-            if (levelIndex <= 75) return LevelBand.D;
+            int eff = GetEffectiveLevel(levelIndex);
+            if (eff <= 10) return LevelBand.A;
+            if (eff <= 25) return LevelBand.B;
+            if (eff <= 50) return LevelBand.C;
+            if (eff <= 75) return LevelBand.D;
             return LevelBand.E;
         }
 
         private static int ResolveColorCount(int levelIndex)
         {
-            int count = 3 + (levelIndex - 1) / 3;
-            if (count < 3) count = 3;
-            if (count > 8) count = 8;
-            return count;
+            int eff = GetEffectiveLevel(levelIndex);
+
+            // Stepwise scaling to keep bottle counts monotonic while respecting
+            // the 9-bottle cap and early-game pacing.
+            if (eff <= 6) return 3;
+            if (eff <= 10) return 4;
+            if (eff <= 17) return 5;
+            if (eff <= 19) return 6;
+            return 7;
         }
 
         private static int ResolveEmptyCount(int levelIndex)
         {
-            if (levelIndex <= 6) return 2;
-            if (levelIndex >= 18) return 2;
+            int eff = GetEffectiveLevel(levelIndex);
+
+            // Tutorial levels (1-6): 2 empties for easier play
+            if (eff <= 6) return 2;
+
+            // Mid levels (7-17): 1 empty for tighter constraints
+            if (eff <= 17) return 1;
+
+            // Sink levels (18+): 2 empties, with one being a sink
+            return 2;
+        }
+
+        /// <summary>
+        /// Resolves the number of sink bottles for a level.
+        /// Sinks cannot be poured from, creating strategic constraints.
+        /// </summary>
+        public static int ResolveSinkCount(int levelIndex)
+        {
+            int eff = GetEffectiveLevel(levelIndex);
+
+            // No sinks before level 18
+            if (eff < 18) return 0;
+
+            // Levels 18+: keep a single sink to avoid excessive solver complexity
             return 1;
         }
 
@@ -67,13 +140,24 @@ namespace Decantra.Domain.Rules
 
         private static int ComputeReverseMoves(int levelIndex, LevelBand band, int colorCount, int emptyCount, int bottleCount)
         {
-            int baseMoves = 8 + colorCount * 2 - emptyCount;
-            int levelBoost = levelIndex / 3;
-            int bandBoost = ((int)band) * 2;
-            int result = baseMoves + levelBoost + bandBoost;
+            int eff = GetEffectiveLevel(levelIndex);
 
-            if (result < 8) result = 8;
-            if (result > 60) result = 60;
+            // Linear scaling: 6 reverse moves at level 1, 30 at level 100
+            float t = GetLinearProgress(levelIndex);
+            int baseMoves = 6 + (int)Math.Round(t * 24);
+
+            // Color complexity bonus
+            int colorBonus = (colorCount - 3) * 1;
+
+            // Sink level bonus (levels 18+): deeper scrambling needed
+            int sinkBonus = (eff >= 18) ? 4 : 0;
+
+            int result = baseMoves + colorBonus + sinkBonus;
+
+            // Clamp to valid range
+            result = Math.Max(8, result);
+            result = Math.Min(30, result);
+
             return result;
         }
 
@@ -112,12 +196,16 @@ namespace Decantra.Domain.Rules
 
         private static int ComputeDifficultyRating(int levelIndex, LevelBand band, int colorCount, int emptyCount, int bottleCount, int reverseMoves)
         {
+            // This is the PROFILE difficulty rating, not the actual intrinsic difficulty.
+            // Actual difficulty is computed by DifficultyScorer from solver metrics.
+            int eff = GetEffectiveLevel(levelIndex);
+
             int bandScore = ((int)band) * 900;
-            int levelScore = levelIndex * 25;
+            int levelScore = eff * 25;
             int colorScore = colorCount * 70;
             int bottleScore = bottleCount * 30;
-            int emptyPenalty = (3 - emptyCount) * 40;
-            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyPenalty);
+            int emptyScore = emptyCount * 50;
+            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyScore);
         }
     }
 }

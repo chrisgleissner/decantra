@@ -48,6 +48,7 @@ namespace Decantra.Domain.Generation
             LevelState bestCandidate = null;
             LevelMetrics bestMetrics = null;
             float bestScore = float.MinValue;
+            int bestDifficulty100 = 1;
             string lastFailure = null;
             int optimal = -1;
             int movesAllowed = 0;
@@ -57,21 +58,24 @@ namespace Decantra.Domain.Generation
             int attemptsUsed = 0;
             bool qualityGatesApplied = true;
 
-            var thresholds = QualityThresholds.ForBand(profile.Band);
             const int minOptimalMoves = 2;
-            const int maxAttempts = 25;
-            const int candidatesPerAttempt = 3; // Hill-climb: generate multiple candidates per attempt
+            int maxAttempts = ResolveMaxAttempts(profile.LevelIndex);
+            int candidatesPerAttempt = ResolveCandidatesPerAttempt(profile.LevelIndex);
 
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
                 attemptsUsed = attempt + 1;
 
                 // Relaxed mode: after many attempts, disable strict quality gates
-                bool relaxedMode = attempt >= 18;
+                bool relaxedMode = attempt >= ResolveRelaxedAttempt(profile.LevelIndex, maxAttempts);
                 if (relaxedMode)
                 {
                     qualityGatesApplied = false;
                 }
+                var thresholds = relaxedMode
+                    ? QualityThresholds.ForBand(profile.Band).Relaxed()
+                    : QualityThresholds.ForBand(profile.Band);
+                int minOptimalForAttempt = ComputeMinOptimalMoves(profile, relaxedMode);
 
                 // Generate multiple scramble candidates and pick the best
                 for (int candidateIdx = 0; candidateIdx < candidatesPerAttempt; candidateIdx++)
@@ -144,7 +148,10 @@ namespace Decantra.Domain.Generation
                     }
 
                     var solveTimer = Stopwatch.StartNew();
-                    var solveResult = _solver.SolveWithPath(attemptState);
+                    var solveResult = _solver.SolveWithPath(
+                        attemptState,
+                        ResolveSolveNodeLimit(profile.LevelIndex),
+                        ResolveSolveTimeLimitMs(profile.LevelIndex));
                     solveTimer.Stop();
                     long candidateSolveMs = solveTimer.ElapsedMilliseconds;
 
@@ -154,6 +161,11 @@ namespace Decantra.Domain.Generation
                         if (solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
                         {
                             int estimatedOptimal = (int)(appliedMoves * 0.7f);
+                            if (estimatedOptimal < minOptimalForAttempt)
+                            {
+                                lastFailure = "min_optimal_est";
+                                continue;
+                            }
                             int estMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, estimatedOptimal));
 
                             // For timeout cases, use estimated metrics
@@ -162,12 +174,14 @@ namespace Decantra.Domain.Generation
                                 CountDistinctSignatures(attemptState.Bottles),
                                 CountTopColorVariety(attemptState.Bottles));
 
-                            float timeoutScore = _difficultyObjective.Score(timeoutMetrics);
+                            float timeoutScore = _difficultyObjective.Score(timeoutMetrics)
+                                + 0.25f * Clamp01((estimatedOptimal - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
 
                             if (timeoutScore > bestScore)
                             {
                                 bestScore = timeoutScore;
                                 bestMetrics = timeoutMetrics;
+                                bestDifficulty100 = DifficultyScorer.ComputeDifficulty100(timeoutMetrics, estimatedOptimal);
                                 bestCandidate = new LevelState(attemptState.Bottles, 0, estMovesAllowed, estimatedOptimal, profile.LevelIndex, seed, appliedMoves);
                                 optimal = estimatedOptimal;
                                 movesAllowed = estMovesAllowed;
@@ -186,6 +200,11 @@ namespace Decantra.Domain.Generation
                         lastFailure = "min_optimal";
                         continue;
                     }
+                    if (solveResult.OptimalMoves < minOptimalForAttempt)
+                    {
+                        lastFailure = "min_optimal_floor";
+                        continue;
+                    }
 
                     // Compute metrics (Requirements A, B, C)
                     var metricsTimer = Stopwatch.StartNew();
@@ -196,14 +215,25 @@ namespace Decantra.Domain.Generation
                     float trapScore = 0f;
                     if (!relaxedMode && solveResult.Path.Count > 0)
                     {
-                        trapScore = MetricsComputer.ComputeTrapScore(attemptState, solveResult.Path, _solver, sampleCount: 10, nodeBudget: 1500);
+                        trapScore = MetricsComputer.ComputeTrapScore(
+                            attemptState,
+                            solveResult.Path,
+                            _solver,
+                            sampleCount: ResolveTrapSampleCount(profile.LevelIndex),
+                            nodeBudget: ResolveTrapNodeBudget(profile.LevelIndex));
                     }
 
                     // Estimate solution multiplicity (Requirement B) - only for non-relaxed mode
                     int multiplicity = 1;
-                    if (!relaxedMode && solveResult.OptimalMoves <= 20)
+                    if (!relaxedMode && solveResult.OptimalMoves <= 20 && ShouldEstimateMultiplicity(profile.LevelIndex))
                     {
-                        multiplicity = MetricsComputer.EstimateSolutionMultiplicity(attemptState, solveResult.OptimalMoves, maxSolutions: 3, nearOptimalMargin: 1);
+                        multiplicity = MetricsComputer.EstimateSolutionMultiplicity(
+                            attemptState,
+                            solveResult.OptimalMoves,
+                            maxSolutions: 3,
+                            nearOptimalMargin: 1,
+                            maxVisited: ResolveMultiplicityNodeLimit(profile.LevelIndex),
+                            maxMillis: ResolveMultiplicityTimeLimitMs(profile.LevelIndex));
                     }
 
                     metricsTimer.Stop();
@@ -229,13 +259,17 @@ namespace Decantra.Domain.Generation
                     }
 
                     // Compute difficulty score for hill-climb selection
-                    float candidateScore = _difficultyObjective.Score(candidateMetrics);
+                    // Apply a diminishing-returns bonus based on surplus optimal moves.
+                    float surplusRatio = Clamp01((solveResult.OptimalMoves - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
+                    float candidateScore = _difficultyObjective.Score(candidateMetrics)
+                        + 0.25f * (float)Math.Sqrt(surplusRatio);
 
                     // Keep best candidate
                     if (candidateScore > bestScore)
                     {
                         bestScore = candidateScore;
                         bestMetrics = candidateMetrics;
+                        bestDifficulty100 = DifficultyScorer.ComputeDifficulty100(candidateMetrics, solveResult.OptimalMoves);
                         int candidateMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, solveResult.OptimalMoves));
                         bestCandidate = new LevelState(attemptState.Bottles, 0, candidateMovesAllowed, solveResult.OptimalMoves, profile.LevelIndex, seed, appliedMoves);
                         optimal = solveResult.OptimalMoves;
@@ -274,7 +308,7 @@ namespace Decantra.Domain.Generation
                 solveMs,
                 metricsMs,
                 bestScore,
-                1, // difficulty100 placeholder
+                bestDifficulty100,
                 qualityGatesApplied,
                 lastFailure);
 
@@ -287,6 +321,72 @@ namespace Decantra.Domain.Generation
         private void ReportReject(int levelIndex, int seed, int attempt, string reason)
         {
             Log?.Invoke($"LevelGenerator.Reject level={levelIndex} seed={seed} attempt={attempt} reason={reason}");
+        }
+
+        private static int ResolveMaxAttempts(int levelIndex)
+        {
+            if (levelIndex >= 100) return 10;
+            if (levelIndex >= 60) return 14;
+            return 20;
+        }
+
+        private static int ResolveCandidatesPerAttempt(int levelIndex)
+        {
+            if (levelIndex >= 100) return 1;
+            if (levelIndex >= 60) return 2;
+            return 3;
+        }
+
+        private static int ResolveRelaxedAttempt(int levelIndex, int maxAttempts)
+        {
+            if (levelIndex >= 100) return Math.Min(5, maxAttempts - 1);
+            if (levelIndex >= 60) return Math.Min(8, maxAttempts - 1);
+            return Math.Min(12, maxAttempts - 1);
+        }
+
+        private static int ResolveSolveTimeLimitMs(int levelIndex)
+        {
+            if (levelIndex >= 100) return 1200;
+            if (levelIndex >= 60) return 1500;
+            return 2000;
+        }
+
+        private static int ResolveSolveNodeLimit(int levelIndex)
+        {
+            if (levelIndex >= 100) return 500_000;
+            if (levelIndex >= 60) return 800_000;
+            return 1_200_000;
+        }
+
+        private static int ResolveTrapSampleCount(int levelIndex)
+        {
+            if (levelIndex >= 100) return 4;
+            if (levelIndex >= 60) return 6;
+            return 10;
+        }
+
+        private static int ResolveTrapNodeBudget(int levelIndex)
+        {
+            if (levelIndex >= 100) return 500;
+            if (levelIndex >= 60) return 900;
+            return 1500;
+        }
+
+        private static bool ShouldEstimateMultiplicity(int levelIndex)
+        {
+            return levelIndex < 60;
+        }
+
+        private static int ResolveMultiplicityNodeLimit(int levelIndex)
+        {
+            if (levelIndex >= 50) return 2000;
+            return 5000;
+        }
+
+        private static int ResolveMultiplicityTimeLimitMs(int levelIndex)
+        {
+            if (levelIndex >= 50) return 30;
+            return 60;
         }
 
         /// <summary>
@@ -646,6 +746,51 @@ namespace Decantra.Domain.Generation
             return false;
         }
 
+        private static int ComputeMinOptimalMoves(DifficultyProfile profile, bool relaxedMode)
+        {
+            float factor;
+            switch (profile.Band)
+            {
+                case LevelBand.A:
+                    factor = 0.10f;
+                    break;
+                case LevelBand.B:
+                    factor = 0.12f;
+                    break;
+                case LevelBand.C:
+                    factor = 0.14f;
+                    break;
+                case LevelBand.D:
+                    factor = 0.16f;
+                    break;
+                case LevelBand.E:
+                default:
+                    factor = 0.18f;
+                    break;
+            }
+
+            // High empty bottle count reduces the effective difficulty per scramble move.
+            // Adjust expectation downwards to avoid rejection loops for Sink levels.
+            if (profile.EmptyBottleCount >= 2)
+            {
+                factor *= 0.4f;
+            }
+
+            int baseMin = Math.Max(3, (int)Math.Round(profile.ReverseMoves * factor));
+            if (relaxedMode)
+            {
+                baseMin = Math.Max(2, baseMin - 2);
+            }
+            return baseMin;
+        }
+
+        private static float Clamp01(float value)
+        {
+            if (value < 0f) return 0f;
+            if (value > 1f) return 1f;
+            return value;
+        }
+
         private static bool IsStructurallyComplex(IReadOnlyList<Bottle> bottles, int levelIndex, int colorCount, int emptyCount)
         {
             if (bottles == null || bottles.Count == 0) return false;
@@ -764,8 +909,10 @@ namespace Decantra.Domain.Generation
                 });
             }
 
-            var emptyCaps = BuildEmptyCapacities(profile.LevelIndex, profile.EmptyBottleCount);
-            int sinkCount = ResolveSinkCount(profile.LevelIndex, profile.EmptyBottleCount);
+            var emptyCaps = BuildEmptyCapacities(profile.LevelIndex, profile.EmptyBottleCount, rng);
+            int sinkCount = LevelDifficultyEngine.ResolveSinkCount(profile.LevelIndex);
+            // Clamp sinkCount to available empty bottles
+            sinkCount = Math.Min(sinkCount, profile.EmptyBottleCount);
             for (int i = 0; i < profile.EmptyBottleCount; i++)
             {
                 plans.Add(new BottlePlan
@@ -780,53 +927,141 @@ namespace Decantra.Domain.Generation
             return plans;
         }
 
+        /// <summary>
+        /// Builds bottle capacities for color bottles using the capacity profile.
+        /// Ensures minimum diversity requirements are met.
+        /// </summary>
         private static List<int> BuildColorCapacities(int levelIndex, int colorCount, Random rng)
         {
-            int largeCount = ResolveLargeColorCount(levelIndex, colorCount);
+            var profile = CapacityProfile.ForLevel(levelIndex);
             var capacities = new List<int>(colorCount);
-            for (int i = 0; i < colorCount - largeCount; i++)
+            var usedCapacities = new HashSet<int>();
+
+            // Phase 1: Add required small bottles (capacity <= 3)
+            int smallAdded = 0;
+            while (smallAdded < profile.MinSmallBottles && capacities.Count < colorCount)
             {
-                capacities.Add(4);
+                int cap = PickFromRange(profile.CapacityPool, 2, 3, rng);
+                if (cap > 0)
+                {
+                    capacities.Add(cap);
+                    usedCapacities.Add(cap);
+                    smallAdded++;
+                }
+                else
+                {
+                    break; // No small bottles available in pool
+                }
             }
-            for (int i = 0; i < largeCount; i++)
+
+            // Phase 2: Add required large bottles (capacity >= 6)
+            int largeAdded = 0;
+            while (largeAdded < profile.MinLargeBottles && capacities.Count < colorCount)
             {
-                capacities.Add(5);
+                int cap = PickFromRange(profile.CapacityPool, 6, 10, rng);
+                if (cap > 0)
+                {
+                    capacities.Add(cap);
+                    usedCapacities.Add(cap);
+                    largeAdded++;
+                }
+                else
+                {
+                    break; // No large bottles available in pool
+                }
             }
+
+            // Phase 3: Fill remaining with diverse capacities
+            // First, ensure minimum distinct capacities are met
+            while (usedCapacities.Count < profile.MinDistinctCapacities && capacities.Count < colorCount)
+            {
+                // Pick a capacity we haven't used yet
+                int cap = PickUnused(profile.CapacityPool, usedCapacities, rng);
+                if (cap > 0)
+                {
+                    capacities.Add(cap);
+                    usedCapacities.Add(cap);
+                }
+                else
+                {
+                    break; // All capacities used
+                }
+            }
+
+            // Phase 4: Fill remaining bottles with random capacities from pool
+            while (capacities.Count < colorCount)
+            {
+                int cap = profile.CapacityPool[rng.Next(profile.CapacityPool.Length)];
+                capacities.Add(cap);
+                usedCapacities.Add(cap);
+            }
+
             Shuffle(capacities, rng);
             return capacities;
         }
 
-        private static List<int> BuildEmptyCapacities(int levelIndex, int emptyCount)
+        /// <summary>
+        /// Picks a random capacity from the pool within the given range (inclusive).
+        /// Returns 0 if no capacity in range exists in pool.
+        /// </summary>
+        private static int PickFromRange(int[] pool, int minCap, int maxCap, Random rng)
         {
+            var candidates = new List<int>();
+            for (int i = 0; i < pool.Length; i++)
+            {
+                if (pool[i] >= minCap && pool[i] <= maxCap)
+                {
+                    candidates.Add(pool[i]);
+                }
+            }
+            if (candidates.Count == 0) return 0;
+            return candidates[rng.Next(candidates.Count)];
+        }
+
+        /// <summary>
+        /// Picks a random capacity from the pool that hasn't been used yet.
+        /// Returns 0 if all capacities have been used.
+        /// </summary>
+        private static int PickUnused(int[] pool, HashSet<int> used, Random rng)
+        {
+            var candidates = new List<int>();
+            for (int i = 0; i < pool.Length; i++)
+            {
+                if (!used.Contains(pool[i]))
+                {
+                    candidates.Add(pool[i]);
+                }
+            }
+            if (candidates.Count == 0) return 0;
+            return candidates[rng.Next(candidates.Count)];
+        }
+
+        /// <summary>
+        /// Builds bottle capacities for empty bottles.
+        /// Empty bottles use the same capacity profile for consistency.
+        /// </summary>
+        private static List<int> BuildEmptyCapacities(int levelIndex, int emptyCount, Random rng)
+        {
+            if (emptyCount <= 0) return new List<int>();
+
+            var profile = CapacityProfile.ForLevel(levelIndex);
             var capacities = new List<int>(emptyCount);
-            int smallCount = ResolveSmallEmptyCount(levelIndex, emptyCount);
+
+            // Empty bottles get medium-sized capacities to serve as staging areas
+            // Pick from the middle of the pool
             for (int i = 0; i < emptyCount; i++)
             {
-                capacities.Add(i < smallCount ? 3 : 4);
+                // Prefer capacities in the 3-5 range for empty bottles
+                int cap = PickFromRange(profile.CapacityPool, 3, 5, rng);
+                if (cap <= 0)
+                {
+                    // Fallback to any capacity
+                    cap = profile.CapacityPool[rng.Next(profile.CapacityPool.Length)];
+                }
+                capacities.Add(cap);
             }
+
             return capacities;
-        }
-
-        private static int ResolveLargeColorCount(int levelIndex, int colorCount)
-        {
-            if (levelIndex < 16) return 0;
-            int target = 1 + (levelIndex - 16) / 10;
-            int maxLarge = Math.Max(1, colorCount / 4);
-            return Math.Min(target, Math.Max(0, Math.Min(maxLarge, colorCount)));
-        }
-
-        private static int ResolveSmallEmptyCount(int levelIndex, int emptyCount)
-        {
-            if (emptyCount <= 0) return 0;
-            if (levelIndex < 6) return 0;
-            if (levelIndex < 12) return Math.Min(1, emptyCount);
-            return emptyCount;
-        }
-
-        private static int ResolveSinkCount(int levelIndex, int emptyCount)
-        {
-            if (emptyCount <= 0) return 0;
-            return levelIndex >= 18 ? 1 : 0;
         }
 
         private static void Shuffle<T>(IList<T> list, Random rng)

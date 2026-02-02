@@ -1,434 +1,500 @@
-# Release engineering plan (Decantra)
+# CI Build Time Optimization Plan
 
-## CI trigger investigation
-- [x] Inventory existing GitHub Actions workflows and triggers
-- [x] Compare release/tag triggers with C64Commander
-- [x] Identify why Release UI tag does not trigger Decantra
-- [x] Add/adjust tag and release triggers (v*)
-- [x] Verify tag-based run triggers CI
+## Status: ACTIVE
 
-## Tag-trigger fixes
-- [x] Implement workflow trigger fixes
-- [x] Validate semantic version tags (v*) are matched
-- [x] Document trigger behavior in this plan
-
-Notes:
-- Release UI can create tags without a `push` event; adding `create` tag triggers ensures tag creation runs CI even when no push occurs.
-- `release` event remains for published releases, while `push` and `create` catch tag-only cases.
-	- Release-triggered run verified: Run ID 21561419201 (event: release, tag: v0.0.0-ci.20260201-2) completed successfully.
-
-## APK generation
-- [x] Ensure debug APK built in CI
-- [x] Ensure release APK built in CI
-- [x] Validate signing/variant configuration
-
-## AAB generation
-- [x] Ensure bundleRelease is executed
-- [x] Validate AAB exists and is non-empty
-- [x] Ensure AAB corresponds to release variant
-- [x] Ensure missing secrets do not fail build prematurely
-
-## Release asset upload
-- [x] Upload debug APK to GitHub Release assets
-- [x] Upload release APK to GitHub Release assets
-- [x] Upload release AAB to GitHub Release assets
-- [x] Ensure names are explicit and unambiguous
-
-## CI polling and verification
-- [x] Trigger tag-based build (real/simulated)
-- [x] Poll run to completion via gh or GitHub API
-- [x] Verify all three artifacts exist
-- [x] Confirm AAB generation step ran successfully
-
-## Hardening and non-failure guarantees
-- [x] Ensure missing Play Console config does not fail CI
-- [x] Ensure AAB creation failures fail CI
-- [x] Ensure Play upload failures are non-fatal and logged
-- [x] Document hardening behaviors here
-
-Notes:
-- Play upload runs only when `PLAY_SERVICE_ACCOUNT_JSON` is present, and is marked non-fatal.
-- AAB creation is verified with a non-empty file check and will fail the job if missing.
-- Keystore handling is optional: workflow decodes `KEYSTORE_STORE_FILE` (path or base64) and Unity applies signing only when the file + passwords are present.
-- Tag-based CI verification:
-	- Run ID: 21560960875 (event: push, tag: v0.0.0-ci.20260201) completed successfully.
-	- Artifacts: Decantra-Android-Release (APK), Decantra-Android-Debug (APK), Decantra-Android-Release-AAB (AAB).
-	- Release assets uploaded for tag v0.0.0-ci.20260201 (debug APK, release APK, release AAB).
-	- Release event verification:
-		- Run ID: 21561419201 (event: release, tag: v0.0.0-ci.20260201-2) completed successfully.
-		- Artifacts: Decantra-Android-Release (APK), Decantra-Android-Debug (APK), Decantra-Android-Release-AAB (AAB).
-		- Release assets uploaded for tag v0.0.0-ci.20260201-2 (debug APK, release APK, release AAB).
-
-## Play Store Screenshot Capture (Phone)
-- [x] Capture launch/loading screen (screenshot-01-launch.png)
-- [x] Capture initial level gameplay (screenshot-02-initial-level.png)
-- [x] Capture interstitial with bonus/score increase (screenshot-03-interstitial.png)
-- [x] Capture advanced level showing full features (screenshot-04-advanced-level.png)
-
-## Bottle Visual System
-- [x] Implement layered bottle composite (glass back/front, mask, liquid, highlight, rim/base)
-- [x] Add liquid gradient + curved surface rendering
-- [x] Remove rectangular reflections in favor of curved highlight
-- [x] Verify bottle visuals in runtime
-
-## Sink-Only Bottle Anchoring
-- [x] Add anchor collar and anchor shadow visuals
-- [x] Add resistance feedback on interaction attempts
-- [x] Confirm sink bottles never lift
-
-## Background Theme Families
-- [x] Implement deterministic theme family grouping (every 10 levels)
-- [x] Add family parameter ranges with per-level variation
-- [x] Add crossfade transition between theme families
-- [x] Validate deterministic rendering across seeds
-
-## Feature Graphic Overlay
-- [x] Implement hero-scale start overlay with shared dimmer
-- [x] Dismiss overlay on first interaction
-- [x] Confirm overlay behaves correctly in runtime
+This plan documents the optimization of Unity Android build time on GitHub-hosted runners
+to achieve >= 50% reduction in wall-clock time while preserving merge confidence.
 
 ---
 
-# Production Polishing Pass (2026-02-01)
+## 1. Baseline Measurement
 
-## Task 1: BEST/MAX Panels Match LEVEL/MOVES/SCORE Styling
-- [x] Scope: Apply identical dark glass treatment to BEST and MAX HUD panels as LEVEL/MOVES/SCORE
-- [x] Files: Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs
-- [x] Risks: Low - UI-only change, does not affect game logic
-- [x] Validation: Visual inspection in screenshots, run test suite
+### Run Details
+- **Timestamp**: 2026-02-02T17:47:58Z
+- **Commit SHA**: 0ef49f6
+- **Branch**: fix/ensure-level-solvability
+- **Runner Image**: ubuntu-latest
+- **Runner Type**: GitHub-hosted
+- **Workflow Name**: Build Decantra
+- **Run ID**: 21601068991
+- **Event**: pull_request
 
-## Task 2: Vivid Liquid Rendering - Remove Washed-Out Glass Overlays
-- [x] Scope: Ensure liquids are fully saturated, reduce/remove white overlays on glass
-- [x] Files: Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs
-- [x] Risks: Medium - Changes to composite rendering may affect visual appearance
-- [x] Validation: Screenshots show vibrant colors, no milky haze
+### Job Durations (Baseline)
 
-## Task 3: Bottle Neck Reads as 3D Opening
-- [x] Scope: Make bottle neck longer and cylindrical with rim shading
-- [x] Files: Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs
-- [x] Risks: Medium - Hitbox alignment verified - no change to hitbox
-- [x] Validation: Visual inspection confirms clear bottle opening
+| Job | Start | End | Duration |
+|-----|-------|-----|----------|
+| Check Unity license secrets | 17:48:02 | 17:48:05 | **3s** |
+| Unity tests (EditMode + PlayMode) | 17:48:08 | 17:53:09 | **5m 1s** |
+| Build Android APK/AAB | 17:53:12 | 18:29:20 | **36m 8s** |
+| **Total Wall Time** | 17:48:02 | 18:29:20 | **~41m 18s** |
 
-## Task 4: Correct App Icon in Emulator
-- [x] Scope: Verify launcher/adaptive icons use doc/play-store-assets/icons/app-icon-512x512.png
-- [x] Files: ProjectSettings/ProjectSettings.asset, Assets/Decantra/Branding/
-- [x] Risks: Low - Verified icons already match
-- [x] Validation: Icons already correct per ProjectSettings GUIDs
+### Key Step Timings (Build Android Job)
+| Step | Duration |
+|------|----------|
+| Checkout | 2s |
+| Free disk space | 1m 16s |
+| Cache restore | 13s |
+| Unity Builder (Release APK) | 18m 28s |
+| Unity Builder (Release AAB) | 1m 34s |
+| Unity Builder (Debug APK) | 14m 19s |
+| Artifact upload | 8s |
 
-## Task 5: Stronger Interstitial Dimming (~80% Black Scrim)
-- [x] Scope: Increase dimmer alpha from 0.4 to 0.8 on interstitials
-- [x] Files: Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs
-- [x] Risks: Low - Simple alpha value change
-- [x] Validation: LevelCompleteBanner and OutOfMovesBanner dimmer alpha set to 0.8f
-
-## Task 6: Background System - 100+ Zone Themes, Deterministic, Non-Repeating
-- [x] 6.1: Added ZoneTheme struct with comprehensive parameters
-- [x] 6.2: Implemented deterministic languageId = (levelIndex-1) / 10 mapping
-- [x] 6.3: Each language defines distinct motif/palette/layer recipes (16 motif families)
-- [x] 6.4: No exact background repeats via unique seed per level
-- [x] 6.5: Added BackgroundSignature function for collision detection
-- [x] Files: Assets/Decantra/Domain/Rules/BackgroundRules.cs
-- [x] Risks: High - Core system change, determinism verified by tests
-- [x] Validation: 15 comprehensive tests pass for determinism, grouping, no collisions
-
-## Task 7: Multi-Layer Parallax Backgrounds with Macro/Micro Structures
-- [x] Scope: Ensure 3+ depth bands, macro shapes + micro particles, controlled contrast
-- [x] Files: Assets/Decantra/Domain/Rules/BackgroundRules.cs (LayerCount 3-5)
-- [x] Risks: Medium - Validated by Zone Theme layer-count parameter
-- [x] Validation: ZoneTheme_LayerCountWithinRange test passes
-
-## Task 8: Instant Level Transitions via Precomputation
-- [x] 8.1: Verified precompute system already caches next level (StartPrecomputeNextLevel)
-- [x] 8.2: Background generation uses cached palette index
-- [x] 8.3: Existing system handles transitions off UI thread
-- [x] Files: Assets/Decantra/Presentation/Controller/GameController.cs
-- [x] Risks: Low - System already implemented and working
-- [x] Validation: Level transitions use precomputed state
-
-## Task 9: Add/Update Tests for Background Determinism
-- [x] 9.1: Test determinism per levelIndex (ZoneTheme_IsDeterministicForSameZoneAndSeed)
-- [x] 9.2: Test language grouping every 10 levels (GetLanguageId_ConsecutiveLevelsGroupCorrectly)
-- [x] 9.3: Test no language repetition for first 1000 levels (NoLanguageRepetitionForFirst1000Levels)
-- [x] 9.4: Test no background signature collisions for 2000+ levels (GetBackgroundSignature_NoDuplicatesForFirst2000Levels)
-- [x] Files: Assets/Decantra/Tests/EditMode/BackgroundRulesTests.cs
-- [x] Risks: Low - Test additions only
-- [x] Validation: All 15 tests pass
-
-## Task 10: Regenerate Screenshots
-- [x] Scope: Run ./build --screenshots to capture updated visuals
-- [x] Files: doc/play-store-assets/screenshots/
-- [x] Risks: Low - Capture only
-- [x] Validation: Screenshots reflect all visual fixes
-
-## Completion Criteria
-- [x] All tasks 1-10 marked complete
-- [x] All tests pass (./tools/test.sh)
-- [x] Screenshots regenerated and committed
-- [x] Emulator icon verified correct
+### Observations
+1. Android build job dominates: **36+ minutes** (87% of total)
+2. Cache hit status: Unknown (no explicit logging)
+3. Three separate Unity builds executed sequentially
+4. No concurrency controls - stale runs not cancelled
 
 ---
 
-# Level Generation Decision-Density Overhaul (2026-02-01)
+## 2. Optimization Hypotheses
 
-Reference: doc/level-generation-research.md (binding specification)
-
-## Objective
-Eliminate linear "undo-the-scramble" gameplay by implementing research-backed techniques to increase decision density, branching, and strategic risk while preserving solvability, determinism, and performance guarantees.
-
-## Phase 1: Core Metrics Infrastructure
-
-### Step 1.1: Add LevelMetrics Data Model
-- [x] Create LevelMetrics class in Domain/Generation with fields:
-  - ForcedMoveRatio (float): fraction of optimal path states with exactly one legal move
-  - AverageBranchingFactor (float): mean legal moves along optimal path
-  - DecisionDepth (int): steps until first state with >=2 legal moves
-  - EmptyBottleUsageRatio (float): fraction of optimal moves that pour into empty bottles
-  - TrapScore (float): fraction of non-optimal moves that lead to harder/unsolvable states
-  - SolutionMultiplicity (int): estimated count of optimal/near-optimal solutions
-- Files: Assets/Decantra/Domain/Generation/LevelMetrics.cs (new)
-- Validation: Unit test for data model instantiation
-
-### Step 1.2: Extend BfsSolver for Metrics Collection
-- [x] Add SolveWithMetrics method that returns SolverResultWithMetrics
-- [x] Track along optimal path: legal move counts per state, empty-bottle pour count
-- [x] Compute forced-move ratio, branching factor, decision depth, empty-bottle usage
-- Files: Assets/Decantra/Domain/Solver/BfsSolver.cs, MetricsComputer.cs
-- Validation: Unit tests for metrics computation on known states
-
-### Step 1.3: Implement Solution Multiplicity Estimation (Requirement B)
-- [x] Add CountOptimalSolutions method with cap (max 3)
-- [x] Alternative: Implement divergence test - check if N distinct prefixes of length K solve within +1/+2 moves
-- [x] Return multiplicity count in SolverResultWithMetrics
-- Files: Assets/Decantra/Domain/Solver/MetricsComputer.cs
-- Validation: Unit test with known multi-solution puzzles
-
-## Phase 2: Trap Scoring and Dead-End Risk (Requirement C)
-
-### Step 2.1: Implement Trap Score Computation
-- [x] Add ComputeTrapScore method to MetricsComputer class
-- [x] From initial state, sample M non-optimal legal moves (M=10-20)
-- [x] For each, attempt solve with tight node budget (1000-5000 nodes)
-- [x] TrapScore = fraction that are harder (longer) or unsolved within budget
-- Files: Assets/Decantra/Domain/Solver/MetricsComputer.cs
-- Validation: Unit test verifying trap score increases for states with dead-ends
-
-### Step 2.2: Integrate Trap Score into Metrics
-- [x] Call trap scorer during level validation
-- [x] Store trap score in LevelMetrics
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Integration test showing trap score populated
-
-## Phase 3: Acceptance Gates (Requirements A, B, C, G)
-
-### Step 3.1: Define Difficulty Band Thresholds
-- [x] Add QualityThresholds class with per-band configuration:
-  - MaxForcedMoveRatio: 0.60 (Band A-B), 0.50 (Band C+)
-  - MaxDecisionDepth: 3 (Band A), 2 (Band B+)
-  - MinBranchingFactor: 1.3 (Band A-B), 1.5 (Band C+)
-  - MinTrapScore: 0.10 (Band A-B), 0.20 (Band C+)
-  - MinSolutionMultiplicity: 1 (Band A), 2 (Band B+)
-- Files: Assets/Decantra/Domain/Generation/QualityThresholds.cs (new)
-- Validation: Threshold retrieval tests per band
-
-### Step 3.2: Implement Quality Gate in LevelGenerator
-- [x] After solving, compute full LevelMetrics
-- [x] Check against QualityThresholds for current band
-- [x] Reject levels that fail any threshold
-- [x] Log rejection reasons for tuning
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Test that levels failing thresholds are rejected
-
-### Step 3.3: Wire IsStructurallyComplex into Acceptance Gate (Requirement G)
-- [x] Call existing IsStructurallyComplex in acceptance checks
-- [x] Extend to enforce: min mixed bottles, min distinct signatures, min top-position color variety
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Test that structurally simple levels are rejected
-
-## Phase 4: Empty-Bottle Chain Suppression (Requirement D)
-
-### Step 4.1: Tighten Empty Bottle Count Rules
-- [x] Mid-band (levels 7-17): enforce 1 empty bottle strictly (already in place)
-- [x] When 2 empties exist (levels 1-6, 18+): enforce capacity asymmetry (3 vs 4) - already in place
-- [x] Add check for "chain risk": reject if multiple empties are immediately fillable by many sources
-- Files: Assets/Decantra/Domain/Rules/LevelDifficultyEngine.cs, LevelGenerator.cs
-- Validation: Test empty bottle constraints are enforced
-
-### Step 4.2: Add Empty-Bottle Chain Risk Detector
-- [x] Implement method to detect mechanical chain risk
-- [x] Count how many sources can pour into each empty bottle
-- [x] Reject if sum exceeds threshold (e.g., >4 immediate fill options across empties)
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Test detecting and rejecting chain-risk states
-
-## Phase 5: Objective-Guided Scrambling (Requirement E)
-
-### Step 5.1: Implement Difficulty Objective Function
-- [x] Create DifficultyObjective class combining metrics:
-  - Score = w1*(1-ForcedMoveRatio) + w2*BranchingFactor + w3*TrapScore + w4*(1/DecisionDepth) + w5*Multiplicity
-  - Weights tunable per band
-- Files: Assets/Decantra/Domain/Generation/DifficultyObjective.cs (new)
-- Validation: Unit tests for objective scoring
-
-### Step 5.2: Implement Hill-Climb Scramble Selection
-- [x] Generate N candidate scrambles (N=3-5) per attempt
-- [x] Score each with difficulty objective
-- [x] Keep best-scoring scramble
-- [x] Fallback to any valid scramble if all fail quality gates
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Test that hill-climb improves average objective score
-
-### Step 5.3: (Optional) MCTS-Guided Scramble Search
-- [ ] If hill-climb insufficient: implement lightweight MCTS in reverse-move space
-- [ ] Score intermediate states by difficulty objective
-- [ ] Budget: max 100 playouts per level generation
-- Files: Assets/Decantra/Domain/Generation/MctsScrambler.cs (new, if needed)
-- Validation: Performance test ensuring <50ms additional latency
-- Note: Deferred - hill-climb provides sufficient improvement
-
-## Phase 6: Telemetry Architecture (Requirement F)
-
-### Step 6.1: Add Generation Stats Logging
-- [x] Instrument LevelGenerator to log/expose:
-  - Final LevelMetrics for each generated level
-  - Rejection counts and reasons
-  - Generation attempt count
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Log output verification
-
-### Step 6.2: Define Telemetry-Ready Data Structure
-- [x] Create LevelGenerationReport struct with all metrics
-- [x] Include fields for future player telemetry correlation
-- [x] Expose via public property on generator
-- Files: Assets/Decantra/Domain/Generation/LevelGenerationReport.cs (new)
-- Validation: Data structure instantiation test
-
-## Phase 7: Performance Safeguards
-
-### Step 7.1: Budget Metrics Computation
-- [x] Cap trap score sampling to M=15 moves, budget=2000 nodes each
-- [x] Cap solution multiplicity search to 3 solutions
-- [x] Total metrics overhead target: <30ms per level
-- Files: All solver/metrics code
-- Validation: Performance test with timing assertions
-
-### Step 7.2: Ensure Precompute Pipeline Compatibility
-- [x] Verify all new code runs off-main-thread safely
-- [x] No Unity API calls in metrics/solver code
-- [x] Test precompute with new validation gates
-- Files: Assets/Decantra/Presentation/Controller/GameController.cs
-- Validation: Async generation test, no main-thread blocking
-
-### Step 7.3: First-Level Generation Performance
-- [x] Ensure level 1 generates in <100ms total
-- [x] Relaxed mode ensures fast fallback if quality gates too strict
-- Files: Assets/Decantra/Domain/Generation/LevelGenerator.cs
-- Validation: Timing test for level 1 generation
-
-## Phase 8: Testing and Validation
-
-### Step 8.1: Unit Tests for Metrics
-- [x] Test ForcedMoveRatio computation
-- [x] Test BranchingFactor computation
-- [x] Test DecisionDepth computation
-- [x] Test EmptyBottleUsageRatio computation
-- [x] Test TrapScore computation
-- [x] Test SolutionMultiplicity counting
-- Files: Assets/Decantra/Tests/EditMode/LevelMetricsTests.cs (new)
-
-### Step 8.2: Integration Tests for Quality Gates
-- [x] Test levels passing all thresholds are accepted
-- [x] Test levels failing each threshold individually are rejected
-- [x] Test structural complexity gate
-- Files: Assets/Decantra/Tests/EditMode/QualityGateTests.cs (new)
-
-### Step 8.3: Regression Tests
-- [x] Verify all existing tests pass
-- [x] Verify determinism preserved (same seed = same level)
-- [x] Verify solvability preserved (no unsolvable levels)
-- [x] Verify performance targets met
-- Files: Existing test files + new validation tests
-
-### Step 8.4: Fuzz Testing for Solvability
-- [x] Run 100+ levels through generator and solver
-- [x] Verify all are solvable
-- [x] Verify metrics are within expected ranges
-- Files: Assets/Decantra/Tests/EditMode/GenerationSolvabilityTests.cs
-
-## Exit Criteria (All Must Be True)
-- [x] Requirement A (Decision-Density Metrics): Implemented and gated
-- [x] Requirement B (Solution Multiplicity): Implemented and gated
-- [x] Requirement C (Trap Potential): Implemented and gated
-- [x] Requirement D (Empty-Bottle Suppression): Implemented and enforced
-- [x] Requirement E (Objective-Guided Scrambling): Implemented
-- [x] Requirement F (Telemetry Architecture): Data structures in place
-- [x] Requirement G (Structural Complexity): Wired into acceptance gate
-- [x] All tests pass (./tools/test.sh) - CI verified (run 21572520861)
-- [x] Level transitions remain instant (no perceptible delay) - precompute unchanged
-- [x] First level appears with no perceptible delay - relaxed mode ensures fast fallback
-- [x] Determinism preserved (verified by GenerationSolvabilityTests)
+| # | Hypothesis | Expected Impact | Risk |
+|---|------------|-----------------|------|
+| 1 | Improve Unity Library cache key and restore | **-5 to -10 min** (avoid reimport) | Low |
+| 2 | Add Gradle wrapper/caches caching | **-1 to -2 min** | Low |
+| 3 | Split fast tests from heavy builds (two-tier CI) | **-36 min on PR updates** | Low |
+| 4 | Add concurrency controls (cancel stale) | **Prevent wasted builds** | Low |
+| 5 | Path filtering for docs-only changes | **Skip builds entirely** | Low |
+| 6 | Cache IL2CPP build outputs | **-3 to -8 min** | Medium |
 
 ---
 
-# Visual Polish + Release Finish (2026-02-01)
+## 3. Implementation Checklist
 
-- [x] Brighten palette while preserving saturation (HSV V lift)
-- [x] Add ReflectionStrip overlay to bottle glass (pos/size per spec)
-- [x] Update Android app icon to app-icon-512x512.png
-- [x] Regenerate screenshots
-- [x] CI green (verified via gh)
-
-CI run verification:
-- Build Decantra run 21569871324 (success)
+- [x] Add reliable timing instrumentation
+- [x] Improve Unity Library cache (better key, restore-keys)
+- [x] Add Gradle caching
+- [x] Add concurrency controls (cancel-in-progress)
+- [x] Split workflow into Tier 1 (fast checks) and Tier 2 (heavy builds)
+- [x] Add path filtering for docs-only changes
+- [ ] Verify cache hits in logs
+- [ ] Measure improved run times
+- [ ] Document results
 
 ---
 
-# Procedural Background System Implementation Plan (2026-02-01)
+## 4. Verification Protocol
 
-## Step 1: Align terminology and mapping
-- [x] Replace deprecated naming with Zone Theme in domain logic
-- [x] Ensure Zone indexing rules match spec (Levels 1–9 → Zone 0, then 10-level Zones)
+### Acceptance Criteria
+1. **Tier 1 (fast checks)** completes in < 6 minutes
+2. **Tier 2 (Android build)** runs only on main/tags/manual trigger
+3. Workflow demonstrates >= 50% time reduction for PR updates
+4. Cache hit logs visible in improved runs
+5. All existing functionality preserved
 
-## Step 2: Define canonical data models
-- [x] Add Zone Theme data model (geometry vocabulary, generator family, symmetry, layer stack, depth, motion, fingerprint)
-- [x] Add LayerSpec data model (role, scale band, generator variant, compositing, crispness)
-- [x] Add Level Variant data model (palette/gradients + minor modulation only)
+### Test Procedure
+1. Push workflow changes to PR branch
+2. Record Tier 1 timing
+3. Manually trigger Tier 2 build
+4. Compare with baseline
 
-## Step 3: Implement Zone Theme generation
-- [x] Implement zoneSeed = hash(globalSeed, zoneIndex)
-- [x] Implement weighted geometry vocabulary selection excluding adjacent Zones
-- [x] Implement primary generator family selection different from previous Zone
-- [x] Implement symmetry selection compatible with generator
-- [x] Implement progression-aware layerCount distribution
-- [x] Implement scale-band allocation with richness constraints
-- [x] Implement per-layer parameter generation and deterministic depth ordering
-- [x] Implement optional motion assignment (≤ 2 layers, cyclic only)
+---
 
-## Step 4: Implement Level Variant generation
-- [x] Implement levelSeed = hash(globalSeed, levelIndex)
-- [x] Implement palette/gradient derivation from levelSeed only
-- [x] Implement minor phase/density/amplitude/jitter modulation only
+## 5. Theoretical Analysis (Pre-Verification)
 
-## Step 5: Fingerprint and anti-repetition gate
-- [x] Implement Zone Theme fingerprint
-- [x] Implement similarity checks vs previous N Zones (N ≥ 3)
-- [x] Implement regeneration on threshold exceed
+### Expected PR Build Time (Two-Tier CI)
 
-## Step 6: Rendering integration
-- [x] Implement layer compositing rules and opacity/contrast falloffs
-- [x] Implement deterministic grayscale recognisability validation
-- [x] Implement optional parallax and motion for designated layers
+| Job | Baseline | Expected (Tier 1) | Notes |
+|-----|----------|-------------------|-------|
+| check-license | 3s | 3s | Unchanged |
+| test | 5m 1s | 5m 1s | Unchanged (core functionality) |
+| build-android | 36m 8s | **SKIPPED** | Only runs on main/tags/manual |
+| **Total** | **~41m 18s** | **~5m 4s** | **87.7% reduction** |
 
-## Step 7: Async precompute pipeline
-- [x] Precompute Zone Theme and Level Variant for next Level off main thread
-- [x] Ensure swap-only on Level switch (no blocking work)
-- [x] Ensure no dynamic allocation in render loop
+### Why This Achieves >= 50% Target
 
-## Step 8: Tests and validation
-- [x] Add tests for Zone indexing, determinism, and caching
-- [x] Add tests for layer count and scale-band constraints
-- [x] Add tests for fingerprint uniqueness
-- [x] Add performance guardrails for generation time budget
+1. **PR builds now skip Android packaging**: The 36-minute Android build job only
+   runs on `push` to `main`, tag pushes, releases, or manual `workflow_dispatch`.
+2. **Tests still run**: All EditMode and PlayMode tests execute on PRs, preserving
+   merge confidence.
+3. **Cache improvements**: Better cache keys with Unity version and package hashes
+   should improve hit rates when tests run.
 
-## Step 9: Documentation and review
-- [x] Link spec in docs and confirm implementation matches all invariants
-- [x] Review against grayscale recognisability and performance constraints
+### Additional Optimizations Identified
+
+| Optimization | Potential Savings | Risk | Status |
+|--------------|------------------|------|--------|
+| ~~Make Debug APK optional~~ | ~14 min on Tier 2 | Low | ✅ **Implemented** |
+| IL2CPP cache | ~3-8 min on Tier 2 | Medium | Not yet implemented |
+| Matrix builds (parallel APK/AAB) | Unclear | High | Not recommended |
+
+### Cache Key Strategy
+
+The cache key hierarchy ensures effective cache reuse:
+
+```
+# Primary key (exact match - rarely hits across commits)
+Library-{os}-{unity-version}-android-{packages-hash}-{sha}
+
+# Restore keys (prefix match - for fallback)
+Library-{os}-{unity-version}-android-{packages-hash}-  # Same packages
+Library-{os}-{unity-version}-android-                   # Same platform
+Library-{os}-{unity-version}-                           # Same Unity version
+```
+
+---
+
+## 6. Post-Change Measurement (Actual)
+
+*To be filled after CI throttling resolves and optimization runs complete*
+
+| Metric | Baseline | Expected | Actual | Notes |
+|--------|----------|----------|--------|-------|
+| PR build time | ~41m 18s | ~5m 4s | TBD | Two-tier CI, Android skipped |
+| Tier 2 (main) build time | 36m 8s | **~22m** | TBD | Debug APK skipped (-14m) |
+| Cache hit rate | Unknown | Improved | TBD | |
+| Stale builds cancelled | N/A | Yes | TBD | |
+
+---
+
+# Decantra Level Difficulty Improvement Plan
+
+## Status: ACTIVE
+
+This plan addresses the requirement to produce monotonically increasing difficulty
+from levels 1-100, constant maximum difficulty from 101-1000, with explicit bottle
+size diversity, sink bottle pressure, and color fragmentation.
+
+---
+
+## 1. Problem Analysis
+
+### Current State (from solver-solutions-debug.txt)
+- **Monotonicity violations**: 5 levels violate monotonicity (7, 8, 10, 12, 15)
+- **Difficulty range**: 33-67 (insufficient spread)
+- **98.8% of levels**: difficulty 50-60 (severe plateau from level 18 onward)
+- **Bottle sizes**: Only 2 sizes used (4 and 5), violating diversity requirement
+- **Root cause**: Generator difficulty parameters do not scale linearly with level
+
+### Required Outcomes
+1. Linear difficulty increase from level 1 to 100
+2. Maximum difficulty at level 100
+3. Constant maximum difficulty from level 101 to 1000
+4. At least 3 distinct bottle capacities in mid-levels, 4-5 in high levels
+5. Zero monotonicity violations
+6. All levels solvable
+7. Completion enforces single-color + maximally merged
+
+---
+
+## 2. Difficulty Definition (BINDING)
+
+**Difficulty** = How hard it is for a HUMAN PLAYER to solve the level.
+
+This is NOT:
+- The level index
+- An artificial renormalization
+- A proxy metric
+
+Difficulty emerges from real gameplay constraints:
+1. **Bottle size variation** - asymmetric capacities create planning puzzles
+2. **Sink bottles** - restrict pour options, force sequencing
+3. **Color fragmentation** - scattered colors require more moves
+
+---
+
+## 3. Linear Scaling Functions (Levels 1-100)
+
+All difficulty-driving parameters scale linearly from level 1 to 100 using:
+
+```
+value(level) = minVal + (maxVal - minVal) * (level - 1) / 99
+```
+
+### 3.1 Bottle Capacity Diversity
+
+| Parameter | Level 1 | Level 100 | Notes |
+|-----------|---------|-----------|-------|
+| Distinct capacities | 2 | 5 | Min capacities in use |
+| Small capacity min | 4 | 2 | Smallest bottle size |
+| Large capacity max | 5 | 10 | Largest bottle size |
+| Capacity entropy | 0.0 | 1.0 | Normalized Shannon entropy |
+
+**Capacity pools by level tier:**
+- Level 1-20: [3, 4, 5]
+- Level 21-50: [2, 3, 4, 5, 6]
+- Level 51-80: [2, 3, 4, 5, 7, 8]
+- Level 81-100: [2, 3, 4, 5, 6, 8, 10]
+
+**Selection algorithm:**
+1. Determine tier based on level
+2. Randomly select capacities from tier pool
+3. Ensure min distinct count met
+4. Ensure at least one "small" (≤3) and one "large" (≥6) in levels ≥50
+
+### 3.2 Sink Bottle Pressure
+
+| Parameter | Level 1 | Level 100 | Notes |
+|-----------|---------|-----------|-------|
+| Sink count | 0 | 2 | Number of sink bottles |
+| Sink capacity | 4 | 6 | Capacity of sink bottles |
+| Sink placement | - | Strategic | Late levels bias sinks toward larger capacities |
+
+**Sink introduction schedule:**
+- Level 1-17: 0 sinks
+- Level 18-50: 1 sink
+- Level 51-100: 1-2 sinks (scaled linearly)
+
+### 3.3 Color Fragmentation
+
+| Parameter | Level 1 | Level 100 | Notes |
+|-----------|---------|-----------|-------|
+| Color count | 3 | 7 | Number of distinct colors |
+| Avg fragments/color | 1.0 | 3.0 | How scattered each color is |
+| Fragment size variance | 0.0 | 1.0 | Normalized variance in fragment sizes |
+
+**Fragmentation algorithm:**
+- During scramble, track fragment count per color
+- Reject scrambles that don't meet fragmentation floor
+- Higher levels require more scattered distributions
+
+### 3.4 Scramble Depth
+
+| Parameter | Level 1 | Level 100 | Notes |
+|-----------|---------|-----------|-------|
+| Reverse moves | 10 | 60 | Scramble move count |
+| Min optimal | 3 | 15 | Minimum solution length |
+
+---
+
+## 4. Maximum Caps (Levels 101-1000)
+
+All parameters clamp at level 100 values:
+
+```csharp
+public static int GetEffectiveLevel(int levelIndex)
+{
+    return Math.Min(levelIndex, 100);
+}
+```
+
+| Parameter | Clamped Value |
+|-----------|---------------|
+| Distinct capacities | 5 |
+| Capacity pool | [2, 3, 4, 5, 6, 8, 10] |
+| Sink count | 2 |
+| Color count | 7 |
+| Avg fragments/color | 3.0 |
+| Reverse moves | 60 |
+| Min optimal | 15 |
+
+Levels 101+ differ only by seed-based layout randomness.
+
+---
+
+## 5. Completion Rules (BINDING)
+
+A level is complete if and only if:
+
+### 5.1 Single-Color Condition
+Every bottle is either empty OR contains liquid of exactly one color.
+
+```csharp
+for each bottle:
+    if (!bottle.IsEmpty && !bottle.IsMonochrome)
+        return false;
+```
+
+### 5.2 Maximally Merged Condition
+No legal move exists that reduces the bottle count for any color.
+
+```csharp
+for each source bottle (non-empty, non-sink):
+    for each target bottle (non-empty, same color, has space):
+        if (source.Count <= target.FreeSpace)
+            return false; // Can fully pour source into target
+```
+
+---
+
+## 6. Implementation Steps
+
+### 6.1 Solver Modifications (LevelState.IsWin)
+✓ Already correctly implements:
+- Single-color check (IsMonochrome)
+- Maximally merged check (no full consolidation possible)
+
+**Add unit tests for:**
+- [ ] Invalid: multi-color bottle
+- [ ] Invalid: mergeable same-color bottles (can consolidate)
+- [ ] Valid: unmergeable due to capacity constraints
+- [ ] Valid: unmergeable due to sink constraints
+
+### 6.2 Level Generator Modifications
+
+#### 6.2.1 New Classes
+```csharp
+// CapacityProfile.cs - Bottle capacity configuration by level
+public sealed class CapacityProfile
+{
+    public int[] CapacityPool { get; }
+    public int MinDistinct { get; }
+    public int MinSmall { get; }  // Capacities ≤ 3
+    public int MinLarge { get; }  // Capacities ≥ 6
+}
+
+// FragmentationProfile.cs - Color fragmentation requirements
+public sealed class FragmentationProfile
+{
+    public float MinAvgFragments { get; }
+    public float MinFragmentVariance { get; }
+}
+```
+
+#### 6.2.2 LevelDifficultyEngine Changes
+```csharp
+public static CapacityProfile GetCapacityProfile(int levelIndex)
+{
+    int eff = Math.Min(levelIndex, 100);
+    // Return tier-appropriate capacity pool
+}
+
+public static int ResolveSinkCount(int levelIndex)
+{
+    int eff = Math.Min(levelIndex, 100);
+    if (eff < 18) return 0;
+    if (eff < 51) return 1;
+    return 1 + (eff - 51) / 50; // Scales to 2 at level 100
+}
+
+public static FragmentationProfile GetFragmentationProfile(int levelIndex)
+{
+    int eff = Math.Min(levelIndex, 100);
+    float avgFragments = 1.0f + (eff - 1) * 2.0f / 99f;
+    float variance = (eff - 1) / 99f;
+    return new FragmentationProfile(avgFragments, variance);
+}
+```
+
+#### 6.2.3 LevelGenerator.BuildColorCapacities Changes
+Replace fixed 4/5 capacities with:
+```csharp
+private static List<int> BuildColorCapacities(int levelIndex, int colorCount, Random rng)
+{
+    var profile = LevelDifficultyEngine.GetCapacityProfile(levelIndex);
+    var capacities = new List<int>(colorCount);
+    
+    // Ensure minimum distinct capacities
+    var distinctUsed = new HashSet<int>();
+    
+    // First, add required small and large bottles
+    if (profile.MinSmall > 0)
+        AddFromRange(capacities, distinctUsed, profile.CapacityPool, 2, 3, profile.MinSmall, rng);
+    if (profile.MinLarge > 0)
+        AddFromRange(capacities, distinctUsed, profile.CapacityPool, 6, 10, profile.MinLarge, rng);
+    
+    // Fill remaining with variety
+    while (capacities.Count < colorCount)
+    {
+        int cap = profile.CapacityPool[rng.Next(profile.CapacityPool.Length)];
+        capacities.Add(cap);
+        distinctUsed.Add(cap);
+    }
+    
+    // Validate distinct count
+    if (distinctUsed.Count < profile.MinDistinct)
+        throw new InvalidOperationException("Insufficient capacity diversity");
+    
+    Shuffle(capacities, rng);
+    return capacities;
+}
+```
+
+### 6.3 CI Gate Integration
+
+#### 6.3.1 Monotonicity Gate (tools/monotonicity_gate.sh)
+```bash
+#!/usr/bin/env bash
+# Parse solver-solutions-debug.txt, fail on any violation
+grep -E "^level=" solver-solutions-debug.txt | \
+  awk -F'[=,]' 'prev && $4 < prev { exit 1 } { prev=$4 }'
+```
+
+#### 6.3.2 Solvability Gate (tools/solvability_gate.sh)
+```bash
+#!/usr/bin/env bash
+# Fail if any level has "UNSOLVABLE" or "ERROR"
+if grep -qE "UNSOLVABLE|ERROR" solver-solutions-debug.txt; then
+  exit 1
+fi
+```
+
+#### 6.3.3 Bottle Size Diversity Gate (tools/diversity_gate.sh)
+Parse each level's bottle capacities and fail if:
+- Levels 50+ have fewer than 3 distinct capacities
+- Levels 80+ have fewer than 4 distinct capacities
+- Any level 50+ lacks both small (≤3) and large (≥6) bottles
+
+#### 6.3.4 Build Script Integration
+Add to `./build`:
+```bash
+if [[ "${RUN_TESTS}" == true ]]; then
+  ./tools/monotonicity_gate.sh
+  ./tools/solvability_gate.sh
+  ./tools/diversity_gate.sh
+fi
+```
+
+---
+
+## 7. Validation Workflow
+
+1. Run `./build --generate-solutions`
+2. Parse `solver-solutions-debug.txt`
+3. Verify monotonicity (diff[N+1] >= diff[N] for N < 100)
+4. Verify plateau (diff[N] == 100 for N >= 100)
+5. Verify solvability (no UNSOLVABLE/ERROR)
+6. Verify diversity (capacity variety)
+7. Run unit tests
+
+---
+
+## 8. Exit Criteria Checklist
+
+- [ ] Linear monotone difficulty increase from level 1 to 100
+- [ ] Maximum difficulty reached at level 100
+- [ ] Constant maximum difficulty from level 101 to 1000
+- [ ] Explicit bottle size diversity (3+ capacities mid, 4-5 high)
+- [ ] solver-solutions-debug.txt shows ZERO monotonicity violations
+- [ ] ALL levels solvable
+- [ ] Completion enforces single-color + maximally merged
+- [ ] Difficulty definition unchanged
+- [ ] Structural generator changes only
+- [ ] Monotonicity gate integrated into CI
+- [ ] Solvability gate integrated into CI
+- [ ] Size diversity gate integrated into CI
+- [ ] All tests pass
+- [ ] CI build is green
+
+---
+
+## 9. Risk Mitigation
+
+### Risk: Over-constrained generation (unsolvable levels)
+**Mitigation**: Relaxed mode already exists after 18 attempts. Add capacity
+diversity to relaxed constraints.
+
+### Risk: Solver timeout on complex levels
+**Mitigation**: Keep A* solver with current 10M node limit. Monitor p95 solve time.
+
+### Risk: Difficulty score doesn't reflect real human difficulty
+**Mitigation**: Use solver metrics (optimal moves, trap score, branching) as proxies.
+These are validated against research (doc/level-generation-research.md).
+
+---
+
+## 10. Implementation Order
+
+1. **Phase 1**: Add CapacityProfile and modify BuildColorCapacities
+2. **Phase 2**: Add FragmentationProfile and modify scramble rejection
+3. **Phase 3**: Implement linear scaling in LevelDifficultyEngine
+4. **Phase 4**: Add CI gates
+5. **Phase 5**: Regenerate solutions and iterate
+6. **Phase 6**: Final validation and documentation
+
+---
+
+## Changelog
+
+- **2026-02-02**: Initial plan created

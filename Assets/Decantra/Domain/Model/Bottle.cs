@@ -176,6 +176,25 @@ namespace Decantra.Domain.Model
             return inserted == amount;
         }
 
+        public bool IsMonochrome
+        {
+            get
+            {
+                // O(slots) scan; bottle sizes are tiny so this stays inexpensive.
+                if (IsEmpty) return true;
+                ColorId? color = null;
+                for (int i = 0; i < _slots.Length; i++)
+                {
+                    if (_slots[i].HasValue)
+                    {
+                        if (color == null) color = _slots[i];
+                        else if (color != _slots[i]) return false;
+                    }
+                }
+                return true;
+            }
+        }
+
         public bool IsSolvedBottle()
         {
             if (IsEmpty) return false;

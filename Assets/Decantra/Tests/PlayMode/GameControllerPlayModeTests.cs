@@ -194,9 +194,10 @@ namespace Decantra.Tests.PlayMode
             SetPrivateField(controller, "_currentLevel", 3);
             SetPrivateField(controller, "_currentSeed", 555);
 
+            // Mixed state ensures multiple moves are required; movesAllowed=0 triggers failure on any move.
             var state = new LevelState(new[]
             {
-                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, null, null }),
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Blue, ColorId.Red, null }),
                 new Bottle(new ColorId?[4])
             }, 0, 0, 1, 3, 555);
 

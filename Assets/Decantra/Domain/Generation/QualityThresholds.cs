@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System;
 using Decantra.Domain.Rules;
 
 namespace Decantra.Domain.Generation
@@ -22,7 +23,7 @@ namespace Decantra.Domain.Generation
         public float MaxForcedMoveRatio { get; }
 
         /// <summary>
-        /// Maximum allowed decision depth (steps to first branching point).
+        /// Maximum allowed forced-move streak length along the optimal path.
         /// </summary>
         public int MaxDecisionDepth { get; }
 
@@ -88,7 +89,7 @@ namespace Decantra.Domain.Generation
                     // Early levels: lenient thresholds to ensure playability
                     return new QualityThresholds(
                         maxForcedMoveRatio: 0.70f,
-                        maxDecisionDepth: 4,
+                        maxDecisionDepth: 6,
                         minBranchingFactor: 1.2f,
                         minTrapScore: 0.05f,
                         minSolutionMultiplicity: 1,
@@ -100,7 +101,7 @@ namespace Decantra.Domain.Generation
                     // Intermediate: moderate thresholds
                     return new QualityThresholds(
                         maxForcedMoveRatio: 0.60f,
-                        maxDecisionDepth: 3,
+                        maxDecisionDepth: 5,
                         minBranchingFactor: 1.3f,
                         minTrapScore: 0.10f,
                         minSolutionMultiplicity: 1,
@@ -112,7 +113,7 @@ namespace Decantra.Domain.Generation
                     // Mid-game: stricter thresholds
                     return new QualityThresholds(
                         maxForcedMoveRatio: 0.55f,
-                        maxDecisionDepth: 2,
+                        maxDecisionDepth: 4,
                         minBranchingFactor: 1.4f,
                         minTrapScore: 0.15f,
                         minSolutionMultiplicity: 1,
@@ -124,7 +125,7 @@ namespace Decantra.Domain.Generation
                     // Advanced: demanding thresholds
                     return new QualityThresholds(
                         maxForcedMoveRatio: 0.50f,
-                        maxDecisionDepth: 2,
+                        maxDecisionDepth: 3,
                         minBranchingFactor: 1.5f,
                         minTrapScore: 0.18f,
                         minSolutionMultiplicity: 1,
@@ -137,7 +138,7 @@ namespace Decantra.Domain.Generation
                     // Expert: strictest thresholds
                     return new QualityThresholds(
                         maxForcedMoveRatio: 0.45f,
-                        maxDecisionDepth: 2,
+                        maxDecisionDepth: 3,
                         minBranchingFactor: 1.5f,
                         minTrapScore: 0.20f,
                         minSolutionMultiplicity: 1,
@@ -145,6 +146,25 @@ namespace Decantra.Domain.Generation
                         minMixedBottles: 3,
                         minDistinctSignatures: 4);
             }
+        }
+
+        /// <summary>
+        /// Returns a relaxed version of these thresholds for fallback generation.
+        /// Still enforces minimum quality, but avoids hard failures after many attempts.
+        /// </summary>
+        public QualityThresholds Relaxed()
+        {
+            // Conservative step sizes chosen to gently relax gating after repeated attempts
+            // while keeping thresholds within meaningful bounds.
+            return new QualityThresholds(
+                maxForcedMoveRatio: Math.Min(0.90f, MaxForcedMoveRatio + 0.10f),
+                maxDecisionDepth: MaxDecisionDepth + 1,
+                minBranchingFactor: Math.Max(1.0f, MinBranchingFactor - 0.15f),
+                minTrapScore: Math.Max(0.0f, MinTrapScore - 0.05f),
+                minSolutionMultiplicity: 1,
+                maxEmptyBottleUsageRatio: Math.Min(0.95f, MaxEmptyBottleUsageRatio + 0.10f),
+                minMixedBottles: Math.Max(1, MinMixedBottles - 1),
+                minDistinctSignatures: Math.Max(2, MinDistinctSignatures - 1));
         }
 
         /// <summary>

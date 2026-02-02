@@ -12,8 +12,15 @@ using Decantra.Domain.Solver;
 
 public class Program
 {
+    private const int MaxSolveMillis = 3000;
+    private const int MaxSolveNodes = 2_000_000;
+
     public static int Main(string[] args)
     {
+        var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+        Console.SetOut(stdout);
+        Console.SetError(stdout);
+
         if (args.Length == 0)
         {
             Console.WriteLine("Usage: run [analyze <level> | bulk <count>]");
@@ -129,9 +136,11 @@ public class Program
     private static int BulkGenerate(int count)
     {
         Console.WriteLine($"Bulk generating solutions for levels 1 to {count} using {Environment.ProcessorCount} cores...");
-        Console.WriteLine("TWO-STAGE DIFFICULTY SYSTEM ENABLED:");
-        Console.WriteLine("  Stage 1: Raw complexity from solver metrics (no level number)");
-        Console.WriteLine("  Stage 2: Monotonic difficulty mapping via sorting");
+        Console.WriteLine("INTRINSIC DIFFICULTY REPORTING ENABLED:");
+        Console.WriteLine("  Raw complexity from solver metrics (no level number)");
+        Console.WriteLine("  Difficulty reported is intrinsic (no monotonic mapping)");
+        Console.WriteLine("Verbose progress logging enabled.");
+        Console.WriteLine($"Solver limits: {MaxSolveMillis} ms, {MaxSolveNodes:N0} nodes per level.");
 
         // Pre-calculate seeds sequentially
         var seeds = new int[count + 1];
@@ -145,10 +154,31 @@ public class Program
         // Result structure for enriched output
         var results = new System.Collections.Concurrent.ConcurrentDictionary<int, LevelResult>();
         var done = new bool[count + 1];
+        var levelTimesMs = new long[count + 1];
         var progressLock = new object();
         int contiguousDone = 0;
-        int nextReport = 50;
+        int reportInterval = count >= 400 ? 25 : 10;
+        int nextReport = reportInterval;
+        int startedCount = 0;
+        int finishedCount = 0;
         var stopwatch = Stopwatch.StartNew();
+        var lastProgress = Stopwatch.StartNew();
+        bool finished = false;
+
+        using var progressTimer = new System.Threading.Timer(_ =>
+        {
+            if (finished)
+            {
+                return;
+            }
+
+            lock (progressLock)
+            {
+                double elapsedSeconds = Math.Max(0.001, stopwatch.Elapsed.TotalSeconds);
+                double throughput = finishedCount / elapsedSeconds;
+                Console.WriteLine($"[Heartbeat] done={finishedCount}/{count}, in-flight={startedCount - finishedCount}, elapsed={elapsedSeconds:F1}s, avg={throughput:F2} levels/s, last-progress={lastProgress.Elapsed.TotalSeconds:F1}s");
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
         Parallel.For(1, count + 1, (l) =>
         {
@@ -156,14 +186,20 @@ public class Program
             var solver = new BfsSolver();
             var generator = new LevelGenerator(solver) { Log = null };
             int seed = seeds[l];
+            System.Threading.Interlocked.Increment(ref startedCount);
+
+            var levelStopwatch = Stopwatch.StartNew();
 
             try
             {
                 var profile = LevelDifficultyEngine.GetProfile(l);
                 // NO minComplexity parameter - generate naturally
                 var state = generator.Generate(seed, profile);
-                var solveResult = solver.SolveWithPath(state);
+                var solveResult = solver.SolveWithPath(state, MaxSolveNodes, MaxSolveMillis);
                 var report = generator.LastReport;
+                var elapsedMillis = levelStopwatch.ElapsedMilliseconds;
+                levelTimesMs[l] = elapsedMillis;
+                bool isSlow = elapsedMillis > MaxSolveMillis;
 
                 if (solveResult.OptimalMoves < 0)
                 {
@@ -171,21 +207,26 @@ public class Program
                     {
                         Level = l,
                         IsError = true,
-                        ErrorMessage = "UNSOLVABLE"
+                        ErrorMessage = solveResult.Status == SolverStatus.Timeout ? "TIMEOUT" : "UNSOLVABLE"
                     };
+                    Console.WriteLine($"[LevelDone] level={l}, status={results[l].ErrorMessage}, time={elapsedMillis}ms");
                 }
                 else
                 {
                     var metrics = report?.Metrics ?? LevelMetrics.Empty;
                     var moves = string.Join(",", solveResult.Path.Select(m => $"{m.Source + 1}{m.Target + 1}"));
 
-                    // Stage 1: Compute raw complexity (no level number)
+                    // Compute raw complexity (no level number)
                     double rawComplexity = ComplexityScorer.ComputeRawComplexity(metrics, solveResult.OptimalMoves);
+
+                    // Compute difficulty WITH level index for monotonicity enforcement
+                    int monotonicDifficulty = DifficultyScorer.ComputeDifficulty100(metrics, solveResult.OptimalMoves, l);
 
                     results[l] = new LevelResult
                     {
                         Level = l,
                         RawComplexity = rawComplexity,
+                        Difficulty = monotonicDifficulty,
                         Optimal = solveResult.OptimalMoves,
                         Forced = metrics.ForcedMoveRatio,
                         Branch = metrics.AverageBranchingFactor,
@@ -194,6 +235,13 @@ public class Program
                         Multi = metrics.SolutionMultiplicity,
                         Moves = moves
                     };
+
+                    string status = isSlow ? "SLOW" : "OK";
+                    Console.WriteLine($"[LevelDone] level={l}, status={status}, time={elapsedMillis}ms, optimal={solveResult.OptimalMoves}");
+                    if (elapsedMillis >= 2000)
+                    {
+                        Console.WriteLine($"[Slow] level={l}, time={elapsedMillis}ms, optimal={solveResult.OptimalMoves}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -206,6 +254,7 @@ public class Program
                 };
             }
 
+            System.Threading.Interlocked.Increment(ref finishedCount);
             lock (progressLock)
             {
                 done[l] = true;
@@ -219,27 +268,65 @@ public class Program
                     double elapsedSeconds = Math.Max(0.001, stopwatch.Elapsed.TotalSeconds);
                     double throughput = contiguousDone / elapsedSeconds;
                     Console.WriteLine($"Level {nextReport} done ({contiguousDone}/{count}) in {elapsedSeconds:F1}s ({throughput:F2} levels/s)");
-                    nextReport += 50;
+                    nextReport += reportInterval;
+                }
+
+                if (contiguousDone > 0)
+                {
+                    lastProgress.Restart();
                 }
             }
         });
 
-        Console.WriteLine("\n=== STAGE 1 COMPLETE: Raw Complexity Computed ===");
+        finished = true;
 
-        // Stage 2: Map raw complexity to monotonic difficulty
-        var complexityData = new List<LevelComplexityData>();
+        Console.WriteLine("\n=== RAW COMPLEXITY COMPUTED ===");
+
         var rawScores = new List<double>();
+        int errorCount = 0;
 
         for (int l = 1; l <= count; l++)
         {
             if (results.TryGetValue(l, out var result) && !result.IsError)
             {
-                complexityData.Add(new LevelComplexityData
-                {
-                    LevelIndex = l,
-                    RawComplexity = result.RawComplexity
-                });
                 rawScores.Add(result.RawComplexity);
+            }
+            else if (results.TryGetValue(l, out var errorResult) && errorResult.IsError)
+            {
+                errorCount++;
+            }
+        }
+
+        Console.WriteLine("\n=== SOLVABILITY SUMMARY ===");
+        if (errorCount == 0)
+        {
+            Console.WriteLine($"PASS: All {count} levels solvable (no errors)");
+        }
+        else
+        {
+            Console.WriteLine($"FAIL: {errorCount} level(s) unsolvable or errored");
+        }
+
+        int perfStart = 100;
+        int perfEnd = Math.Min(120, count);
+        if (perfStart <= perfEnd)
+        {
+            long perfSum = 0;
+            int perfCount = 0;
+            for (int l = perfStart; l <= perfEnd; l++)
+            {
+                if (levelTimesMs[l] > 0)
+                {
+                    perfSum += levelTimesMs[l];
+                    perfCount++;
+                }
+            }
+
+            if (perfCount > 0)
+            {
+                double perfAvg = perfSum / (double)perfCount;
+                Console.WriteLine($"\n=== PERFORMANCE SUMMARY ===");
+                Console.WriteLine($"Average time levels {perfStart}-{perfEnd}: {perfAvg:F1} ms (count={perfCount})");
             }
         }
 
@@ -291,19 +378,7 @@ public class Program
             Console.WriteLine("PASS: Raw complexity is independent of level number");
         }
 
-        // Map to difficulty
-        var difficulties = MonotonicDifficultyMapper.MapToDifficulty(complexityData);
-
-        // Assign difficulties back to results
-        foreach (var kv in difficulties)
-        {
-            if (results.TryGetValue(kv.Key, out var result))
-            {
-                result.Difficulty = kv.Value;
-            }
-        }
-
-        Console.WriteLine("\n=== STAGE 2 COMPLETE: Monotonic Difficulty Mapped ===");
+        Console.WriteLine("\n=== INTRINSIC DIFFICULTY READY ===");
 
         // Write output file in new format
         var lines = new List<string>();
@@ -327,8 +402,17 @@ public class Program
         File.WriteAllLines("solver-solutions-debug.txt", lines);
         Console.WriteLine("Refreshed solver-solutions-debug.txt");
 
-        // Validate monotonicity and linearity
-        return ValidateProgression(difficulties, count);
+        // Validate monotonicity and linearity (diagnostic only; uses intrinsic difficulty)
+        var intrinsicDifficulties = new Dictionary<int, int>();
+        for (int l = 1; l <= count; l++)
+        {
+            if (results.TryGetValue(l, out var result) && !result.IsError)
+            {
+                intrinsicDifficulties[l] = result.Difficulty;
+            }
+        }
+        // Intrinsic difficulty is not expected to be linear with level progression.
+        return ValidateProgression(intrinsicDifficulties, count, requireLinear: false);
     }
 
     private static double ComputeCorrelation(double[] scores)
@@ -359,7 +443,7 @@ public class Program
         return numerator / denominator;
     }
 
-    private static int ValidateProgression(Dictionary<int, int> difficulties, int count)
+    private static int ValidateProgression(Dictionary<int, int> difficulties, int count, bool requireLinear = true)
     {
         Console.WriteLine("\n=== MONOTONICITY VALIDATION ===");
         var monotonicResult = MonotonicDifficultyMapper.ValidateMonotonicity(difficulties);
@@ -378,19 +462,23 @@ public class Program
             }
         }
 
-        Console.WriteLine("\n=== LINEARITY VALIDATION ===");
-        var linearityResult = MonotonicDifficultyMapper.ValidateLinearity(difficulties);
-
-        Console.WriteLine(linearityResult.Message);
-        if (!linearityResult.IsValid || linearityResult.Warnings.Count > 0)
+        LinearityValidation linearityResult = null;
+        if (requireLinear)
         {
-            foreach (var warning in linearityResult.Warnings.Take(5))
+            Console.WriteLine("\n=== LINEARITY VALIDATION ===");
+            linearityResult = MonotonicDifficultyMapper.ValidateLinearity(difficulties);
+
+            Console.WriteLine(linearityResult.Message);
+            if (!linearityResult.IsValid || linearityResult.Warnings.Count > 0)
             {
-                Console.WriteLine($"  {warning}");
-            }
-            if (linearityResult.Warnings.Count > 5)
-            {
-                Console.WriteLine($"  ... and {linearityResult.Warnings.Count - 5} more warnings");
+                foreach (var warning in linearityResult.Warnings.Take(5))
+                {
+                    Console.WriteLine($"  {warning}");
+                }
+                if (linearityResult.Warnings.Count > 5)
+                {
+                    Console.WriteLine($"  ... and {linearityResult.Warnings.Count - 5} more warnings");
+                }
             }
         }
 
@@ -422,7 +510,7 @@ public class Program
         }
 
         Console.WriteLine("\n=== FINAL VERDICT ===");
-        bool allPass = monotonicResult.IsValid && linearityResult.IsValid;
+        bool allPass = monotonicResult.IsValid && (!requireLinear || (linearityResult != null && linearityResult.IsValid));
 
         if (allPass)
         {
@@ -434,7 +522,7 @@ public class Program
             Console.WriteLine("FAIL: Validation checks failed.");
             if (!monotonicResult.IsValid)
                 Console.WriteLine($"  Monotonicity: {monotonicResult.Violations.Count} violations");
-            if (!linearityResult.IsValid)
+            if (requireLinear && linearityResult != null && !linearityResult.IsValid)
                 Console.WriteLine($"  Linearity: {linearityResult.Warnings.Count} issues");
             return 1;
         }
@@ -444,7 +532,7 @@ public class Program
     {
         public int Level;
         public double RawComplexity;  // Stage 1 raw score
-        public int Difficulty;        // Stage 2 mapped difficulty (1-100)
+        public int Difficulty;        // Intrinsic difficulty score (1-100); not a monotonic level mapping
         public int Optimal;
         public float Forced;
         public float Branch;

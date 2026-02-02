@@ -44,12 +44,41 @@ namespace Decantra.Domain.Model
 
         public bool IsWin()
         {
+            // 1. Every non-empty bottle contains liquid of exactly one color
             for (int i = 0; i < Bottles.Count; i++)
             {
                 var bottle = Bottles[i];
                 if (bottle.IsEmpty) continue;
-                if (!bottle.IsFull) return false;
-                if (!bottle.IsSolvedBottle()) return false;
+                if (!bottle.IsMonochrome) return false;
+            }
+
+            // 2. No legal move exists that would reduce the number of bottles used by any color
+            for (int i = 0; i < Bottles.Count; i++)
+            {
+                var source = Bottles[i];
+                if (source.IsEmpty) continue;
+                if (source.IsSink) continue;
+
+                var color = source.TopColor;
+
+                for (int j = 0; j < Bottles.Count; j++)
+                {
+                    if (i == j) continue;
+                    var target = Bottles[j];
+
+                    // Consolidating into an empty bottle does not reduce the bottle count
+                    // (the source would still be non-empty); only full transfer into a same-color target reduces count.
+                    if (target.IsEmpty) continue;
+
+                    // Target must match color to allow pour
+                    if (target.TopColor != color) continue;
+
+                    // If we can pour all of source into target, we can reduce the bottle count
+                    if (source.MaxPourAmountInto(target) >= source.Count)
+                    {
+                        return false;
+                    }
+                }
             }
             return true;
         }

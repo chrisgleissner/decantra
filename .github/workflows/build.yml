@@ -1,303 +1,444 @@
 name: Build Decantra
 
 on:
-    release:
-        types: [published]
-    push:
-        branches: ["**"]
-        tags: ["v*", "*.*.*"]
-    create:
-    pull_request:
-    workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches: ["main"]
+    tags: ["v*", "*.*.*"]
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "doc/**"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+  workflow_dispatch:
+    inputs:
+      run_android_build:
+        description: "Run Android build"
+        required: false
+        default: "true"
+        type: boolean
+      build_debug_apk:
+        description: "Build Debug APK (slow, skip by default)"
+        required: false
+        default: "false"
+        type: boolean
+
+# Cancel in-progress runs for same branch/PR to prevent wasted compute
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_VERSION: "6000.3.5f2"
 
 jobs:
-    check-license:
-        name: Check Unity license secrets
-        runs-on: ubuntu-latest
-        if: github.event_name != 'create' || github.ref_type == 'tag'
-        outputs:
-            is_unity_license_set: ${{ steps.check.outputs.is_unity_license_set }}
-        steps:
-            - name: Detect Unity license secrets
-              id: check
-              env:
-                  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-                  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-                  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-              run: |
-                  has_license="${{ env.UNITY_LICENSE != '' }}"
-                  echo "is_unity_license_set=$has_license" >> "$GITHUB_OUTPUT"
-
-    test:
-        name: Unity tests (EditMode + PlayMode)
-        runs-on: ubuntu-latest
-        needs: check-license
-        if: (github.event_name != 'create' || github.ref_type == 'tag') && needs.check-license.outputs.is_unity_license_set == 'true'
+  check-license:
+    name: Check Unity license secrets
+    runs-on: ubuntu-latest
+    outputs:
+      is_unity_license_set: ${{ steps.check.outputs.is_unity_license_set }}
+    steps:
+      - name: Detect Unity license secrets
+        id: check
         env:
-            UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-            UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-            UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  lfs: true
-                  fetch-depth: 0
-            - uses: actions/cache@v4
-              with:
-                  path: Library
-                  key: Library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-                  restore-keys: |
-                      Library-${{ runner.os }}-
-            - uses: game-ci/unity-test-runner@v4
-              with:
-                  projectPath: .
-                  unityVersion: 6000.3.5f2
-                  testMode: editmode
-                  artifactsPath: TestResults
-                  customParameters: -enableCodeCoverage -coverageResultsPath Coverage -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear"
-            - uses: game-ci/unity-test-runner@v4
-              with:
-                  projectPath: .
-                  unityVersion: 6000.3.5f2
-                  testMode: playmode
-                  artifactsPath: TestResults
-            - name: Upload coverage to Codecov
-              if: ${{ hashFiles('Coverage/decantra-opencov/Recording/*.xml') != '' }}
-              uses: codecov/codecov-action@v5
-              with:
-                  files: Coverage/decantra-opencov/Recording/*.xml
-                  flags: unity
-                  name: unity-coverage
-                  fail_ci_if_error: false
-              env:
-                  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          has_license="${{ env.UNITY_LICENSE != '' }}"
+          echo "is_unity_license_set=$has_license" >> "$GITHUB_OUTPUT"
 
-    build-android:
-        name: Build Android APK/AAB
-        runs-on: ubuntu-latest
-        needs: test
-        if: (github.event_name != 'create' || github.ref_type == 'tag') && needs.test.result == 'success'
+  # ============================================================================
+  # TIER 1: Fast confidence checks (runs on every PR)
+  # Target: < 6 minutes
+  # ============================================================================
+  test:
+    name: Unity tests (EditMode + PlayMode)
+    runs-on: ubuntu-latest
+    needs: check-license
+    if: needs.check-license.outputs.is_unity_license_set == 'true'
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - name: Record start time
+        run: |
+          echo "STEP_START=$(date +%s)" >> "$GITHUB_ENV"
+          echo "::notice::Build started at $(date -Iseconds)"
+
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      # Unity Library cache - critical for asset import performance
+      - name: Restore Unity Library cache
+        uses: actions/cache@v4
+        id: cache-library
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-android-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-android-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}-
+            Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-android-
+            Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-
+
+      - name: Report cache status
+        run: |
+          if [[ "${{ steps.cache-library.outputs.cache-hit }}" == "true" ]]; then
+            echo "::notice::Unity Library cache HIT"
+          else
+            echo "::warning::Unity Library cache MISS - expect longer build time"
+          fi
+
+      - name: Run EditMode tests
+        uses: game-ci/unity-test-runner@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: editmode
+          artifactsPath: TestResults
+          customParameters: -enableCodeCoverage -coverageResultsPath Coverage -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear"
+
+      - name: Run PlayMode tests
+        uses: game-ci/unity-test-runner@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: playmode
+          artifactsPath: TestResults
+
+      - name: Upload coverage to Codecov
+        if: hashFiles('Coverage/decantra-opencov/Recording/*.xml') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: Coverage/decantra-opencov/Recording/*.xml
+          flags: unity
+          name: unity-coverage
+          fail_ci_if_error: false
         env:
-            UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-            UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-            UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  lfs: true
-            - name: Free up disk space
-              run: |
-                  df -h
-                  sudo apt-get clean
-                  sudo rm -rf /usr/share/dotnet
-                  sudo rm -rf /usr/local/lib/android
-                  sudo rm -rf /opt/ghc
-                  sudo rm -rf "/usr/local/share/boost"
-                  sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-                  docker system prune -af --volumes || true
-                  df -h
-            - uses: actions/cache@v4
-              with:
-                  path: Library
-                  key: Library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-                  restore-keys: |
-                      Library-${{ runner.os }}-
-            - name: Prepare keystore (optional)
-              env:
-                  KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
-                  KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
-                  KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
-                  KEYSTORE_STORE_FILE: ${{ secrets.KEYSTORE_STORE_FILE }}
-              run: |
-                  HAS_KEYSTORE=false
-                  if [[ -n "$KEYSTORE_STORE_FILE" ]]; then
-                      if [[ -f "$KEYSTORE_STORE_FILE" ]]; then
-                          echo "Using keystore at $KEYSTORE_STORE_FILE"
-                      else
-                          echo "$KEYSTORE_STORE_FILE" | base64 -d > "$RUNNER_TEMP/decantra-release.keystore" 2>/dev/null || true
-                          if [[ -s "$RUNNER_TEMP/decantra-release.keystore" ]]; then
-                              KEYSTORE_STORE_FILE="$RUNNER_TEMP/decantra-release.keystore"
-                              echo "Decoded keystore secret to $KEYSTORE_STORE_FILE"
-                          else
-                              echo "Keystore secret present but could not decode to file; skipping custom keystore."
-                              KEYSTORE_STORE_FILE=""
-                          fi
-                      fi
-                  fi
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-                  if [[ -n "$KEYSTORE_STORE_FILE" && -f "$KEYSTORE_STORE_FILE" && -n "$KEYSTORE_STORE_PASSWORD" && -n "$KEYSTORE_KEY_ALIAS" ]]; then
-                      HAS_KEYSTORE=true
-                      echo "KEYSTORE_STORE_FILE=$KEYSTORE_STORE_FILE" >> "$GITHUB_ENV"
-                      echo "KEYSTORE_STORE_PASSWORD=$KEYSTORE_STORE_PASSWORD" >> "$GITHUB_ENV"
-                      echo "KEYSTORE_KEY_PASSWORD=$KEYSTORE_KEY_PASSWORD" >> "$GITHUB_ENV"
-                      echo "KEYSTORE_KEY_ALIAS=$KEYSTORE_KEY_ALIAS" >> "$GITHUB_ENV"
-                  else
-                      echo "Keystore secrets missing or incomplete; proceeding with default signing."
-                  fi
+      - name: Report timing
+        if: always()
+        run: |
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - STEP_START))
+          echo "::notice::Test job completed in ${DURATION}s ($(date -d@$DURATION -u +%Mm%Ss))"
 
-                  echo "HAS_KEYSTORE=$HAS_KEYSTORE" >> "$GITHUB_ENV"
-            - name: Resolve versioning
-              run: |
-                  git fetch --tags --force --prune --prune-tags || true
+  # ============================================================================
+  # TIER 2: Heavy Android packaging
+  # Only runs on: main push, tags, releases, or manual dispatch
+  # ============================================================================
+  build-android:
+    name: Build Android APK/AAB
+    runs-on: ubuntu-latest
+    needs: [check-license, test]
+    # Skip on PRs unless manually dispatched with android build enabled
+    if: |
+      needs.check-license.outputs.is_unity_license_set == 'true' &&
+      needs.test.result == 'success' &&
+      (
+        github.event_name == 'push' ||
+        github.event_name == 'release' ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.run_android_build == 'true')
+      )
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - name: Record start time
+        run: |
+          echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
+          echo "::notice::Android build started at $(date -Iseconds)"
 
-                  version_name=""
-                  if [[ "${GITHUB_REF_TYPE:-}" == "tag" && -n "${GITHUB_REF_NAME:-}" ]]; then
-                      version_name="${GITHUB_REF_NAME}"
-                  else
-                      version_name="$(git describe --tags --abbrev=0 2>/dev/null || true)"
-                  fi
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
 
-                  if [[ -z "${version_name}" ]]; then
-                      version_name="0.0.0"
-                  fi
+      - name: Free up disk space
+        run: |
+          echo "::group::Freeing disk space"
+          df -h
+          sudo apt-get clean
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          docker system prune -af --volumes || true
+          df -h
+          echo "::endgroup::"
 
-                  version_code="${VERSION_CODE:-}"
-                  if [[ -z "${version_code}" ]]; then
-                      if [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
-                          run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
-                          version_code="$((1000 + GITHUB_RUN_NUMBER * 10 + run_attempt - 1))"
-                      else
-                          commit_count="$(git rev-list --count HEAD 2>/dev/null || true)"
-                          if [[ -n "${commit_count}" ]]; then
-                              version_code="$((1000 + commit_count))"
-                          else
-                              version_code="1000"
-                          fi
-                      fi
-                  fi
+      # Unity Library cache - same key structure as test job for cache sharing
+      - name: Restore Unity Library cache
+        uses: actions/cache@v4
+        id: cache-library
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-android-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-android-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}-
+            Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-android-
+            Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-
 
-                  require_keystore=false
-                  if [[ "${GITHUB_REF_TYPE:-}" == "tag" || "${GITHUB_REF:-}" == refs/tags/* ]]; then
-                      require_keystore=true
-                  fi
+      # Gradle caches - speeds up Android toolchain operations
+      - name: Restore Gradle cache
+        uses: actions/cache@v4
+        id: cache-gradle
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-                  echo "VERSION_NAME=${version_name}" >> "$GITHUB_ENV"
-                  echo "VERSION_CODE=${version_code}" >> "$GITHUB_ENV"
-                  echo "DECANTRA_REQUIRE_KEYSTORE=${require_keystore}" >> "$GITHUB_ENV"
-                  echo "Resolved VERSION_NAME=${version_name}, VERSION_CODE=${version_code}, REQUIRE_KEYSTORE=${require_keystore}"
-            - uses: game-ci/unity-builder@v4
-              id: build_release
-              with:
-                  projectPath: .
-                  unityVersion: 6000.3.5f2
-                  targetPlatform: Android
-                  buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
-                  versioning: None
-                  customParameters: -buildPath Builds/Android/Decantra-release.apk
-                  androidExportType: androidPackage
-                  androidVersionCode: ${{ env.VERSION_CODE }}
-                  buildsPath: Builds/Android
-            - uses: game-ci/unity-builder@v4
-              id: build_release_aab
-              with:
-                  projectPath: .
-                  unityVersion: 6000.3.5f2
-                  targetPlatform: Android
-                  buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
-                  versioning: None
-                  customParameters: -buildPath Builds/Android/Decantra-release.aab
-                  androidExportType: androidAppBundle
-                  androidVersionCode: ${{ env.VERSION_CODE }}
-                  buildsPath: Builds/Android
-            - uses: game-ci/unity-builder@v4
-              id: build_debug
-              with:
-                  projectPath: .
-                  unityVersion: 6000.3.5f2
-                  targetPlatform: Android
-                  buildMethod: Decantra.App.Editor.AndroidBuild.BuildDebugApk
-                  versioning: None
-                  customParameters: -buildPath Builds/Android/Decantra-debug.apk
-                  androidExportType: androidPackage
-                  androidVersionCode: ${{ env.VERSION_CODE }}
-                  buildsPath: Builds/Android
-            - name: Normalize build output permissions
-              run: |
-                  sudo chown -R "$USER":"$USER" Builds/Android || true
-                  sudo chmod -R u+rwX Builds/Android || true
-            - name: Rename APKs with version
-              run: |
-                  version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
-                  if [[ -z "$version" ]]; then
-                      echo "Missing buildVersion from unity-builder." >&2
-                      exit 1
-                  fi
-                  mv Builds/Android/Decantra-release.apk "Builds/Android/decantra-${version}.apk"
-                  mv Builds/Android/Decantra-debug.apk "Builds/Android/decantra-${version}-debug.apk"
-                  mv Builds/Android/Decantra-release.aab "Builds/Android/decantra-${version}.aab"
-            - name: Verify APKs are readable
-              run: |
-                  version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
-                  test -r "Builds/Android/decantra-${version}.apk"
-                  test -r "Builds/Android/decantra-${version}-debug.apk"
-            - name: Verify AAB is readable and non-empty
-              run: |
-                  version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
-                  test -r "Builds/Android/decantra-${version}.aab"
-                  test -s "Builds/Android/decantra-${version}.aab"
-            - uses: actions/upload-artifact@v4
-              with:
-                  name: Decantra-Android-Release
-                  path: Builds/Android/decantra-${{ env.VERSION_NAME }}.apk
-            - uses: actions/upload-artifact@v4
-              with:
-                  name: Decantra-Android-Debug
-                  path: Builds/Android/decantra-${{ env.VERSION_NAME }}-debug.apk
-            - uses: actions/upload-artifact@v4
-              with:
-                  name: Decantra-Android-Release-AAB
-                  path: Builds/Android/decantra-${{ env.VERSION_NAME }}.aab
+      - name: Report cache status
+        run: |
+          echo "::group::Cache Status"
+          if [[ "${{ steps.cache-library.outputs.cache-hit }}" == "true" ]]; then
+            echo "✓ Unity Library cache HIT"
+            LIBRARY_SIZE=$(du -sh Library 2>/dev/null | cut -f1 || echo "unknown")
+            echo "  Library size: $LIBRARY_SIZE"
+          else
+            echo "✗ Unity Library cache MISS"
+          fi
+          if [[ "${{ steps.cache-gradle.outputs.cache-hit }}" == "true" ]]; then
+            echo "✓ Gradle cache HIT"
+          else
+            echo "✗ Gradle cache MISS"
+          fi
+          echo "::endgroup::"
 
-    release:
-        name: Create GitHub release
-        runs-on: ubuntu-latest
-        needs: build-android
-        if: startsWith(github.ref, 'refs/tags/')
-        permissions:
-            contents: write
-        steps:
-            - uses: actions/download-artifact@v4
-              with:
-                  name: Decantra-Android-Release
-                  path: release-artifacts
-            - uses: actions/download-artifact@v4
-              with:
-                  name: Decantra-Android-Debug
-                  path: release-artifacts
-            - uses: actions/download-artifact@v4
-              with:
-                  name: Decantra-Android-Release-AAB
-                  path: release-artifacts
-            - name: Resolve Play Console availability
-              env:
-                  PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-                  PLAY_PACKAGE_NAME: ${{ secrets.PLAY_PACKAGE_NAME }}
-              run: |
-                  if [[ -n "$PLAY_SERVICE_ACCOUNT_JSON" && -n "$PLAY_PACKAGE_NAME" ]]; then
-                      echo "HAS_PLAY_SERVICE=true" >> "$GITHUB_ENV"
-                      echo "PLAY_PACKAGE_NAME=$PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
-                  else
-                      echo "HAS_PLAY_SERVICE=false" >> "$GITHUB_ENV"
-                      if [[ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
-                          echo "Play Console credentials missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
-                      fi
-                      if [[ -z "$PLAY_PACKAGE_NAME" ]]; then
-                          echo "Play package name missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
-                      fi
-                  fi
-            - name: Publish release
-              uses: softprops/action-gh-release@v2
-              with:
-                  files: |
-                      release-artifacts/decantra-*.apk
-                      release-artifacts/decantra-*.aab
-                        - name: Upload AAB to Google Play (internal)
-                            if: env.HAS_PLAY_SERVICE == 'true'
-                            continue-on-error: true
-                            uses: r0adkll/upload-google-play@v1
-                            with:
-                                    serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-                                    packageName: ${{ env.PLAY_PACKAGE_NAME }}
-                                    releaseFiles: release-artifacts/decantra-*.aab
-                                    track: internal
-                                    status: draft
+      - name: Prepare keystore (optional)
+        env:
+          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+          KEYSTORE_STORE_FILE: ${{ secrets.KEYSTORE_STORE_FILE }}
+        run: |
+          HAS_KEYSTORE=false
+          if [[ -n "$KEYSTORE_STORE_FILE" ]]; then
+            if [[ -f "$KEYSTORE_STORE_FILE" ]]; then
+              echo "Using keystore at $KEYSTORE_STORE_FILE"
+            else
+              echo "$KEYSTORE_STORE_FILE" | base64 -d > "$RUNNER_TEMP/decantra-release.keystore" 2>/dev/null || true
+              if [[ -s "$RUNNER_TEMP/decantra-release.keystore" ]]; then
+                KEYSTORE_STORE_FILE="$RUNNER_TEMP/decantra-release.keystore"
+                echo "Decoded keystore secret to $KEYSTORE_STORE_FILE"
+              else
+                echo "Keystore secret present but could not decode to file; skipping custom keystore."
+                KEYSTORE_STORE_FILE=""
+              fi
+            fi
+          fi
+
+          if [[ -n "$KEYSTORE_STORE_FILE" && -f "$KEYSTORE_STORE_FILE" && -n "$KEYSTORE_STORE_PASSWORD" && -n "$KEYSTORE_KEY_ALIAS" ]]; then
+            HAS_KEYSTORE=true
+            echo "KEYSTORE_STORE_FILE=$KEYSTORE_STORE_FILE" >> "$GITHUB_ENV"
+            echo "KEYSTORE_STORE_PASSWORD=$KEYSTORE_STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEYSTORE_KEY_PASSWORD=$KEYSTORE_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEYSTORE_KEY_ALIAS=$KEYSTORE_KEY_ALIAS" >> "$GITHUB_ENV"
+          else
+            echo "Keystore secrets missing or incomplete; proceeding with default signing."
+          fi
+
+          echo "HAS_KEYSTORE=$HAS_KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Resolve versioning
+        run: |
+          git fetch --tags --force --prune --prune-tags || true
+
+          version_name=""
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" && -n "${GITHUB_REF_NAME:-}" ]]; then
+            version_name="${GITHUB_REF_NAME}"
+          else
+            version_name="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          fi
+
+          if [[ -z "${version_name}" ]]; then
+            version_name="0.0.0"
+          fi
+
+          version_code="${VERSION_CODE:-}"
+          if [[ -z "${version_code}" ]]; then
+            if [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
+              run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
+              version_code="$((1000 + GITHUB_RUN_NUMBER * 10 + run_attempt - 1))"
+            else
+              commit_count="$(git rev-list --count HEAD 2>/dev/null || true)"
+              if [[ -n "${commit_count}" ]]; then
+                version_code="$((1000 + commit_count))"
+              else
+                version_code="1000"
+              fi
+            fi
+          fi
+
+          require_keystore=false
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" || "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            require_keystore=true
+          fi
+
+          echo "VERSION_NAME=${version_name}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${version_code}" >> "$GITHUB_ENV"
+          echo "DECANTRA_REQUIRE_KEYSTORE=${require_keystore}" >> "$GITHUB_ENV"
+          echo "Resolved VERSION_NAME=${version_name}, VERSION_CODE=${version_code}, REQUIRE_KEYSTORE=${require_keystore}"
+
+      - name: Build Release APK
+        id: build_release
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
+          versioning: None
+          customParameters: -buildPath Builds/Android/Decantra-release.apk
+          androidExportType: androidPackage
+          androidVersionCode: ${{ env.VERSION_CODE }}
+          buildsPath: Builds/Android
+
+      - name: Build Release AAB
+        id: build_release_aab
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
+          versioning: None
+          customParameters: -buildPath Builds/Android/Decantra-release.aab
+          androidExportType: androidAppBundle
+          androidVersionCode: ${{ env.VERSION_CODE }}
+          buildsPath: Builds/Android
+
+      - name: Build Debug APK
+        id: build_debug
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true'
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: Decantra.App.Editor.AndroidBuild.BuildDebugApk
+          versioning: None
+          customParameters: -buildPath Builds/Android/Decantra-debug.apk
+          androidExportType: androidPackage
+          androidVersionCode: ${{ env.VERSION_CODE }}
+          buildsPath: Builds/Android
+
+      - name: Normalize build output permissions
+        run: |
+          sudo chown -R "$USER":"$USER" Builds/Android || true
+          sudo chmod -R u+rwX Builds/Android || true
+
+      - name: Rename APKs with version
+        run: |
+          version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
+          if [[ -z "$version" ]]; then
+            echo "Missing buildVersion from unity-builder." >&2
+            exit 1
+          fi
+          mv Builds/Android/Decantra-release.apk "Builds/Android/decantra-${version}.apk"
+          if [[ -f Builds/Android/Decantra-debug.apk ]]; then
+            mv Builds/Android/Decantra-debug.apk "Builds/Android/decantra-${version}-debug.apk"
+          fi
+          mv Builds/Android/Decantra-release.aab "Builds/Android/decantra-${version}.aab"
+
+      - name: Verify APKs are readable
+        run: |
+          version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
+          test -r "Builds/Android/decantra-${version}.apk"
+          if [[ -f "Builds/Android/decantra-${version}-debug.apk" ]]; then
+            test -r "Builds/Android/decantra-${version}-debug.apk"
+          fi
+
+      - name: Verify AAB is readable and non-empty
+        run: |
+          version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
+          test -r "Builds/Android/decantra-${version}.aab"
+          test -s "Builds/Android/decantra-${version}.aab"
+
+      - name: Report build timing
+        if: always()
+        run: |
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - BUILD_START))
+          echo "::notice::Android build completed in ${DURATION}s ($(date -d@$DURATION -u +%Hh%Mm%Ss))"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-Android-Release
+          path: Builds/Android/decantra-${{ env.VERSION_NAME }}.apk
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true'
+        with:
+          name: Decantra-Android-Debug
+          path: Builds/Android/decantra-${{ env.VERSION_NAME }}-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-Android-Release-AAB
+          path: Builds/Android/decantra-${{ env.VERSION_NAME }}.aab
+
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: build-android
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Decantra-Android-Release
+          path: release-artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Decantra-Android-Release-AAB
+          path: release-artifacts
+
+      - name: Resolve Play Console availability
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_PACKAGE_NAME: ${{ secrets.PLAY_PACKAGE_NAME }}
+        run: |
+          if [[ -n "$PLAY_SERVICE_ACCOUNT_JSON" && -n "$PLAY_PACKAGE_NAME" ]]; then
+            echo "HAS_PLAY_SERVICE=true" >> "$GITHUB_ENV"
+            echo "PLAY_PACKAGE_NAME=$PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
+          else
+            echo "HAS_PLAY_SERVICE=false" >> "$GITHUB_ENV"
+            if [[ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
+              echo "Play Console credentials missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            if [[ -z "$PLAY_PACKAGE_NAME" ]]; then
+              echo "Play package name missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/decantra-*.apk
+            release-artifacts/decantra-*.aab
+
+      - name: Upload AAB to Google Play (internal)
+        if: env.HAS_PLAY_SERVICE == 'true'
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PLAY_PACKAGE_NAME }}
+          releaseFiles: release-artifacts/decantra-*.aab
+          track: internal
+          status: draft

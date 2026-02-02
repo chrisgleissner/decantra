@@ -46,8 +46,7 @@ namespace Decantra.Domain.Generation
             // More decisions = higher complexity
             double decisionDensity = 1.0 - metrics.ForcedMoveRatio;
 
-            // Component 5: Early decision pressure
-            // Lower decision depth = harder (immediate choices)
+            // Component 5: Decision pressure (shorter forced streaks = harder)
             double earlyDecisionPressure = ComputeEarlyDecisionPressure(metrics.DecisionDepth);
 
             // Component 6: Solution uniqueness (inverse of multiplicity)
@@ -92,8 +91,8 @@ namespace Decantra.Domain.Generation
         }
 
         /// <summary>
-        /// Computes early decision pressure from decision depth.
-        /// Lower depth = higher pressure (decisions required immediately).
+        /// Computes decision pressure from forced-move streak length.
+        /// Shorter streaks = higher pressure (decisions required more often).
         /// </summary>
         private static double ComputeEarlyDecisionPressure(int decisionDepth)
         {

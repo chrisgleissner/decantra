@@ -21,7 +21,7 @@ namespace Decantra.Domain.Generation
         /// <summary>
         /// Maps raw complexity scores to difficulty values (1-100).
         /// Guarantees monotonicity by enforcing difficulty[N+1] >= difficulty[N].
-        /// Uses raw complexity to adjust from linear baseline, then enforces monotonicity.
+        /// Maps raw complexity to 1-100 and applies monotonic smoothing (no level-based baseline).
         /// </summary>
         /// <param name="levels">Level data with raw scores</param>
         /// <returns>Difficulty assignments (1-100) for each level</returns>
@@ -43,33 +43,17 @@ namespace Decantra.Domain.Generation
             var result = new Dictionary<int, int>();
             int currentDifficulty = 1;
 
-            // REVISED ALGORITHM: Proportional spacing with complexity-based micro-adjustments
-            // Strategy: Ensure every level gets a fair share of the 1-100 range, 
-            // with small adjustments based on raw complexity to preserve empirical signal
-
             for (int i = 0; i < n; i++)
             {
                 var level = sortedByLevel[i];
 
-                // Base position: proportional spacing ensuring we use full 1-100 range
-                double basePosition = 1.0 + (i / (double)Math.Max(1, n - 1)) * 99.0;
-
                 // Normalize raw complexity to 0-1 range
                 double normalizedRaw = rawRange > 0.0001
                     ? (level.RawComplexity - minRaw) / rawRange
-                    : 0.5;
+                    : 0.0;
 
-                // Micro-adjustment based on complexity deviation from level-based expectation
-                // Expected normalized complexity at this position
-                double expectedComplexity = i / (double)Math.Max(1, n - 1);
-                double complexityDeviation = normalizedRaw - expectedComplexity;
-
-                // Apply SMALL adjustment (max ±2 difficulty points) to preserve signal
-                // without disrupting monotonicity
-                double microAdjustment = complexityDeviation * 4.0; // ±2 points max
-
-                // Target difficulty with micro-adjustment
-                double targetDifficulty = basePosition + microAdjustment;
+                // Target difficulty derived purely from intrinsic complexity
+                double targetDifficulty = 1.0 + normalizedRaw * 99.0;
 
                 // Clamp to valid range
                 int proposedDifficulty = Math.Max(1, Math.Min(100, (int)Math.Round(targetDifficulty)));
