@@ -342,16 +342,16 @@ Eliminate linear "undo-the-scramble" gameplay by implementing research-backed te
 - Files: Assets/Decantra/Tests/EditMode/QualityGateTests.cs (new)
 
 ### Step 8.3: Regression Tests
-- [ ] Verify all existing tests pass
-- [ ] Verify determinism preserved (same seed = same level)
-- [ ] Verify solvability preserved (no unsolvable levels)
-- [ ] Verify performance targets met
+- [x] Verify all existing tests pass
+- [x] Verify determinism preserved (same seed = same level)
+- [x] Verify solvability preserved (no unsolvable levels)
+- [x] Verify performance targets met
 - Files: Existing test files + new validation tests
 
 ### Step 8.4: Fuzz Testing for Solvability
-- [ ] Run 100+ levels through generator and solver
-- [ ] Verify all are solvable
-- [ ] Verify metrics are within expected ranges
+- [x] Run 100+ levels through generator and solver
+- [x] Verify all are solvable
+- [x] Verify metrics are within expected ranges
 - Files: Assets/Decantra/Tests/EditMode/GenerationSolvabilityTests.cs
 
 ## Exit Criteria (All Must Be True)
@@ -362,10 +362,10 @@ Eliminate linear "undo-the-scramble" gameplay by implementing research-backed te
 - [x] Requirement E (Objective-Guided Scrambling): Implemented
 - [x] Requirement F (Telemetry Architecture): Data structures in place
 - [x] Requirement G (Structural Complexity): Wired into acceptance gate
-- [ ] All tests pass (./tools/test.sh)
-- [ ] Level transitions remain instant (no perceptible delay)
-- [ ] First level appears with no perceptible delay
-- [ ] Determinism preserved (verified by test)
+- [x] All tests pass (./tools/test.sh) - CI verified (run 21572520861)
+- [x] Level transitions remain instant (no perceptible delay) - precompute unchanged
+- [x] First level appears with no perceptible delay - relaxed mode ensures fast fallback
+- [x] Determinism preserved (verified by GenerationSolvabilityTests)
 
 ---
 
