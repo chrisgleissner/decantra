@@ -271,12 +271,19 @@ jobs:
             - name: Resolve Play Console availability
               env:
                   PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+                  PLAY_PACKAGE_NAME: ${{ secrets.PLAY_PACKAGE_NAME }}
               run: |
-                  if [[ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
+                  if [[ -n "$PLAY_SERVICE_ACCOUNT_JSON" && -n "$PLAY_PACKAGE_NAME" ]]; then
                       echo "HAS_PLAY_SERVICE=true" >> "$GITHUB_ENV"
+                      echo "PLAY_PACKAGE_NAME=$PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
                   else
                       echo "HAS_PLAY_SERVICE=false" >> "$GITHUB_ENV"
-                      echo "Play Console credentials missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
+                      if [[ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
+                          echo "Play Console credentials missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
+                      fi
+                      if [[ -z "$PLAY_PACKAGE_NAME" ]]; then
+                          echo "Play package name missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
+                      fi
                   fi
             - name: Publish release
               uses: softprops/action-gh-release@v2
@@ -284,13 +291,13 @@ jobs:
                   files: |
                       release-artifacts/decantra-*.apk
                       release-artifacts/decantra-*.aab
-            - name: Upload AAB to Google Play (internal)
-              if: env.HAS_PLAY_SERVICE == 'true'
-              continue-on-error: true
-              uses: r0adkll/upload-google-play@v1
-              with:
-                  serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-                  packageName: uk.gleissner.decantra
-                  releaseFiles: release-artifacts/decantra-*.aab
-                  track: internal
-                  status: draft
+                        - name: Upload AAB to Google Play (internal)
+                            if: env.HAS_PLAY_SERVICE == 'true'
+                            continue-on-error: true
+                            uses: r0adkll/upload-google-play@v1
+                            with:
+                                    serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+                                    packageName: ${{ env.PLAY_PACKAGE_NAME }}
+                                    releaseFiles: release-artifacts/decantra-*.aab
+                                    track: internal
+                                    status: draft

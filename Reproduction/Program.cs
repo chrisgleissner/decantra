@@ -137,6 +137,11 @@ public class Program
         }
 
         var results = new System.Collections.Concurrent.ConcurrentDictionary<int, string>();
+        var done = new bool[count + 1];
+        var progressLock = new object();
+        int contiguousDone = 0;
+        int nextReport = 50;
+        var stopwatch = Stopwatch.StartNew();
 
         Parallel.For(1, count + 1, (l) =>
         {
@@ -154,7 +159,6 @@ public class Program
                 if (result.OptimalMoves < 0)
                 {
                     results[l] = $"Level {l}: UNSOLVABLE";
-                    Console.WriteLine($"Level {l}: UNSOLVABLE");
                 }
                 else
                 {
@@ -165,10 +169,24 @@ public class Program
             catch (Exception ex)
             {
                 results[l] = $"Level {l}: ERROR {ex.Message}";
-                Console.WriteLine($"Level {l}: ERROR {ex.Message}");
             }
 
-            if (l % 100 == 0) Console.WriteLine($"Dispatched/Processed {l} levels...");
+            lock (progressLock)
+            {
+                done[l] = true;
+                while (contiguousDone + 1 <= count && done[contiguousDone + 1])
+                {
+                    contiguousDone++;
+                }
+
+                while (nextReport <= contiguousDone && nextReport <= count)
+                {
+                    double elapsedSeconds = Math.Max(0.001, stopwatch.Elapsed.TotalSeconds);
+                    double throughput = contiguousDone / elapsedSeconds;
+                    Console.WriteLine($"Level {nextReport} done ({contiguousDone}/{count}) in {elapsedSeconds:F1}s ({throughput:F2} levels/s)");
+                    nextReport += 50;
+                }
+            }
         });
 
         var lines = new List<string>();
