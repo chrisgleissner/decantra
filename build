@@ -17,6 +17,9 @@ CAPTURE_SCREENSHOTS=false
 SCREENSHOTS_ONLY=false
 GENERATE_SOLUTIONS=false
 
+AUTO_REINSTALL=false
+APP_ID="uk.gleissner.decantra"
+
 DEVICE_ID=""
 APK_PATH=""
 
@@ -30,6 +33,7 @@ Usage: ./build [OPTIONS]
 
 Options:
   --install            Install APK to first connected Android device (via adb)
+  --reinstall          Uninstall existing app before installing
   --device <id>        Specific device ID for adb (optional)
   --adb-port <port>    ADB server port for Decantra (default: 5039)
   --serial <id>        Device serial to target (env: DECANTRA_ANDROID_SERIAL)
@@ -47,6 +51,7 @@ Examples:
   ./build --debug                 Run tests and build debug APK
   ./build --skip-tests            Build release APK without running tests
   ./build --skip-build --install  Install existing APK to device
+  ./build --install --reinstall   Uninstall and reinstall the APK
   ./build --install --device <id> Build and install to a specific device
   ./build --screenshots           Build + capture Play Store screenshots
   ./build --screenshots-only      Capture screenshots from an existing APK
@@ -527,6 +532,10 @@ while [[ $# -gt 0 ]]; do
       RUN_BUILD=false
       shift
       ;;
+    --reinstall)
+      AUTO_REINSTALL=true
+      shift
+      ;;
     --debug)
       BUILD_VARIANT="debug"
       shift
@@ -674,10 +683,24 @@ if [[ "${RUN_INSTALL}" == "true" ]]; then
   fi
 
   log "Installing APK to device: $DEVICE_ID"
-  adb -s "$DEVICE_ID" install -r "$APK_PATH"
+  if [[ "${AUTO_REINSTALL}" == "true" ]]; then
+    echo "Uninstalling ${APP_ID} before install (per --reinstall)..." >&2
+    adb -s "$DEVICE_ID" uninstall "${APP_ID}" >/dev/null 2>&1 || true
+  fi
+
+  install_output=""
+  install_status=0
+  if ! install_output=$(adb -s "$DEVICE_ID" install -r "$APK_PATH" 2>&1); then
+    install_status=$?
+  fi
+
+  if [[ ${install_status} -ne 0 ]]; then
+    echo "APK install failed: ${install_output}" >&2
+    exit ${install_status}
+  fi
 
   log "Launching app"
-  adb -s "$DEVICE_ID" shell monkey -p uk.gleissner.decantra -c android.intent.category.LAUNCHER 1
+  adb -s "$DEVICE_ID" shell monkey -p "${APP_ID}" -c android.intent.category.LAUNCHER 1
 fi
 
 log "Done"
