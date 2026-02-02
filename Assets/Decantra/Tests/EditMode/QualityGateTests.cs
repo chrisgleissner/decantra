@@ -317,6 +317,7 @@ namespace Decantra.Tests.EditMode
                 solverTimeMs: 50,
                 metricsTimeMs: 20,
                 difficultyScore: 0.75f,
+                difficulty100: 50,
                 qualityGatesApplied: true,
                 lastRejectionReason: null);
 
