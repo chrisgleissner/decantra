@@ -10,15 +10,24 @@ using System.Collections.Generic;
 
 namespace Decantra.Domain.Solver
 {
+    public enum SolverStatus
+    {
+        Solved,
+        Unsolvable,
+        Timeout
+    }
+
     public sealed class SolverResult
     {
-        public SolverResult(int optimalMoves, IReadOnlyList<Move> path)
+        public SolverResult(int optimalMoves, IReadOnlyList<Move> path, SolverStatus status = SolverStatus.Solved)
         {
             OptimalMoves = optimalMoves;
             Path = path;
+            Status = status;
         }
 
         public int OptimalMoves { get; }
         public IReadOnlyList<Move> Path { get; }
+        public SolverStatus Status { get; }
     }
 }

@@ -1,15 +1,24 @@
 # Developer Guide
 
-## Build the APK (detailed)
+## Requirements
 
-### Prerequisites
-- Unity 6000.3.5f2 installed.
-- Android SDK, Android NDK r27c, and JDK 17 installed.
-- Environment variables (required by the build script):
+- Unity 6000.3.5f2
+- Android SDK, Android NDK r27c, and JDK 17
+- A connected Android device for install/run (optional)
+- Environment variables used by the build scripts:
   - `UNITY_PATH` → absolute path to the Unity editor binary (e.g. `/usr/local/bin/unity`).
   - `JAVA_HOME` → JDK 17 home.
   - `ANDROID_SDK_ROOT` and/or `ANDROID_HOME` → Android SDK root.
   - `ANDROID_NDK_ROOT` → NDK root (r27c).
+
+## Quick Start
+
+- Build a debug APK: `./build`
+- Build and install on a connected device: `./build --install`
+- Build without running tests: `./build --skip-tests`
+- Capture Play Store screenshots: `./build --screenshots`
+
+## Build the APK (detailed)
 
 ### Build command (debug APK)
 - From the project root:
@@ -37,3 +46,24 @@ The APK will be produced at:
 1. Copy `Builds/Android/Decantra.apk` to the device.
 2. Enable "Install unknown apps" for your file manager/browser.
 3. Tap the APK to install.
+
+## Capture Play Store screenshots (automated)
+
+- Build + capture: `./build --screenshots`
+- Capture only (APK already built): `./build --screenshots-only --apk-path Builds/Android/Decantra.apk`
+- Output folder: `doc/play-store-assets/screenshots/phone/`
+- Notes:
+  - Screenshot capture installs the APK and pulls images via adb.
+  - Use a debug build if adb `run-as` access is required by the device.
+
+## Project Structure
+
+- Domain logic: `Assets/Decantra/Domain`
+- Application services: `Assets/Decantra/App`
+- Presentation layer (Unity): `Assets/Decantra/Presentation`
+- Tests: `Assets/Decantra/Tests`
+
+## Notes
+
+- To run the game directly in the Unity Editor, use the menu item `Decantra/Setup Scene`.
+- The build script automatically detects existing Android tooling and installs only what is missing.

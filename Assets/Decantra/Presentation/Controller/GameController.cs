@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -41,9 +42,15 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Image backgroundFlow;
         [SerializeField] private Image backgroundShapes;
         [SerializeField] private Image backgroundVignette;
+        [SerializeField] private Image backgroundBubbles;
+        [SerializeField] private Image backgroundLargeStructure;
         [SerializeField] private Button levelPanelButton;
         [SerializeField] private Button shareButton;
         [SerializeField] private GameObject shareButtonRoot;
+        [SerializeField] private GameObject levelJumpOverlay;
+        [SerializeField] private InputField levelJumpInput;
+        [SerializeField] private Button levelJumpGoButton;
+        [SerializeField] private Button levelJumpDismissButton;
 
         private LevelState _state;
         private LevelState _initialState;
@@ -60,8 +67,12 @@ namespace Decantra.Presentation.Controller
         private LevelState _nextState;
         private int _nextLevel;
         private int _nextSeed;
+        private bool _introDismissed;
+        private int _currentBackgroundFamily = -1;
+        private Coroutine _backgroundTransition;
         private CancellationTokenSource _precomputeCts;
         private Task<LevelState> _precomputeTask;
+        private bool _wasInputLockedBeforeOverlay;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
 #endif
@@ -102,16 +113,20 @@ namespace Decantra.Presentation.Controller
             public float VignetteAlpha;
         }
 
-        private struct BackgroundThemeStyle
+        private struct BackgroundFamilyProfile
         {
-            public float HueShift;
-            public float HueRange;
-            public float SaturationBoost;
-            public float ValueBoost;
+            public float Hue;
+            public float Saturation;
+            public float Value;
             public float DetailAlphaScale;
             public float FlowAlphaScale;
             public float ShapeAlphaScale;
             public float VignetteAlphaScale;
+            public float DetailScale;
+            public float FlowScale;
+            public float ShapeScale;
+            public Color GradientTop;
+            public Color GradientBottom;
         }
 
         private static readonly BackgroundPalette[] BackgroundPalettes =
@@ -124,8 +139,12 @@ namespace Decantra.Presentation.Controller
             new BackgroundPalette { Hue = 0.62f, Saturation = 0.2f, Value = 0.58f, DetailSaturation = 0.15f, DetailValue = 0.64f, FlowSaturation = 0.18f, FlowValue = 0.7f, FlowAlpha = 0.1f, ShapeSaturation = 0.14f, ShapeValue = 0.66f, ShapeAlpha = 0.08f, VignetteAlpha = 0.21f }
         };
 
+        private const float BackgroundFamilyTransitionSeconds = 0.75f;
+        private static readonly Dictionary<int, Sprite> BackgroundFamilyGradients = new Dictionary<int, Sprite>();
+
         public bool IsInputLocked => _inputLocked;
         public bool IsSfxEnabled => _sfxEnabled;
+        public bool HasActiveLevel => _state != null;
 
         private void Awake()
         {
@@ -200,6 +219,58 @@ namespace Decantra.Presentation.Controller
             _inputLocked = false;
         }
 
+        public void ShowLevelJumpOverlay()
+        {
+            if (levelJumpOverlay == null) return;
+            if (levelJumpOverlay.activeSelf) return;
+
+            _wasInputLockedBeforeOverlay = _inputLocked;
+            _inputLocked = true;
+            levelJumpOverlay.SetActive(true);
+
+            if (levelPanelButton != null)
+            {
+                levelPanelButton.interactable = false;
+            }
+
+            if (levelJumpInput != null)
+            {
+                levelJumpInput.text = _currentLevel.ToString();
+                levelJumpInput.caretPosition = levelJumpInput.text.Length;
+                levelJumpInput.ActivateInputField();
+            }
+        }
+
+        public void HideLevelJumpOverlay()
+        {
+            if (levelJumpOverlay == null) return;
+            levelJumpOverlay.SetActive(false);
+            if (levelPanelButton != null)
+            {
+                levelPanelButton.interactable = true;
+            }
+            _inputLocked = _wasInputLockedBeforeOverlay;
+        }
+
+        public void JumpToLevelFromOverlay()
+        {
+            if (levelJumpInput == null)
+            {
+                HideLevelJumpOverlay();
+                return;
+            }
+
+            if (!int.TryParse(levelJumpInput.text, out int targetLevel))
+            {
+                return;
+            }
+
+            targetLevel = Mathf.Max(1, targetLevel);
+            int seed = CalculateSeedForLevel(targetLevel);
+            HideLevelJumpOverlay();
+            LoadLevel(targetLevel, seed);
+        }
+
         public void ResetCurrentLevel()
         {
             if (_isResetting || _state == null) return;
@@ -258,6 +329,7 @@ namespace Decantra.Presentation.Controller
 
             if (_selectedIndex < 0 && !InteractionRules.CanUseAsSource(_state.Bottles[index]))
             {
+                GetBottleView(index)?.PlayResistanceFeedback();
                 return;
             }
 
@@ -288,6 +360,16 @@ namespace Decantra.Presentation.Controller
             if (_inputLocked || _state == null) return false;
             if (index < 0 || index >= _state.Bottles.Count) return false;
             return InteractionRules.CanDrag(_state.Bottles[index]);
+        }
+
+        public void NotifyFirstInteraction()
+        {
+            if (_introDismissed) return;
+            _introDismissed = true;
+            if (introBanner != null)
+            {
+                introBanner.DismissEarly();
+            }
         }
 
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
@@ -384,8 +466,9 @@ namespace Decantra.Presentation.Controller
             if (hudView != null)
             {
                 int total = _scoreSession?.TotalScore ?? 0;
-                int provisional = _scoreSession?.ProvisionalScore ?? 0;
-                int displayScore = total + provisional;
+                // Requirement #5: Score applies at specific moment in interstitial.
+                // We show only TotalScore during gameplay (Provisional hidden).
+                int displayScore = total;
                 int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
                 hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel);
@@ -420,34 +503,42 @@ namespace Decantra.Presentation.Controller
 
             _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
             int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
-            _scoreSession?.CommitLevel();
+            // CommitLevel delayed to onScoreApply
             _completionStreak++;
 
             bool finished = false;
-            if (_progress != null)
+
+            Action onScoreApply = () =>
             {
-                _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
-                _progress.CurrentLevel = nextLevel;
-                _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
-                _progress.CurrentScore = _scoreSession?.TotalScore ?? _progress.CurrentScore;
-                if (_progress.CurrentScore > _progress.HighScore)
+                _scoreSession?.CommitLevel();
+                if (_progress != null)
                 {
-                    _progress.HighScore = _progress.CurrentScore;
+                    _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
+                    _progress.CurrentLevel = nextLevel;
+                    _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
+                    _progress.CurrentScore = _scoreSession?.TotalScore ?? _progress.CurrentScore;
+                    if (_progress.CurrentScore > _progress.HighScore)
+                    {
+                        _progress.HighScore = _progress.CurrentScore;
+                    }
+
+                    PerformanceTracker.UpdateBest(_progress, new Decantra.Domain.Persistence.LevelPerformanceRecord
+                    {
+                        LevelIndex = _state.LevelIndex,
+                        BestMoves = _state.MovesUsed,
+                        BestEfficiency = efficiency,
+                        BestGrade = _lastGrade
+                    });
+
+                    _progressStore.Save(_progress);
                 }
+                Render();
+                if (hudView != null) hudView.AnimateScoreUpdate();
+            };
 
-                PerformanceTracker.UpdateBest(_progress, new Decantra.Domain.Persistence.LevelPerformanceRecord
-                {
-                    LevelIndex = _state.LevelIndex,
-                    BestMoves = _state.MovesUsed,
-                    BestEfficiency = efficiency,
-                    BestGrade = _lastGrade
-                });
-
-                _progressStore.Save(_progress);
-            }
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _lastGrade, _sfxEnabled, () => finished = true);
+                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _sfxEnabled, onScoreApply, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -457,6 +548,7 @@ namespace Decantra.Presentation.Controller
             }
             else
             {
+                onScoreApply();
                 yield return new WaitForSeconds(0.5f);
             }
 
@@ -557,7 +649,10 @@ namespace Decantra.Presentation.Controller
                 if (token.IsCancellationRequested) return null;
                 try
                 {
-                    return _generator.Generate(currentSeed, profile);
+                    var generated = _generator.Generate(currentSeed, profile);
+                    int zoneIndex = BackgroundRules.GetZoneIndex(level);
+                    BackgroundRules.GetZoneTheme(zoneIndex, currentSeed);
+                    return EnsureBackground(generated, level, currentSeed);
                 }
                 catch
                 {
@@ -611,15 +706,12 @@ namespace Decantra.Presentation.Controller
         private IEnumerator BeginSession()
         {
             _inputLocked = true;
-            if (introBanner != null)
-            {
-                yield return introBanner.Play();
-            }
             if (_state == null)
             {
                 LoadLevel(_currentLevel, _currentSeed);
             }
             _inputLocked = false;
+            yield break;
         }
 
         private void PersistCurrentProgress(int levelIndex, int seed)
@@ -688,16 +780,20 @@ namespace Decantra.Presentation.Controller
             if (levelPanelButton != null)
             {
                 levelPanelButton.onClick.RemoveAllListeners();
-                levelPanelButton.onClick.AddListener(ToggleShareButton);
+                // Ensure level panel click shares immediately
+                levelPanelButton.onClick.AddListener(ShareCurrentLevel);
             }
 
+            // ShareButton logic disabled as UI element is hidden/deactivated
             if (shareButton != null)
             {
                 shareButton.onClick.RemoveAllListeners();
-                shareButton.onClick.AddListener(ShareCurrentLevel);
+                shareButton.gameObject.SetActive(false);
             }
-
-            SetShareButtonVisible(false);
+            if (shareButtonRoot != null)
+            {
+                shareButtonRoot.SetActive(false);
+            }
         }
 
         private void SetShareButtonVisible(bool visible)
@@ -795,6 +891,17 @@ namespace Decantra.Presentation.Controller
                 int mix = baseSeed * 1103515245 + 12345 + level * 97;
                 return Mathf.Abs(mix == 0 ? level * 7919 : mix);
             }
+        }
+
+        private int CalculateSeedForLevel(int targetLevel)
+        {
+            int seed = 0;
+            int clampedLevel = Mathf.Max(1, targetLevel);
+            for (int level = 1; level <= clampedLevel; level++)
+            {
+                seed = NextSeed(level, seed);
+            }
+            return seed;
         }
 
         private IEnumerator TransitionToLevel(int nextLevel, int seed)
@@ -983,78 +1090,244 @@ namespace Decantra.Presentation.Controller
         {
             if (backgroundImage == null) return;
 
-            var profile = LevelDifficultyEngine.GetProfile(levelIndex);
-            var themeStyle = GetThemeStyle(profile.ThemeId);
+            // Update structural background sprites based on level (deterministic per group/level)
+            SceneBootstrap.UpdateBackgroundSpritesForLevel(levelIndex, seed, backgroundShapes, backgroundBubbles, backgroundLargeStructure);
+
+            int familyIndex = GetThemeFamilyIndex(levelIndex);
+            var zoneTheme = BackgroundRules.GetZoneTheme(familyIndex, seed);
+            var levelVariant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
 
             int paletteIndex = backgroundPaletteIndex >= 0
                 ? backgroundPaletteIndex
-                : BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
+                : levelVariant.PaletteIndex;
             var palette = BackgroundPalettes[paletteIndex];
 
-            float jitter = Hash01(seed, levelIndex);
-            float jitter2 = Hash01(levelIndex * 31, seed ^ 0x4f1d);
-            float hueOffset = Mathf.Lerp(-themeStyle.HueRange, themeStyle.HueRange, jitter);
-            float hue = Mathf.Repeat(palette.Hue + hueOffset + themeStyle.HueShift, 1f);
-            float sat = Mathf.Clamp01(palette.Saturation + themeStyle.SaturationBoost + Mathf.Lerp(-0.04f, 0.04f, jitter2));
-            float val = Mathf.Clamp01(palette.Value + themeStyle.ValueBoost + Mathf.Lerp(-0.05f, 0.05f, 1f - jitter));
+            float jitter = Mathf.Repeat(levelVariant.PhaseOffset / (Mathf.PI * 2f), 1f);
+            float jitter2 = Mathf.Repeat(levelVariant.PhaseOffset * 0.37f, 1f);
+
+            var family = GetBackgroundFamilyProfile(familyIndex, zoneTheme, levelVariant, palette);
+            float hue = Mathf.Repeat(family.Hue, 1f);
+            float sat = Mathf.Clamp01(family.Saturation + Mathf.Lerp(-0.03f, 0.03f, jitter2));
+            float val = Mathf.Clamp01(family.Value + Mathf.Lerp(-0.04f, 0.04f, 1f - jitter));
 
             Color baseTint = Color.HSVToRGB(hue, sat, val);
             baseTint.a = 1f;
-            backgroundImage.color = baseTint;
+
+            Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.04f * (jitter - 0.5f)));
+            detailTint.a = Mathf.Lerp(0.1f, 0.2f, jitter2) * family.DetailAlphaScale;
+
+            Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
+            flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.75f, palette.FlowAlpha * 1.35f, jitter) * family.FlowAlphaScale;
+
+            Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.05f, 1f), palette.ShapeSaturation, palette.ShapeValue);
+            shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.25f, jitter2) * family.ShapeAlphaScale;
+
+            float vignetteAlpha = palette.VignetteAlpha * family.VignetteAlphaScale;
+
+            float detailScale = Mathf.Lerp(1.0f, 1.2f, jitter2) * family.DetailScale;
+            Vector2 detailOffset = new Vector2(Mathf.Lerp(-12f, 12f, jitter), Mathf.Lerp(6f, -8f, jitter2));
+
+            float flowScale = Mathf.Lerp(1.05f, 1.3f, jitter) * family.FlowScale;
+            Vector2 flowOffset = new Vector2(Mathf.Lerp(-20f, 20f, jitter2), Mathf.Lerp(-14f, 24f, jitter));
+
+            float shapeScale = Mathf.Lerp(1.0f, 1.25f, jitter2) * family.ShapeScale;
+            Vector2 shapeOffset = new Vector2(Mathf.Lerp(14f, -14f, jitter), Mathf.Lerp(10f, -18f, jitter2));
+
+            float flowRotation = Mathf.Lerp(-7f, 7f, jitter2);
+            float shapeRotation = Mathf.Lerp(5f, -5f, jitter);
+
+            if (_currentBackgroundFamily != familyIndex)
+            {
+                if (_backgroundTransition != null)
+                {
+                    StopCoroutine(_backgroundTransition);
+                }
+                _backgroundTransition = StartCoroutine(AnimateBackgroundTransition(baseTint, detailTint, flowTint, shapeTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, familyIndex, family));
+                _currentBackgroundFamily = familyIndex;
+            }
+            else
+            {
+                ApplyBackgroundVisuals(baseTint, detailTint, flowTint, shapeTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, familyIndex, family);
+            }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
+                AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
+#endif
+        }
+
+        private static int GetThemeFamilyIndex(int levelIndex)
+        {
+            if (levelIndex <= 0) return 0;
+            return BackgroundRules.GetZoneIndex(levelIndex);
+        }
+
+        private static BackgroundFamilyProfile GetBackgroundFamilyProfile(int familyIndex, ZoneTheme zoneTheme, LevelVariant levelVariant, BackgroundPalette palette)
+        {
+            float hue = Mathf.Repeat(palette.Hue + levelVariant.HueShift, 1f);
+            float saturation = Mathf.Lerp(levelVariant.SaturationLow, levelVariant.SaturationHigh, 0.5f);
+            float value = Mathf.Lerp(levelVariant.ValueLow, levelVariant.ValueHigh, 0.5f);
+            float gradientShift = (levelVariant.GradientIntensity - 0.2f) * 0.08f;
+
+            float topValue = Mathf.Clamp01(value + levelVariant.GradientIntensity * 0.18f);
+            float bottomValue = Mathf.Clamp01(value - levelVariant.GradientIntensity * 0.18f);
+
+            Color top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.9f), topValue);
+            Color bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 1.05f), bottomValue);
+
+            float macroWeight = zoneTheme.MacroCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
+            float mesoWeight = zoneTheme.MesoCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
+            float microWeight = zoneTheme.MicroCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
+
+            float detailAlpha = Mathf.Lerp(0.85f, 1.2f, microWeight);
+            float flowAlpha = Mathf.Lerp(0.9f, 1.2f, mesoWeight);
+            float shapeAlpha = Mathf.Lerp(0.85f, 1.2f, macroWeight);
+            float vignetteAlpha = Mathf.Lerp(0.9f, 1.2f, zoneTheme.DensityProfile == DensityProfile.Dense ? 0.8f : 0.4f);
+
+            float detailScale = Mathf.Lerp(0.95f, 1.25f, microWeight) * levelVariant.MinorAmplitudeMod;
+            float flowScale = Mathf.Lerp(0.95f, 1.3f, mesoWeight) * levelVariant.MinorAmplitudeMod;
+            float shapeScale = Mathf.Lerp(0.95f, 1.35f, macroWeight) * levelVariant.MinorAmplitudeMod;
+
+            return new BackgroundFamilyProfile
+            {
+                Hue = hue,
+                Saturation = saturation,
+                Value = value,
+                DetailAlphaScale = detailAlpha,
+                FlowAlphaScale = flowAlpha,
+                ShapeAlphaScale = shapeAlpha,
+                VignetteAlphaScale = vignetteAlpha,
+                DetailScale = detailScale,
+                FlowScale = flowScale,
+                ShapeScale = shapeScale,
+                GradientTop = top,
+                GradientBottom = bottom
+            };
+        }
+
+        private void ApplyBackgroundVisuals(Color baseTint, Color detailTint, Color flowTint, Color shapeTint, float vignetteAlpha, float detailScale, Vector2 detailOffset, float flowScale, Vector2 flowOffset, float flowRotation, float shapeScale, Vector2 shapeOffset, float shapeRotation, int familyIndex, BackgroundFamilyProfile family)
+        {
+            if (backgroundImage != null)
+            {
+                backgroundImage.color = baseTint;
+                backgroundImage.sprite = GetFamilyGradientSprite(familyIndex, family);
+            }
 
             if (backgroundDetail != null)
             {
-                Color detailTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.02f, 1f), palette.DetailSaturation, Mathf.Clamp01(palette.DetailValue + 0.03f * (jitter - 0.5f)));
-                detailTint.a = Mathf.Lerp(0.12f, 0.22f, jitter2) * themeStyle.DetailAlphaScale;
                 backgroundDetail.color = detailTint;
+                backgroundDetail.rectTransform.localScale = new Vector3(detailScale, detailScale, 1f);
+                backgroundDetail.rectTransform.anchoredPosition = detailOffset;
             }
 
             if (backgroundFlow != null)
             {
-                Color flowTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.08f, 1f), palette.FlowSaturation, palette.FlowValue);
-                flowTint.a = Mathf.Lerp(palette.FlowAlpha * 0.8f, palette.FlowAlpha * 1.25f, jitter) * themeStyle.FlowAlphaScale;
                 backgroundFlow.color = flowTint;
-                backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(-6f, 6f, jitter2));
-                float flowScale = Mathf.Lerp(1.05f, 1.25f, jitter);
+                backgroundFlow.rectTransform.localEulerAngles = new Vector3(0f, 0f, flowRotation);
                 backgroundFlow.rectTransform.localScale = new Vector3(flowScale, flowScale, 1f);
-                backgroundFlow.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-18f, 18f, jitter2), Mathf.Lerp(-12f, 22f, jitter));
+                backgroundFlow.rectTransform.anchoredPosition = flowOffset;
             }
 
             if (backgroundShapes != null)
             {
-                Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.04f, 1f), palette.ShapeSaturation, palette.ShapeValue);
-                shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.2f, jitter2) * themeStyle.ShapeAlphaScale;
                 backgroundShapes.color = shapeTint;
-                backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(4f, -4f, jitter));
-                float shapeScale = Mathf.Lerp(1.0f, 1.2f, jitter2);
+                backgroundShapes.rectTransform.localEulerAngles = new Vector3(0f, 0f, shapeRotation);
                 backgroundShapes.rectTransform.localScale = new Vector3(shapeScale, shapeScale, 1f);
-                backgroundShapes.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(12f, -12f, jitter), Mathf.Lerp(8f, -16f, jitter2));
+                backgroundShapes.rectTransform.anchoredPosition = shapeOffset;
             }
 
             if (backgroundVignette != null)
             {
                 var vignetteColor = backgroundVignette.color;
-                vignetteColor.a = palette.VignetteAlpha * themeStyle.VignetteAlphaScale;
+                vignetteColor.a = vignetteAlpha;
                 backgroundVignette.color = vignetteColor;
             }
+        }
 
-            if (backgroundDetail != null)
+        private IEnumerator AnimateBackgroundTransition(Color baseTint, Color detailTint, Color flowTint, Color shapeTint, float vignetteAlpha, float detailScale, Vector2 detailOffset, float flowScale, Vector2 flowOffset, float flowRotation, float shapeScale, Vector2 shapeOffset, float shapeRotation, int familyIndex, BackgroundFamilyProfile family)
+        {
+            float time = 0f;
+            Color startBase = backgroundImage != null ? backgroundImage.color : baseTint;
+            Color startDetail = backgroundDetail != null ? backgroundDetail.color : detailTint;
+            Color startFlow = backgroundFlow != null ? backgroundFlow.color : flowTint;
+            Color startShape = backgroundShapes != null ? backgroundShapes.color : shapeTint;
+            float startVignette = backgroundVignette != null ? backgroundVignette.color.a : vignetteAlpha;
+
+            Vector3 startDetailScale = backgroundDetail != null ? backgroundDetail.rectTransform.localScale : Vector3.one;
+            Vector2 startDetailOffset = backgroundDetail != null ? backgroundDetail.rectTransform.anchoredPosition : Vector2.zero;
+            Vector3 startFlowScale = backgroundFlow != null ? backgroundFlow.rectTransform.localScale : Vector3.one;
+            Vector2 startFlowOffset = backgroundFlow != null ? backgroundFlow.rectTransform.anchoredPosition : Vector2.zero;
+            float startFlowRotation = backgroundFlow != null ? backgroundFlow.rectTransform.localEulerAngles.z : 0f;
+            Vector3 startShapeScale = backgroundShapes != null ? backgroundShapes.rectTransform.localScale : Vector3.one;
+            Vector2 startShapeOffset = backgroundShapes != null ? backgroundShapes.rectTransform.anchoredPosition : Vector2.zero;
+            float startShapeRotation = backgroundShapes != null ? backgroundShapes.rectTransform.localEulerAngles.z : 0f;
+
+            while (time < BackgroundFamilyTransitionSeconds)
             {
-                float detailScale = Mathf.Lerp(1.0f, 1.15f, jitter2);
-                backgroundDetail.rectTransform.localScale = new Vector3(detailScale, detailScale, 1f);
-                backgroundDetail.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-10f, 10f, jitter), Mathf.Lerp(6f, -6f, jitter2));
+                time += Time.deltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, time / BackgroundFamilyTransitionSeconds);
+                ApplyBackgroundVisuals(
+                    Color.Lerp(startBase, baseTint, t),
+                    Color.Lerp(startDetail, detailTint, t),
+                    Color.Lerp(startFlow, flowTint, t),
+                    Color.Lerp(startShape, shapeTint, t),
+                    Mathf.Lerp(startVignette, vignetteAlpha, t),
+                    Mathf.Lerp(startDetailScale.x, detailScale, t),
+                    Vector2.Lerp(startDetailOffset, detailOffset, t),
+                    Mathf.Lerp(startFlowScale.x, flowScale, t),
+                    Vector2.Lerp(startFlowOffset, flowOffset, t),
+                    Mathf.Lerp(startFlowRotation, flowRotation, t),
+                    Mathf.Lerp(startShapeScale.x, shapeScale, t),
+                    Vector2.Lerp(startShapeOffset, shapeOffset, t),
+                    Mathf.Lerp(startShapeRotation, shapeRotation, t),
+                    familyIndex,
+                    family);
+                yield return null;
             }
 
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
-            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} theme={profile.ThemeId} base={backgroundImage.color}");
-#endif
+            ApplyBackgroundVisuals(baseTint, detailTint, flowTint, shapeTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, familyIndex, family);
+            _backgroundTransition = null;
+        }
+
+        private static Sprite GetFamilyGradientSprite(int familyIndex, BackgroundFamilyProfile family)
+        {
+            if (BackgroundFamilyGradients.TryGetValue(familyIndex, out var sprite) && sprite != null)
+            {
+                return sprite;
+            }
+
+            var created = CreateGradientSprite(family.GradientTop, family.GradientBottom);
+            BackgroundFamilyGradients[familyIndex] = created;
+            return created;
+        }
+
+        private static Sprite CreateGradientSprite(Color top, Color bottom)
+        {
+            const int width = 2;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            for (int y = 0; y < height; y++)
+            {
+                float t = y / (float)(height - 1);
+                float curve = Mathf.SmoothStep(0f, 1f, t);
+                var color = Color.Lerp(bottom, top, curve);
+                for (int x = 0; x < width; x++)
+                {
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 96f);
         }
 
         private int ResolveBackgroundPaletteIndex(int levelIndex, int seed)
         {
-            var profile = LevelDifficultyEngine.GetProfile(levelIndex);
-            return BackgroundRules.ComputePaletteIndex(levelIndex, seed, profile.ThemeId, BackgroundPalettes.Length);
+            var variant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
+            return variant.PaletteIndex;
         }
 
         private LevelState EnsureBackground(LevelState state, int levelIndex, int seed)
@@ -1063,34 +1336,6 @@ namespace Decantra.Presentation.Controller
             if (state.BackgroundPaletteIndex >= 0) return state;
             int paletteIndex = ResolveBackgroundPaletteIndex(levelIndex, seed);
             return new LevelState(state.Bottles, state.MovesUsed, state.MovesAllowed, state.OptimalMoves, state.LevelIndex, state.Seed, state.ScrambleMoves, paletteIndex);
-        }
-        private static BackgroundThemeStyle GetThemeStyle(BackgroundThemeId themeId)
-        {
-            switch (themeId)
-            {
-                case BackgroundThemeId.SoftGradient:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.04f, SaturationBoost = -0.06f, ValueBoost = 0.02f, DetailAlphaScale = 0.9f, FlowAlphaScale = 0.85f, ShapeAlphaScale = 0.85f, VignetteAlphaScale = 1.0f };
-                case BackgroundThemeId.PastelRainbow:
-                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.09f, SaturationBoost = -0.02f, ValueBoost = 0.04f, DetailAlphaScale = 1.05f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 0.95f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.Balloons:
-                    return new BackgroundThemeStyle { HueShift = 0.03f, HueRange = 0.07f, SaturationBoost = 0.02f, ValueBoost = 0.03f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.1f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.LightCarnival:
-                    return new BackgroundThemeStyle { HueShift = 0.01f, HueRange = 0.06f, SaturationBoost = 0.01f, ValueBoost = 0.02f, DetailAlphaScale = 1.05f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.CarnivalPattern:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.03f, ValueBoost = 0.01f, DetailAlphaScale = 1.1f, FlowAlphaScale = 1.05f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 0.95f };
-                case BackgroundThemeId.CarnivalContrast:
-                    return new BackgroundThemeStyle { HueShift = 0.04f, HueRange = 0.05f, SaturationBoost = 0.05f, ValueBoost = 0.0f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.05f, VignetteAlphaScale = 0.9f };
-                case BackgroundThemeId.RainbowArcs:
-                    return new BackgroundThemeStyle { HueShift = 0.05f, HueRange = 0.1f, SaturationBoost = 0.02f, ValueBoost = 0.03f, DetailAlphaScale = 1.1f, FlowAlphaScale = 1.05f, ShapeAlphaScale = 1.05f, VignetteAlphaScale = 0.9f };
-                case BackgroundThemeId.PlayfulMotifs:
-                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.08f, SaturationBoost = 0.04f, ValueBoost = 0.02f, DetailAlphaScale = 1.15f, FlowAlphaScale = 1.1f, ShapeAlphaScale = 1.1f, VignetteAlphaScale = 0.9f };
-                case BackgroundThemeId.RefinedCarnival:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.0f, ValueBoost = 0.02f, DetailAlphaScale = 0.95f, FlowAlphaScale = 0.9f, ShapeAlphaScale = 0.85f, VignetteAlphaScale = 1.05f };
-                case BackgroundThemeId.RefinedRainbow:
-                    return new BackgroundThemeStyle { HueShift = 0.02f, HueRange = 0.07f, SaturationBoost = 0.01f, ValueBoost = 0.03f, DetailAlphaScale = 1.0f, FlowAlphaScale = 0.95f, ShapeAlphaScale = 0.9f, VignetteAlphaScale = 1.0f };
-                default:
-                    return new BackgroundThemeStyle { HueShift = 0.0f, HueRange = 0.05f, SaturationBoost = 0.0f, ValueBoost = 0.0f, DetailAlphaScale = 1.0f, FlowAlphaScale = 1.0f, ShapeAlphaScale = 1.0f, VignetteAlphaScale = 1.0f };
-            }
         }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR

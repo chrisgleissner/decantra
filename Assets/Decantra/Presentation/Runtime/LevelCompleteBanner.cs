@@ -9,7 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 using System;
 using System.Collections;
 using System.IO;
-using Decantra.Domain.Scoring;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,11 +21,14 @@ namespace Decantra.Presentation
         [SerializeField] private Text levelText;
         [SerializeField] private Text scoreText;
         [SerializeField] private Image starBurst;
+        [SerializeField] private Image dimmer;
+        [SerializeField] private RawImage blurBackdrop;
         [SerializeField] private CanvasGroup canvasGroup;
         [SerializeField] private float enterDuration = 0.35f;
         [SerializeField] private float starsHoldDuration = 0.2f;
         [SerializeField] private float levelHoldDuration = 0.35f;
         [SerializeField] private float exitDuration = 0.35f;
+        [SerializeField] private float dimmerAlpha = 0.8f;
         [SerializeField] private float burstDuration = 0.45f;
         [SerializeField] private float burstMaxScale = 3.0f;
         [SerializeField] private float burstMaxAlpha = 0.85f;
@@ -42,6 +44,7 @@ namespace Decantra.Presentation
         private Image[] _sparkles;
         private Image[] _flyingStars;
         private bool _effectsReady;
+        private Action _onScoreApply;
 
         private static Sprite _sparkleSpriteCache;
         private static Sprite _glistenSpriteCache;
@@ -103,6 +106,21 @@ namespace Decantra.Presentation
             "That was a calm and confident finish.",
         };
 
+        public bool IsVisible => canvasGroup != null && canvasGroup.alpha > 0.01f;
+
+        public void EnableScreenshotMode()
+        {
+            enterDuration = Mathf.Max(enterDuration, 0.45f);
+            starsHoldDuration = Mathf.Max(starsHoldDuration, 0.9f);
+            levelHoldDuration = Mathf.Max(levelHoldDuration, 0.6f);
+            exitDuration = Mathf.Max(exitDuration, 0.45f);
+        }
+
+        public float GetStarsCaptureDelay()
+        {
+            return enterDuration + Mathf.Min(0.3f, starsHoldDuration * 0.5f);
+        }
+
         private void Awake()
         {
             _starClip = CreateStarClip();
@@ -116,20 +134,36 @@ namespace Decantra.Presentation
             }
         }
 
-        public void Show(int level, int stars, int awardedScore, PerformanceGrade grade, bool sfxEnabled, Action onComplete)
+        public void Show(int level, int stars, int awardedScore, bool sfxEnabled, Action onScoreApply, Action onComplete)
         {
             if (panel == null || canvasGroup == null || starsText == null || levelText == null)
             {
+                onScoreApply?.Invoke();
                 onComplete?.Invoke();
                 return;
             }
 
+            // If a previous animation was in progress, ensure its score apply callback is not lost.
+            var previousOnScoreApply = _onScoreApply;
+            if (previousOnScoreApply != null && previousOnScoreApply != onScoreApply)
+            {
+                try
+                {
+                    previousOnScoreApply();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error while invoking previous score apply callback: {ex}");
+                }
+            }
+
             StopAllCoroutines();
+            _onScoreApply = onScoreApply;
             int clampedStars = Mathf.Clamp(stars, 1, 5);
             _lastStarCount = clampedStars;
             starsText.text = new string('★', clampedStars);
             var tag = messages[Mathf.Abs(level) % messages.Length];
-            levelText.text = $"LEVEL {level + 1}\nGRADE {grade}\n{tag}";
+            levelText.text = $"LEVEL {level + 1}\n{tag}";
             if (scoreText != null)
             {
                 scoreText.text = $"+{awardedScore}";
@@ -140,13 +174,31 @@ namespace Decantra.Presentation
             {
                 PlayStarLayers(clampedStars);
             }
+            StartCoroutine(PrepareBlur());
             StartCoroutine(AnimateSequence(onComplete));
+        }
+
+        public void HideImmediate()
+        {
+            StopAllCoroutines();
+            if (canvasGroup != null)
+            {
+                canvasGroup.alpha = 0f;
+                canvasGroup.blocksRaycasts = false;
+                canvasGroup.interactable = false;
+            }
+            if (panel != null)
+            {
+                panel.anchoredPosition = new Vector2(0, -500);
+            }
+            SetDimmerAlpha(0f);
+            ClearBlur();
+            DisableEffects();
         }
 
         private IEnumerator AnimateSequence(Action onComplete)
         {
             yield return AnimatePanel(starsText, starsHoldDuration);
-            yield return AnimatePanel(levelText, levelHoldDuration);
             onComplete?.Invoke();
         }
 
@@ -156,6 +208,7 @@ namespace Decantra.Presentation
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
             panel.anchoredPosition = new Vector2(0, -500);
+            SetDimmerAlpha(0f);
 
             if (starsText != null) starsText.gameObject.SetActive(activeText == starsText);
             if (levelText != null) levelText.gameObject.SetActive(activeText == levelText);
@@ -168,6 +221,7 @@ namespace Decantra.Presentation
                 float t = Mathf.SmoothStep(0f, 1f, time / enterDuration);
                 canvasGroup.alpha = t;
                 panel.anchoredPosition = Vector2.Lerp(new Vector2(0, -500), Vector2.zero, t);
+                SetDimmerAlpha(Mathf.Lerp(0f, dimmerAlpha, t));
                 yield return null;
             }
 
@@ -175,6 +229,8 @@ namespace Decantra.Presentation
             panel.anchoredPosition = Vector2.zero;
             if (activeText == starsText)
             {
+                _onScoreApply?.Invoke();
+                _onScoreApply = null;
                 yield return AnimateCelebration();
             }
             if (holdDuration > 0f)
@@ -189,13 +245,138 @@ namespace Decantra.Presentation
                 float t = Mathf.SmoothStep(0f, 1f, time / exitDuration);
                 canvasGroup.alpha = 1f - t;
                 panel.anchoredPosition = Vector2.Lerp(Vector2.zero, new Vector2(0, 400), t);
+                SetDimmerAlpha(Mathf.Lerp(dimmerAlpha, 0f, t));
                 yield return null;
             }
 
             canvasGroup.alpha = 0f;
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
+            SetDimmerAlpha(0f);
+            ClearBlur();
             DisableEffects();
+        }
+
+        private void SetDimmerAlpha(float alpha)
+        {
+            if (dimmer == null) return;
+            var color = dimmer.color;
+            color.a = alpha;
+            dimmer.color = color;
+
+            if (blurBackdrop != null)
+            {
+                var blurColor = blurBackdrop.color;
+                blurColor.a = Mathf.Clamp01(alpha * 0.85f);
+                blurBackdrop.color = blurColor;
+            }
+        }
+
+        private IEnumerator PrepareBlur()
+        {
+            if (blurBackdrop == null)
+            {
+                yield break;
+            }
+
+            yield return new WaitForEndOfFrame();
+            try
+            {
+                var source = ScreenCapture.CaptureScreenshotAsTexture();
+                if (source == null)
+                {
+                    yield break;
+                }
+
+                int targetWidth = Mathf.Clamp(source.width / 8, 96, 256);
+                int targetHeight = Mathf.Clamp(source.height / 8, 160, 360);
+                var blurred = new Texture2D(targetWidth, targetHeight, TextureFormat.RGBA32, false);
+                for (int y = 0; y < targetHeight; y++)
+                {
+                    for (int x = 0; x < targetWidth; x++)
+                    {
+                        float u = x / (float)(targetWidth - 1);
+                        float v = y / (float)(targetHeight - 1);
+                        var color = source.GetPixelBilinear(u, v);
+                        blurred.SetPixel(x, y, color);
+                    }
+                }
+                blurred.Apply();
+
+                ApplyGaussianBlur(blurred, 1);
+                Destroy(source);
+
+                blurBackdrop.texture = blurred;
+                blurBackdrop.uvRect = new Rect(0, 0, 1, 1);
+                blurBackdrop.color = new Color(1f, 1f, 1f, 0f);
+            }
+            catch
+            {
+                ClearBlur();
+            }
+        }
+
+        private void ClearBlur()
+        {
+            if (blurBackdrop == null) return;
+            if (blurBackdrop.texture != null)
+            {
+                Destroy(blurBackdrop.texture);
+            }
+            blurBackdrop.texture = null;
+            blurBackdrop.color = new Color(1f, 1f, 1f, 0f);
+        }
+
+        private static void ApplyGaussianBlur(Texture2D texture, int iterations)
+        {
+            if (texture == null) return;
+            int width = texture.width;
+            int height = texture.height;
+            Color[] pixels = texture.GetPixels();
+            Color[] temp = new Color[pixels.Length];
+
+            int[] offsets = { -1, 0, 1 };
+            float[] weights = { 0.27901f, 0.44198f, 0.27901f };
+
+            for (int iter = 0; iter < iterations; iter++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        Color sum = Color.clear;
+                        float total = 0f;
+                        for (int ox = 0; ox < offsets.Length; ox++)
+                        {
+                            int sx = Mathf.Clamp(x + offsets[ox], 0, width - 1);
+                            float w = weights[ox];
+                            sum += pixels[y * width + sx] * w;
+                            total += w;
+                        }
+                        temp[y * width + x] = sum / total;
+                    }
+                }
+
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        Color sum = Color.clear;
+                        float total = 0f;
+                        for (int oy = 0; oy < offsets.Length; oy++)
+                        {
+                            int sy = Mathf.Clamp(y + offsets[oy], 0, height - 1);
+                            float w = weights[oy];
+                            sum += temp[sy * width + x] * w;
+                            total += w;
+                        }
+                        pixels[y * width + x] = sum / total;
+                    }
+                }
+            }
+
+            texture.SetPixels(pixels);
+            texture.Apply();
         }
 
         private IEnumerator AnimateCelebration()

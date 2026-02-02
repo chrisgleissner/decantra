@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 
 namespace Decantra.Presentation.View
 {
@@ -21,6 +22,8 @@ namespace Decantra.Presentation.View
         [SerializeField] private Text maxLevelText;
         [SerializeField] private Text titleText;
 
+        private Coroutine _scoreEffectRoutine;
+
         public void Render(int levelIndex, int movesUsed, int movesAllowed, int optimalMoves, int score, int highScore, int maxLevel)
         {
             if (titleText != null)
@@ -30,12 +33,12 @@ namespace Decantra.Presentation.View
 
             if (levelText != null)
             {
-                levelText.text = $"LEVEL\n<size=72>{levelIndex}</size>";
+                levelText.text = $"LEVEL\n{levelIndex}";
             }
 
             if (movesText != null)
             {
-                movesText.text = $"MOVES\n<size=52>{movesUsed}/{movesAllowed}</size>";
+                movesText.text = $"MOVES\n{movesUsed}/{movesAllowed}";
             }
 
             if (optimalText != null)
@@ -49,18 +52,60 @@ namespace Decantra.Presentation.View
 
             if (scoreText != null)
             {
-                scoreText.text = $"SCORE\n<size=52>{score}</size>";
+                scoreText.text = $"SCORE\n{score}";
             }
 
             if (highScoreText != null)
             {
-                highScoreText.text = $"BEST\n<size=44>{highScore}</size>";
+                highScoreText.text = $"HIGH SCORE\n{highScore}";
             }
 
             if (maxLevelText != null)
             {
-                maxLevelText.text = $"MAX\n<size=44>{maxLevel}</size>";
+                maxLevelText.text = $"MAX LEVEL\n{maxLevel}";
             }
+        }
+
+        public void AnimateScoreUpdate()
+        {
+            if (scoreText == null) return;
+            if (_scoreEffectRoutine != null)
+            {
+                StopCoroutine(_scoreEffectRoutine);
+            }
+            _scoreEffectRoutine = StartCoroutine(ScoreEffect());
+        }
+
+        private IEnumerator ScoreEffect()
+        {
+            float duration = 0.6f;
+            float time = 0f;
+            Vector3 originalScale = Vector3.one;
+            Color originalColor = new Color(1f, 0.98f, 0.92f, 1f);
+
+            while (time < duration)
+            {
+                if (scoreText == null)
+                {
+                    _scoreEffectRoutine = null;
+                    yield break;
+                }
+                time += Time.deltaTime;
+                float t = Mathf.Clamp01(time / duration);
+                float curve = Mathf.Sin(t * Mathf.PI);
+                float scale = 1f + 0.35f * curve;
+
+                scoreText.rectTransform.localScale = originalScale * scale;
+                scoreText.color = Color.Lerp(originalColor, new Color(1f, 1f, 0.6f, 1f), curve);
+
+                yield return null;
+            }
+            if (scoreText != null)
+            {
+                scoreText.rectTransform.localScale = originalScale;
+                scoreText.color = originalColor;
+            }
+            _scoreEffectRoutine = null;
         }
     }
 }

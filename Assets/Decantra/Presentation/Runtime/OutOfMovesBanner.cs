@@ -18,9 +18,11 @@ namespace Decantra.Presentation
         [SerializeField] private RectTransform panel;
         [SerializeField] private Text messageText;
         [SerializeField] private CanvasGroup canvasGroup;
+        [SerializeField] private Image dimmer;
         [SerializeField] private float enterDuration = 0.5f;
         [SerializeField] private float holdDuration = 1.0f;
         [SerializeField] private float exitDuration = 0.5f;
+        [SerializeField] private float dimmerAlpha = 0.8f;
 
         public bool IsVisible => canvasGroup != null && canvasGroup.alpha > 0.01f;
 
@@ -37,12 +39,21 @@ namespace Decantra.Presentation
             StartCoroutine(Animate(onComplete));
         }
 
+        private void SetDimmerAlpha(float alpha)
+        {
+            if (dimmer == null) return;
+            var color = dimmer.color;
+            color.a = alpha;
+            dimmer.color = color;
+        }
+
         private IEnumerator Animate(Action onComplete)
         {
             canvasGroup.alpha = 0f;
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
             panel.anchoredPosition = new Vector2(0, -500);
+            SetDimmerAlpha(0f);
 
             float time = 0f;
             while (time < enterDuration)
@@ -51,11 +62,13 @@ namespace Decantra.Presentation
                 float t = Mathf.SmoothStep(0f, 1f, time / enterDuration);
                 canvasGroup.alpha = t;
                 panel.anchoredPosition = Vector2.Lerp(new Vector2(0, -500), Vector2.zero, t);
+                SetDimmerAlpha(Mathf.Lerp(0f, dimmerAlpha, t));
                 yield return null;
             }
 
             canvasGroup.alpha = 1f;
             panel.anchoredPosition = Vector2.zero;
+            SetDimmerAlpha(dimmerAlpha);
             if (holdDuration > 0f)
             {
                 yield return new WaitForSeconds(holdDuration);
@@ -68,12 +81,14 @@ namespace Decantra.Presentation
                 float t = Mathf.SmoothStep(0f, 1f, time / exitDuration);
                 canvasGroup.alpha = 1f - t;
                 panel.anchoredPosition = Vector2.Lerp(Vector2.zero, new Vector2(0, 400), t);
+                SetDimmerAlpha(Mathf.Lerp(dimmerAlpha, 0f, t));
                 yield return null;
             }
 
             canvasGroup.alpha = 0f;
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
+            SetDimmerAlpha(0f);
             onComplete?.Invoke();
         }
     }

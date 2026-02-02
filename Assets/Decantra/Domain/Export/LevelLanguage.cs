@@ -53,7 +53,7 @@ namespace Decantra.Domain.Export
                     }
 
                     var layers = BuildLayers(bottle, volumePerSlot);
-                    var flags = bottle.IsSink ? new List<string> { "sink" } : null;
+                    var flags = bottle.IsSink ? new List<string> { "sink" } : new List<string>();
                     rowCells.Add(new LevelLanguageBottle(bottle.Capacity * volumePerSlot, layers, flags));
                 }
                 cells.Add(rowCells);

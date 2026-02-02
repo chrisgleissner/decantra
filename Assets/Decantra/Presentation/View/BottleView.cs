@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System.Collections;
 using System.Collections.Generic;
 using Decantra.Domain.Model;
 using UnityEngine;
@@ -22,6 +23,17 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image body;
         [SerializeField] private Image basePlate;
         [SerializeField] private Image stopper;
+        [SerializeField] private Image glassBack;
+        [SerializeField] private Image glassFront;
+        [SerializeField] private Image rim;
+        [SerializeField] private Image baseAccent;
+        [SerializeField] private Image curvedHighlight;
+        [SerializeField] private Image reflectionStrip;
+        [SerializeField] private Image anchorCollar;
+        [SerializeField] private Image anchorShadow;
+        [SerializeField] private Image normalShadow;
+        [SerializeField] private Image liquidSurface;
+        [SerializeField] private Sprite liquidSprite;
 
         private readonly List<int> segmentUnits = new List<int>();
         private readonly List<Image> incomingSlots = new List<Image>();
@@ -32,8 +44,11 @@ namespace Decantra.Presentation.View
         private Color baseDefaultColor;
         private Vector3 baseScale = Vector3.one;
         private Bottle lastBottle;
+        private bool isSink;
+        private Coroutine resistanceRoutine;
 
         public int Index { get; private set; }
+        public bool IsSink => isSink;
 
         private void Awake()
         {
@@ -51,6 +66,38 @@ namespace Decantra.Presentation.View
                 baseDefaultColor = basePlate.color;
             }
             baseScale = transform.localScale;
+            ConfigureGlassVisuals();
+        }
+
+        private void ConfigureGlassVisuals()
+        {
+            // Reduce overlay opacity to prevent color washout
+            if (glassFront != null)
+            {
+                // Disable completely to verify
+                glassFront.gameObject.SetActive(false);
+            }
+
+            if (reflectionStrip != null)
+            {
+                reflectionStrip.gameObject.SetActive(true);
+                reflectionStrip.color = new Color(0.96f, 0.98f, 1f, 0.16f);
+                reflectionStrip.raycastTarget = false;
+
+                var rect = reflectionStrip.rectTransform;
+                // Right-side reflection strip: ~12% width, ~72% height, centered ~20% inward from right
+                rect.anchorMin = new Vector2(0.74f, 0.12f);
+                rect.anchorMax = new Vector2(0.86f, 0.84f);
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+
+            if (glassBack != null)
+            {
+                var c = glassBack.color;
+                glassBack.color = new Color(c.r, c.g, c.b, 0.05f);
+                glassBack.raycastTarget = false;
+            }
         }
 
         public void Initialize(int index)
@@ -134,6 +181,7 @@ namespace Decantra.Presentation.View
             }
 
             ApplyPreview();
+            UpdateLiquidSurfaceForFill(bottle.Count, bottle.TopColor);
 
             if (stopper != null)
             {
@@ -186,6 +234,8 @@ namespace Decantra.Presentation.View
         {
             if (bottle == null) return;
 
+            isSink = bottle.IsSink;
+
             if (bottle.IsSink)
             {
                 if (basePlate != null)
@@ -205,12 +255,27 @@ namespace Decantra.Presentation.View
                     outlineBaseColor = sinkOutline;
                     outline.color = sinkOutline;
                 }
+
+                if (anchorCollar != null)
+                {
+                    anchorCollar.gameObject.SetActive(true);
+                }
+
+                if (anchorShadow != null)
+                {
+                    anchorShadow.gameObject.SetActive(true);
+                }
+
+                if (normalShadow != null)
+                {
+                    normalShadow.gameObject.SetActive(false);
+                }
             }
             else
             {
                 if (basePlate != null)
                 {
-                    basePlate.gameObject.SetActive(false);
+                    basePlate.gameObject.SetActive(true);
                     basePlate.color = baseDefaultColor;
                 }
 
@@ -223,6 +288,21 @@ namespace Decantra.Presentation.View
                 {
                     outlineBaseColor = outlineDefaultColor;
                     outline.color = outlineDefaultColor;
+                }
+
+                if (anchorCollar != null)
+                {
+                    anchorCollar.gameObject.SetActive(false);
+                }
+
+                if (anchorShadow != null)
+                {
+                    anchorShadow.gameObject.SetActive(false);
+                }
+
+                if (normalShadow != null)
+                {
+                    normalShadow.gameObject.SetActive(false);
                 }
             }
         }
@@ -291,6 +371,8 @@ namespace Decantra.Presentation.View
                 c.a = 0.6f;
                 image.color = c;
             }
+
+            UpdateLiquidSurfaceForFill(lastBottle.Count + amount, color);
         }
 
         public void AnimateIncoming(ColorId color, int amount, float t)
@@ -329,6 +411,8 @@ namespace Decantra.Presentation.View
                 c.a = 0.75f;
                 image.color = c;
             }
+
+            UpdateLiquidSurfaceForFill(lastBottle.Count + amount * t, color);
         }
 
         public void AnimateOutgoing(int amount, float t)
@@ -370,6 +454,8 @@ namespace Decantra.Presentation.View
             rect.pivot = new Vector2(0.5f, 0);
             rect.sizeDelta = new Vector2(width, height * remainingUnits / lastBottle.Capacity);
             rect.anchoredPosition = new Vector2(0, yOffset);
+
+            UpdateLiquidSurfaceForFill(Mathf.Max(0f, lastBottle.Count - amount * t), lastBottle.TopColor);
         }
 
         public void ClearIncoming()
@@ -378,11 +464,13 @@ namespace Decantra.Presentation.View
             {
                 incomingSlots[i].gameObject.SetActive(false);
             }
+            UpdateLiquidSurfaceForFill(lastBottle != null ? lastBottle.Count : 0, lastBottle != null ? lastBottle.TopColor : null);
         }
 
         public void ClearOutgoing()
         {
             ResetOutgoingVisuals();
+            UpdateLiquidSurfaceForFill(lastBottle != null ? lastBottle.Count : 0, lastBottle != null ? lastBottle.TopColor : null);
         }
 
         private void EnsureSlots(int capacity)
@@ -403,6 +491,11 @@ namespace Decantra.Presentation.View
 
                 var image = go.AddComponent<Image>();
                 image.raycastTarget = false;
+                if (liquidSprite != null)
+                {
+                    image.sprite = liquidSprite;
+                    image.type = Image.Type.Simple;
+                }
                 slots.Add(image);
             }
         }
@@ -418,6 +511,11 @@ namespace Decantra.Presentation.View
             rect.pivot = new Vector2(0.5f, 0);
             var image = go.AddComponent<Image>();
             image.raycastTarget = false;
+            if (liquidSprite != null)
+            {
+                image.sprite = liquidSprite;
+                image.type = Image.Type.Simple;
+            }
             incomingSlots.Add(image);
         }
 
@@ -480,6 +578,13 @@ namespace Decantra.Presentation.View
             if (color.HasValue && palette != null)
             {
                 var c = palette.GetColor(color.Value);
+
+                // Boost brightness while preserving saturation
+                Color.RGBToHSV(c, out float h, out float s, out float v);
+                v = Mathf.Clamp01(v * 1.35f + 0.08f);
+                s = Mathf.Clamp01(Mathf.Lerp(s, 1f, 0.12f));
+                c = Color.HSVToRGB(h, s, v);
+
                 c.a = 1f;
                 image.color = c;
             }
@@ -512,6 +617,87 @@ namespace Decantra.Presentation.View
                     color.a = 1f;
                 }
                 image.color = color;
+            }
+        }
+
+        public void PlayResistanceFeedback()
+        {
+            if (!isSink) return;
+            if (resistanceRoutine != null)
+            {
+                StopCoroutine(resistanceRoutine);
+            }
+            resistanceRoutine = StartCoroutine(AnimateResistance());
+        }
+
+        private IEnumerator AnimateResistance()
+        {
+            var rect = transform as RectTransform;
+            if (rect == null)
+            {
+                resistanceRoutine = null;
+                yield break;
+            }
+
+            Vector2 start = rect.anchoredPosition;
+            Quaternion startRot = rect.localRotation;
+            float duration = 0.14f;
+            float time = 0f;
+            float amplitude = 4f;
+            float rotation = 2.5f;
+
+            while (time < duration)
+            {
+                time += Time.deltaTime;
+                float t = Mathf.Clamp01(time / duration);
+                float damper = 1f - t;
+                float shake = Mathf.Sin(t * Mathf.PI * 3f) * amplitude * damper;
+                float twist = Mathf.Sin(t * Mathf.PI * 2f) * rotation * damper;
+                rect.anchoredPosition = start + new Vector2(shake, 0f);
+                rect.localRotation = Quaternion.Euler(0f, 0f, twist);
+                yield return null;
+            }
+
+            rect.anchoredPosition = start;
+            rect.localRotation = startRot;
+            resistanceRoutine = null;
+        }
+
+        private void UpdateLiquidSurfaceForFill(float filledUnits, ColorId? topColor)
+        {
+            if (liquidSurface == null || slotRoot == null || lastBottle == null) return;
+
+            float width = slotRoot.rect.width;
+            float height = slotRoot.rect.height;
+            if (width <= 0f || height <= 0f)
+            {
+                width = 100f;
+                height = 300f;
+            }
+
+            float unitHeight = height / lastBottle.Capacity;
+            float fillHeight = Mathf.Clamp(filledUnits, 0f, lastBottle.Capacity) * unitHeight;
+
+            var rect = liquidSurface.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(width * 0.98f, rect.sizeDelta.y);
+            rect.anchoredPosition = new Vector2(0f, Mathf.Clamp(fillHeight, 0f, height) - rect.sizeDelta.y * 0.35f);
+            liquidSurface.gameObject.SetActive(fillHeight > 0.1f);
+
+            if (topColor.HasValue && palette != null)
+            {
+                var c = palette.GetColor(topColor.Value);
+                Color.RGBToHSV(c, out float h, out float s, out float v);
+                v = Mathf.Clamp01(v + 0.18f);
+                c = Color.HSVToRGB(h, s, v);
+                c.a = 0.55f;
+                liquidSurface.color = c;
+            }
+            else
+            {
+                liquidSurface.color = new Color(1f, 1f, 1f, 0f);
             }
         }
     }
