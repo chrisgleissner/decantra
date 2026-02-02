@@ -84,15 +84,13 @@ namespace Decantra.Domain.Rules
         {
             int eff = GetEffectiveLevel(levelIndex);
 
-            // Linear scaling: 3 colors at level 1, 6 colors at level 100
-            // Formula: 3 + floor((eff - 1) * 3 / 99)
-            int count = 3 + (int)Math.Floor((eff - 1) * 3.0 / 99.0);
-
-            // Max color count is 6 to reduce state-space blowups in solving
-            count = Math.Min(count, 6);
-            count = Math.Max(count, 3);
-
-            return count;
+            // Stepwise scaling to keep bottle counts monotonic while respecting
+            // the 9-bottle cap and early-game pacing.
+            if (eff <= 6) return 3;
+            if (eff <= 10) return 4;
+            if (eff <= 17) return 5;
+            if (eff <= 19) return 6;
+            return 7;
         }
 
         private static int ResolveEmptyCount(int levelIndex)
