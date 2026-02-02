@@ -274,6 +274,7 @@ namespace Decantra.Domain.Generation
                 solveMs,
                 metricsMs,
                 bestScore,
+                1, // difficulty100 placeholder
                 qualityGatesApplied,
                 lastFailure);
 
