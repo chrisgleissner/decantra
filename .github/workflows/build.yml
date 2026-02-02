@@ -161,20 +161,6 @@ jobs:
         with:
           lfs: true
 
-      - name: Free up disk space
-        run: |
-          echo "::group::Freeing disk space"
-          df -h
-          sudo apt-get clean
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          docker system prune -af --volumes || true
-          df -h
-          echo "::endgroup::"
-
       # Unity Library cache - same key structure as test job for cache sharing
       - name: Restore Unity Library cache
         uses: actions/cache@v4
