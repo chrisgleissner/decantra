@@ -111,13 +111,13 @@ to achieve >= 50% reduction in wall-clock time while preserving merge confidence
 3. **Cache improvements**: Better cache keys with Unity version and package hashes
    should improve hit rates when tests run.
 
-### Additional Optimizations Identified (Not Yet Implemented)
+### Additional Optimizations Identified
 
-| Optimization | Potential Savings | Risk | Notes |
-|--------------|------------------|------|-------|
-| Make Debug APK optional | ~14 min on Tier 2 | Low | Only needed for debugging |
-| IL2CPP cache | ~3-8 min on Tier 2 | Medium | Complex to implement correctly |
-| Matrix builds (parallel APK/AAB) | Unclear | High | May not share Library cache effectively |
+| Optimization | Potential Savings | Risk | Status |
+|--------------|------------------|------|--------|
+| ~~Make Debug APK optional~~ | ~14 min on Tier 2 | Low | ✅ **Implemented** |
+| IL2CPP cache | ~3-8 min on Tier 2 | Medium | Not yet implemented |
+| Matrix builds (parallel APK/AAB) | Unclear | High | Not recommended |
 
 ### Cache Key Strategy
 
@@ -141,10 +141,10 @@ Library-{os}-{unity-version}-                           # Same Unity version
 
 | Metric | Baseline | Expected | Actual | Notes |
 |--------|----------|----------|--------|-------|
-| PR build time | ~41m 18s | ~5m 4s | TBD | |
+| PR build time | ~41m 18s | ~5m 4s | TBD | Two-tier CI, Android skipped |
+| Tier 2 (main) build time | 36m 8s | **~22m** | TBD | Debug APK skipped (-14m) |
 | Cache hit rate | Unknown | Improved | TBD | |
 | Stale builds cancelled | N/A | Yes | TBD | |
-| Tier 2 (main) build time | 36m 8s | ~36m 8s | TBD | May improve with cache |
 
 ---
 

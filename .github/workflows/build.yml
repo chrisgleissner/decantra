@@ -20,6 +20,11 @@ on:
         required: false
         default: "true"
         type: boolean
+      build_debug_apk:
+        description: "Build Debug APK (slow, skip by default)"
+        required: false
+        default: "false"
+        type: boolean
 
 # Cancel in-progress runs for same branch/PR to prevent wasted compute
 concurrency:
@@ -316,6 +321,7 @@ jobs:
 
       - name: Build Debug APK
         id: build_debug
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true'
         uses: game-ci/unity-builder@v4
         with:
           projectPath: .
@@ -341,14 +347,18 @@ jobs:
             exit 1
           fi
           mv Builds/Android/Decantra-release.apk "Builds/Android/decantra-${version}.apk"
-          mv Builds/Android/Decantra-debug.apk "Builds/Android/decantra-${version}-debug.apk"
+          if [[ -f Builds/Android/Decantra-debug.apk ]]; then
+            mv Builds/Android/Decantra-debug.apk "Builds/Android/decantra-${version}-debug.apk"
+          fi
           mv Builds/Android/Decantra-release.aab "Builds/Android/decantra-${version}.aab"
 
       - name: Verify APKs are readable
         run: |
           version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
           test -r "Builds/Android/decantra-${version}.apk"
-          test -r "Builds/Android/decantra-${version}-debug.apk"
+          if [[ -f "Builds/Android/decantra-${version}-debug.apk" ]]; then
+            test -r "Builds/Android/decantra-${version}-debug.apk"
+          fi
 
       - name: Verify AAB is readable and non-empty
         run: |
@@ -369,6 +379,7 @@ jobs:
           path: Builds/Android/decantra-${{ env.VERSION_NAME }}.apk
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true'
         with:
           name: Decantra-Android-Debug
           path: Builds/Android/decantra-${{ env.VERSION_NAME }}-debug.apk
@@ -389,11 +400,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Decantra-Android-Release
-          path: release-artifacts
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Decantra-Android-Debug
           path: release-artifacts
 
       - uses: actions/download-artifact@v4

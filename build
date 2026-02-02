@@ -12,7 +12,7 @@ export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
 RUN_TESTS=true
 RUN_BUILD=true
 RUN_INSTALL=false
-BUILD_VARIANT="debug"
+BUILD_VARIANT="release"
 CAPTURE_SCREENSHOTS=false
 SCREENSHOTS_ONLY=false
 GENERATE_SOLUTIONS=false
@@ -36,16 +36,16 @@ Options:
   --apk-path <path>    APK path to install (default: Builds/Android/Decantra.apk)
   --skip-tests         Skip Unity tests
   --skip-build         Skip APK build
-  --release            Build the release APK
+  --debug              Build the debug APK (default: release)
   --screenshots        Capture Play Store screenshots after build
   --screenshots-only   Capture screenshots only (skip tests/build/install)
   --generate-solutions Regenerate solver-solutions-debug.txt (requires dotnet)
   -h, --help           Show this help message
 
 Examples:
-  ./build                         Run tests and build debug APK
-  ./build --release               Run tests and build release APK
-  ./build --skip-tests            Build debug APK without running tests
+  ./build                         Run tests and build release APK
+  ./build --debug                 Run tests and build debug APK
+  ./build --skip-tests            Build release APK without running tests
   ./build --skip-build --install  Install existing APK to device
   ./build --install --device <id> Build and install to a specific device
   ./build --screenshots           Build + capture Play Store screenshots
@@ -527,8 +527,8 @@ while [[ $# -gt 0 ]]; do
       RUN_BUILD=false
       shift
       ;;
-    --release)
-      BUILD_VARIANT="release"
+    --debug)
+      BUILD_VARIANT="debug"
       shift
       ;;
     --screenshots)
