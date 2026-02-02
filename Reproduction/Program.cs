@@ -411,6 +411,7 @@ public class Program
                 intrinsicDifficulties[l] = result.Difficulty;
             }
         }
+        // Intrinsic difficulty is not expected to be linear with level progression.
         return ValidateProgression(intrinsicDifficulties, count, requireLinear: false);
     }
 
@@ -531,7 +532,7 @@ public class Program
     {
         public int Level;
         public double RawComplexity;  // Stage 1 raw score
-        public int Difficulty;        // Intrinsic difficulty (1-100)
+        public int Difficulty;        // Intrinsic difficulty score (1-100); not a monotonic level mapping
         public int Optimal;
         public float Forced;
         public float Branch;

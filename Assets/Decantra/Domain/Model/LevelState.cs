@@ -67,6 +67,7 @@ namespace Decantra.Domain.Model
                     var target = Bottles[j];
 
                     // Consolidating into an empty bottle does not reduce the bottle count
+                    // (the source would still be non-empty); only full transfer into a same-color target reduces count.
                     if (target.IsEmpty) continue;
 
                     // Target must match color to allow pour

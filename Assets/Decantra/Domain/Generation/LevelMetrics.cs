@@ -27,7 +27,7 @@ namespace Decantra.Domain.Generation
         public float AverageBranchingFactor { get; }
 
         /// <summary>
-        /// Maximum length of any forced-move streak along the optimal path.
+        /// Maximum length of any forced-move streak along the optimal path ("decision depth").
         /// Lower is better - indicates decisions occur more frequently.
         /// </summary>
         public int DecisionDepth { get; }

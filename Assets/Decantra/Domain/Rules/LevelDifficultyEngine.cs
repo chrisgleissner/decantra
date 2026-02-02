@@ -50,8 +50,10 @@ namespace Decantra.Domain.Rules
             if (colorCount + emptyCount > 9)
             {
                 // Prioritize preserving color count for real difficulty; reduce empties first.
+                // Keep the minimum empties required for sinks (>=18) when possible.
                 int overflow = colorCount + emptyCount - 9;
-                int reducibleEmpty = Math.Max(0, emptyCount - 1);
+                int minEmpty = ResolveSinkCount(levelIndex) > 0 ? 2 : 1;
+                int reducibleEmpty = Math.Max(0, emptyCount - minEmpty);
                 int emptyReduction = Math.Min(overflow, reducibleEmpty);
                 emptyCount -= emptyReduction;
                 overflow -= emptyReduction;

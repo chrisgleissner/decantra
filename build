@@ -594,7 +594,9 @@ if [[ "${GENERATE_SOLUTIONS}" == "true" ]]; then
     echo "dotnet not found in PATH" >&2
     exit 1
   fi
-  dotnet run --project "${ROOT_DIR}/Reproduction/Reproduction.csproj" -- bulk 1000 > "${ROOT_DIR}/solver-solutions-debug.txt" || true
+  if ! dotnet run --project "${ROOT_DIR}/Reproduction/Reproduction.csproj" -- bulk 1000 > "${ROOT_DIR}/solver-solutions-debug.txt"; then
+    echo "Warning: Failed to generate solver solutions; dotnet run exited with status $?" >&2
+  fi
   
   # Run validation gates on generated solutions
   log "Running solution validation gates"

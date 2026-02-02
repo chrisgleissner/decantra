@@ -154,6 +154,8 @@ namespace Decantra.Domain.Generation
         /// </summary>
         public QualityThresholds Relaxed()
         {
+            // Conservative step sizes chosen to gently relax gating after repeated attempts
+            // while keeping thresholds within meaningful bounds.
             return new QualityThresholds(
                 maxForcedMoveRatio: Math.Min(0.90f, MaxForcedMoveRatio + 0.10f),
                 maxDecisionDepth: MaxDecisionDepth + 1,

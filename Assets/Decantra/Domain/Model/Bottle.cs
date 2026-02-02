@@ -180,6 +180,7 @@ namespace Decantra.Domain.Model
         {
             get
             {
+                // O(slots) scan; bottle sizes are tiny so this stays inexpensive.
                 if (IsEmpty) return true;
                 ColorId? color = null;
                 for (int i = 0; i < _slots.Length; i++)

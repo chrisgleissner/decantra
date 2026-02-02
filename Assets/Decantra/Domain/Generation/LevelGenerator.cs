@@ -259,8 +259,10 @@ namespace Decantra.Domain.Generation
                     }
 
                     // Compute difficulty score for hill-climb selection
+                    // Apply a diminishing-returns bonus based on surplus optimal moves.
+                    float surplusRatio = Clamp01((solveResult.OptimalMoves - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
                     float candidateScore = _difficultyObjective.Score(candidateMetrics)
-                        + 0.25f * Clamp01((solveResult.OptimalMoves - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
+                        + 0.25f * (float)Math.Sqrt(surplusRatio);
 
                     // Keep best candidate
                     if (candidateScore > bestScore)
