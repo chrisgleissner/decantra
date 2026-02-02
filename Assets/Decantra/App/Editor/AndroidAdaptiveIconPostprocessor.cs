@@ -99,18 +99,45 @@ namespace Decantra.App.Editor
 
         private static Texture2D ResizeTexture(Texture2D source, int width, int height)
         {
-            RenderTexture rt = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
-            RenderTexture active = RenderTexture.active;
-            Graphics.Blit(source, rt);
-            RenderTexture.active = rt;
-
             Texture2D result = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            result.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+
+            Color[] srcPixels = source.GetPixels();
+            Color[] dstPixels = new Color[width * height];
+
+            float xRatio = width > 1
+                ? (source.width - 1f) / (width - 1f)
+                : 0f;
+            float yRatio = height > 1
+                ? (source.height - 1f) / (height - 1f)
+                : 0f;
+
+            for (int y = 0; y < height; y++)
+            {
+                float gy = y * yRatio;
+                int y0 = Mathf.Clamp((int)gy, 0, source.height - 1);
+                int y1 = Mathf.Min(y0 + 1, source.height - 1);
+                float fy = gy - y0;
+
+                for (int x = 0; x < width; x++)
+                {
+                    float gx = x * xRatio;
+                    int x0 = Mathf.Clamp((int)gx, 0, source.width - 1);
+                    int x1 = Mathf.Min(x0 + 1, source.width - 1);
+                    float fx = gx - x0;
+
+                    Color c00 = srcPixels[y0 * source.width + x0];
+                    Color c10 = srcPixels[y0 * source.width + x1];
+                    Color c01 = srcPixels[y1 * source.width + x0];
+                    Color c11 = srcPixels[y1 * source.width + x1];
+
+                    Color c0 = Color.Lerp(c00, c10, fx);
+                    Color c1 = Color.Lerp(c01, c11, fx);
+                    dstPixels[y * width + x] = Color.Lerp(c0, c1, fy);
+                }
+            }
+
+            result.SetPixels(dstPixels);
             result.Apply();
-
-            RenderTexture.active = active;
-            RenderTexture.ReleaseTemporary(rt);
-
             return result;
         }
     }
