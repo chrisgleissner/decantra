@@ -236,10 +236,7 @@ namespace Decantra.Domain.Solver
                 int cmp = x.F.CompareTo(y.F);
                 if (cmp != 0) return cmp;
 
-                // Tie-breaker: Prefer HIGHER Depth (g) -> This makes it DFS-like for equal costs, 
-                // deeper nodes are processed first. This helps finding deeper solutions faster than pure BFS.
-                // Or prefer LOWER H? Same thing basically since F=G+H.
-                // If F is same, Higher G => Lower H.
+                // Tie-breaker: prefer higher depth (DFS-like) to explore deeper solutions first when costs are equal.
                 return y.Depth.CompareTo(x.Depth);
             }
         }
