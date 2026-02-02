@@ -27,8 +27,8 @@ namespace Decantra.Domain.Generation
         public float AverageBranchingFactor { get; }
 
         /// <summary>
-        /// Number of steps from start until the first state with 2 or more legal moves.
-        /// Lower is better - indicates early decision points.
+        /// Maximum length of any forced-move streak along the optimal path.
+        /// Lower is better - indicates decisions occur more frequently.
         /// </summary>
         public int DecisionDepth { get; }
 

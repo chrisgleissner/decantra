@@ -33,7 +33,8 @@ namespace Decantra.Domain.Solver
             var state = CloneState(initial);
             int forcedMoveCount = 0;
             int totalLegalMoves = 0;
-            int decisionDepth = -1;
+            int maxForcedStreak = 0;
+            int currentForcedStreak = 0;
             int emptyBottlePours = 0;
             int stateCount = 0;
 
@@ -42,10 +43,12 @@ namespace Decantra.Domain.Solver
             if (initialLegalMoves == 1)
             {
                 forcedMoveCount++;
+                currentForcedStreak = 1;
+                maxForcedStreak = 1;
             }
-            else if (decisionDepth < 0 && initialLegalMoves >= 2)
+            else
             {
-                decisionDepth = 0;
+                currentForcedStreak = 0;
             }
             totalLegalMoves += initialLegalMoves;
             stateCount++;
@@ -73,26 +76,25 @@ namespace Decantra.Domain.Solver
                 if (legalMoves == 1)
                 {
                     forcedMoveCount++;
+                    currentForcedStreak++;
+                    if (currentForcedStreak > maxForcedStreak)
+                    {
+                        maxForcedStreak = currentForcedStreak;
+                    }
                 }
-                else if (decisionDepth < 0 && legalMoves >= 2)
+                else
                 {
-                    decisionDepth = i + 1;
+                    currentForcedStreak = 0;
                 }
                 totalLegalMoves += legalMoves;
                 stateCount++;
-            }
-
-            // If no decision point found, set to path length (all forced)
-            if (decisionDepth < 0)
-            {
-                decisionDepth = optimalPath.Count;
             }
 
             float forcedMoveRatio = stateCount > 0 ? (float)forcedMoveCount / stateCount : 1f;
             float avgBranchingFactor = stateCount > 0 ? (float)totalLegalMoves / stateCount : 1f;
             float emptyBottleUsageRatio = optimalPath.Count > 0 ? (float)emptyBottlePours / optimalPath.Count : 0f;
 
-            return new PathMetrics(forcedMoveRatio, avgBranchingFactor, decisionDepth, emptyBottleUsageRatio, optimalPath.Count);
+            return new PathMetrics(forcedMoveRatio, avgBranchingFactor, maxForcedStreak, emptyBottleUsageRatio, optimalPath.Count);
         }
 
         /// <summary>

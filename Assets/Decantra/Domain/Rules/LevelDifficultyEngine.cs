@@ -19,6 +19,23 @@ namespace Decantra.Domain.Rules
             var band = ResolveBand(levelIndex);
             int colorCount = ResolveColorCount(levelIndex);
             int emptyCount = ResolveEmptyCount(levelIndex);
+
+            // Invariant: Max 9 Bottles
+            if (colorCount + emptyCount > 9)
+            {
+                // Prioritize preserving color count for real difficulty; reduce empties first.
+                int overflow = colorCount + emptyCount - 9;
+                int reducibleEmpty = Math.Max(0, emptyCount - 1);
+                int emptyReduction = Math.Min(overflow, reducibleEmpty);
+                emptyCount -= emptyReduction;
+                overflow -= emptyReduction;
+
+                if (overflow > 0)
+                {
+                    colorCount = Math.Max(1, colorCount - overflow);
+                }
+            }
+
             int bottleCount = colorCount + emptyCount;
             int reverseMoves = ComputeReverseMoves(levelIndex, band, colorCount, emptyCount, bottleCount);
             var themeId = ResolveThemeId(band, levelIndex);
@@ -40,7 +57,14 @@ namespace Decantra.Domain.Rules
         {
             int count = 3 + (levelIndex - 1) / 3;
             if (count < 3) count = 3;
-            if (count > 8) count = 8;
+            // Max color count is 8, but bottle count limit (9) overrides this if empty count is 2.
+            // This is handled in GetProfile via clamping.
+            // However, to keep this method clean, let's just cap at 8 here (assuming min 1 empty bottle).
+            // 8 color + 1 empty = 9 bottles.
+            // 7 color + 2 empty = 9 bottles.
+            // For levels >= 18, we maintain 2 empty bottles to support Sinks, so max colors is 7.
+            int maxColors = (levelIndex >= 18) ? 7 : 8;
+            if (count > maxColors) count = maxColors;
             return count;
         }
 
@@ -71,6 +95,12 @@ namespace Decantra.Domain.Rules
             int levelBoost = levelIndex / 3;
             int bandBoost = ((int)band) * 2;
             int result = baseMoves + levelBoost + bandBoost;
+
+            // Boost scramble depth for Sink levels (>=18) which have 2 empty bottles
+            if (levelIndex >= 18)
+            {
+                result += 20;
+            }
 
             if (result < 8) result = 8;
             if (result > 60) result = 60;
@@ -116,8 +146,8 @@ namespace Decantra.Domain.Rules
             int levelScore = levelIndex * 25;
             int colorScore = colorCount * 70;
             int bottleScore = bottleCount * 30;
-            int emptyPenalty = (3 - emptyCount) * 40;
-            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyPenalty);
+            int emptyScore = emptyCount * 50;
+            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyScore);
         }
     }
 }

@@ -146,7 +146,7 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void Generate_IncludesSinkBottle_ByLevel24()
+        public void Generate_IncludesSinkBottle_WhenProfileAllows()
         {
             var solver = new BfsSolver();
             var generator = new LevelGenerator(solver);
@@ -164,7 +164,15 @@ namespace Decantra.Tests.EditMode
                 }
             }
 
-            Assert.IsTrue(hasSink, "Expected at least one sink bottle by level 24.");
+            bool expectedSink = profile.LevelIndex >= 18 && profile.EmptyBottleCount >= 2;
+            if (expectedSink)
+            {
+                Assert.IsTrue(hasSink, "Expected at least one sink bottle when profile allows it.");
+            }
+            else
+            {
+                Assert.IsFalse(hasSink, "Did not expect sink bottle when profile has fewer than two empties.");
+            }
         }
 
         [Test]

@@ -129,9 +129,9 @@ public class Program
     private static int BulkGenerate(int count)
     {
         Console.WriteLine($"Bulk generating solutions for levels 1 to {count} using {Environment.ProcessorCount} cores...");
-        Console.WriteLine("TWO-STAGE DIFFICULTY SYSTEM ENABLED:");
-        Console.WriteLine("  Stage 1: Raw complexity from solver metrics (no level number)");
-        Console.WriteLine("  Stage 2: Monotonic difficulty mapping via sorting");
+        Console.WriteLine("INTRINSIC DIFFICULTY REPORTING ENABLED:");
+        Console.WriteLine("  Raw complexity from solver metrics (no level number)");
+        Console.WriteLine("  Difficulty reported is intrinsic (no monotonic mapping)");
 
         // Pre-calculate seeds sequentially
         var seeds = new int[count + 1];
@@ -179,13 +179,15 @@ public class Program
                     var metrics = report?.Metrics ?? LevelMetrics.Empty;
                     var moves = string.Join(",", solveResult.Path.Select(m => $"{m.Source + 1}{m.Target + 1}"));
 
-                    // Stage 1: Compute raw complexity (no level number)
+                    // Compute raw complexity (no level number)
                     double rawComplexity = ComplexityScorer.ComputeRawComplexity(metrics, solveResult.OptimalMoves);
+                    int intrinsicDifficulty = DifficultyScorer.ComputeDifficulty100(metrics, solveResult.OptimalMoves);
 
                     results[l] = new LevelResult
                     {
                         Level = l,
                         RawComplexity = rawComplexity,
+                        Difficulty = intrinsicDifficulty,
                         Optimal = solveResult.OptimalMoves,
                         Forced = metrics.ForcedMoveRatio,
                         Branch = metrics.AverageBranchingFactor,
@@ -224,21 +226,14 @@ public class Program
             }
         });
 
-        Console.WriteLine("\n=== STAGE 1 COMPLETE: Raw Complexity Computed ===");
+        Console.WriteLine("\n=== RAW COMPLEXITY COMPUTED ===");
 
-        // Stage 2: Map raw complexity to monotonic difficulty
-        var complexityData = new List<LevelComplexityData>();
         var rawScores = new List<double>();
 
         for (int l = 1; l <= count; l++)
         {
             if (results.TryGetValue(l, out var result) && !result.IsError)
             {
-                complexityData.Add(new LevelComplexityData
-                {
-                    LevelIndex = l,
-                    RawComplexity = result.RawComplexity
-                });
                 rawScores.Add(result.RawComplexity);
             }
         }
@@ -291,19 +286,7 @@ public class Program
             Console.WriteLine("PASS: Raw complexity is independent of level number");
         }
 
-        // Map to difficulty
-        var difficulties = MonotonicDifficultyMapper.MapToDifficulty(complexityData);
-
-        // Assign difficulties back to results
-        foreach (var kv in difficulties)
-        {
-            if (results.TryGetValue(kv.Key, out var result))
-            {
-                result.Difficulty = kv.Value;
-            }
-        }
-
-        Console.WriteLine("\n=== STAGE 2 COMPLETE: Monotonic Difficulty Mapped ===");
+        Console.WriteLine("\n=== INTRINSIC DIFFICULTY READY ===");
 
         // Write output file in new format
         var lines = new List<string>();
@@ -327,8 +310,16 @@ public class Program
         File.WriteAllLines("solver-solutions-debug.txt", lines);
         Console.WriteLine("Refreshed solver-solutions-debug.txt");
 
-        // Validate monotonicity and linearity
-        return ValidateProgression(difficulties, count);
+        // Validate monotonicity and linearity (diagnostic only; uses intrinsic difficulty)
+        var intrinsicDifficulties = new Dictionary<int, int>();
+        for (int l = 1; l <= count; l++)
+        {
+            if (results.TryGetValue(l, out var result) && !result.IsError)
+            {
+                intrinsicDifficulties[l] = result.Difficulty;
+            }
+        }
+        return ValidateProgression(intrinsicDifficulties, count, requireLinear: false);
     }
 
     private static double ComputeCorrelation(double[] scores)
@@ -359,7 +350,7 @@ public class Program
         return numerator / denominator;
     }
 
-    private static int ValidateProgression(Dictionary<int, int> difficulties, int count)
+    private static int ValidateProgression(Dictionary<int, int> difficulties, int count, bool requireLinear = true)
     {
         Console.WriteLine("\n=== MONOTONICITY VALIDATION ===");
         var monotonicResult = MonotonicDifficultyMapper.ValidateMonotonicity(difficulties);
@@ -378,19 +369,23 @@ public class Program
             }
         }
 
-        Console.WriteLine("\n=== LINEARITY VALIDATION ===");
-        var linearityResult = MonotonicDifficultyMapper.ValidateLinearity(difficulties);
-
-        Console.WriteLine(linearityResult.Message);
-        if (!linearityResult.IsValid || linearityResult.Warnings.Count > 0)
+        LinearityValidation linearityResult = null;
+        if (requireLinear)
         {
-            foreach (var warning in linearityResult.Warnings.Take(5))
+            Console.WriteLine("\n=== LINEARITY VALIDATION ===");
+            linearityResult = MonotonicDifficultyMapper.ValidateLinearity(difficulties);
+
+            Console.WriteLine(linearityResult.Message);
+            if (!linearityResult.IsValid || linearityResult.Warnings.Count > 0)
             {
-                Console.WriteLine($"  {warning}");
-            }
-            if (linearityResult.Warnings.Count > 5)
-            {
-                Console.WriteLine($"  ... and {linearityResult.Warnings.Count - 5} more warnings");
+                foreach (var warning in linearityResult.Warnings.Take(5))
+                {
+                    Console.WriteLine($"  {warning}");
+                }
+                if (linearityResult.Warnings.Count > 5)
+                {
+                    Console.WriteLine($"  ... and {linearityResult.Warnings.Count - 5} more warnings");
+                }
             }
         }
 
@@ -422,7 +417,7 @@ public class Program
         }
 
         Console.WriteLine("\n=== FINAL VERDICT ===");
-        bool allPass = monotonicResult.IsValid && linearityResult.IsValid;
+        bool allPass = monotonicResult.IsValid && (!requireLinear || (linearityResult != null && linearityResult.IsValid));
 
         if (allPass)
         {
@@ -434,7 +429,7 @@ public class Program
             Console.WriteLine("FAIL: Validation checks failed.");
             if (!monotonicResult.IsValid)
                 Console.WriteLine($"  Monotonicity: {monotonicResult.Violations.Count} violations");
-            if (!linearityResult.IsValid)
+            if (requireLinear && linearityResult != null && !linearityResult.IsValid)
                 Console.WriteLine($"  Linearity: {linearityResult.Warnings.Count} issues");
             return 1;
         }
@@ -444,7 +439,7 @@ public class Program
     {
         public int Level;
         public double RawComplexity;  // Stage 1 raw score
-        public int Difficulty;        // Stage 2 mapped difficulty (1-100)
+        public int Difficulty;        // Intrinsic difficulty (1-100)
         public int Optimal;
         public float Forced;
         public float Branch;

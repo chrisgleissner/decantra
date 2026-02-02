@@ -49,7 +49,7 @@ namespace Decantra.Domain.Generation
             // Trap score: already 0-1
             float trapScore = Clamp01(metrics.TrapScore);
 
-            // Decision depth: lower is better, normalize (typical range 0-10)
+            // Forced-move streak length: lower is better, normalize (typical range 0-10)
             float decisionScore = Clamp01(1f - metrics.DecisionDepth / 10f);
 
             // Multiplicity: more is better, normalize (typical range 1-5)

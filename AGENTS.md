@@ -2,6 +2,21 @@
 
 Concise guide for agents working on Decantra. Use these sources of truth: [PLANS.md](PLANS.md)
 
+## Game Rules & Invariants (NON-NEGOTIABLE)
+
+1.  **Grid Layout**: Levels are strictly 3x3 grids of bottles.
+2.  **Bottle Limit**: Maximum **9 bottles** per level. No exceptions.
+3.  **Completion**:
+    *   A level is solved when all non-empty bottles are **monochrome** (single color).
+    *   **AND** no legal move exists that reduces the total bottle count for any color (irreducible).
+4.  **Moves**:
+    *   Pour Source -> Target if:
+        *   Source is not Empty.
+        *   Target is Empty OR Target top color matches Source top color.
+        *   Target has space.
+    *   Sinks cannot be Sources.
+5.  **Determinism**: All level generation must be fully deterministic based on Level Index and Seed.
+
 ## Facts (verify before changes)
 
 - Unity Editor version: [ProjectSettings/ProjectVersion.txt](ProjectSettings/ProjectVersion.txt)

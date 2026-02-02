@@ -196,7 +196,7 @@ namespace Decantra.Tests.PlayMode
 
             var state = new LevelState(new[]
             {
-                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, null, null }),
+                new Bottle(new ColorId?[] { ColorId.Red, ColorId.Blue, ColorId.Red, null }),
                 new Bottle(new ColorId?[4])
             }, 0, 0, 1, 3, 555);
 

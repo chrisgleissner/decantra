@@ -48,6 +48,7 @@ namespace Decantra.Domain.Generation
             LevelState bestCandidate = null;
             LevelMetrics bestMetrics = null;
             float bestScore = float.MinValue;
+            int bestDifficulty100 = 1;
             string lastFailure = null;
             int optimal = -1;
             int movesAllowed = 0;
@@ -57,7 +58,6 @@ namespace Decantra.Domain.Generation
             int attemptsUsed = 0;
             bool qualityGatesApplied = true;
 
-            var thresholds = QualityThresholds.ForBand(profile.Band);
             const int minOptimalMoves = 2;
             const int maxAttempts = 25;
             const int candidatesPerAttempt = 3; // Hill-climb: generate multiple candidates per attempt
@@ -72,6 +72,10 @@ namespace Decantra.Domain.Generation
                 {
                     qualityGatesApplied = false;
                 }
+                var thresholds = relaxedMode
+                    ? QualityThresholds.ForBand(profile.Band).Relaxed()
+                    : QualityThresholds.ForBand(profile.Band);
+                int minOptimalForAttempt = ComputeMinOptimalMoves(profile, relaxedMode);
 
                 // Generate multiple scramble candidates and pick the best
                 for (int candidateIdx = 0; candidateIdx < candidatesPerAttempt; candidateIdx++)
@@ -154,6 +158,11 @@ namespace Decantra.Domain.Generation
                         if (solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
                         {
                             int estimatedOptimal = (int)(appliedMoves * 0.7f);
+                            if (estimatedOptimal < minOptimalForAttempt)
+                            {
+                                lastFailure = "min_optimal_est";
+                                continue;
+                            }
                             int estMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, estimatedOptimal));
 
                             // For timeout cases, use estimated metrics
@@ -162,12 +171,14 @@ namespace Decantra.Domain.Generation
                                 CountDistinctSignatures(attemptState.Bottles),
                                 CountTopColorVariety(attemptState.Bottles));
 
-                            float timeoutScore = _difficultyObjective.Score(timeoutMetrics);
+                            float timeoutScore = _difficultyObjective.Score(timeoutMetrics)
+                                + 0.25f * Clamp01((estimatedOptimal - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
 
                             if (timeoutScore > bestScore)
                             {
                                 bestScore = timeoutScore;
                                 bestMetrics = timeoutMetrics;
+                                bestDifficulty100 = DifficultyScorer.ComputeDifficulty100(timeoutMetrics, estimatedOptimal);
                                 bestCandidate = new LevelState(attemptState.Bottles, 0, estMovesAllowed, estimatedOptimal, profile.LevelIndex, seed, appliedMoves);
                                 optimal = estimatedOptimal;
                                 movesAllowed = estMovesAllowed;
@@ -184,6 +195,11 @@ namespace Decantra.Domain.Generation
                     if (solveResult.OptimalMoves < minOptimalMoves)
                     {
                         lastFailure = "min_optimal";
+                        continue;
+                    }
+                    if (solveResult.OptimalMoves < minOptimalForAttempt)
+                    {
+                        lastFailure = "min_optimal_floor";
                         continue;
                     }
 
@@ -229,13 +245,15 @@ namespace Decantra.Domain.Generation
                     }
 
                     // Compute difficulty score for hill-climb selection
-                    float candidateScore = _difficultyObjective.Score(candidateMetrics);
+                    float candidateScore = _difficultyObjective.Score(candidateMetrics)
+                        + 0.25f * Clamp01((solveResult.OptimalMoves - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
 
                     // Keep best candidate
                     if (candidateScore > bestScore)
                     {
                         bestScore = candidateScore;
                         bestMetrics = candidateMetrics;
+                        bestDifficulty100 = DifficultyScorer.ComputeDifficulty100(candidateMetrics, solveResult.OptimalMoves);
                         int candidateMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, solveResult.OptimalMoves));
                         bestCandidate = new LevelState(attemptState.Bottles, 0, candidateMovesAllowed, solveResult.OptimalMoves, profile.LevelIndex, seed, appliedMoves);
                         optimal = solveResult.OptimalMoves;
@@ -274,7 +292,7 @@ namespace Decantra.Domain.Generation
                 solveMs,
                 metricsMs,
                 bestScore,
-                1, // difficulty100 placeholder
+                bestDifficulty100,
                 qualityGatesApplied,
                 lastFailure);
 
@@ -646,6 +664,51 @@ namespace Decantra.Domain.Generation
             return false;
         }
 
+        private static int ComputeMinOptimalMoves(DifficultyProfile profile, bool relaxedMode)
+        {
+            float factor;
+            switch (profile.Band)
+            {
+                case LevelBand.A:
+                    factor = 0.10f;
+                    break;
+                case LevelBand.B:
+                    factor = 0.12f;
+                    break;
+                case LevelBand.C:
+                    factor = 0.14f;
+                    break;
+                case LevelBand.D:
+                    factor = 0.16f;
+                    break;
+                case LevelBand.E:
+                default:
+                    factor = 0.18f;
+                    break;
+            }
+
+            // High empty bottle count reduces the effective difficulty per scramble move.
+            // Adjust expectation downwards to avoid rejection loops for Sink levels.
+            if (profile.EmptyBottleCount >= 2)
+            {
+                factor *= 0.4f;
+            }
+
+            int baseMin = Math.Max(3, (int)Math.Round(profile.ReverseMoves * factor));
+            if (relaxedMode)
+            {
+                baseMin = Math.Max(2, baseMin - 2);
+            }
+            return baseMin;
+        }
+
+        private static float Clamp01(float value)
+        {
+            if (value < 0f) return 0f;
+            if (value > 1f) return 1f;
+            return value;
+        }
+
         private static bool IsStructurallyComplex(IReadOnlyList<Bottle> bottles, int levelIndex, int colorCount, int emptyCount)
         {
             if (bottles == null || bottles.Count == 0) return false;
@@ -820,12 +883,13 @@ namespace Decantra.Domain.Generation
             if (emptyCount <= 0) return 0;
             if (levelIndex < 6) return 0;
             if (levelIndex < 12) return Math.Min(1, emptyCount);
-            return emptyCount;
+            if (emptyCount <= 1) return emptyCount;
+            return Math.Max(1, emptyCount - 1);
         }
 
         private static int ResolveSinkCount(int levelIndex, int emptyCount)
         {
-            if (emptyCount <= 0) return 0;
+            if (emptyCount < 2) return 0;
             return levelIndex >= 18 ? 1 : 0;
         }
 

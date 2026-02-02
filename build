@@ -15,6 +15,7 @@ RUN_INSTALL=false
 BUILD_VARIANT="debug"
 CAPTURE_SCREENSHOTS=false
 SCREENSHOTS_ONLY=false
+GENERATE_SOLUTIONS=false
 
 DEVICE_ID=""
 APK_PATH=""
@@ -38,6 +39,7 @@ Options:
   --release            Build the release APK
   --screenshots        Capture Play Store screenshots after build
   --screenshots-only   Capture screenshots only (skip tests/build/install)
+  --generate-solutions Regenerate solver-solutions-debug.txt (requires dotnet)
   -h, --help           Show this help message
 
 Examples:
@@ -48,6 +50,7 @@ Examples:
   ./build --install --device <id> Build and install to a specific device
   ./build --screenshots           Build + capture Play Store screenshots
   ./build --screenshots-only      Capture screenshots from an existing APK
+  ./build --generate-solutions    Regenerate solver solutions file
 EOF
 }
 
@@ -540,6 +543,10 @@ while [[ $# -gt 0 ]]; do
       RUN_INSTALL=false
       shift
       ;;
+    --generate-solutions)
+      GENERATE_SOLUTIONS=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -570,6 +577,15 @@ if [[ "${RUN_TESTS}" == "true" || "${RUN_BUILD}" == "true" ]]; then
   if [[ "${RUN_BUILD}" == "true" ]]; then
     ensure_android_toolchain "${UNITY_PATH_FOUND}"
   fi
+fi
+
+if [[ "${GENERATE_SOLUTIONS}" == "true" ]]; then
+  log "Generating solver solutions"
+  if ! have_cmd dotnet; then
+    echo "dotnet not found in PATH" >&2
+    exit 1
+  fi
+  dotnet run --project "${ROOT_DIR}/Reproduction/Reproduction.csproj" -- bulk 1000 > "${ROOT_DIR}/solver-solutions-debug.txt" || true
 fi
 
 if [[ "${RUN_TESTS}" == "true" ]]; then
