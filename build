@@ -586,6 +586,30 @@ if [[ "${GENERATE_SOLUTIONS}" == "true" ]]; then
     exit 1
   fi
   dotnet run --project "${ROOT_DIR}/Reproduction/Reproduction.csproj" -- bulk 1000 > "${ROOT_DIR}/solver-solutions-debug.txt" || true
+  
+  # Run validation gates on generated solutions
+  log "Running solution validation gates"
+  
+  if [[ -x "${ROOT_DIR}/tools/monotonicity_gate.sh" ]]; then
+    "${ROOT_DIR}/tools/monotonicity_gate.sh" || {
+      echo "Monotonicity gate failed" >&2
+      exit 1
+    }
+  fi
+  
+  if [[ -x "${ROOT_DIR}/tools/solvability_gate.sh" ]]; then
+    "${ROOT_DIR}/tools/solvability_gate.sh" || {
+      echo "Solvability gate failed" >&2
+      exit 1
+    }
+  fi
+  
+  if [[ -x "${ROOT_DIR}/tools/diversity_gate.sh" ]]; then
+    "${ROOT_DIR}/tools/diversity_gate.sh" || {
+      echo "Diversity gate failed" >&2
+      exit 1
+    }
+  fi
 fi
 
 if [[ "${RUN_TESTS}" == "true" ]]; then

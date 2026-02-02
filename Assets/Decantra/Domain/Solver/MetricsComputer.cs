@@ -101,23 +101,28 @@ namespace Decantra.Domain.Solver
         /// Estimates solution multiplicity by checking for alternative optimal or near-optimal paths.
         /// Returns 1 if only one solution exists, higher if multiple paths found.
         /// </summary>
-        public static int EstimateSolutionMultiplicity(LevelState initial, int optimalLength, int maxSolutions = 3, int nearOptimalMargin = 1)
+        public static int EstimateSolutionMultiplicity(LevelState initial, int optimalLength, int maxSolutions = 3, int nearOptimalMargin = 1, int maxVisited = 5000, int maxMillis = 50)
         {
             if (initial == null) return 1;
             if (optimalLength <= 0) return 1;
 
             // Use BFS to count distinct optimal solutions (up to maxSolutions)
-            var visited = new HashSet<string>();
+            var visited = new HashSet<StateKey>();
             var queue = new Queue<(LevelState state, int depth, string prefix)>();
             int solutionCount = 0;
             int targetLength = optimalLength + nearOptimalMargin;
+            int visitedCount = 0;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var startKey = StateEncoder.EncodeCanonical(initial);
+            var startKey = StateEncoder.EncodeCanonicalKey(initial);
             visited.Add(startKey);
             queue.Enqueue((CloneState(initial), 0, ""));
 
             while (queue.Count > 0 && solutionCount < maxSolutions)
             {
+                if (visitedCount >= maxVisited || stopwatch.ElapsedMilliseconds > maxMillis)
+                    break;
+
                 var (state, depth, prefix) = queue.Dequeue();
 
                 if (depth > targetLength)
@@ -141,9 +146,10 @@ namespace Decantra.Domain.Solver
                     if (!next.TryApplyMove(move.Source, move.Target, out _))
                         continue;
 
-                    var key = StateEncoder.EncodeCanonical(next);
+                    var key = StateEncoder.EncodeCanonicalKey(next);
                     if (visited.Add(key))
                     {
+                        visitedCount++;
                         var moveKey = $"{prefix}|{move.Source}-{move.Target}";
                         queue.Enqueue((next, depth + 1, moveKey));
                     }
