@@ -220,10 +220,8 @@ namespace Decantra.Tests.EditMode
 
             for (int i = 1; i <= 100; i++)
             {
-                if (i <= 20)
-                    difficulties[i] = 10; // Long plateau
-                else
-                    difficulties[i] = 10 + (i - 20); // Then linear
+                // Long plateau for first 20 levels, then linear increase
+                difficulties[i] = i <= 20 ? 10 : 10 + (i - 20);
             }
 
             var result = MonotonicDifficultyMapper.ValidateLinearity(difficulties);

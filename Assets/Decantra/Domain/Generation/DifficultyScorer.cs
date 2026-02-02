@@ -11,25 +11,28 @@ using System;
 namespace Decantra.Domain.Generation
 {
     /// <summary>
-    /// Computes objective difficulty scores (1..100) for generated levels.
+    /// Computes objective intrinsic difficulty scores (1..100) for generated levels.
     /// 
-    /// Design principles:
-    /// - Difficulty increases LINEARLY from 1 at level 1 to 100 at level 1000
-    /// - Maximum difficulty (100) requires: ≥15 optimal moves AND high trap score
-    /// - The floor/ceiling system enforces strict monotonic progression
+    /// This class implements Stage 1 of a two-stage difficulty system:
+    /// - Stage 1 (DifficultyScorer): computes an intrinsic complexity score from metrics only,
+    ///   independent of level index or campaign progression.
+    /// - Stage 2 (MonotonicDifficultyMapper): maps intrinsic scores to a strictly monotonic
+    ///   difficulty curve over level indices (e.g., 1..1000) and enforces any floors/ceilings.
+    /// 
+    /// Note: The constants below are currently not enforced in computation but reserved for future use.
     /// </summary>
     public static class DifficultyScorer
     {
         /// <summary>
-        /// Minimum optimal moves required for maximum difficulty (100).
-        /// Levels with fewer moves are capped below 100.
+        /// Minimum optimal moves for maximum difficulty (100).
+        /// Reserved for future use - currently not enforced in ComputeDifficulty100.
         /// Set to 6 to allow most late-level puzzles to qualify.
         /// </summary>
         public const int MinOptimalMovesForMaxDifficulty = 6;
 
         /// <summary>
-        /// Minimum trap score required for maximum difficulty (100).
-        /// Levels with lower trap scores are capped below 100.
+        /// Minimum trap score for maximum difficulty (100).
+        /// Reserved for future use - currently not enforced in ComputeDifficulty100.
         /// </summary>
         public const float MinTrapScoreForMaxDifficulty = 0.8f;
 

@@ -103,7 +103,6 @@ namespace Decantra.Domain.Generation
             for (int i = 1; i < sorted.Count; i++)
             {
                 int level = sorted[i].Key;
-                int prevLevel = sorted[i - 1].Key;
                 int difficulty = sorted[i].Value;
                 int prevDifficulty = sorted[i - 1].Value;
 
@@ -117,14 +116,9 @@ namespace Decantra.Domain.Generation
                 }
             }
 
-            if (!validation.IsValid)
-            {
-                validation.Message = $"Monotonicity violated at {validation.Violations.Count} levels";
-            }
-            else
-            {
-                validation.Message = "Difficulty is monotonic";
-            }
+            validation.Message = !validation.IsValid
+                ? $"Monotonicity violated at {validation.Violations.Count} levels"
+                : "Difficulty is monotonic";
 
             return validation;
         }
@@ -200,14 +194,9 @@ namespace Decantra.Domain.Generation
                 validation.Warnings.Add($"Insufficient range: {minDiff}-{maxDiff} (expected ~1-100)");
             }
 
-            if (validation.Warnings.Count > 0)
-            {
-                validation.Message = $"Linearity issues detected: {validation.Warnings.Count} warnings";
-            }
-            else
-            {
-                validation.Message = "Difficulty progression is linear";
-            }
+            validation.Message = validation.Warnings.Count > 0
+                ? $"Linearity issues detected: {validation.Warnings.Count} warnings"
+                : "Difficulty progression is linear";
 
             return validation;
         }
@@ -220,7 +209,15 @@ namespace Decantra.Domain.Generation
     {
         public int LevelIndex { get; set; }
         public double RawComplexity { get; set; }
+        
+        // Reserved for future use: will hold detailed solver-derived metrics
+        // for advanced difficulty analysis and tuning. Currently unused in the
+        // monotonic difficulty mapping logic but kept for planned extensions.
         public LevelMetrics Metrics { get; set; }
+        
+        // Reserved for future use: intended to store the optimal move count
+        // from the solver for richer difficulty evaluation. Not yet used by
+        // the current difficulty mapper.
         public int OptimalMoves { get; set; }
     }
 

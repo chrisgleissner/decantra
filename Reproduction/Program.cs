@@ -12,12 +12,6 @@ using Decantra.Domain.Solver;
 
 public class Program
 {
-    // Monotonic validation parameters
-    private const int MonotonicTolerance = 1; // Allow difficulty[i] >= difficulty[i-1] - T
-    private const int PlateauWindowSize = 100; // Window size for checking progression
-    private const int MinWindowIncrease = 5;   // Minimum increase over window (linear check)
-    private const int MaxDeviationFromLinear = 8; // Maximum deviation from linear target
-
     public static int Main(string[] args)
     {
         if (args.Length == 0)
@@ -252,6 +246,13 @@ public class Program
         // Validate variance
         Console.WriteLine("\n=== VARIANCE VALIDATION ===");
 
+        // Check if we have any valid results
+        if (rawScores.Count == 0)
+        {
+            Console.WriteLine("FAIL: No valid levels generated");
+            return 1;
+        }
+
         // Compute statistics for diagnosis
         double[] scores = rawScores.ToArray();
         double mean = scores.Average();
@@ -319,7 +320,7 @@ public class Program
             }
             else
             {
-                lines.Add($"level={l}, difficulty=0, forest=0, branch=0.00, decision=0, trap=0.00, multi=0, moves=SKIPPED");
+                lines.Add($"level={l}, difficulty=0, optimal=0, branch=0.00, decision=0, trap=0.00, multi=0, moves=SKIPPED");
             }
         }
 
@@ -458,13 +459,13 @@ public class Program
         {
             if (IsError)
             {
-                return $"level={Level}, difficulty=0, forest=0, branch=0.00, decision=0, trap=0.00, multi=0, moves={ErrorMessage}";
+                return $"level={Level}, difficulty=0, optimal=0, branch=0.00, decision=0, trap=0.00, multi=0, moves={ErrorMessage}";
             }
 
-            // New format: level, difficulty, forest (optimal), branch, decision, trap, multi, moves
+            // New format: level, difficulty, optimal, branch, decision, trap, multi, moves
             // Use invariant culture for decimal formatting (dot separator)
             return string.Format(CultureInfo.InvariantCulture,
-                "level={0}, difficulty={1}, forest={2}, branch={3:F2}, decision={4}, trap={5:F2}, multi={6}, moves={7}",
+                "level={0}, difficulty={1}, optimal={2}, branch={3:F2}, decision={4}, trap={5:F2}, multi={6}, moves={7}",
                 Level, Difficulty, Optimal, Branch, Decision, Trap, Multi, Moves);
         }
     }
