@@ -91,15 +91,60 @@ to achieve >= 50% reduction in wall-clock time while preserving merge confidence
 
 ---
 
-## 5. Post-Change Measurement
+## 5. Theoretical Analysis (Pre-Verification)
 
-*To be filled after optimization runs complete*
+### Expected PR Build Time (Two-Tier CI)
 
-| Metric | Baseline | Improved | Change |
-|--------|----------|----------|--------|
-| PR build time | ~41m 18s | TBD | TBD |
-| Cache hit rate | Unknown | TBD | TBD |
-| Stale builds cancelled | N/A | TBD | TBD |
+| Job | Baseline | Expected (Tier 1) | Notes |
+|-----|----------|-------------------|-------|
+| check-license | 3s | 3s | Unchanged |
+| test | 5m 1s | 5m 1s | Unchanged (core functionality) |
+| build-android | 36m 8s | **SKIPPED** | Only runs on main/tags/manual |
+| **Total** | **~41m 18s** | **~5m 4s** | **87.7% reduction** |
+
+### Why This Achieves >= 50% Target
+
+1. **PR builds now skip Android packaging**: The 36-minute Android build job only
+   runs on `push` to `main`, tag pushes, releases, or manual `workflow_dispatch`.
+2. **Tests still run**: All EditMode and PlayMode tests execute on PRs, preserving
+   merge confidence.
+3. **Cache improvements**: Better cache keys with Unity version and package hashes
+   should improve hit rates when tests run.
+
+### Additional Optimizations Identified (Not Yet Implemented)
+
+| Optimization | Potential Savings | Risk | Notes |
+|--------------|------------------|------|-------|
+| Make Debug APK optional | ~14 min on Tier 2 | Low | Only needed for debugging |
+| IL2CPP cache | ~3-8 min on Tier 2 | Medium | Complex to implement correctly |
+| Matrix builds (parallel APK/AAB) | Unclear | High | May not share Library cache effectively |
+
+### Cache Key Strategy
+
+The cache key hierarchy ensures effective cache reuse:
+
+```
+# Primary key (exact match - rarely hits across commits)
+Library-{os}-{unity-version}-android-{packages-hash}-{sha}
+
+# Restore keys (prefix match - for fallback)
+Library-{os}-{unity-version}-android-{packages-hash}-  # Same packages
+Library-{os}-{unity-version}-android-                   # Same platform
+Library-{os}-{unity-version}-                           # Same Unity version
+```
+
+---
+
+## 6. Post-Change Measurement (Actual)
+
+*To be filled after CI throttling resolves and optimization runs complete*
+
+| Metric | Baseline | Expected | Actual | Notes |
+|--------|----------|----------|--------|-------|
+| PR build time | ~41m 18s | ~5m 4s | TBD | |
+| Cache hit rate | Unknown | Improved | TBD | |
+| Stale builds cancelled | N/A | Yes | TBD | |
+| Tier 2 (main) build time | 36m 8s | ~36m 8s | TBD | May improve with cache |
 
 ---
 
