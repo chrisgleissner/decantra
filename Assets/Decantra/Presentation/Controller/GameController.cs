@@ -780,7 +780,7 @@ namespace Decantra.Presentation.Controller
             if (levelPanelButton != null)
             {
                 levelPanelButton.onClick.RemoveAllListeners();
-                // Fix for Regression #6: Share immediately
+                // Ensure level panel click shares immediately
                 levelPanelButton.onClick.AddListener(ShareCurrentLevel);
             }
 
