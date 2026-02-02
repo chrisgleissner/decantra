@@ -454,7 +454,7 @@ namespace Decantra.Domain.Generation
             // If we reverse-pour a partial amount, the forward solution might require a partial pour 
             // which is not allowed by the game rules (MoveRules).
             // Therefore, always move the maximum possible amount to simulate a valid inverse move.
-            int amount = maxAmount; // Was: rng.Next(1, maxAmount + 1);
+            int amount = maxAmount;
             int emptyCount = CountEmpty(state.Bottles);
             bool targetWasEmpty = target.IsEmpty;
             bool sourceBecomesEmpty = source.Count == amount;
