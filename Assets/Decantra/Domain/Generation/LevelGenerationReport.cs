@@ -65,9 +65,15 @@ namespace Decantra.Domain.Generation
         public long MetricsTimeMs { get; }
 
         /// <summary>
-        /// Difficulty objective score for the generated level.
+        /// Difficulty objective score for the generated level (legacy float score).
         /// </summary>
         public float DifficultyScore { get; }
+
+        /// <summary>
+        /// Objective difficulty score (1..100) computed via DifficultyScorer.
+        /// This is the authoritative difficulty metric for progression enforcement.
+        /// </summary>
+        public int Difficulty100 { get; }
 
         /// <summary>
         /// Whether quality gates were applied (false = fallback/relaxed generation).
@@ -91,6 +97,7 @@ namespace Decantra.Domain.Generation
             long solverTimeMs,
             long metricsTimeMs,
             float difficultyScore,
+            int difficulty100,
             bool qualityGatesApplied,
             string lastRejectionReason)
         {
@@ -105,13 +112,14 @@ namespace Decantra.Domain.Generation
             SolverTimeMs = solverTimeMs;
             MetricsTimeMs = metricsTimeMs;
             DifficultyScore = difficultyScore;
+            Difficulty100 = difficulty100;
             QualityGatesApplied = qualityGatesApplied;
             LastRejectionReason = lastRejectionReason;
         }
 
         public override string ToString()
         {
-            return $"LevelGenerationReport[L{LevelIndex} seed={Seed} attempts={AttemptsUsed} optimal={OptimalMoves} allowed={MovesAllowed} score={DifficultyScore:F2} totalMs={GenerationTimeMs}]";
+            return $"LevelGenerationReport[L{LevelIndex} seed={Seed} attempts={AttemptsUsed} optimal={OptimalMoves} allowed={MovesAllowed} score={DifficultyScore:F2} difficulty100={Difficulty100} totalMs={GenerationTimeMs}]";
         }
     }
 }

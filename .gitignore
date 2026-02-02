@@ -63,6 +63,7 @@ Packages/packages-lock.json
 Temp/
 [Oo]bj/
 [Bb]uild/
+Reproduction/bin
 
 # Artifacts and build outputs
 Artifacts/
