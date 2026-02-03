@@ -101,9 +101,11 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void GeneratedLevels_AreDeterministic()
         {
-            var solver = new BfsSolver();
-            var generatorA = new LevelGenerator(solver);
-            var generatorB = new LevelGenerator(solver);
+            // Use separate solver instances to avoid cache pollution
+            var solverA = new BfsSolver();
+            var solverB = new BfsSolver();
+            var generatorA = new LevelGenerator(solverA);
+            var generatorB = new LevelGenerator(solverB);
 
             int[] levels = { 1, 10, 25 };
             int seed = 99999;
