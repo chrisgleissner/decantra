@@ -131,12 +131,12 @@ namespace Decantra.Presentation.Controller
 
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
-            new BackgroundPalette { Hue = 0.56f, Saturation = 0.28f, Value = 0.55f, DetailSaturation = 0.2f, DetailValue = 0.6f, FlowSaturation = 0.22f, FlowValue = 0.66f, FlowAlpha = 0.1f, ShapeSaturation = 0.18f, ShapeValue = 0.62f, ShapeAlpha = 0.08f, VignetteAlpha = 0.22f },
-            new BackgroundPalette { Hue = 0.33f, Saturation = 0.26f, Value = 0.52f, DetailSaturation = 0.18f, DetailValue = 0.58f, FlowSaturation = 0.2f, FlowValue = 0.64f, FlowAlpha = 0.11f, ShapeSaturation = 0.16f, ShapeValue = 0.6f, ShapeAlpha = 0.09f, VignetteAlpha = 0.24f },
-            new BackgroundPalette { Hue = 0.08f, Saturation = 0.24f, Value = 0.54f, DetailSaturation = 0.16f, DetailValue = 0.6f, FlowSaturation = 0.18f, FlowValue = 0.66f, FlowAlpha = 0.09f, ShapeSaturation = 0.14f, ShapeValue = 0.62f, ShapeAlpha = 0.08f, VignetteAlpha = 0.2f },
-            new BackgroundPalette { Hue = 0.72f, Saturation = 0.22f, Value = 0.56f, DetailSaturation = 0.16f, DetailValue = 0.62f, FlowSaturation = 0.18f, FlowValue = 0.68f, FlowAlpha = 0.1f, ShapeSaturation = 0.14f, ShapeValue = 0.64f, ShapeAlpha = 0.09f, VignetteAlpha = 0.23f },
-            new BackgroundPalette { Hue = 0.46f, Saturation = 0.26f, Value = 0.5f, DetailSaturation = 0.18f, DetailValue = 0.56f, FlowSaturation = 0.2f, FlowValue = 0.62f, FlowAlpha = 0.11f, ShapeSaturation = 0.16f, ShapeValue = 0.58f, ShapeAlpha = 0.1f, VignetteAlpha = 0.25f },
-            new BackgroundPalette { Hue = 0.62f, Saturation = 0.2f, Value = 0.58f, DetailSaturation = 0.15f, DetailValue = 0.64f, FlowSaturation = 0.18f, FlowValue = 0.7f, FlowAlpha = 0.1f, ShapeSaturation = 0.14f, ShapeValue = 0.66f, ShapeAlpha = 0.08f, VignetteAlpha = 0.21f }
+            new BackgroundPalette { Hue = 0.55f, Saturation = 0.65f, Value = 0.95f, DetailSaturation = 0.3f, DetailValue = 0.9f, FlowSaturation = 0.4f, FlowValue = 0.9f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.1f },
+            new BackgroundPalette { Hue = 0.33f, Saturation = 0.6f, Value = 0.9f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f },
+            new BackgroundPalette { Hue = 0.1f, Saturation = 0.65f, Value = 0.95f, DetailSaturation = 0.3f, DetailValue = 0.9f, FlowSaturation = 0.4f, FlowValue = 0.9f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f },
+            new BackgroundPalette { Hue = 0.8f, Saturation = 0.6f, Value = 0.92f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.2f },
+            new BackgroundPalette { Hue = 0.48f, Saturation = 0.65f, Value = 0.9f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f },
+            new BackgroundPalette { Hue = 0.95f, Saturation = 0.6f, Value = 0.95f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f }
         };
 
         private const float BackgroundFamilyTransitionSeconds = 0.75f;
@@ -1151,8 +1151,8 @@ namespace Decantra.Presentation.Controller
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-                Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
-                AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
+            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
+            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color}");
 #endif
         }
 

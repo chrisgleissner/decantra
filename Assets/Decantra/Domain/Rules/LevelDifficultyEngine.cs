@@ -13,11 +13,21 @@ namespace Decantra.Domain.Rules
     public static class LevelDifficultyEngine
     {
         /// <summary>
-        /// Maximum effective level for difficulty parameters.
+        /// Maximum effective level for generation parameters.
         /// All difficulty-driving parameters clamp at this level.
         /// Levels beyond this differ only by seed-based layout randomness.
         /// </summary>
         public const int MaxEffectiveLevel = 100;
+
+        /// <summary>
+        /// Linear difficulty is enforced through level 200.
+        /// </summary>
+        public const int LinearDifficultyMaxLevel = 200;
+
+        /// <summary>
+        /// Clamp value applied after LinearDifficultyMaxLevel.
+        /// </summary>
+        public const int DifficultyClampValue = 100;
 
         /// <summary>
         /// Returns the effective level index for difficulty calculations.
@@ -26,6 +36,22 @@ namespace Decantra.Domain.Rules
         public static int GetEffectiveLevel(int levelIndex)
         {
             return Math.Min(levelIndex, MaxEffectiveLevel);
+        }
+
+        /// <summary>
+        /// Returns the deterministic difficulty value for solver output.
+        /// Levels 1..200 map to their level index; levels 201+ clamp to 100.
+        /// </summary>
+        public static int GetDifficultyForLevel(int levelIndex)
+        {
+            if (levelIndex <= 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
+
+            if (levelIndex <= LinearDifficultyMaxLevel)
+            {
+                return levelIndex;
+            }
+
+            return DifficultyClampValue;
         }
 
         /// <summary>

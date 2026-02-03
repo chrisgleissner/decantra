@@ -36,7 +36,7 @@ namespace Decantra.Presentation
 
             if (messageText != null)
             {
-                messageText.text = "Are you sure? This will reset all progress.";
+                messageText.text = "This will start the game from Level 1 and permanently clear your progress and high score.";
             }
 
             canvasGroup.alpha = 1f;

@@ -47,7 +47,6 @@ namespace Decantra.Presentation
             {
                 EnsureRestartDialog(existingController);
                 WireResetButton(existingController);
-                WireRestartButton(existingController);
                 WireShareButton(existingController);
                 EnsureLevelJumpOverlay(existingController);
                 WireLevelJumpOverlay(existingController);
@@ -113,7 +112,6 @@ namespace Decantra.Presentation
 
             var restartDialog = CreateRestartDialog(canvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
-            WireRestartButton(controller);
             WireShareButton(controller);
             WireLevelJumpOverlay(controller);
 
@@ -310,6 +308,19 @@ namespace Decantra.Presentation
             SetPrivateField(bubblesDrift, "rotationAmplitude", 0.4f);
             SetPrivateField(bubblesDrift, "rotationSpeed", 0.012f);
 
+            var centerBlurGo = CreateUiChild(parent, "CenterBlur");
+            var centerBlurRect = centerBlurGo.GetComponent<RectTransform>();
+            centerBlurRect.anchorMin = new Vector2(0.5f, 0.5f);
+            centerBlurRect.anchorMax = new Vector2(0.5f, 0.5f);
+            centerBlurRect.pivot = new Vector2(0.5f, 0.5f);
+            centerBlurRect.sizeDelta = new Vector2(900, 1400);
+
+            var centerBlurImage = centerBlurGo.AddComponent<Image>();
+            centerBlurImage.sprite = GetSoftCircleSprite();
+            centerBlurImage.type = Image.Type.Simple;
+            centerBlurImage.color = new Color(1f, 1f, 1f, 0.45f);
+            centerBlurImage.raycastTarget = false;
+
             var vignetteGo = CreateUiChild(parent, "BackgroundVignette");
             var vignetteRect = vignetteGo.GetComponent<RectTransform>();
             vignetteRect.anchorMin = Vector2.zero;
@@ -329,7 +340,8 @@ namespace Decantra.Presentation
             shapesGo.transform.SetSiblingIndex(3);
             bubblesGo.transform.SetSiblingIndex(4);
             detailGo.transform.SetSiblingIndex(5);
-            vignetteGo.transform.SetSiblingIndex(6);
+            centerBlurGo.transform.SetSiblingIndex(6);
+            vignetteGo.transform.SetSiblingIndex(7);
 
             return new BackgroundLayers
             {
@@ -424,7 +436,6 @@ namespace Decantra.Presentation
             secondaryLayout.spacing = 32f;
 
             CreateResetButton(secondaryHud.transform);
-            CreateRestartButton(secondaryHud.transform);
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
@@ -446,8 +457,8 @@ namespace Decantra.Presentation
                 Object.Destroy(bottomImage);
             }
 
-            var maxLevelText = CreateBottomStatText(bottomHud.transform, "MaxLevelPanel", "MAX LEVEL");
-            var highScoreText = CreateBottomStatText(bottomHud.transform, "HighScorePanel", "HIGH SCORE");
+            var maxLevelText = CreateStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LEVEL", out _);
+            var highScoreText = CreateStatPanel(bottomHud.transform, "HighScorePanel", "HIGH SCORE", out _);
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -733,20 +744,6 @@ namespace Decantra.Presentation
             anchorCollarRect.anchoredPosition = new Vector2(0, -152);
             anchorCollarGo.SetActive(false);
 
-            var anchorShadowGo = CreateUiChild(bottleGo.transform, "AnchorShadow");
-            var anchorShadow = anchorShadowGo.AddComponent<Image>();
-            anchorShadow.sprite = softCircle;
-            anchorShadow.type = Image.Type.Simple;
-            anchorShadow.color = new Color(0f, 0f, 0f, 0.35f);
-            anchorShadow.raycastTarget = false;
-            var anchorShadowRect = anchorShadowGo.GetComponent<RectTransform>();
-            anchorShadowRect.anchorMin = new Vector2(0.5f, 0f);
-            anchorShadowRect.anchorMax = new Vector2(0.5f, 0f);
-            anchorShadowRect.pivot = new Vector2(0.5f, 0.5f);
-            anchorShadowRect.sizeDelta = new Vector2(170, 40);
-            anchorShadowRect.anchoredPosition = new Vector2(0, -186);
-            anchorShadowGo.SetActive(false);
-            anchorShadowGo.transform.SetAsFirstSibling();
             shadowGo.transform.SetAsFirstSibling();
 
             var stopperGo = CreateUiChild(bottleGo.transform, "Stopper");
@@ -779,7 +776,6 @@ namespace Decantra.Presentation
             SetPrivateField(bottleView, "baseAccent", basePlate);
             SetPrivateField(bottleView, "curvedHighlight", highlight);
             SetPrivateField(bottleView, "anchorCollar", anchorCollar);
-            SetPrivateField(bottleView, "anchorShadow", anchorShadow);
             SetPrivateField(bottleView, "normalShadow", shadow);
             SetPrivateField(bottleView, "liquidSurface", liquidSurface);
             SetPrivateField(bottleView, "liquidSprite", liquidSprite);
@@ -1013,7 +1009,7 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(760, 300);
+            panelRect.sizeDelta = new Vector2(800, 450);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
@@ -1021,18 +1017,36 @@ namespace Decantra.Presentation
             panelImage.color = new Color(1f, 1f, 1f, 0.18f);
             panelImage.raycastTarget = false;
 
+            var title = CreateHudText(panel.transform, "TitleText");
+            title.fontSize = 48;
+            title.text = "Start New Game?";
+            title.color = Color.white;
+            title.alignment = TextAnchor.UpperCenter;
+            var titleRect = title.GetComponent<RectTransform>();
+            titleRect.anchorMin = new Vector2(0, 1);
+            titleRect.anchorMax = new Vector2(1, 1);
+            titleRect.pivot = new Vector2(0.5f, 1);
+            titleRect.anchoredPosition = new Vector2(0, -40);
+            titleRect.sizeDelta = new Vector2(0, 80);
+
             var message = CreateHudText(panel.transform, "MessageText");
-            message.fontSize = 38;
-            message.text = "Are you sure? This will reset all progress.";
+            message.fontSize = 32;
+            message.text = "This will start the game from Level 1 and permanently clear your progress and high score.";
             message.color = new Color(1f, 0.95f, 0.7f, 1f);
+            var msgRect = message.GetComponent<RectTransform>();
+            msgRect.anchorMin = new Vector2(0.1f, 0.25f);
+            msgRect.anchorMax = new Vector2(0.9f, 0.75f);
+            msgRect.offsetMin = Vector2.zero;
+            msgRect.offsetMax = Vector2.zero;
+            message.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             var buttonsRoot = CreateUiChild(panel.transform, "Buttons");
             var buttonsRect = buttonsRoot.GetComponent<RectTransform>();
             buttonsRect.anchorMin = new Vector2(0.5f, 0f);
             buttonsRect.anchorMax = new Vector2(0.5f, 0f);
             buttonsRect.pivot = new Vector2(0.5f, 0f);
-            buttonsRect.anchoredPosition = new Vector2(0f, 20f);
-            buttonsRect.sizeDelta = new Vector2(600, 100);
+            buttonsRect.anchoredPosition = new Vector2(0f, 30f);
+            buttonsRect.sizeDelta = new Vector2(760, 100);
 
             var buttonsLayout = buttonsRoot.AddComponent<HorizontalLayoutGroup>();
             buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
@@ -1048,21 +1062,21 @@ namespace Decantra.Presentation
                 image.type = Image.Type.Sliced;
                 image.color = color;
                 var rectTransform = buttonGo.GetComponent<RectTransform>();
-                rectTransform.sizeDelta = new Vector2(220, 90);
+                rectTransform.sizeDelta = new Vector2(280, 90);
                 var element = buttonGo.AddComponent<LayoutElement>();
                 element.minWidth = 220;
                 element.minHeight = 90;
                 var button = buttonGo.AddComponent<Button>();
                 button.targetGraphic = image;
                 var text = CreateHudText(buttonGo.transform, "Label");
-                text.fontSize = 34;
+                text.fontSize = 30;
                 text.text = label;
                 text.color = Color.white;
                 return button;
             }
 
-            var cancelButton = CreateDialogButton("CancelButton", "CANCEL", new Color(1f, 1f, 1f, 0.25f));
-            var restartButton = CreateDialogButton("ConfirmRestartButton", "RESTART", new Color(1f, 0.5f, 0.4f, 0.72f));
+            var cancelButton = CreateDialogButton("CancelButton", "Cancel", new Color(1f, 1f, 1f, 0.25f));
+            var restartButton = CreateDialogButton("ConfirmRestartButton", "Start New Game", new Color(1f, 0.3f, 0.3f, 0.85f));
 
             var dialog = root.AddComponent<RestartGameDialog>();
             SetPrivateField(dialog, "panel", panelRect);
@@ -1074,58 +1088,7 @@ namespace Decantra.Presentation
             return dialog;
         }
 
-        private static Text CreateBottomStatText(Transform parent, string name, string label)
-        {
-            var panel = CreateUiChild(parent, name);
 
-            // Add dark glass treatment matching top HUD panels
-            var image = panel.AddComponent<Image>();
-            image.sprite = GetRoundedSprite();
-            image.type = Image.Type.Sliced;
-            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
-            image.raycastTarget = false;
-
-            var shadowGo = CreateUiChild(panel.transform, "Shadow");
-            var shadowImage = shadowGo.AddComponent<Image>();
-            shadowImage.sprite = GetRoundedSprite();
-            shadowImage.type = Image.Type.Sliced;
-            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
-            shadowImage.raycastTarget = false;
-            var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
-            shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(308, 148);
-            shadowRect.anchoredPosition = new Vector2(4f, -4f);
-            shadowGo.transform.SetAsFirstSibling();
-
-            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
-            var glassImage = glassGo.AddComponent<Image>();
-            glassImage.sprite = GetRoundedSprite();
-            glassImage.type = Image.Type.Sliced;
-            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
-            glassImage.raycastTarget = false;
-            var glassRect = glassGo.GetComponent<RectTransform>();
-            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
-            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
-            glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(292, 64);
-            glassRect.anchoredPosition = new Vector2(0f, 32f);
-
-            var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(300, 140);
-            var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 300;
-            element.minHeight = 140;
-            element.flexibleWidth = 1f;
-
-            var text = CreateHudText(panel.transform, "Value");
-            text.fontSize = 56;
-            text.text = label;
-            text.color = new Color(1f, 0.98f, 0.92f, 1f);
-            AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
-            return text;
-        }
 
         private static Text CreateStatPanel(Transform parent, string name, string label, out GameObject panel)
         {
@@ -1172,6 +1135,10 @@ namespace Decantra.Presentation
 
             var text = CreateHudText(panel.transform, "Value");
             text.fontSize = 56;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 20;
+            text.resizeTextMaxSize = 56;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
             text.text = label;
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
@@ -1278,9 +1245,9 @@ namespace Decantra.Presentation
             return button;
         }
 
-        private static Button CreateRestartButton(Transform parent)
+        private static Button CreateNewGameButton(Transform parent)
         {
-            var panel = CreateUiChild(parent, "RestartButton");
+            var panel = CreateUiChild(parent, "NewGameButton");
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
@@ -1324,7 +1291,7 @@ namespace Decantra.Presentation
 
             var text = CreateHudText(panel.transform, "Label");
             text.fontSize = 32;
-            text.text = "RESTART";
+            text.text = "NEW GAME";
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
             return button;
@@ -1339,17 +1306,15 @@ namespace Decantra.Presentation
             if (button == null) return;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.ResetCurrentLevel);
+
+            // Add long-press component for 8 second hold to trigger full game reset
+            var longPress = resetGo.GetComponent<LongPressButton>() ?? resetGo.AddComponent<LongPressButton>();
+            longPress.Configure(8f, controller.RequestRestartGame);
         }
 
         private static void WireRestartButton(GameController controller)
         {
-            if (controller == null) return;
-            var restartGo = GameObject.Find("RestartButton");
-            if (restartGo == null) return;
-            var button = restartGo.GetComponent<Button>();
-            if (button == null) return;
-            button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(controller.RequestRestartGame);
+            // Legacy method kept for compatibility - now handled by WireResetButton
         }
 
         private static void WireShareButton(GameController controller)

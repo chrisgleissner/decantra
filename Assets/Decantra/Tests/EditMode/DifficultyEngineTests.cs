@@ -129,5 +129,20 @@ namespace Decantra.Tests.EditMode
             var profileDNext = LevelDifficultyEngine.GetProfile(52);
             Assert.AreNotEqual(profileD.ThemeId, profileDNext.ThemeId);
         }
+
+        [Test]
+        public void DifficultyInvariant_UsesLinearTo200ThenClamp()
+        {
+            Assert.AreEqual(1, LevelDifficultyEngine.GetDifficultyForLevel(1));
+            Assert.AreEqual(200, LevelDifficultyEngine.GetDifficultyForLevel(200));
+            Assert.AreEqual(100, LevelDifficultyEngine.GetDifficultyForLevel(201));
+            Assert.AreEqual(100, LevelDifficultyEngine.GetDifficultyForLevel(500));
+
+            for (int level = 1; level <= 200; level++)
+            {
+                Assert.AreEqual(level, LevelDifficultyEngine.GetDifficultyForLevel(level),
+                    $"Difficulty should match level for {level}");
+            }
+        }
     }
 }
