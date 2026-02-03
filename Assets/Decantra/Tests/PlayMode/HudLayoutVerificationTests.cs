@@ -271,6 +271,25 @@ namespace Decantra.Tests.PlayMode
 
             foreach (var panel in hudPanels)
             {
+                var text = panel.GetComponentInChildren<Text>();
+                if (text == null) continue;
+
+                // Skip preferredWidth check for text with resizeTextForBestFit enabled
+                // These texts automatically shrink to fit within their constrained bounds
+                if (text.resizeTextForBestFit)
+                {
+                    // Verify the text has proper RectTransform constraints (padding)
+                    var textRect = text.GetComponent<RectTransform>();
+                    if (textRect != null)
+                    {
+                        // Check that text has horizontal padding applied (offsetMin.x and offsetMax.x)
+                        var hasPadding = Mathf.Abs(textRect.offsetMin.x) > 1f || Mathf.Abs(textRect.offsetMax.x) > 1f;
+                        Assert.IsTrue(hasPadding,
+                            $"HUD tile '{panel.name}' text should have horizontal padding applied to RectTransform");
+                    }
+                    continue;
+                }
+
                 var metrics = ExtractTileMetrics(panel);
                 // Use actual rendered width (from RectTransform) since tiles have flexibleWidth
                 var availableWidth = metrics.Width - TextPaddingPx;
@@ -280,7 +299,7 @@ namespace Decantra.Tests.PlayMode
                 if (metrics.TextPreferredWidth > 0 && metrics.Width > 0)
                 {
                     Assert.LessOrEqual(metrics.TextPreferredWidth, availableWidth + WidthTolerancePx,
-                        $"HUD tile '{metrics.Name}' text preferredWidth={metrics.TextPreferredWidth} exceeds " +
+                        $"HUD tile '{panel.name}' text preferredWidth={metrics.TextPreferredWidth} exceeds " +
                         $"available width={availableWidth} (actual tile width={metrics.Width} - padding={TextPaddingPx})");
                 }
             }

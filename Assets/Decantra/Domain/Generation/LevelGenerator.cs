@@ -661,20 +661,46 @@ namespace Decantra.Domain.Generation
         }
 
         /// <summary>
-        /// Computes the maximum reverse-pour amount.
-        /// Simplified to match main branch behavior for determinism.
+        /// Computes the maximum reverse-pour amount that ensures reversibility.
+        /// A reverse move is only valid if it can be undone by a forward move.
         /// </summary>
         private static int GetMaxReversibleReverseAmount(Bottle source, Bottle target, bool preventEmptySource)
         {
             if (source == null || target == null) return 0;
-            int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
-            
-            if (preventEmptySource && maxAmount >= source.Count)
+            var color = source.TopColor;
+            if (!color.HasValue) return 0;
+
+            // CRITICAL: If target already has the same top color as source, the inverse forward  
+            // move would pour more than the reverse amount, breaking reversibility.
+            // Example: Source=[R,R,B], Target=[R]. Reverse pour 2R -> Source=[_,_,B], Target=[R,R,R]
+            // Forward reverse: Target top=R (3), Source top=B. R!=B so forward move impossible.
+            var targetTop = target.TopColor;
+            if (targetTop.HasValue && targetTop.Value == color.Value)
             {
-                maxAmount = Math.Max(0, source.Count - 1);
+                return 0;
             }
-            
-            return Math.Max(0, maxAmount);
+
+            int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
+            if (maxAmount <= 0) return 0;
+
+            int maxAllowed = maxAmount;
+
+            // If removing the entire top block would reveal a different color beneath,
+            // then the inverse forward move would become illegal (top colors would mismatch).
+            // Example: Source=[R,R,B], maxAmount=2. After reverse: Source=[_,_,B] top=B
+            // For forward reverse, target would need top=B, but if target was empty,
+            // it now has top=R. Can't pour B->R.
+            if (source.ContiguousTopCount == maxAmount && source.Count > maxAmount)
+            {
+                maxAllowed = Math.Min(maxAllowed, source.ContiguousTopCount - 1);
+            }
+
+            if (preventEmptySource)
+            {
+                maxAllowed = Math.Min(maxAllowed, source.Count - 1);
+            }
+
+            return Math.Max(0, maxAllowed);
         }
 
         /// <summary>
