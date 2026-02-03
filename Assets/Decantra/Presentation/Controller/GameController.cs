@@ -181,6 +181,8 @@ namespace Decantra.Presentation.Controller
 
         private static readonly Dictionary<ZoneLayoutKey, ZoneLayout> ZoneLayouts = new Dictionary<ZoneLayoutKey, ZoneLayout>();
 
+        private static bool _introShown;
+
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
             // Modern vibrant palettes with blues, purples, sunrise yellows - no vignette
@@ -466,11 +468,11 @@ namespace Decantra.Presentation.Controller
         public void NotifyFirstInteraction()
         {
             if (_introDismissed) return;
-            _introDismissed = true;
-            if (introBanner != null)
+            if (introBanner != null && introBanner.IsPlaying)
             {
-                introBanner.DismissEarly();
+                return;
             }
+            _introDismissed = true;
         }
 
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
@@ -807,10 +809,37 @@ namespace Decantra.Presentation.Controller
         private IEnumerator BeginSession()
         {
             _inputLocked = true;
+            bool shouldPlayIntro = introBanner != null && !_introShown;
+            if (shouldPlayIntro)
+            {
+                introBanner.PrepareForIntro();
+            }
+
             if (_state == null)
             {
                 LoadLevel(_currentLevel, _currentSeed);
             }
+
+            if (introBanner != null)
+            {
+                if (shouldPlayIntro)
+                {
+                    _introShown = true;
+                    _introDismissed = false;
+                    yield return StartCoroutine(introBanner.Play());
+                    _introDismissed = true;
+                }
+                else
+                {
+                    introBanner.HideImmediate();
+                    _introDismissed = true;
+                }
+            }
+            else
+            {
+                _introDismissed = true;
+            }
+
             _inputLocked = false;
             yield break;
         }

@@ -398,21 +398,6 @@ namespace Decantra.Presentation
             safeRect.offsetMax = Vector2.zero;
             safeRoot.AddComponent<Decantra.Presentation.View.SafeAreaInset>();
 
-            var brandGo = CreateUiChild(safeRoot.transform, "BrandLockup");
-            var brandRect = brandGo.GetComponent<RectTransform>();
-            brandRect.anchorMin = new Vector2(0.5f, 1f);
-            brandRect.anchorMax = new Vector2(0.5f, 1f);
-            brandRect.pivot = new Vector2(0.5f, 1f);
-            brandRect.anchoredPosition = new Vector2(0, -18);
-            brandRect.sizeDelta = new Vector2(932, 190);
-
-            var brandSprite = Resources.Load<Sprite>("DecantraBanner");
-            var brandImage = brandGo.AddComponent<Image>();
-            brandImage.sprite = brandSprite;
-            brandImage.preserveAspect = true;
-            brandImage.color = Color.white;
-            brandImage.raycastTarget = false;
-
             var hudViewGo = CreateUiChild(hudRoot.transform, "HudView");
             var hudView = hudViewGo.GetComponent<HudView>() ?? hudViewGo.AddComponent<HudView>();
 
@@ -431,10 +416,34 @@ namespace Decantra.Presentation
             topLayout.spacing = 16f;
 
             var levelText = CreateStatPanel(topHud.transform, "LevelPanel", "LEVEL", out var levelPanel);
-            var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES", out _);
-            var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out _);
+            var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES", out var movesPanel);
+            var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out var scorePanel);
 
             _ = AddPanelButton(levelPanel);
+
+            var brandGo = CreateUiChild(safeRoot.transform, "BrandLockup");
+            var brandRect = brandGo.GetComponent<RectTransform>();
+            brandRect.anchorMin = new Vector2(0.5f, 1f);
+            brandRect.anchorMax = new Vector2(0.5f, 1f);
+            brandRect.pivot = new Vector2(0.5f, 1f);
+            brandRect.anchoredPosition = new Vector2(0, -18);
+
+            var brandSprite = Resources.Load<Sprite>("Decantra");
+            var brandImage = brandGo.AddComponent<Image>();
+            brandImage.sprite = brandSprite;
+            brandImage.preserveAspect = true;
+            brandImage.color = Color.white;
+            brandImage.raycastTarget = false;
+
+            var brandLayout = brandGo.AddComponent<TopBannerLogoLayout>();
+            SetPrivateField(brandLayout, "logoRect", brandRect);
+            SetPrivateField(brandLayout, "logoImage", brandImage);
+            SetPrivateField(brandLayout, "buttonRects", new[]
+            {
+                levelPanel.GetComponent<RectTransform>(),
+                movesPanel.GetComponent<RectTransform>(),
+                scorePanel.GetComponent<RectTransform>()
+            });
 
             var secondaryHud = CreateUiChild(safeRoot.transform, "SecondaryHud");
             var secondaryRect = secondaryHud.GetComponent<RectTransform>();
@@ -913,59 +922,43 @@ namespace Decantra.Presentation
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            var group = root.AddComponent<CanvasGroup>();
-            group.alpha = 0f;
+            var backgroundGo = CreateUiChild(root.transform, "Background");
+            var backgroundRect = backgroundGo.GetComponent<RectTransform>();
+            backgroundRect.anchorMin = Vector2.zero;
+            backgroundRect.anchorMax = Vector2.one;
+            backgroundRect.offsetMin = Vector2.zero;
+            backgroundRect.offsetMax = Vector2.zero;
+            var backgroundImage = backgroundGo.AddComponent<Image>();
+            backgroundImage.color = new Color(0f, 0f, 0f, 1f);
+            backgroundImage.raycastTarget = false;
+            backgroundGo.transform.SetAsFirstSibling();
 
-            var panel = CreateUiChild(root.transform, "Panel");
-            var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0f, 1f);
-            panelRect.anchorMax = new Vector2(1f, 1f);
-            panelRect.pivot = new Vector2(0.5f, 1f);
-            panelRect.sizeDelta = new Vector2(0f, 320);
-            panelRect.anchoredPosition = new Vector2(0f, 0f);
-
-            var panelImage = panel.AddComponent<Image>();
-            panelImage.sprite = GetRoundedSprite();
-            panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(1f, 1f, 1f, 0f);
-            panelImage.raycastTarget = false;
-
-            var dimmerGo = CreateUiChild(root.transform, "Dimmer");
-            var dimmerRect = dimmerGo.GetComponent<RectTransform>();
-            dimmerRect.anchorMin = Vector2.zero;
-            dimmerRect.anchorMax = Vector2.one;
-            dimmerRect.offsetMin = Vector2.zero;
-            dimmerRect.offsetMax = new Vector2(0f, -320f);
-            var dimmerImage = dimmerGo.AddComponent<Image>();
-            dimmerImage.color = new Color(0f, 0f, 0f, 0.9f);
-            dimmerImage.raycastTarget = false;
-            dimmerGo.transform.SetAsFirstSibling();
-
-            var content = CreateUiChild(panel.transform, "Content");
-            var contentRect = content.GetComponent<RectTransform>();
-            contentRect.anchorMin = new Vector2(0f, 0f);
-            contentRect.anchorMax = new Vector2(1f, 1f);
-            contentRect.pivot = new Vector2(0.5f, 0.5f);
-            contentRect.sizeDelta = new Vector2(0f, 0f);
-
-            var logoSprite = Resources.Load<Sprite>("DecantraBanner")
-                ?? Resources.Load<Sprite>("DecantraLogo");
-            var logoGo = CreateUiChild(content.transform, "FeatureGraphic");
+            var logoSprite = Resources.Load<Sprite>("DecantraLogo");
+            var logoGo = CreateUiChild(root.transform, "Logo");
             var logoImage = logoGo.AddComponent<Image>();
             logoImage.sprite = logoSprite;
             logoImage.preserveAspect = true;
             logoImage.color = Color.white;
+            logoImage.raycastTarget = false;
+
             var logoRect = logoGo.GetComponent<RectTransform>();
-            logoRect.anchorMin = new Vector2(0f, 0f);
-            logoRect.anchorMax = new Vector2(1f, 1f);
+            logoRect.anchorMin = new Vector2(0.5f, 0.5f);
+            logoRect.anchorMax = new Vector2(0.5f, 0.5f);
             logoRect.pivot = new Vector2(0.5f, 0.5f);
-            logoRect.sizeDelta = new Vector2(-80f, -20f);
+            logoRect.anchoredPosition = Vector2.zero;
+
+            var logoGroup = logoGo.AddComponent<CanvasGroup>();
+            logoGroup.alpha = 0f;
+            logoGroup.blocksRaycasts = false;
+            logoGroup.interactable = false;
 
             var banner = root.AddComponent<IntroBanner>();
-            SetPrivateField(banner, "panel", panelRect);
-            SetPrivateField<Text>(banner, "titleText", null);
-            SetPrivateField(banner, "canvasGroup", group);
-            SetPrivateField(banner, "dimmer", dimmerImage);
+            SetPrivateField(banner, "root", rect);
+            SetPrivateField(banner, "logoRect", logoRect);
+            SetPrivateField(banner, "logoImage", logoImage);
+            SetPrivateField(banner, "background", backgroundImage);
+            SetPrivateField(banner, "logoGroup", logoGroup);
+            root.transform.SetAsLastSibling();
             return banner;
         }
 
