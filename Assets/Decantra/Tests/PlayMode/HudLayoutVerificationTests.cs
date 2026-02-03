@@ -25,10 +25,10 @@ namespace Decantra.Tests.PlayMode
     public sealed class HudLayoutVerificationTests
     {
         private const float WidthTolerancePx = 1f;
-        private const float ExpectedTileMinWidth = 220f;
+        private const float ExpectedTileMinWidth = 300f;
         private const float ExpectedTileMinHeight = 140f;
         private const int ExpectedHudTileCount = 5; // Level, Moves, Score, MaxLevel, HighScore (Reset is a button, not a stat tile)
-        private const float TextPaddingPx = 48f; // Approximate padding from panel edge to text area (24px left + 24px right)
+        private const float TextPaddingPx = 64f; // Approximate padding from panel edge to text area (32px left + 32px right)
 
         /// <summary>
         /// Identifies HUD stat panels by their structure: Image + LayoutElement + specific children (Shadow, GlassHighlight, Value text).

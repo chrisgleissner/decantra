@@ -63,11 +63,17 @@ namespace Decantra.Presentation
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureAdvancedLevelScreenshot(controller, outputDir);
 
+            yield return new WaitForEndOfFrame();
             WriteCompletionMarker(outputDir);
+            yield return new WaitForSeconds(0.5f); // Ensure file is flushed
 
             if (_failed)
             {
                 Debug.LogError("RuntimeScreenshot: one or more screenshots failed.");
+            }
+            else
+            {
+                Debug.Log("RuntimeScreenshot: all screenshots completed successfully.");
             }
 
             if (IsScreenshotsOnly())
@@ -230,8 +236,26 @@ namespace Decantra.Presentation
 
         private static void WriteCompletionMarker(string outputDir)
         {
-            string statusPath = Path.Combine(outputDir, "capture.complete");
-            File.WriteAllText(statusPath, DateTime.UtcNow.ToString("O"));
+            try
+            {
+                string statusPath = Path.Combine(outputDir, "capture.complete");
+                File.WriteAllText(statusPath, DateTime.UtcNow.ToString("O"));
+                Debug.Log($"RuntimeScreenshot: wrote completion marker to {statusPath}");
+
+                // Verify the file was written
+                if (File.Exists(statusPath))
+                {
+                    Debug.Log($"RuntimeScreenshot: completion marker verified at {statusPath}");
+                }
+                else
+                {
+                    Debug.LogError($"RuntimeScreenshot: completion marker NOT found after write at {statusPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"RuntimeScreenshot: failed to write completion marker: {ex.Message}");
+            }
         }
 
         private static bool IsScreenshotModeEnabled()
