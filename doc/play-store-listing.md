@@ -50,9 +50,12 @@ Upload assets from [doc/play-store-assets/](doc/play-store-assets/):
 - Feature graphic: [doc/play-store-assets/feature-graphic/feature-graphic-1024x500.png](doc/play-store-assets/feature-graphic/feature-graphic-1024x500.png)
 - Phone screenshots:
   - [doc/play-store-assets/screenshots/phone/screenshot-01-launch.png](doc/play-store-assets/screenshots/phone/screenshot-01-launch.png)
-  - [doc/play-store-assets/screenshots/phone/screenshot-02-initial-level.png](doc/play-store-assets/screenshots/phone/screenshot-02-initial-level.png)
-  - [doc/play-store-assets/screenshots/phone/screenshot-03-interstitial.png](doc/play-store-assets/screenshots/phone/screenshot-03-interstitial.png)
-  - [doc/play-store-assets/screenshots/phone/screenshot-04-advanced-level.png](doc/play-store-assets/screenshots/phone/screenshot-04-advanced-level.png)
+  - [doc/play-store-assets/screenshots/phone/screenshot-02-intro.png](doc/play-store-assets/screenshots/phone/screenshot-02-intro.png)
+  - [doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png](doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png)
+  - [doc/play-store-assets/screenshots/phone/screenshot-04-level-12.png](doc/play-store-assets/screenshots/phone/screenshot-04-level-12.png)
+  - [doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png](doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png)
+  - [doc/play-store-assets/screenshots/phone/screenshot-06-interstitial.png](doc/play-store-assets/screenshots/phone/screenshot-06-interstitial.png)
+  - [doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png](doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png)
 
 ### Privacy policy
 - Link: **https://[CUSTOMIZE-DOMAIN]/privacy-policy**

@@ -132,9 +132,12 @@ adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}"
 
 expected=(
   "screenshot-01-launch.png"
-  "screenshot-02-initial-level.png"
-  "screenshot-03-interstitial.png"
-  "screenshot-04-advanced-level.png"
+  "screenshot-02-intro.png"
+  "screenshot-03-level-01.png"
+  "screenshot-04-level-12.png"
+  "screenshot-05-level-24.png"
+  "screenshot-06-interstitial.png"
+  "screenshot-07-level-36.png"
 )
 
 remote_dir="files/DecantraScreenshots"

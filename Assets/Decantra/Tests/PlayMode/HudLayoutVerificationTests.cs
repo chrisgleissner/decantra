@@ -25,7 +25,8 @@ namespace Decantra.Tests.PlayMode
     public sealed class HudLayoutVerificationTests
     {
         private const float WidthTolerancePx = 1f;
-        private const float ExpectedTileMinWidth = 300f;
+        private const float ExpectedTopTileMinWidth = 300f;
+        private const float ExpectedBottomTileMinWidth = 458f;  // Wider to fit "HIGH SCORE" on single line
         private const float ExpectedTileMinHeight = 140f;
         private const int ExpectedHudTileCount = 5; // Level, Moves, Score, MaxLevel, HighScore (Reset is a button, not a stat tile)
         private const float TextPaddingPx = 64f; // Approximate padding from panel edge to text area (32px left + 32px right)
@@ -154,12 +155,31 @@ namespace Decantra.Tests.PlayMode
             Assert.IsTrue(hudPanels.Count > 0, "No HUD tiles found");
 
             var metrics = hudPanels.Select(ExtractTileMetrics).ToList();
-            var firstWidth = metrics[0].LayoutMinWidth;
 
-            foreach (var m in metrics)
+            // Check top tiles have identical widths
+            var topTileMetrics = metrics.Where(m =>
+                m.Name == "LevelPanel" || m.Name == "MovesPanel" || m.Name == "ScorePanel").ToList();
+            if (topTileMetrics.Count > 0)
             {
-                Assert.AreEqual(firstWidth, m.LayoutMinWidth, WidthTolerancePx,
-                    $"HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {firstWidth} (±{WidthTolerancePx}px)");
+                var topWidth = topTileMetrics[0].LayoutMinWidth;
+                foreach (var m in topTileMetrics)
+                {
+                    Assert.AreEqual(topWidth, m.LayoutMinWidth, WidthTolerancePx,
+                        $"Top HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {topWidth} (±{WidthTolerancePx}px)");
+                }
+            }
+
+            // Check bottom tiles have identical widths
+            var bottomTileMetrics = metrics.Where(m =>
+                m.Name == "MaxLevelPanel" || m.Name == "HighScorePanel").ToList();
+            if (bottomTileMetrics.Count > 0)
+            {
+                var bottomWidth = bottomTileMetrics[0].LayoutMinWidth;
+                foreach (var m in bottomTileMetrics)
+                {
+                    Assert.AreEqual(bottomWidth, m.LayoutMinWidth, WidthTolerancePx,
+                        $"Bottom HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {bottomWidth} (±{WidthTolerancePx}px)");
+                }
             }
         }
 
@@ -177,8 +197,13 @@ namespace Decantra.Tests.PlayMode
             foreach (var m in metrics)
             {
                 Assert.IsTrue(m.HasLayoutElement, $"HUD tile '{m.Name}' missing LayoutElement component");
-                Assert.AreEqual(ExpectedTileMinWidth, m.LayoutMinWidth, WidthTolerancePx,
-                    $"HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {ExpectedTileMinWidth}");
+
+                // Bottom tiles (MaxLevelPanel, HighScorePanel) are wider than top tiles
+                bool isBottomTile = m.Name == "MaxLevelPanel" || m.Name == "HighScorePanel";
+                float expectedWidth = isBottomTile ? ExpectedBottomTileMinWidth : ExpectedTopTileMinWidth;
+
+                Assert.AreEqual(expectedWidth, m.LayoutMinWidth, WidthTolerancePx,
+                    $"HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {expectedWidth}");
                 Assert.AreEqual(ExpectedTileMinHeight, m.LayoutMinHeight, WidthTolerancePx,
                     $"HUD tile '{m.Name}' has minHeight={m.LayoutMinHeight}, expected {ExpectedTileMinHeight}");
             }
@@ -400,7 +425,7 @@ namespace Decantra.Tests.PlayMode
 
             // Verify the serialization is valid by checking key invariants
             Assert.AreEqual(ExpectedHudTileCount, metrics.Count);
-            Assert.IsTrue(metrics.All(m => m.LayoutMinWidth >= ExpectedTileMinWidth - WidthTolerancePx));
+            Assert.IsTrue(metrics.All(m => m.LayoutMinWidth >= ExpectedTopTileMinWidth - WidthTolerancePx));
             Assert.IsTrue(metrics.All(m => m.HasShadow && m.HasGlassHighlight && m.HasValueText));
         }
     }

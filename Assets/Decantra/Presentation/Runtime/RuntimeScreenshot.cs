@@ -23,9 +23,12 @@ namespace Decantra.Presentation
         private static readonly string[] ScreenshotFiles =
         {
             "screenshot-01-launch.png",
-            "screenshot-02-initial-level.png",
-            "screenshot-03-interstitial.png",
-            "screenshot-04-advanced-level.png"
+            "screenshot-02-intro.png",
+            "screenshot-03-level-01.png",
+            "screenshot-04-level-12.png",
+            "screenshot-05-level-24.png",
+            "screenshot-06-interstitial.png",
+            "screenshot-07-level-36.png"
         };
 
         private bool _failed;
@@ -59,9 +62,12 @@ namespace Decantra.Presentation
             Directory.CreateDirectory(outputDir);
 
             yield return CaptureLaunchScreenshot(outputDir);
-            yield return CaptureInitialLevelScreenshot(controller, outputDir);
+            yield return CaptureIntroScreenshot(outputDir);
+            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[2]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[3]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[4]);
             yield return CaptureInterstitialScreenshot(outputDir);
-            yield return CaptureAdvancedLevelScreenshot(controller, outputDir);
+            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[6]);
 
             yield return new WaitForEndOfFrame();
             WriteCompletionMarker(outputDir);
@@ -112,20 +118,24 @@ namespace Decantra.Presentation
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[0]));
         }
 
-        private IEnumerator CaptureInitialLevelScreenshot(GameController controller, string outputDir)
+        private IEnumerator CaptureIntroScreenshot(string outputDir)
         {
-            if (controller == null)
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            var intro = UnityEngine.Object.FindFirstObjectByType<IntroBanner>();
+            if (intro == null)
             {
-                _failed = true;
+                Debug.LogWarning("RuntimeScreenshot: intro banner not found; skipping intro screenshot.");
                 yield break;
             }
 
-            HideInterstitialIfAny();
-            yield return WaitForInterstitialHidden();
-            controller.LoadLevel(1, 10991);
-            yield return new WaitForSeconds(0.8f);
-            yield return new WaitForEndOfFrame();
+            intro.EnableScreenshotMode();
+            StartCoroutine(intro.Play());
+            yield return new WaitForSeconds(intro.GetCaptureDelay());
             yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[1]));
+            intro.DismissEarly();
+            yield return new WaitForSeconds(0.5f);
         }
 
         private IEnumerator CaptureInterstitialScreenshot(string outputDir)
@@ -142,7 +152,7 @@ namespace Decantra.Presentation
             banner.Show(2, 4, 280, false, () => { }, () => complete = true);
             yield return WaitForInterstitialVisible();
             yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[2]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[5]));
             float timeout = 4f;
             float elapsed = 0f;
             while (!complete && elapsed < timeout)
@@ -154,7 +164,7 @@ namespace Decantra.Presentation
             yield return WaitForInterstitialHidden();
         }
 
-        private IEnumerator CaptureAdvancedLevelScreenshot(GameController controller, string outputDir)
+        private IEnumerator CaptureLevelScreenshot(GameController controller, string outputDir, int levelIndex, int seed, string fileName)
         {
             if (controller == null)
             {
@@ -164,10 +174,10 @@ namespace Decantra.Presentation
 
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
-            controller.LoadLevel(12, 473921);
+            controller.LoadLevel(levelIndex, seed);
             yield return new WaitForSeconds(0.9f);
             yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[3]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
         }
 
         private static void HideInterstitialIfAny()

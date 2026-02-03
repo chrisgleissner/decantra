@@ -1,97 +1,100 @@
-# Execution Plan - HUD Layout Fix & Background Modernization
+# PLANS.md - Decantra Background Generation Overhaul
 
-## Objective
+**Status**: IN PROGRESS  
+**Last Updated**: 2026-02-03  
 
-Fix two UI defects in the Decantra app:
-1. **Issue A**: HUD tile layout inconsistency - bottom tiles (Max Level, High Score) have different layout than top tiles
-2. **Issue B**: Background vignette effect creates dated appearance with egg-shaped spotlight
+## Audit of Previous Background Fix
 
-## Hard Verification Requirements
+### Diff-based reality check (completed)
+- **BackgroundRules.cs**: No structural changes vs main (zone scheduling already correct, but no pattern families A–F, no enforcement of no-centre-bias invariant beyond a macro placement tweak).
+- **Renderer/compositor (SceneBootstrap.cs)**: Previous changes were localized to parameter tweaks and a single fixed overlay; no zone-based pattern family system or deterministic macro/meso generation existed.
+- **Conclusion**: Prior work was insufficient (no family coverage, no centre-bias enforcement, no zone-based geometry caching, and per-level structural variation still present).
 
-All fixes MUST be verified programmatically via automated UI layout tests. Screenshot comparison is NOT acceptable.
+## Root Cause of Centre Egg
 
-## Plan
+### Confirmation (completed)
+- Centre-weighted “egg” artefact is produced by **radial distance-to-centre** formulas in the renderer:
+	- `CreateVignetteSprite()` uses `dist = Vector2.Distance(p, center)` to compute a radial falloff.
+	- Prior renderer variants also used **soft circle** sprites (`CreateSoftCircleSprite()` / center-blur usage) stretched into non-square rects, amplifying an oval highlight.
+- These effects are macro-scale, screen-centred and can be amplified by overlay blending.
+- **Root cause**: Macro layers using radial distance-to-centre + non-square scaling -> centre-biased “egg”.
 
-### Step 1: Analyze existing implementation
-- [x] Identify HUD creation code in SceneBootstrap.cs
-- [x] Identify vignette creation and rendering
-- [x] Map all 5 HUD tiles and their properties
+## Design: Pattern Families A–F
 
-### Step 2: Fix HUD tile layout consistency
-- [x] Ensure all 5 HUD stat tiles use identical CreateStatPanel() method
-- [x] Set consistent minWidth=220/minHeight=140 via LayoutElement on all panels
-- [x] Verify top and bottom HUD use same HorizontalLayoutGroup settings
-- [x] All tiles use same structural signature (Shadow, GlassHighlight, Value)
+All families are implemented in `BackgroundPatternGenerator` (Presentation), driven by zone seed:
 
-### Step 3: Remove vignette effect completely
-- [x] Set backgroundVignette image alpha to 0
-- [x] Disable vignette GameObject via SetActive(false)
-- [x] Remove VignetteAlpha from BackgroundPalette struct
-- [x] Hardcode vignetteAlpha=0 in ApplyBackgroundVisuals()
+- **Mapping strategy**: `BackgroundRules` picks a primary family per zone using the zone seed and excludes the immediately previous family, ensuring adjacent zones don’t repeat. Optional secondary families provide accent overlays.
 
-### Step 4: Modernize background design
-- [x] Keep existing gradient-based base background
-- [x] Enhanced color vibrancy with modern palettes (blues, purples, sunrise yellows)
-- [x] Ensured no high-frequency detail behind bottles
-- [x] Maintained soft gradients and organic shapes
+### Family A: Directional line fields
+- Macro underlay + crisp meso overlay, 1–3 line families.
+- Deterministic angles, spacing, thickness; optional screen-space sine warp.
+- Full-screen, non-radial.
 
-### Step 5: Implement automated UI layout verification tests
-- [x] Created HudLayoutVerificationTests.cs in PlayMode tests
-- [x] Test: Exactly 5 HUD tiles detected (with deduplication)
-- [x] Test: All HUD tiles have identical minWidths (220px ±1px tolerance)
-- [x] Test: Bottom tiles NOT narrower than top tiles
-- [x] Test: Each tile has exactly 3 Image components (panel, shadow, glass)
-- [x] Test: Text preferredWidth ≤ actualTileWidth − padding
-- [x] Test: All tiles use same structural signature (Shadow, GlassHighlight, Value)
-- [x] Test: Vignette effect is disabled
-- [x] Test: Background has no vignette alpha
-- [x] Test: Layout serializes to deterministic JSON
+### Family B: Large band gradients
+- Multi-band linear gradients with optional tiling/mirroring.
+- Full-screen, non-radial; direction seeded per zone.
 
-### Step 6: Full verification (exit conditions)
-- [x] Run PlayMode tests locally - 27/27 PASSED
-- [x] Run EditMode tests locally - 133/133 PASSED
-- [x] Build APK successfully - Decantra.apk built
-- [x] CI pipeline green - All tests pass, coverage 92.6%
+### Family C: Voronoi macro-regions
+- Seed points distributed via jittered grid to avoid centre clustering.
+- Low-res Voronoi assignment, feathered edges.
 
-## COMPLETED ✅
+### Family D: Polygonal shards
+- Deterministic jittered grid + per-cell triangulation.
+- Triangle edge softening; no centre dominance.
 
-All tasks complete. Summary of changes:
+### Family E: Wave interference fields
+- Directional sine-wave interference in screen space.
+- Optional banding for meso overlay.
 
-### Files Modified:
-1. **SceneBootstrap.cs** - Disabled vignette (alpha=0, SetActive=false)
-2. **GameController.cs** - Removed VignetteAlpha from BackgroundPalette, enhanced background colors, hardcoded vignetteAlpha=0
+### Family F: Fractal-lite / bounded noise
+- fBm (4–5 octaves) on low-res buffers; hard-capped iteration count.
+- Deterministic, non-radial.
 
-### Files Created:
-1. **HudLayoutVerificationTests.cs** - 10 automated UI verification tests
+## Caching and Performance Strategy
 
-### Test Results:
-- EditMode: 133 tests PASSED
-- PlayMode: 27 tests PASSED (including 10 new HudLayoutVerificationTests)
-- Coverage: 92.6% (threshold: 80%)
+- Zone scheduling: **levels 1–9 => zone 0; 10–19 => zone 1; etc.** (already enforced by `BackgroundRules.GetZoneIndex`).
+- ZoneSeed derived only from (globalSeed, zoneIndex).
+- Geometry fixed per zone; per-level variation limited to color-only parameters.
+- **Caching**: Zone pattern sprites are generated once per zone and cached via `ZonePatternCacheKey` (seed+zone).
+- **Low-res generation**: macro/meso 192–256, accent 160–192, micro 128. Voronoi/fractal use smaller buffers.
+- **Instrumentation**: `BackgroundPatternGenerator` measures generation time (ms) per zone and logs in dev/editor.
 
-## Technical Details
+## Validation: No Centre Bias
 
-### HUD Tile Structure
-All HUD stat tiles created via `CreateStatPanel()`:
-- Creates panel with Image (rounded sprite, dark background)
-- Adds Shadow child
-- Adds GlassHighlight child
-- Adds LayoutElement with minWidth=220, minHeight=140
-- Adds Text child for value display
+- **Rule-level bans**:
+	- `GeneratorFamily.RadialPolar` removed from selection (new families only).
+	- `PlacementRule.Radial` never selected; macro enforcement in `EnforceNoCenterBias`.
+	- `FocalRule.CenterBias` excluded (only Grid/Diagonal focal rules).
+- **Renderer guardrails**:
+	- Macro generation uses screen-space (non-radial) math only.
+- **Deterministic centre-bias check**:
+	- Implemented in `BackgroundPatternGenerator.ValidateNoCenterBias()`.
+	- Samples centre vs edges/corners on low-res field; threshold ratio 1.15.
+	- Asserts in editor to fail fast if centre bias is detected.
 
-Top HUD contains: LevelPanel, MovesPanel, ScorePanel (3 tiles)
-Bottom HUD contains: MaxLevelPanel, HighScorePanel (2 tiles)
-Total: 5 HUD stat tiles (Reset is a button, not a stat tile)
+## Execution Checklist
 
-### Vignette Implementation (REMOVED)
-- Vignette GameObject disabled: vignetteGo.SetActive(false)
-- Vignette alpha set to 0
-- VignetteAlpha field removed from BackgroundPalette struct
-- vignetteAlpha hardcoded to 0f in ApplyBackgroundVariation()
+- [x] Complete audit and root cause documentation.
+- [x] Implement pattern families A–F in background generation and selection.
+- [x] Implement zone scheduling, determinism, and caching.
+- [x] Enforce no-centre-bias invariant in rules + renderer.
+- [x] Add performance instrumentation.
+- [ ] Confirm <= 4.0s worst-case (pending measurement run).
+- [x] Regenerate background screenshots; verify no centre blob and full-screen coverage.
+- [x] Run tests; ensure CI green.
+- [x] Extend runtime screenshot capture for levels 1/12/24/36 and intro.
+- [x] Run ./build --screenshots --generate-solutions.
 
-### Background Palette Enhancement
-Modern color palettes with:
-- Deep blues and teals
-- Rich purples and magentas
-- Vibrant sunrise yellows and oranges
-- No muddy or dull colors
+## Performance Measurements
+
+- [ ] Capture timing on target profile (4-core 2 GHz Android).
+- [ ] Document timings and any resolution/iteration reductions.
+- Instrumentation added: generation time logged per zone and apply time logged per level in dev/editor builds.
+
+## Diffs and Design Decisions
+
+- **New generator**: `BackgroundPatternGenerator` (Presentation) produces macro/meso/accent/micro sprites per zone.
+- **Domain rules**: Updated generator families to A–F; enforced non-radial placement for macro.
+- **Renderer**: Zone-based caching and no per-level geometry changes; per-level colors only.
+- **Centre bias validation**: Low-res centre vs edges check with editor assertions.
+- **Screenshot capture**: runtime capture sequence now includes intro + levels 1/12/24/36 + interstitial.

@@ -23,13 +23,12 @@ namespace Decantra.Domain.Rules
 
     public enum GeneratorFamily
     {
-        RadialPolar = 0,
-        RegularTiling = 1,
-        RecursiveSubdivision = 2,
-        NoiseField = 3,
+        DirectionalLineFields = 0,
+        BandGradients = 1,
+        VoronoiRegions = 2,
+        PolygonShards = 3,
         WaveInterference = 4,
-        DistanceFieldShapes = 5,
-        FractalLite = 6
+        FractalLite = 5
     }
 
     public enum SymmetryClass
@@ -431,11 +430,14 @@ namespace Decantra.Domain.Rules
             GeneratorFamily primaryFamily = PickPrimaryGeneratorFamily(rng, previous?.PrimaryGeneratorFamily);
             SymmetryClass symmetry = PickSymmetry(primaryFamily, rng);
             DensityProfile density = (DensityProfile)rng.NextInt(0, 3);
-            FocalRule focalRule = (FocalRule)rng.NextInt(0, 4);
+            // CONSTRAINT: Never use CenterBias (0) to avoid center-focused patterns
+            // Avoid RingFocus as well to keep all focal rules non-radial
+            FocalRule focalRule = rng.NextFloat() > 0.5f ? FocalRule.GridIntersection : FocalRule.DiagonalAxis;
             int layerCount = PickLayerCount(zoneIndex, rng, previous?.LayerCount);
 
             var bandCounts = AllocateScaleBands(layerCount, rng);
             var layers = BuildLayers(layerCount, bandCounts, primaryFamily, density, rng);
+            layers = EnforceNoCenterBias(layers);
             var motion = BuildMotionLayers(layers, rng);
 
             return new ZoneTheme
@@ -484,12 +486,11 @@ namespace Decantra.Domain.Rules
         {
             var options = new List<GeneratorFamily>
             {
-                GeneratorFamily.RadialPolar,
-                GeneratorFamily.RegularTiling,
-                GeneratorFamily.RecursiveSubdivision,
-                GeneratorFamily.NoiseField,
+                GeneratorFamily.DirectionalLineFields,
+                GeneratorFamily.BandGradients,
+                GeneratorFamily.VoronoiRegions,
+                GeneratorFamily.PolygonShards,
                 GeneratorFamily.WaveInterference,
-                GeneratorFamily.DistanceFieldShapes,
                 GeneratorFamily.FractalLite
             };
             if (previous.HasValue)
@@ -508,20 +509,18 @@ namespace Decantra.Domain.Rules
 
             switch (primary)
             {
-                case GeneratorFamily.RadialPolar:
-                    return GeneratorFamily.WaveInterference;
-                case GeneratorFamily.RegularTiling:
-                    return GeneratorFamily.DistanceFieldShapes;
-                case GeneratorFamily.RecursiveSubdivision:
-                    return GeneratorFamily.RegularTiling;
-                case GeneratorFamily.NoiseField:
-                    return GeneratorFamily.DistanceFieldShapes;
+                case GeneratorFamily.DirectionalLineFields:
+                    return GeneratorFamily.BandGradients;
+                case GeneratorFamily.BandGradients:
+                    return GeneratorFamily.DirectionalLineFields;
+                case GeneratorFamily.VoronoiRegions:
+                    return GeneratorFamily.PolygonShards;
+                case GeneratorFamily.PolygonShards:
+                    return GeneratorFamily.VoronoiRegions;
                 case GeneratorFamily.WaveInterference:
-                    return GeneratorFamily.NoiseField;
-                case GeneratorFamily.DistanceFieldShapes:
-                    return GeneratorFamily.NoiseField;
+                    return GeneratorFamily.BandGradients;
                 case GeneratorFamily.FractalLite:
-                    return GeneratorFamily.RecursiveSubdivision;
+                    return GeneratorFamily.WaveInterference;
                 default:
                     return null;
             }
@@ -531,18 +530,16 @@ namespace Decantra.Domain.Rules
         {
             switch (family)
             {
-                case GeneratorFamily.RadialPolar:
-                    return rng.NextFloat() > 0.2f ? SymmetryClass.Radial : SymmetryClass.Axial;
-                case GeneratorFamily.RegularTiling:
-                    return SymmetryClass.Grid;
-                case GeneratorFamily.RecursiveSubdivision:
-                    return rng.NextFloat() > 0.4f ? SymmetryClass.Grid : SymmetryClass.Axial;
+                case GeneratorFamily.DirectionalLineFields:
+                    return SymmetryClass.Axial;
+                case GeneratorFamily.BandGradients:
+                    return SymmetryClass.Axial;
+                case GeneratorFamily.VoronoiRegions:
+                    return SymmetryClass.None;
+                case GeneratorFamily.PolygonShards:
+                    return SymmetryClass.None;
                 case GeneratorFamily.WaveInterference:
                     return rng.NextFloat() > 0.5f ? SymmetryClass.Axial : SymmetryClass.None;
-                case GeneratorFamily.DistanceFieldShapes:
-                    return rng.NextFloat() > 0.5f ? SymmetryClass.Radial : SymmetryClass.None;
-                case GeneratorFamily.NoiseField:
-                    return SymmetryClass.None;
                 case GeneratorFamily.FractalLite:
                     return rng.NextFloat() > 0.4f ? SymmetryClass.Axial : SymmetryClass.None;
                 default:
@@ -724,7 +721,7 @@ namespace Decantra.Domain.Rules
                 EdgeSoftness = edgeSoftness,
                 ShapeSizeMin = shapeMin,
                 ShapeSizeMax = shapeMax,
-                PlacementRule = PickPlacementRule(family, rng),
+                PlacementRule = PickPlacementRule(family, scaleBand, rng),
                 BlendMode = blendMode,
                 Opacity = opacity,
                 DepthIndex = id,
@@ -791,38 +788,59 @@ namespace Decantra.Domain.Rules
         {
             int variantCount = family switch
             {
-                GeneratorFamily.RadialPolar => 5,
-                GeneratorFamily.RegularTiling => 4,
-                GeneratorFamily.RecursiveSubdivision => 4,
-                GeneratorFamily.NoiseField => 5,
+                GeneratorFamily.DirectionalLineFields => 4,
+                GeneratorFamily.BandGradients => 4,
+                GeneratorFamily.VoronoiRegions => 3,
+                GeneratorFamily.PolygonShards => 4,
                 GeneratorFamily.WaveInterference => 4,
-                GeneratorFamily.DistanceFieldShapes => 4,
                 GeneratorFamily.FractalLite => 3,
                 _ => 3
             };
             return rng.NextInt(0, variantCount);
         }
 
-        private static PlacementRule PickPlacementRule(GeneratorFamily family, SeededRng rng)
+        /// <summary>
+        /// Picks a placement rule for the given generator family and scale band.
+        /// CONSTRAINT: Macro layers MUST NOT use PlacementRule.Radial to avoid center-biased patterns.
+        /// </summary>
+        private static PlacementRule PickPlacementRule(GeneratorFamily family, ScaleBand scaleBand, SeededRng rng)
         {
+            // For all scales, NEVER use radial placement to avoid center-biased egg artifacts
             return family switch
             {
-                GeneratorFamily.RadialPolar => PlacementRule.Radial,
-                GeneratorFamily.RegularTiling => rng.NextFloat() > 0.5f ? PlacementRule.Grid : PlacementRule.JitteredGrid,
-                GeneratorFamily.RecursiveSubdivision => PlacementRule.Grid,
-                GeneratorFamily.NoiseField => PlacementRule.NoiseThreshold,
+                GeneratorFamily.DirectionalLineFields => rng.NextFloat() > 0.5f ? PlacementRule.JitteredGrid : PlacementRule.Grid,
+                GeneratorFamily.BandGradients => PlacementRule.Grid,
+                GeneratorFamily.VoronoiRegions => PlacementRule.VoronoiCenters,
+                GeneratorFamily.PolygonShards => rng.NextFloat() > 0.5f ? PlacementRule.JitteredGrid : PlacementRule.Grid,
                 GeneratorFamily.WaveInterference => PlacementRule.NoiseThreshold,
-                GeneratorFamily.DistanceFieldShapes => PlacementRule.VoronoiCenters,
                 GeneratorFamily.FractalLite => PlacementRule.Grid,
                 _ => PlacementRule.Grid
             };
+        }
+
+        private static LayerSpec[] EnforceNoCenterBias(LayerSpec[] layers)
+        {
+            if (layers == null || layers.Length == 0)
+            {
+                return layers;
+            }
+
+            for (int i = 0; i < layers.Length; i++)
+            {
+                if (layers[i].ScaleBand == ScaleBand.Macro && layers[i].PlacementRule == PlacementRule.Radial)
+                {
+                    layers[i].PlacementRule = PlacementRule.JitteredGrid;
+                }
+            }
+
+            return layers;
         }
 
         private static BlendMode PickBlendMode(ScaleBand scaleBand, SeededRng rng)
         {
             return scaleBand switch
             {
-                ScaleBand.Macro => rng.NextFloat() > 0.5f ? BlendMode.Multiply : BlendMode.SoftLight,
+                ScaleBand.Macro => rng.NextFloat() > 0.5f ? BlendMode.Screen : BlendMode.Normal,
                 ScaleBand.Meso => rng.NextFloat() > 0.5f ? BlendMode.Overlay : BlendMode.Screen,
                 _ => rng.NextFloat() > 0.4f ? BlendMode.Add : BlendMode.Screen
             };

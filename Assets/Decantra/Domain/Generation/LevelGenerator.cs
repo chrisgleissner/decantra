@@ -349,9 +349,13 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveSolveTimeLimitMs(int levelIndex)
         {
+    #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            return int.MaxValue;
+    #else
             if (levelIndex >= 100) return 1200;
             if (levelIndex >= 60) return 1500;
             return 2000;
+    #endif
         }
 
         private static int ResolveSolveNodeLimit(int levelIndex)
@@ -388,8 +392,12 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveMultiplicityTimeLimitMs(int levelIndex)
         {
+    #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            return int.MaxValue;
+    #else
             if (levelIndex >= 50) return 30;
             return 60;
+    #endif
         }
 
         /// <summary>
