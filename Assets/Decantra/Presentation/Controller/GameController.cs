@@ -110,7 +110,7 @@ namespace Decantra.Presentation.Controller
             public float ShapeSaturation;
             public float ShapeValue;
             public float ShapeAlpha;
-            public float VignetteAlpha;
+            // VignetteAlpha removed - vignette effect completely disabled
         }
 
         private struct BackgroundFamilyProfile
@@ -121,7 +121,7 @@ namespace Decantra.Presentation.Controller
             public float DetailAlphaScale;
             public float FlowAlphaScale;
             public float ShapeAlphaScale;
-            public float VignetteAlphaScale;
+            // VignetteAlphaScale removed - vignette effect completely disabled
             public float DetailScale;
             public float FlowScale;
             public float ShapeScale;
@@ -131,12 +131,19 @@ namespace Decantra.Presentation.Controller
 
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
-            new BackgroundPalette { Hue = 0.55f, Saturation = 0.65f, Value = 0.95f, DetailSaturation = 0.3f, DetailValue = 0.9f, FlowSaturation = 0.4f, FlowValue = 0.9f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.1f },
-            new BackgroundPalette { Hue = 0.33f, Saturation = 0.6f, Value = 0.9f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f },
-            new BackgroundPalette { Hue = 0.1f, Saturation = 0.65f, Value = 0.95f, DetailSaturation = 0.3f, DetailValue = 0.9f, FlowSaturation = 0.4f, FlowValue = 0.9f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f },
-            new BackgroundPalette { Hue = 0.8f, Saturation = 0.6f, Value = 0.92f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.2f },
-            new BackgroundPalette { Hue = 0.48f, Saturation = 0.65f, Value = 0.9f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f },
-            new BackgroundPalette { Hue = 0.95f, Saturation = 0.6f, Value = 0.95f, DetailSaturation = 0.3f, DetailValue = 0.85f, FlowSaturation = 0.4f, FlowValue = 0.85f, FlowAlpha = 0.3f, ShapeSaturation = 0.3f, ShapeValue = 0.8f, ShapeAlpha = 0.2f, VignetteAlpha = 0.15f }
+            // Modern vibrant palettes with blues, purples, sunrise yellows - no vignette
+            // Palette 0: Cool blue - premium modern feel
+            new BackgroundPalette { Hue = 0.58f, Saturation = 0.55f, Value = 0.95f, DetailSaturation = 0.25f, DetailValue = 0.92f, FlowSaturation = 0.35f, FlowValue = 0.92f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
+            // Palette 1: Soft purple - youthful and calm
+            new BackgroundPalette { Hue = 0.78f, Saturation = 0.45f, Value = 0.92f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.3f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
+            // Palette 2: Sunrise warm - golden and inviting
+            new BackgroundPalette { Hue = 0.08f, Saturation = 0.5f, Value = 0.96f, DetailSaturation = 0.25f, DetailValue = 0.92f, FlowSaturation = 0.3f, FlowValue = 0.92f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.9f, ShapeAlpha = 0.18f },
+            // Palette 3: Violet-blue - premium depth
+            new BackgroundPalette { Hue = 0.72f, Saturation = 0.5f, Value = 0.94f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.32f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
+            // Palette 4: Teal cyan - fresh and modern
+            new BackgroundPalette { Hue = 0.5f, Saturation = 0.5f, Value = 0.93f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.32f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
+            // Palette 5: Coral sunrise - warm premium
+            new BackgroundPalette { Hue = 0.03f, Saturation = 0.48f, Value = 0.96f, DetailSaturation = 0.25f, DetailValue = 0.92f, FlowSaturation = 0.3f, FlowValue = 0.92f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.9f, ShapeAlpha = 0.18f }
         };
 
         private const float BackgroundFamilyTransitionSeconds = 0.75f;
@@ -1122,7 +1129,8 @@ namespace Decantra.Presentation.Controller
             Color shapeTint = Color.HSVToRGB(Mathf.Repeat(hue - 0.05f, 1f), palette.ShapeSaturation, palette.ShapeValue);
             shapeTint.a = Mathf.Lerp(palette.ShapeAlpha * 0.7f, palette.ShapeAlpha * 1.25f, jitter2) * family.ShapeAlphaScale;
 
-            float vignetteAlpha = palette.VignetteAlpha * family.VignetteAlphaScale;
+            // Vignette effect completely disabled
+            float vignetteAlpha = 0f;
 
             float detailScale = Mathf.Lerp(1.0f, 1.2f, jitter2) * family.DetailScale;
             Vector2 detailOffset = new Vector2(Mathf.Lerp(-12f, 12f, jitter), Mathf.Lerp(6f, -8f, jitter2));
@@ -1182,7 +1190,7 @@ namespace Decantra.Presentation.Controller
             float detailAlpha = Mathf.Lerp(0.85f, 1.2f, microWeight);
             float flowAlpha = Mathf.Lerp(0.9f, 1.2f, mesoWeight);
             float shapeAlpha = Mathf.Lerp(0.85f, 1.2f, macroWeight);
-            float vignetteAlpha = Mathf.Lerp(0.9f, 1.2f, zoneTheme.DensityProfile == DensityProfile.Dense ? 0.8f : 0.4f);
+            // Vignette effect completely disabled
 
             float detailScale = Mathf.Lerp(0.95f, 1.25f, microWeight) * levelVariant.MinorAmplitudeMod;
             float flowScale = Mathf.Lerp(0.95f, 1.3f, mesoWeight) * levelVariant.MinorAmplitudeMod;
@@ -1196,7 +1204,6 @@ namespace Decantra.Presentation.Controller
                 DetailAlphaScale = detailAlpha,
                 FlowAlphaScale = flowAlpha,
                 ShapeAlphaScale = shapeAlpha,
-                VignetteAlphaScale = vignetteAlpha,
                 DetailScale = detailScale,
                 FlowScale = flowScale,
                 ShapeScale = shapeScale,

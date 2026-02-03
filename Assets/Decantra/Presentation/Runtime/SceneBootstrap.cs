@@ -321,6 +321,7 @@ namespace Decantra.Presentation
             centerBlurImage.color = new Color(1f, 1f, 1f, 0.45f);
             centerBlurImage.raycastTarget = false;
 
+            // Vignette effect completely disabled - creates dated egg-shaped spotlight appearance
             var vignetteGo = CreateUiChild(parent, "BackgroundVignette");
             var vignetteRect = vignetteGo.GetComponent<RectTransform>();
             vignetteRect.anchorMin = Vector2.zero;
@@ -330,9 +331,10 @@ namespace Decantra.Presentation
 
             var vignetteImage = vignetteGo.AddComponent<Image>();
             vignetteImage.sprite = CreateVignetteSprite();
-            vignetteImage.color = new Color(0f, 0f, 0f, 0.3f);
+            vignetteImage.color = new Color(0f, 0f, 0f, 0f); // Alpha = 0 to completely disable vignette
             vignetteImage.type = Image.Type.Simple;
             vignetteImage.raycastTarget = false;
+            vignetteGo.SetActive(false); // Disable vignette GameObject entirely
 
             bg.transform.SetAsFirstSibling();
             largeStructureGo.transform.SetSiblingIndex(1);
@@ -1088,60 +1090,89 @@ namespace Decantra.Presentation
             return dialog;
         }
 
-
-
         private static Text CreateStatPanel(Transform parent, string name, string label, out GameObject panel)
         {
             panel = CreateUiChild(parent, name);
+
+            // ---------------------------------------------------------------------
+            // Main panel (authoritative size)
+            // ---------------------------------------------------------------------
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
-            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+            image.color = new Color(0.08f, 0.10f, 0.14f, 0.88f);
             image.raycastTarget = false;
 
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(0f, 140f); // width driven by layout
+
+            var element = panel.AddComponent<LayoutElement>();
+            element.minHeight = 140f;
+            element.minWidth = 300f;          // baseline
+            element.preferredWidth = -1f;     // content-driven
+            element.flexibleWidth = 1f;
+
+            var layout = panel.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.padding = new RectOffset(32, 32, 20, 20);
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = true;
+
+            // ---------------------------------------------------------------------
+            // Dark shadow (slightly wider, offset left)
+            // ---------------------------------------------------------------------
             var shadowGo = CreateUiChild(panel.transform, "Shadow");
             var shadowImage = shadowGo.AddComponent<Image>();
             shadowImage.sprite = GetRoundedSprite();
             shadowImage.type = Image.Type.Sliced;
             shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
             shadowImage.raycastTarget = false;
+
             var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
-            shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(308, 148);
-            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowRect.anchorMin = Vector2.zero;
+            shadowRect.anchorMax = Vector2.one;
+
+            // Slightly wider than main panel
+            shadowRect.offsetMin = new Vector2(-8f, -4f);
+            shadowRect.offsetMax = new Vector2(0f, 4f);
+
+            // Offset left/down
+            shadowRect.anchoredPosition = new Vector2(-4f, -2f);
+
             shadowGo.transform.SetAsFirstSibling();
 
+            // ---------------------------------------------------------------------
+            // Light highlight (same width, offset downward)
+            // ---------------------------------------------------------------------
             var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
             var glassImage = glassGo.AddComponent<Image>();
             glassImage.sprite = GetRoundedSprite();
             glassImage.type = Image.Type.Sliced;
             glassImage.color = new Color(1f, 1f, 1f, 0.08f);
             glassImage.raycastTarget = false;
+
             var glassRect = glassGo.GetComponent<RectTransform>();
-            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
-            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
-            glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(292, 64);
-            glassRect.anchoredPosition = new Vector2(0f, 32f);
+            glassRect.anchorMin = new Vector2(0f, 0.5f);
+            glassRect.anchorMax = new Vector2(1f, 1f);
+            glassRect.offsetMin = new Vector2(12f, 8f);
+            glassRect.offsetMax = new Vector2(-12f, -12f);
 
-            var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(300, 140);
-            var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 300;
-            element.minHeight = 140;
-            element.flexibleWidth = 1f;
-
+            // ---------------------------------------------------------------------
+            // Value text
+            // ---------------------------------------------------------------------
             var text = CreateHudText(panel.transform, "Value");
             text.fontSize = 56;
             text.resizeTextForBestFit = true;
             text.resizeTextMinSize = 20;
             text.resizeTextMaxSize = 56;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.alignment = TextAnchor.MiddleCenter;
             text.text = label;
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
+
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
+
             return text;
         }
 
