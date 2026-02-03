@@ -661,41 +661,20 @@ namespace Decantra.Domain.Generation
         }
 
         /// <summary>
-        /// Computes the maximum reverse-pour amount that can be cleanly inverted
-        /// by a legal forward move (i.e., a forward "pour all" move).
+        /// Computes the maximum reverse-pour amount.
+        /// Simplified to match main branch behavior for determinism.
         /// </summary>
         private static int GetMaxReversibleReverseAmount(Bottle source, Bottle target, bool preventEmptySource)
         {
             if (source == null || target == null) return 0;
-            var color = source.TopColor;
-            if (!color.HasValue) return 0;
-
-            // If target already has the same top color, the inverse forward move would pour
-            // more than the reverse amount, breaking reversibility.
-            var targetTop = target.TopColor;
-            if (targetTop.HasValue && targetTop.Value == color.Value)
-            {
-                return 0;
-            }
-
             int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
-            if (maxAmount <= 0) return 0;
-
-            int maxAllowed = maxAmount;
-
-            // If removing the entire top block would reveal a different color,
-            // then the inverse forward move would become illegal (top colors mismatch).
-            if (source.ContiguousTopCount == maxAmount && source.Count > maxAmount)
+            
+            if (preventEmptySource && maxAmount >= source.Count)
             {
-                maxAllowed = Math.Min(maxAllowed, source.ContiguousTopCount - 1);
+                maxAmount = Math.Max(0, source.Count - 1);
             }
-
-            if (preventEmptySource)
-            {
-                maxAllowed = Math.Min(maxAllowed, source.Count - 1);
-            }
-
-            return Math.Max(0, maxAllowed);
+            
+            return Math.Max(0, maxAmount);
         }
 
         /// <summary>
