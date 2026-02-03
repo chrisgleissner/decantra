@@ -459,7 +459,11 @@ namespace Decantra.Presentation
             secondaryLayout.childForceExpandHeight = false;
             secondaryLayout.spacing = 32f;
 
-            CreateResetButton(secondaryHud.transform);
+            var resetButton = CreateResetButton(secondaryHud.transform);
+            if (resetButton != null)
+            {
+                SetPrivateField(brandLayout, "resetButtonRect", resetButton.GetComponent<RectTransform>());
+            }
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();

@@ -8,6 +8,7 @@
 - [x] Replace in-game top banner with Decantra logo and compute width from the three stat buttons.
 - [x] Add deterministic layout component to size and align the in-game logo to the button row bounds.
 - [x] Import Decantra logo asset for the top banner (Resources/Decantra.png) with Unity meta.
+- [x] Adjust top banner logo placement above the button row with gap tied to Reset button spacing and widen by 3%.
 - [x] Regenerate ALL screenshots (intro + gameplay + interstitial) using the build pipeline.
 - [x] Run full local test suite (EditMode + PlayMode).
 - [ ] Verify CI is green for the active branch/PR.
@@ -21,6 +22,7 @@
 - [ ] Confirm in-game top banner uses Decantra logo and width equals the full button-row width.
 - [ ] Confirm logo aspect ratio preserved and no stretching across portrait aspect ratios.
 - [ ] Confirm no per-frame allocations or jitter in logo sizing.
+- [ ] Confirm top logo sits above button row with 2x gap relative to button-to-reset spacing and ~3% wider than row.
 
 ## Commands / Outputs
 
