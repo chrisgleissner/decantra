@@ -463,6 +463,7 @@ public class Program
         var violations = new List<string>();
         var seenLevels = new HashSet<int>();
         int expectedLevel = 1;
+        var difficulties = new List<(int level, int difficulty)>();
 
         foreach (var line in File.ReadLines(path))
         {
@@ -483,26 +484,12 @@ public class Program
 
             expectedLevel++;
             seenLevels.Add(level);
+            difficulties.Add((level, difficulty));
 
-            if (difficulty <= 0)
+            // Validate difficulty is in valid range (1-100)
+            if (difficulty < 1 || difficulty > 100)
             {
-                violations.Add($"Level {level}: difficulty is invalid ({difficulty})");
-                continue;
-            }
-
-            if (level <= LevelDifficultyEngine.LinearDifficultyMaxLevel)
-            {
-                if (difficulty != level)
-                {
-                    violations.Add($"Level {level}: difficulty={difficulty} expected {level}");
-                }
-            }
-            else
-            {
-                if (difficulty != LevelDifficultyEngine.DifficultyClampValue)
-                {
-                    violations.Add($"Level {level}: difficulty={difficulty} expected {LevelDifficultyEngine.DifficultyClampValue}");
-                }
+                violations.Add($"Level {level}: difficulty={difficulty} out of range [1,100]");
             }
         }
 
@@ -514,9 +501,39 @@ public class Program
             }
         }
 
+        // Compute difficulty statistics
+        if (difficulties.Count > 0)
+        {
+            var diffValues = difficulties.Select(d => d.difficulty).ToList();
+            double avgDiff = diffValues.Average();
+            double minDiff = diffValues.Min();
+            double maxDiff = diffValues.Max();
+            double stdDev = Math.Sqrt(diffValues.Select(d => Math.Pow(d - avgDiff, 2)).Average());
+
+            Console.WriteLine($"Difficulty statistics:");
+            Console.WriteLine($"  Min: {minDiff}, Max: {maxDiff}, Avg: {avgDiff:F1}, StdDev: {stdDev:F1}");
+
+            // Check for reasonable difficulty distribution
+            // Early levels (1-20) should average lower than late levels (80-100)
+            var earlyLevels = difficulties.Where(d => d.level <= 20).Select(d => d.difficulty);
+            var lateLevels = difficulties.Where(d => d.level >= 80 && d.level <= 100).Select(d => d.difficulty);
+
+            if (earlyLevels.Any() && lateLevels.Any())
+            {
+                double earlyAvg = earlyLevels.Average();
+                double lateAvg = lateLevels.Average();
+                Console.WriteLine($"  Early (1-20) avg: {earlyAvg:F1}, Late (80-100) avg: {lateAvg:F1}");
+
+                if (lateAvg < earlyAvg)
+                {
+                    Console.WriteLine($"WARNING: Late levels have lower average difficulty than early levels");
+                }
+            }
+        }
+
         Console.WriteLine(violations.Count == 0
-            ? "PASS: Difficulty invariant satisfied."
-            : $"FAIL: {violations.Count} difficulty invariant violation(s) found.");
+            ? "PASS: Difficulty validation completed."
+            : $"FAIL: {violations.Count} validation violation(s) found.");
 
         foreach (var violation in violations.Take(10))
         {

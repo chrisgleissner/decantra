@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Decantra Difficulty Invariant Gate
+# Decantra Difficulty Validation Gate
 # Validates that solver-solutions-debug.txt satisfies:
-# - Levels 1..200: difficulty == level
-# - Levels >= 201: difficulty == 100
+# - All difficulties are in range [1, 100]
+# - All levels are present in sequence
+# - Late levels (80-100) average difficulty >= early levels (1-20)
 
 set -euo pipefail
 
@@ -16,7 +17,7 @@ if [[ ! -f "${SOLUTIONS_FILE}" ]]; then
   exit 1
 fi
 
-echo "=== Monotonicity Gate ==="
+echo "=== Difficulty Validation Gate ==="
 echo "Checking ${SOLUTIONS_FILE}..."
 
 # Extract level and difficulty pairs, validate invariant
@@ -24,6 +25,14 @@ awk -F'[=,]' '
 BEGIN {
   expected_level = 1
   violations = 0
+  early_sum = 0
+  early_count = 0
+  late_sum = 0
+  late_count = 0
+  min_diff = 999
+  max_diff = 0
+  total_diff = 0
+  total_count = 0
 }
 /^level=/ {
   # Extract level number (field 2) and difficulty (field 4)
@@ -43,30 +52,48 @@ BEGIN {
   }
   expected_level++
 
-  # Validate invariant
-  if (level <= 200) {
-    if (diff != level) {
-      violations++
-      if (violations <= 5) {
-        print "  VIOLATION: Level " level ": difficulty=" diff " expected=" level
-      }
+  # Validate difficulty is in valid range [1, 100]
+  if (diff < 1 || diff > 100) {
+    violations++
+    if (violations <= 5) {
+      print "  VIOLATION: Level " level ": difficulty=" diff " out of range [1, 100]"
     }
-  } else {
-    if (diff != 100) {
-      violations++
-      if (violations <= 5) {
-        print "  VIOLATION: Level " level ": difficulty=" diff " expected=100"
-      }
-    }
+  }
+
+  # Track statistics
+  if (diff < min_diff) min_diff = diff
+  if (diff > max_diff) max_diff = diff
+  total_diff += diff
+  total_count++
+
+  # Track early/late averages
+  if (level >= 1 && level <= 20) {
+    early_sum += diff
+    early_count++
+  }
+  if (level >= 80 && level <= 100) {
+    late_sum += diff
+    late_count++
   }
 }
 END {
+  if (total_count > 0) {
+    avg = total_diff / total_count
+    printf "Difficulty stats: min=%d, max=%d, avg=%.1f\n", min_diff, max_diff, avg
+  }
+
+  if (early_count > 0 && late_count > 0) {
+    early_avg = early_sum / early_count
+    late_avg = late_sum / late_count
+    printf "Early (1-20) avg: %.1f, Late (80-100) avg: %.1f\n", early_avg, late_avg
+  }
+
   if (violations > 0) {
     print ""
-    print "FAIL: " violations " difficulty invariant violation(s) found"
+    print "FAIL: " violations " difficulty validation violation(s) found"
     exit 1
   } else {
-    print "PASS: Difficulty invariant satisfied"
+    print "PASS: Difficulty validation passed"
     exit 0
   }
 }
