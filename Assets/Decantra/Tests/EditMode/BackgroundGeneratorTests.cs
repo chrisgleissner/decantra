@@ -67,14 +67,7 @@ namespace Decantra.Domain.Tests
         [Test]
         public void AllGenerators_AreDeterministic()
         {
-            var archetypes = new[]
-            {
-                GeneratorArchetype.DomainWarpedClouds,
-                GeneratorArchetype.CurlFlowAdvection,
-                GeneratorArchetype.AtmosphericWash
-            };
-
-            foreach (var archetype in archetypes)
+            foreach (var archetype in GetAllPrimaryArchetypes())
             {
                 var generator = BackgroundGeneratorRegistry.GetGenerator(archetype);
                 var parameters = FieldParameters.Default;
@@ -156,14 +149,7 @@ namespace Decantra.Domain.Tests
         [Test]
         public void Generators_ProduceNoCenterBias()
         {
-            var archetypes = new[]
-            {
-                GeneratorArchetype.DomainWarpedClouds,
-                GeneratorArchetype.CurlFlowAdvection,
-                GeneratorArchetype.AtmosphericWash
-            };
-
-            foreach (var archetype in archetypes)
+            foreach (var archetype in GetAllPrimaryArchetypes())
             {
                 var generator = BackgroundGeneratorRegistry.GetGenerator(archetype);
                 var parameters = FieldParameters.Macro;
@@ -245,6 +231,29 @@ namespace Decantra.Domain.Tests
             }
 
             return count > 0 ? sum / count : 0f;
+        }
+
+        private static GeneratorArchetype[] GetAllPrimaryArchetypes()
+        {
+            return new[]
+            {
+                GeneratorArchetype.DomainWarpedClouds,
+                GeneratorArchetype.CurlFlowAdvection,
+                GeneratorArchetype.AtmosphericWash,
+                GeneratorArchetype.FractalEscapeDensity,
+                GeneratorArchetype.BotanicalIFS,
+                GeneratorArchetype.ImplicitBlobHaze,
+                GeneratorArchetype.MarbledFlow,
+                GeneratorArchetype.ConcentricRipples,
+                GeneratorArchetype.NebulaGlow,
+                GeneratorArchetype.OrganicCells,
+                GeneratorArchetype.CrystallineFrost,
+                GeneratorArchetype.BranchingTree,
+                GeneratorArchetype.VineTendrils,
+                GeneratorArchetype.RootNetwork,
+                GeneratorArchetype.CanopyDapple,
+                GeneratorArchetype.FloralMandala
+            };
         }
     }
 }

@@ -146,7 +146,7 @@ namespace Decantra.Domain.Background
 
         private static void EnforceNoCenterBias(float[] field, int width, int height)
         {
-            const float threshold = 1.2f;
+            const float threshold = 1.1f;
             float centerX = (width - 1) * 0.5f;
             float centerY = (height - 1) * 0.5f;
 
@@ -156,7 +156,7 @@ namespace Decantra.Domain.Background
             float ratio = center / edgeAvg;
             if (ratio <= threshold) return;
 
-            float scale = Clamp(threshold * edgeAvg / Math.Max(0.0001f, center), 0.6f, 0.95f);
+            float scale = Clamp(threshold * edgeAvg / Math.Max(0.0001f, center), 0.25f, 0.95f);
 
             for (int y = 0; y < height; y++)
             {
