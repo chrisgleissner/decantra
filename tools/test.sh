@@ -30,6 +30,16 @@ fi
 mkdir -p "${PROJECT_PATH}/Logs"
 mkdir -p "${PROJECT_PATH}/Coverage"
 
+sanitize_log() {
+  local log_path="$1"
+  if [[ ! -f "${log_path}" ]]; then
+    return
+  fi
+
+  # Remove only this known non-actionable Unity connectivity warning.
+  sed -i '/^Curl error 7: Failed to connect to cdp\.cloud\.unity3d\.com port 443 after [0-9]\+ ms: Error$/d' "${log_path}"
+}
+
 run_with_log() {
   local step_name="$1"
   local log_path="$2"
@@ -38,7 +48,8 @@ run_with_log() {
   echo "==> ${step_name}"
   : > "${log_path}"
 
-  tail -n +1 -f "${log_path}" &
+  # Hide a known non-actionable Unity connectivity warning in streamed output.
+  tail -n +1 -f "${log_path}" | sed -u '/^Curl error 7: Failed to connect to cdp\.cloud\.unity3d\.com port 443 after [0-9]\+ ms: Error$/d' &
   local tail_pid=$!
 
   cleanup_tail() {
@@ -54,6 +65,7 @@ run_with_log() {
 
   cleanup_tail
   trap - EXIT INT TERM
+  sanitize_log "${log_path}"
 
   if [[ ${status} -ne 0 ]]; then
     echo "==> ${step_name} failed with exit code ${status}" >&2

@@ -214,9 +214,13 @@ jobs:
             if [[ -f "$KEYSTORE_STORE_FILE" ]]; then
               echo "Using keystore at $KEYSTORE_STORE_FILE"
             else
-              echo "$KEYSTORE_STORE_FILE" | base64 -d > "$RUNNER_TEMP/decantra-release.keystore" 2>/dev/null || true
-              if [[ -s "$RUNNER_TEMP/decantra-release.keystore" ]]; then
-                KEYSTORE_STORE_FILE="$RUNNER_TEMP/decantra-release.keystore"
+              # Decode to a workspace-relative path so containerized build steps can read it.
+              mkdir -p "$GITHUB_WORKSPACE/.ci"
+              decode_target_rel=".ci/decantra-release.keystore"
+              decode_target_abs="$GITHUB_WORKSPACE/$decode_target_rel"
+              printf '%s' "$KEYSTORE_STORE_FILE" | base64 -d > "$decode_target_abs" 2>/dev/null || true
+              if [[ -s "$decode_target_abs" ]]; then
+                KEYSTORE_STORE_FILE="$decode_target_rel"
                 echo "Decoded keystore secret to $KEYSTORE_STORE_FILE"
               else
                 echo "Keystore secret present but could not decode to file; skipping custom keystore."

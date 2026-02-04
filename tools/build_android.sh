@@ -36,6 +36,16 @@ fi
 mkdir -p "${PROJECT_PATH}/Logs"
 mkdir -p "${BUILD_PATH}"
 
+sanitize_log() {
+  local log_path="$1"
+  if [[ ! -f "${log_path}" ]]; then
+    return
+  fi
+
+  # Remove only this known non-actionable Unity connectivity warning.
+  sed -i '/^Curl error 7: Failed to connect to cdp\.cloud\.unity3d\.com port 443 after [0-9]\+ ms: Error$/d' "${log_path}"
+}
+
 # Determine build method based on variant and format
 if [[ "${DECANTRA_BUILD_FORMAT}" == "aab" ]]; then
   UNITY_BUILD_METHOD="Decantra.App.Editor.AndroidBuild.BuildReleaseAab"
@@ -76,6 +86,7 @@ timeout "${UNITY_BUILD_TIMEOUT}" "${UNITY_PATH}" \
   -buildPath "${OUTPUT_PATH}"
 
 BUILD_EXIT_CODE=$?
+sanitize_log "${LOG_PATH}"
 
 if [[ ${BUILD_EXIT_CODE} -ne 0 ]]; then
   echo "Unity build failed with exit code ${BUILD_EXIT_CODE}" >&2
