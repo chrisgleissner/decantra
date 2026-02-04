@@ -26,6 +26,7 @@ BUILD_FORMAT="apk"
 CAPTURE_SCREENSHOTS=false
 SCREENSHOTS_ONLY=false
 GENERATE_SOLUTIONS=false
+GENERATE_BACKGROUND_SAMPLES=false
 
 AUTO_REINSTALL=false
 APP_ID="uk.gleissner.decantra"
@@ -55,6 +56,7 @@ Options:
   --screenshots        Capture Play Store screenshots after build
   --screenshots-only   Capture screenshots only (skip tests/build/install)
   --generate-solutions Regenerate solver-solutions-debug.txt (requires dotnet)
+  --generate-background-samples  Generate background sample images for inspection
   -h, --help           Show this help message
 
 Examples:
@@ -68,6 +70,7 @@ Examples:
   ./build --screenshots           Build + capture Play Store screenshots
   ./build --screenshots-only      Capture screenshots from an existing APK
   ./build --generate-solutions    Regenerate solver solutions file
+  ./build --generate-background-samples  Generate background samples for review
 
 Environment Variables (from .env):
   KEYSTORE_STORE_FILE      Path to release keystore
@@ -588,6 +591,12 @@ while [[ $# -gt 0 ]]; do
       GENERATE_SOLUTIONS=true
       shift
       ;;
+    --generate-background-samples)
+      GENERATE_BACKGROUND_SAMPLES=true
+      RUN_TESTS=false
+      RUN_BUILD=false
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -653,6 +662,36 @@ if [[ "${GENERATE_SOLUTIONS}" == "true" ]]; then
       exit 1
     }
   fi
+fi
+
+if [[ "${GENERATE_BACKGROUND_SAMPLES}" == "true" ]]; then
+  log "Generating background samples"
+  
+  UNITY_PATH_FOUND="$(discover_unity_path || true)"
+  if [[ -z "${UNITY_PATH_FOUND}" ]]; then
+    echo "Unity not found. Install Unity or set UNITY_PATH to the Unity editor executable." >&2
+    exit 1
+  fi
+  
+  if ! check_unity_lockfile; then
+    exit 1
+  fi
+  
+  log "Running Unity batchmode to generate background samples"
+  "${UNITY_PATH_FOUND}" \
+    -batchmode \
+    -quit \
+    -projectPath "${ROOT_DIR}" \
+    -executeMethod "Decantra.Presentation.Editor.BackgroundSampleGenerator.GenerateSamplesBatchmode" \
+    -logFile "${ROOT_DIR}/Logs/background-samples.log" || {
+      echo "Background sample generation failed. See Logs/background-samples.log for details." >&2
+      if [[ -f "${ROOT_DIR}/Logs/background-samples.log" ]]; then
+        tail -50 "${ROOT_DIR}/Logs/background-samples.log" >&2
+      fi
+      exit 1
+    }
+  
+  log "Background samples generated in doc/img/background-samples/"
 fi
 
 if [[ "${RUN_TESTS}" == "true" ]]; then

@@ -1998,6 +1998,13 @@ namespace Decantra.Presentation
             }
         }
 
+        /// <summary>
+        /// When true, uses the new organic background generators (Phase 1 implementation).
+        /// When false (default), uses the legacy BackgroundPatternGenerator.
+        /// Set via SceneBootstrap.UseOrganicBackgrounds = true before level load.
+        /// </summary>
+        public static bool UseOrganicBackgrounds { get; set; } = false;
+
         private static BackgroundPatternGenerator.PatternSprites GetZonePatternSprites(int zoneIndex, int globalSeed)
         {
             var key = new ZonePatternCacheKey(globalSeed, zoneIndex);
@@ -2007,24 +2014,60 @@ namespace Decantra.Presentation
             }
 
             var zoneTheme = BackgroundRules.GetZoneTheme(zoneIndex, globalSeed);
-            var request = new BackgroundPatternGenerator.PatternRequest
-            {
-                PrimaryFamily = zoneTheme.PrimaryGeneratorFamily,
-                SecondaryFamily = zoneTheme.SecondaryGeneratorFamily,
-                Density = zoneTheme.DensityProfile,
-                MacroCount = zoneTheme.MacroCount,
-                MesoCount = zoneTheme.MesoCount,
-                MicroCount = zoneTheme.MicroCount,
-                ZoneSeed = BackgroundRules.GetZoneSeed(globalSeed, zoneIndex)
-            };
 
-            var generated = BackgroundPatternGenerator.Generate(request);
-            _zonePatternsByKey[key] = generated;
+            BackgroundPatternGenerator.PatternSprites generated;
+
+            if (UseOrganicBackgrounds)
+            {
+                // Use the new organic archetype-based generators
+                var organicRequest = new OrganicBackgroundGenerator.OrganicPatternRequest
+                {
+                    ZoneIndex = zoneIndex,
+                    ZoneSeed = BackgroundRules.GetZoneSeed(globalSeed, zoneIndex),
+                    Density = zoneTheme.DensityProfile,
+                    MacroCount = zoneTheme.MacroCount,
+                    MesoCount = zoneTheme.MesoCount,
+                    MicroCount = zoneTheme.MicroCount
+                };
+
+                var organicGenerated = OrganicBackgroundGenerator.Generate(organicRequest);
+
+                // Convert to legacy PatternSprites format
+                generated = new BackgroundPatternGenerator.PatternSprites
+                {
+                    Macro = organicGenerated.Macro,
+                    Meso = organicGenerated.Meso,
+                    Accent = organicGenerated.Accent,
+                    Micro = organicGenerated.Micro,
+                    GenerationMilliseconds = organicGenerated.GenerationMilliseconds
+                };
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.Log($"Decantra BackgroundPattern zone={zoneIndex} family={zoneTheme.PrimaryGeneratorFamily} ms={generated.GenerationMilliseconds:0.0}");
+                Debug.Log($"Decantra OrganicBackground zone={zoneIndex} archetype={organicGenerated.Archetype} ms={organicGenerated.GenerationMilliseconds:0.0}");
 #endif
+            }
+            else
+            {
+                // Use the legacy pattern generator
+                var request = new BackgroundPatternGenerator.PatternRequest
+                {
+                    PrimaryFamily = zoneTheme.PrimaryGeneratorFamily,
+                    SecondaryFamily = zoneTheme.SecondaryGeneratorFamily,
+                    Density = zoneTheme.DensityProfile,
+                    MacroCount = zoneTheme.MacroCount,
+                    MesoCount = zoneTheme.MesoCount,
+                    MicroCount = zoneTheme.MicroCount,
+                    ZoneSeed = BackgroundRules.GetZoneSeed(globalSeed, zoneIndex)
+                };
 
+                generated = BackgroundPatternGenerator.Generate(request);
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                Debug.Log($"Decantra BackgroundPattern zone={zoneIndex} family={zoneTheme.PrimaryGeneratorFamily} ms={generated.GenerationMilliseconds:0.0}");
+#endif
+            }
+
+            _zonePatternsByKey[key] = generated;
             return generated;
         }
 
