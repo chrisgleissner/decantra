@@ -809,37 +809,10 @@ namespace Decantra.Presentation.Controller
         private IEnumerator BeginSession()
         {
             _inputLocked = true;
-            bool shouldPlayIntro = introBanner != null && !_introShown;
-            if (shouldPlayIntro)
-            {
-                introBanner.PrepareForIntro();
-            }
-
             if (_state == null)
             {
                 LoadLevel(_currentLevel, _currentSeed);
             }
-
-            if (introBanner != null)
-            {
-                if (shouldPlayIntro)
-                {
-                    _introShown = true;
-                    _introDismissed = false;
-                    yield return StartCoroutine(introBanner.Play());
-                    _introDismissed = true;
-                }
-                else
-                {
-                    introBanner.HideImmediate();
-                    _introDismissed = true;
-                }
-            }
-            else
-            {
-                _introDismissed = true;
-            }
-
             _inputLocked = false;
             yield break;
         }
@@ -1301,9 +1274,9 @@ namespace Decantra.Presentation.Controller
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-        backgroundTimer.Stop();
-        Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
-        AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
+            backgroundTimer.Stop();
+            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
+            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
 #endif
         }
 

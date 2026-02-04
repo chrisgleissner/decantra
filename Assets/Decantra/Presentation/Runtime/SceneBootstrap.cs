@@ -243,8 +243,6 @@ namespace Decantra.Presentation
             baseImage.type = Image.Type.Simple;
             baseImage.raycastTarget = false;
 
-            var initialPatterns = GetZonePatternSprites(0, 0);
-
             var largeStructureGo = CreateUiChild(parent, "BackgroundLargeStructure");
             var largeRect = largeStructureGo.GetComponent<RectTransform>();
             largeRect.anchorMin = Vector2.zero;
@@ -253,7 +251,7 @@ namespace Decantra.Presentation
             largeRect.offsetMax = Vector2.zero;
 
             var largeImage = largeStructureGo.AddComponent<Image>();
-            largeImage.sprite = initialPatterns.Macro;
+            largeImage.sprite = CreateLargeStructureSprite();
             largeImage.color = new Color(1f, 1f, 1f, 0.35f);
             largeImage.type = Image.Type.Simple;
             largeImage.raycastTarget = false;
@@ -271,7 +269,7 @@ namespace Decantra.Presentation
             flowRect.offsetMax = Vector2.zero;
 
             var flowImage = flowGo.AddComponent<Image>();
-            flowImage.sprite = initialPatterns.Meso;
+            flowImage.sprite = CreateFlowSprite();
             flowImage.color = new Color(1f, 1f, 1f, 0.45f);
             flowImage.type = Image.Type.Simple;
             flowImage.raycastTarget = false;
@@ -289,7 +287,7 @@ namespace Decantra.Presentation
             shapesRect.offsetMax = Vector2.zero;
 
             var shapesImage = shapesGo.AddComponent<Image>();
-            shapesImage.sprite = initialPatterns.Accent;
+            shapesImage.sprite = CreateOrganicShapesSprite();
             shapesImage.color = new Color(1f, 1f, 1f, 0.32f);
             shapesImage.type = Image.Type.Simple;
             shapesImage.raycastTarget = false;
@@ -307,7 +305,7 @@ namespace Decantra.Presentation
             detailRect.offsetMax = Vector2.zero;
 
             var detailImage = detailGo.AddComponent<Image>();
-            detailImage.sprite = initialPatterns.Micro;
+            detailImage.sprite = CreateSoftNoiseSprite();
             detailImage.color = new Color(1f, 1f, 1f, 0.36f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
@@ -325,7 +323,7 @@ namespace Decantra.Presentation
             bubblesRect.offsetMax = Vector2.zero;
 
             var bubblesImage = bubblesGo.AddComponent<Image>();
-            bubblesImage.sprite = initialPatterns.Micro;
+            bubblesImage.sprite = CreateBubblesSprite();
             bubblesImage.color = new Color(1f, 1f, 1f, 0.28f);
             bubblesImage.type = Image.Type.Simple;
             bubblesImage.raycastTarget = false;
@@ -1954,44 +1952,13 @@ namespace Decantra.Presentation
         /// <summary>
         /// Updates background structural sprites for a given level.
         /// Call this from GameController when transitioning levels.
+        /// NOTE: In version 0.0.2, sprites were not dynamically updated per-level.
+        /// This method is now a no-op to preserve the original nebulous, cloudy background.
         /// </summary>
         public static void UpdateBackgroundSpritesForLevel(int levelIndex, int globalSeed, Image flowImage, Image shapesImage, Image bubblesImage, Image largeStructureImage, Image detailImage)
         {
-            int zoneIndex = BackgroundRules.GetZoneIndex(levelIndex);
-            if (_lastZoneIndex == zoneIndex && _lastZoneSeed == globalSeed)
-            {
-                return;
-            }
-
-            _lastZoneIndex = zoneIndex;
-            _lastZoneSeed = globalSeed;
-
-            var sprites = GetZonePatternSprites(zoneIndex, globalSeed);
-
-            if (largeStructureImage != null)
-            {
-                largeStructureImage.sprite = sprites.Macro;
-            }
-
-            if (flowImage != null)
-            {
-                flowImage.sprite = sprites.Meso;
-            }
-
-            if (shapesImage != null)
-            {
-                shapesImage.sprite = sprites.Accent;
-            }
-
-            if (bubblesImage != null)
-            {
-                bubblesImage.sprite = sprites.Micro;
-            }
-
-            if (detailImage != null)
-            {
-                detailImage.sprite = sprites.Micro;
-            }
+            // No-op: Preserve 0.0.2 behavior where background sprites are set once during CreateBackground()
+            // and not dynamically replaced with procedural patterns.
         }
 
         private static Sprite CreateOrganicShapesSprite()
