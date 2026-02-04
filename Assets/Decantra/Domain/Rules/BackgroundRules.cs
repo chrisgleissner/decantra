@@ -218,7 +218,7 @@ namespace Decantra.Domain.Rules
                 return _globalSeed == other._globalSeed && _zoneIndex == other._zoneIndex;
             }
 
-            public override bool Equals(object obj)
+            public override bool Equals(object? obj)
             {
                 return obj is ZoneThemeCacheKey other && Equals(other);
             }
@@ -818,7 +818,7 @@ namespace Decantra.Domain.Rules
             };
         }
 
-        private static LayerSpec[] EnforceNoCenterBias(LayerSpec[] layers)
+        private static LayerSpec[]? EnforceNoCenterBias(LayerSpec[]? layers)
         {
             if (layers == null || layers.Length == 0)
             {

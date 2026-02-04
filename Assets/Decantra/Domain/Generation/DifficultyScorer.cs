@@ -119,9 +119,16 @@ namespace Decantra.Domain.Generation
             return Math.Max(1, Math.Min(100, rawScore));
         }
 
-        public static int TargetDifficultyForLevel(int levelIndex) => LevelDifficultyEngine.GetDifficultyForLevel(levelIndex);
+        /// <summary>
+        /// Returns the target intrinsic difficulty for a level.
+        /// Increases linearly from ~25 at level 1 to ~95 at level 200, then plateaus.
+        /// </summary>
+        public static int TargetDifficultyForLevel(int levelIndex)
+        {
+            return MonotonicLevelSelector.TargetDifficulty(levelIndex);
+        }
 
-        public static int MinDifficultyForLevel(int levelIndex) => TargetDifficultyForLevel(levelIndex);
+        public static int MinDifficultyForLevel(int levelIndex) => Math.Max(1, TargetDifficultyForLevel(levelIndex) - 15);
 
         /// <summary>Scales minimum optimal moves from 3 (Level 1) to 12 (Level 100).</summary>
         public static int SoftMinOptimalForLevel(int levelIndex)
