@@ -3,16 +3,26 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APK_DEFAULT="${ROOT_DIR}/Builds/Android/Decantra.apk"
+AAB_DEFAULT="${ROOT_DIR}/Builds/Android/Decantra.aab"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
 DECANTRA_ANDROID_SERIAL="${DECANTRA_ANDROID_SERIAL:-${ANDROID_SERIAL:-}}"
 UNITY_PATH_OVERRIDE="${UNITY_PATH:-}"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
 
+# Load .env if present (for keystore configuration)
+if [[ -f "${ROOT_DIR}/.env" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "${ROOT_DIR}/.env"
+  set +a
+fi
+
 RUN_TESTS=true
 RUN_BUILD=true
 RUN_INSTALL=false
 BUILD_VARIANT="release"
+BUILD_FORMAT="apk"
 CAPTURE_SCREENSHOTS=false
 SCREENSHOTS_ONLY=false
 GENERATE_SOLUTIONS=false
@@ -39,8 +49,9 @@ Options:
   --serial <id>        Device serial to target (env: DECANTRA_ANDROID_SERIAL)
   --apk-path <path>    APK path to install (default: Builds/Android/Decantra.apk)
   --skip-tests         Skip Unity tests
-  --skip-build         Skip APK build
+  --skip-build         Skip APK/AAB build
   --debug              Build the debug APK (default: release)
+  --aab                Build release AAB instead of APK (for Play Store)
   --screenshots        Capture Play Store screenshots after build
   --screenshots-only   Capture screenshots only (skip tests/build/install)
   --generate-solutions Regenerate solver-solutions-debug.txt (requires dotnet)
@@ -49,6 +60,7 @@ Options:
 Examples:
   ./build                         Run tests and build release APK
   ./build --debug                 Run tests and build debug APK
+  ./build --aab                   Run tests and build release AAB (Play Store)
   ./build --skip-tests            Build release APK without running tests
   ./build --skip-build --install  Install existing APK to device
   ./build --install --reinstall   Uninstall and reinstall the APK
@@ -56,6 +68,12 @@ Examples:
   ./build --screenshots           Build + capture Play Store screenshots
   ./build --screenshots-only      Capture screenshots from an existing APK
   ./build --generate-solutions    Regenerate solver solutions file
+
+Environment Variables (from .env):
+  KEYSTORE_STORE_FILE      Path to release keystore
+  KEYSTORE_STORE_PASSWORD  Keystore password
+  KEYSTORE_KEY_ALIAS       Key alias name
+  KEYSTORE_KEY_PASSWORD    Key password (optional, defaults to store password)
 EOF
 }
 
@@ -546,6 +564,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --debug)
       BUILD_VARIANT="debug"
+      BUILD_FORMAT="apk"
+      shift
+      ;;
+    --aab)
+      BUILD_VARIANT="release"
+      BUILD_FORMAT="aab"
       shift
       ;;
     --screenshots)
@@ -637,12 +661,20 @@ if [[ "${RUN_TESTS}" == "true" ]]; then
 fi
 
 if [[ "${RUN_BUILD}" == "true" ]]; then
-  if [[ "${BUILD_VARIANT}" == "release" ]]; then
+  if [[ "${BUILD_FORMAT}" == "aab" ]]; then
+    log "Building release AAB (Play Store bundle)"
+    # Validate keystore configuration for AAB builds
+    if [[ -z "${KEYSTORE_STORE_FILE:-}" ]]; then
+      echo "ERROR: KEYSTORE_STORE_FILE not set. Release AAB requires signing configuration." >&2
+      echo "Set keystore env vars in .env file or environment." >&2
+      exit 1
+    fi
+  elif [[ "${BUILD_VARIANT}" == "release" ]]; then
     log "Building release APK"
   else
     log "Building debug APK"
   fi
-  DECANTRA_BUILD_VARIANT="${BUILD_VARIANT}" "${ROOT_DIR}/tools/build_android.sh"
+  DECANTRA_BUILD_VARIANT="${BUILD_VARIANT}" DECANTRA_BUILD_FORMAT="${BUILD_FORMAT}" "${ROOT_DIR}/tools/build_android.sh"
 fi
 
 if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then

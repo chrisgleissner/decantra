@@ -7,11 +7,13 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Decantra.App.Editor
 {
@@ -152,12 +154,49 @@ namespace Decantra.App.Editor
             string artifactLabel
         )
         {
+            Debug.Log($"========================================");
+            Debug.Log($"AndroidBuild: Starting {artifactLabel} build");
+            Debug.Log($"========================================");
+
             PlayerSettings.Android.targetSdkVersion =
                 AndroidSdkVersions.AndroidApiLevel35;
             ConfigureAndroidToolchainFromEnv();
             ConfigureVersioningFromEnv();
             bool requireKeystore = ShouldRequireKeystore(options, buildAppBundle);
+
+            Debug.Log($"AndroidBuild: Release signing required: {requireKeystore}");
+
             KeystoreConfig keystoreConfig = ConfigureAndroidSigningFromEnv(requireKeystore);
+
+            // Final signing state verification before build
+            if (requireKeystore)
+            {
+                Debug.Log("========================================");
+                Debug.Log("PRE-BUILD SIGNING STATE VERIFICATION");
+                Debug.Log("========================================");
+                Debug.Log($"  useCustomKeystore: {PlayerSettings.Android.useCustomKeystore}");
+                Debug.Log($"  keystoreName: {PlayerSettings.Android.keystoreName}");
+                Debug.Log($"  keyaliasName: {PlayerSettings.Android.keyaliasName}");
+                Debug.Log($"  keystorePass set: {!string.IsNullOrEmpty(PlayerSettings.Android.keystorePass)}");
+                Debug.Log($"  keyaliasPass set: {!string.IsNullOrEmpty(PlayerSettings.Android.keyaliasPass)}");
+                Debug.Log("========================================");
+
+                if (!PlayerSettings.Android.useCustomKeystore)
+                {
+                    FailBuild("AndroidBuild: FATAL - useCustomKeystore is false immediately before build. Release signing will not be applied.");
+                }
+
+                if (string.IsNullOrWhiteSpace(PlayerSettings.Android.keystoreName))
+                {
+                    FailBuild("AndroidBuild: FATAL - keystoreName is empty immediately before build.");
+                }
+
+                if (string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasName))
+                {
+                    FailBuild("AndroidBuild: FATAL - keyaliasName is empty immediately before build.");
+                }
+            }
+
             string[] args = Environment.GetCommandLineArgs();
             string outputPath = defaultPath;
             for (int i = 0; i < args.Length - 1; i++)
@@ -194,6 +233,7 @@ namespace Decantra.App.Editor
                 options = options
             };
 
+            Debug.Log($"AndroidBuild: Invoking BuildPipeline.BuildPlayer for {artifactLabel}...");
             BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
             EditorUserBuildSettings.buildAppBundle = previousBuildAppBundle;
             if (report.summary.result != BuildResult.Succeeded)
@@ -294,22 +334,82 @@ namespace Decantra.App.Editor
 
             string keystorePath = ResolveKeystorePath(keystorePathRaw);
             EnsureReadableFile(keystorePath, "keystore");
+            VerifyKeystoreContainsAlias(keystorePath, keystorePass, keyAlias);
+
             string resolvedKeyPass = string.IsNullOrWhiteSpace(keyPass)
                 ? keystorePass
                 : keyPass;
 
+            // Configure signing - explicit field-by-field assignment
             PlayerSettings.Android.useCustomKeystore = true;
             PlayerSettings.Android.keystoreName = keystorePath;
             PlayerSettings.Android.keystorePass = keystorePass;
             PlayerSettings.Android.keyaliasName = keyAlias;
             PlayerSettings.Android.keyaliasPass = resolvedKeyPass;
 
-            Debug.Log($"AndroidBuild: Custom keystore enabled: {PlayerSettings.Android.useCustomKeystore}");
-            Debug.Log($"AndroidBuild: Keystore path (absolute): {keystorePath}");
-            Debug.Log($"AndroidBuild: Key alias: {keyAlias}");
+            // CRITICAL: Persist settings to disk BEFORE building.
+            // Unity batchmode may not persist PlayerSettings changes without this.
+            AssetDatabase.SaveAssets();
+
+            // Verify persistence succeeded by re-reading settings
+            if (!PlayerSettings.Android.useCustomKeystore)
+            {
+                FailBuild("AndroidBuild: CRITICAL - useCustomKeystore did not persist after SaveAssets(). Signing will fail.");
+            }
+
+            // Unity may normalize the keystore path to a relative path.
+            // Verify either exact match OR that the stored path resolves to the same file.
+            string storedKeystorePath = PlayerSettings.Android.keystoreName;
+            string storedAbsolutePath = ResolveKeystorePath(storedKeystorePath);
+            if (!string.Equals(storedAbsolutePath, keystorePath, StringComparison.Ordinal))
+            {
+                FailBuild($"AndroidBuild: CRITICAL - keystoreName did not persist correctly. " +
+                    $"Expected '{keystorePath}', got '{storedKeystorePath}' (resolves to '{storedAbsolutePath}').");
+            }
+
+            if (!string.Equals(PlayerSettings.Android.keyaliasName, keyAlias, StringComparison.Ordinal))
+            {
+                FailBuild($"AndroidBuild: CRITICAL - keyaliasName did not persist. Expected '{keyAlias}', got '{PlayerSettings.Android.keyaliasName}'.");
+            }
+
+            Debug.Log("========================================");
             Debug.Log("ANDROID RELEASE SIGNING CONFIGURED");
+            Debug.Log("========================================");
+            Debug.Log($"  Custom keystore enabled: {PlayerSettings.Android.useCustomKeystore}");
+            Debug.Log($"  Keystore path (stored): {storedKeystorePath}");
+            Debug.Log($"  Keystore path (absolute): {keystorePath}");
+            Debug.Log($"  Key alias: {keyAlias}");
+            Debug.Log($"  Settings persisted: YES");
+            Debug.Log("========================================");
 
             return new KeystoreConfig(keystorePath, keystorePass, keyAlias, resolvedKeyPass);
+        }
+
+        private static void VerifyKeystoreContainsAlias(string keystorePath, string keystorePass, string keyAlias)
+        {
+            string keytoolOutput;
+            try
+            {
+                keytoolOutput = RunProcess(
+                    "keytool",
+                    $"-list -keystore \"{keystorePath}\" -alias \"{keyAlias}\" -storepass \"{keystorePass}\"",
+                    "keytool (alias verification)"
+                );
+            }
+            catch (Exception ex)
+            {
+                FailBuild($"AndroidBuild: Failed to verify keystore contains alias '{keyAlias}': {ex.Message}");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(keytoolOutput))
+            {
+                FailBuild($"AndroidBuild: keytool returned empty output when verifying alias '{keyAlias}' in keystore.");
+            }
+
+            // keytool -list with -alias exits 0 and prints alias info if found
+            // If alias doesn't exist, keytool exits non-zero (caught by RunProcess)
+            Debug.Log($"AndroidBuild: Verified keystore contains alias '{keyAlias}'.");
         }
 
         private static string ResolveKeystorePath(string keystorePathRaw)
@@ -346,6 +446,10 @@ namespace Decantra.App.Editor
 
         private static void VerifyAabSigning(string aabPath, KeystoreConfig config)
         {
+            Debug.Log("========================================");
+            Debug.Log("POST-BUILD AAB SIGNING VERIFICATION");
+            Debug.Log("========================================");
+
             if (config == null)
             {
                 FailBuild("AndroidBuild: Missing keystore configuration for AAB verification.");
@@ -357,11 +461,14 @@ namespace Decantra.App.Editor
             }
 
             string resolvedAabPath = Path.GetFullPath(aabPath);
+            Debug.Log($"  AAB path: {resolvedAabPath}");
+
             if (!File.Exists(resolvedAabPath))
             {
                 FailBuild($"AndroidBuild: AAB not found at '{resolvedAabPath}'.");
             }
 
+            Debug.Log("  Running jarsigner -verify...");
             string jarsignerOutput = RunProcess(
                 "jarsigner",
                 $"-verify -verbose -certs \"{resolvedAabPath}\"",
@@ -373,13 +480,33 @@ namespace Decantra.App.Editor
                 FailBuild("AndroidBuild: jarsigner returned no output; cannot verify signing.");
             }
 
+            // Check 1: Reject Android Debug signing
             if (jarsignerOutput.IndexOf("Android Debug", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                Debug.LogError("AndroidBuild: jarsigner output indicates Android Debug signing.");
-                Debug.LogError(jarsignerOutput);
-                FailBuild("AndroidBuild: Release AAB is debug-signed.");
+                Debug.LogError("========================================");
+                Debug.LogError("AAB SIGNING VERIFICATION FAILED");
+                Debug.LogError("========================================");
+                Debug.LogError("REASON: AAB is signed with Android Debug certificate");
+                Debug.LogError("");
+                Debug.LogError("This means Unity ignored the custom keystore configuration");
+                Debug.LogError("and fell back to debug signing.");
+                Debug.LogError("");
+                Debug.LogError("--- jarsigner output (truncated) ---");
+                string[] lines = jarsignerOutput.Split('\n');
+                for (int i = 0; i < Math.Min(lines.Length, 30); i++)
+                {
+                    if (lines[i].IndexOf("CN=", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        lines[i].IndexOf("Android Debug", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        Debug.LogError(lines[i]);
+                    }
+                }
+                Debug.LogError("========================================");
+                FailBuild("AndroidBuild: FATAL - Release AAB is debug-signed. Google Play will reject this AAB.");
             }
 
+            // Check 2: Verify SHA-256 fingerprint matches release keystore
+            Debug.Log("  Extracting expected fingerprint from release keystore...");
             string keytoolOutput = RunProcess(
                 "keytool",
                 $"-list -v -keystore \"{config.KeystorePath}\" -alias \"{config.KeyAlias}\" -storepass \"{config.KeystorePass}\"",
@@ -394,19 +521,155 @@ namespace Decantra.App.Editor
                 FailBuild("AndroidBuild: Release keystore fingerprint could not be determined.");
             }
 
-            string normalizedExpected = NormalizeFingerprint(expectedFingerprint);
-            string normalizedJarsigner = NormalizeFingerprint(jarsignerOutput);
-            if (normalizedJarsigner.IndexOf(normalizedExpected, StringComparison.OrdinalIgnoreCase) < 0)
+            Debug.Log($"  Expected SHA-256: {expectedFingerprint}");
+
+            // Check 3: Extract actual fingerprint from AAB signing certificate
+            Debug.Log("  Extracting actual fingerprint from AAB signing certificate...");
+            string actualFingerprint = ExtractAabSignerFingerprint(resolvedAabPath);
+            if (string.IsNullOrWhiteSpace(actualFingerprint))
             {
-                Debug.LogError("AndroidBuild: jarsigner output does not match expected release signer.");
-                Debug.LogError("--- jarsigner output ---");
-                Debug.LogError(jarsignerOutput);
-                Debug.LogError("--- keytool output ---");
-                Debug.LogError(keytoolOutput);
+                Debug.LogError("AndroidBuild: Unable to extract SHA-256 fingerprint from AAB signing certificate.");
+                FailBuild("AndroidBuild: AAB signer fingerprint could not be determined.");
+            }
+
+            Debug.Log($"  Actual SHA-256: {actualFingerprint}");
+
+            string normalizedExpected = NormalizeFingerprint(expectedFingerprint);
+            string normalizedActual = NormalizeFingerprint(actualFingerprint);
+            if (!normalizedExpected.Equals(normalizedActual, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.LogError("========================================");
+                Debug.LogError("AAB SIGNING VERIFICATION FAILED");
+                Debug.LogError("========================================");
+                Debug.LogError("REASON: AAB signer fingerprint does not match release keystore");
+                Debug.LogError($"Expected SHA-256: {expectedFingerprint}");
+                Debug.LogError($"Actual SHA-256:   {actualFingerprint}");
+                Debug.LogError("");
+                Debug.LogError("This means the AAB was signed with a different keystore than expected.");
+                Debug.LogError("========================================");
                 FailBuild("AndroidBuild: Release AAB signer does not match the expected keystore.");
             }
 
-            Debug.Log("AndroidBuild: AAB signing verification succeeded.");
+            Debug.Log("========================================");
+            Debug.Log("AAB SIGNING VERIFICATION PASSED");
+            Debug.Log("========================================");
+            Debug.Log($"  Signer: NOT Android Debug");
+            Debug.Log($"  SHA-256 fingerprint: MATCHES release keystore");
+            Debug.Log($"  Fingerprint: {actualFingerprint}");
+            Debug.Log("========================================");
+        }
+
+        /// <summary>
+        /// Extracts the SHA-256 fingerprint from the AAB's signing certificate.
+        /// Uses unzip to extract META-INF/*.RSA and keytool to print the certificate.
+        /// </summary>
+        private static string ExtractAabSignerFingerprint(string aabPath)
+        {
+            try
+            {
+                // First, list the META-INF directory to find the .RSA file
+                ProcessStartInfo listInfo = new ProcessStartInfo
+                {
+                    FileName = "unzip",
+                    Arguments = $"-l \"{aabPath}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                string rsaFileName = null;
+                using (Process listProc = Process.Start(listInfo))
+                {
+                    string output = listProc.StandardOutput.ReadToEnd();
+                    listProc.WaitForExit();
+
+                    // Look for META-INF/*.RSA file
+                    foreach (string line in output.Split('\n'))
+                    {
+                        string trimmed = line.Trim();
+                        if (trimmed.Contains("META-INF/") && trimmed.EndsWith(".RSA"))
+                        {
+                            // Extract the filename from the line (last part)
+                            string[] parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length > 0)
+                            {
+                                rsaFileName = parts[parts.Length - 1];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(rsaFileName))
+                {
+                    Debug.LogError("AndroidBuild: Could not find META-INF/*.RSA file in AAB");
+                    return null;
+                }
+
+                Debug.Log($"  Found signing certificate: {rsaFileName}");
+
+                // Create a temp file for the RSA certificate
+                string tempFile = Path.GetTempFileName();
+                try
+                {
+                    // Extract the RSA file to temp
+                    ProcessStartInfo extractInfo = new ProcessStartInfo
+                    {
+                        FileName = "unzip",
+                        Arguments = $"-p \"{aabPath}\" \"{rsaFileName}\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    byte[] rsaBytes;
+                    using (Process extractProc = Process.Start(extractInfo))
+                    {
+                        using (MemoryStream ms = new MemoryStream())
+                        {
+                            extractProc.StandardOutput.BaseStream.CopyTo(ms);
+                            rsaBytes = ms.ToArray();
+                        }
+                        extractProc.WaitForExit();
+                    }
+
+                    File.WriteAllBytes(tempFile, rsaBytes);
+
+                    // Use keytool to print the certificate info
+                    ProcessStartInfo keytoolInfo = new ProcessStartInfo
+                    {
+                        FileName = "keytool",
+                        Arguments = $"-printcert -file \"{tempFile}\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using (Process keytoolProc = Process.Start(keytoolInfo))
+                    {
+                        string keytoolOut = keytoolProc.StandardOutput.ReadToEnd();
+                        keytoolProc.WaitForExit();
+
+                        // Extract the SHA-256 fingerprint
+                        return ExtractFingerprint(keytoolOut, "SHA256");
+                    }
+                }
+                finally
+                {
+                    if (File.Exists(tempFile))
+                    {
+                        File.Delete(tempFile);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"AndroidBuild: Error extracting AAB signer fingerprint: {ex.Message}");
+                return null;
+            }
         }
 
         private static string RunProcess(string fileName, string arguments, string toolName)
