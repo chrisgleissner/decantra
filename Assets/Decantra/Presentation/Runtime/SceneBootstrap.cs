@@ -1757,27 +1757,57 @@ namespace Decantra.Presentation
 
         private static Sprite CreateSunsetSprite()
         {
-            const int width = 2;
-            const int height = 256;
+            const int width = 128;
+            const int height = 512;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
 
-            var sky = new Color(0.68f, 0.74f, 0.84f, 1f);
-            var mid = new Color(0.32f, 0.42f, 0.55f, 1f);
-            var deep = new Color(0.16f, 0.2f, 0.28f, 1f);
+            // Modern 2026 palette: luminous aqua-cyan to soft lavender-pink, warm and uplifting
+            var top = new Color(0.42f, 0.82f, 0.92f, 1f);       // Bright aqua-cyan
+            var midHigh = new Color(0.58f, 0.72f, 0.95f, 1f);   // Soft periwinkle-blue
+            var midLow = new Color(0.72f, 0.62f, 0.88f, 1f);    // Gentle lavender
+            var bottom = new Color(0.88f, 0.65f, 0.78f, 1f);    // Warm rose-pink
 
             for (int y = 0; y < height; y++)
             {
                 float t = y / (float)(height - 1);
-                float curve = Mathf.SmoothStep(0f, 1f, t);
-                Color color = t < 0.55f
-                    ? Color.Lerp(deep, mid, curve / 0.55f)
-                    : Color.Lerp(mid, sky, (curve - 0.55f) / 0.45f);
+                // Quintic smoothstep for ultra-smooth gradient
+                float curve = t * t * t * (t * (t * 6f - 15f) + 10f);
+
+                // Four-stop gradient with organic wavering
+                Color baseColor;
+                if (curve < 0.33f)
+                {
+                    baseColor = Color.Lerp(bottom, midLow, curve / 0.33f);
+                }
+                else if (curve < 0.55f)
+                {
+                    baseColor = Color.Lerp(midLow, midHigh, (curve - 0.33f) / 0.22f);
+                }
+                else
+                {
+                    baseColor = Color.Lerp(midHigh, top, (curve - 0.55f) / 0.45f);
+                }
 
                 for (int x = 0; x < width; x++)
                 {
-                    texture.SetPixel(x, y, color);
+                    float nx = x / (float)(width - 1);
+
+                    // Organic color wavering using multi-octave noise
+                    float warp1 = Mathf.PerlinNoise(nx * 0.8f + t * 1.5f, t * 2.5f + 3.7f);
+                    float warp2 = Mathf.PerlinNoise(nx * 1.6f + 7.2f, t * 3.2f + warp1 * 2f);
+                    float colorWave = (warp1 * 0.7f + warp2 * 0.3f - 0.5f) * 0.08f;
+
+                    // Subtle hue shift for living, breathing feel
+                    float hueShift = Mathf.PerlinNoise(nx * 0.5f + t * 0.8f, 5.5f) * 0.03f - 0.015f;
+
+                    Color finalColor = new Color(
+                        Mathf.Clamp01(baseColor.r + colorWave + hueShift * 0.5f),
+                        Mathf.Clamp01(baseColor.g + colorWave * 0.7f),
+                        Mathf.Clamp01(baseColor.b + colorWave * 0.4f - hueShift),
+                        1f);
+                    texture.SetPixel(x, y, finalColor);
                 }
             }
 
@@ -1787,62 +1817,111 @@ namespace Decantra.Presentation
 
         private static Sprite CreateSoftNoiseSprite()
         {
-            const int width = 96;
-            const int height = 96;
-            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            texture.wrapMode = TextureWrapMode.Repeat;
-            texture.filterMode = FilterMode.Bilinear;
-
-            float scale = 10.5f;
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float n1 = Mathf.PerlinNoise(nx * scale, ny * scale);
-                    float n2 = Mathf.PerlinNoise(nx * scale * 2.1f + 11.3f, ny * scale * 2.1f + 6.7f);
-                    float n3 = Mathf.PerlinNoise(nx * scale * 4.3f + 4.8f, ny * scale * 4.3f + 9.2f);
-                    float n4 = Mathf.PerlinNoise(nx * 32.0f + 1.1f, ny * 32.0f + 7.4f);
-                    float fbm = (n1 * 0.5f) + (n2 * 0.3f) + (n3 * 0.2f);
-                    float speck = Mathf.SmoothStep(0.62f, 0.85f, n4);
-                    float noise = Mathf.Clamp01(fbm + speck * 0.35f);
-                    float v = Mathf.Lerp(0.65f, 1.15f, noise);
-                    float alpha = Mathf.Clamp01(Mathf.Lerp(0.12f, 0.55f, noise) + speck * 0.35f);
-                    texture.SetPixel(x, y, new Color(v, v, v, alpha));
-                }
-            }
-
-            texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 96f);
-        }
-
-        private static Sprite CreateFlowSprite()
-        {
             const int width = 192;
             const int height = 192;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Repeat;
             texture.filterMode = FilterMode.Bilinear;
 
+            // Ethereal mist with heavy turbulent flow - very soft and dreamy
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
                     float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float n1 = Mathf.PerlinNoise(nx * 3.2f, ny * 3.2f);
-                    float n2 = Mathf.PerlinNoise(nx * 6.5f + 0.7f, ny * 6.5f + 1.1f);
-                    float n3 = Mathf.PerlinNoise(nx * 1.4f + 3.9f, ny * 1.4f + 2.4f);
-                    float mix = Mathf.Lerp(n1, n2, 0.55f);
-                    mix = Mathf.Lerp(mix, n3, 0.35f);
-                    float alpha = Mathf.SmoothStep(0.25f, 0.95f, mix);
+
+                    // Three-layer cascading domain warp for turbulent organic flow
+                    float w1x = Mathf.PerlinNoise(nx * 0.9f + 2.1f, ny * 0.9f + 8.4f);
+                    float w1y = Mathf.PerlinNoise(nx * 0.9f + 5.7f, ny * 0.9f + 1.2f);
+                    float wx = nx + (w1x - 0.5f) * 0.6f;
+                    float wy = ny + (w1y - 0.5f) * 0.6f;
+
+                    float w2x = Mathf.PerlinNoise(wx * 1.4f + 9.3f, wy * 1.4f + 3.6f);
+                    float w2y = Mathf.PerlinNoise(wx * 1.4f + 4.8f, wy * 1.4f + 7.1f);
+                    wx += (w2x - 0.5f) * 0.35f;
+                    wy += (w2y - 0.5f) * 0.35f;
+
+                    float w3x = Mathf.PerlinNoise(wx * 2.2f + 1.5f, wy * 2.2f + 6.9f);
+                    float w3y = Mathf.PerlinNoise(wx * 2.2f + 8.2f, wy * 2.2f + 2.4f);
+                    wx += (w3x - 0.5f) * 0.18f;
+                    wy += (w3y - 0.5f) * 0.18f;
+
+                    // Ultra-low frequency cloud formations
+                    float n1 = Mathf.PerlinNoise(wx * 0.7f + 3.3f, wy * 0.7f + 5.8f);
+                    float n2 = Mathf.PerlinNoise(wx * 1.3f + 7.6f, wy * 1.3f + 2.1f);
+
+                    float cloud = n1 * 0.65f + n2 * 0.35f;
+
+                    // Quintic smoothstep for butter-smooth transitions
+                    cloud = cloud * cloud * cloud * (cloud * (cloud * 6f - 15f) + 10f);
+                    float alpha = Mathf.Lerp(0.02f, 0.28f, cloud);
+
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
 
             texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 192f);
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 128f);
+        }
+
+        private static Sprite CreateFlowSprite()
+        {
+            const int width = 320;
+            const int height = 320;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            // Liquid ink diffusion - organic flowing wisps like watercolor bleeding
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)height;
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+
+                    // Extreme cascading domain warp for liquid ink feel
+                    float t1x = Mathf.PerlinNoise(nx * 0.6f + 1.8f, ny * 0.6f + 4.3f);
+                    float t1y = Mathf.PerlinNoise(nx * 0.6f + 7.9f, ny * 0.6f + 2.1f);
+                    float wx = nx + (t1x - 0.5f) * 0.8f;
+                    float wy = ny + (t1y - 0.5f) * 0.8f;
+
+                    // Second turbulence layer
+                    float t2x = Mathf.PerlinNoise(wx * 1.1f + 5.4f, wy * 1.1f + 8.7f);
+                    float t2y = Mathf.PerlinNoise(wx * 1.1f + 9.2f, wy * 1.1f + 3.5f);
+                    wx += (t2x - 0.5f) * 0.45f;
+                    wy += (t2y - 0.5f) * 0.45f;
+
+                    // Third layer for micro-turbulence (ink feathering)
+                    float t3x = Mathf.PerlinNoise(wx * 1.8f + 2.6f, wy * 1.8f + 6.1f);
+                    float t3y = Mathf.PerlinNoise(wx * 1.8f + 8.3f, wy * 1.8f + 1.9f);
+                    wx += (t3x - 0.5f) * 0.22f;
+                    wy += (t3y - 0.5f) * 0.22f;
+
+                    // Fourth layer - finest detail
+                    float t4x = Mathf.PerlinNoise(wx * 2.8f + 4.1f, wy * 2.8f + 7.4f);
+                    float t4y = Mathf.PerlinNoise(wx * 2.8f + 9.6f, wy * 2.8f + 2.8f);
+                    wx += (t4x - 0.5f) * 0.12f;
+                    wy += (t4y - 0.5f) * 0.12f;
+
+                    // Large soft cloud formations
+                    float n1 = Mathf.PerlinNoise(wx * 0.5f + 3.2f, wy * 0.5f + 5.9f);
+                    float n2 = Mathf.PerlinNoise(wx * 0.9f + 6.8f, wy * 0.9f + 1.4f);
+                    float n3 = Mathf.PerlinNoise(wx * 1.5f + 2.7f, wy * 1.5f + 8.2f);
+
+                    float ink = n1 * 0.5f + n2 * 0.32f + n3 * 0.18f;
+
+                    // Quintic ease for ultra-smooth blending
+                    ink = ink * ink * ink * (ink * (ink * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.01f, 0.42f, ink);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
         }
 
         /// <summary>
@@ -1968,39 +2047,59 @@ namespace Decantra.Presentation
 
         private static Sprite CreateOrganicShapesSprite(int seed)
         {
-            const int width = 192;
-            const int height = 192;
+            const int width = 288;
+            const int height = 288;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Repeat;
             texture.filterMode = FilterMode.Bilinear;
 
-            var centers = new List<Vector2>(8);
-            var radii = new List<float>(8);
             var rand = new System.Random(seed);
-            for (int i = 0; i < 8; i++)
-            {
-                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                radii.Add(Mathf.Lerp(28f, 64f, (float)rand.NextDouble()));
-            }
+            float offsetX = (float)rand.NextDouble() * 50f;
+            float offsetY = (float)rand.NextDouble() * 50f;
 
+            // Amorphous vapor clouds - extremely soft and dreamy
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
-                    float v = 0f;
-                    for (int i = 0; i < centers.Count; i++)
-                    {
-                        float dist = Vector2.Distance(new Vector2(x, y), centers[i]);
-                        float t = Mathf.Clamp01(1f - dist / radii[i]);
-                        v = Mathf.Max(v, t * t);
-                    }
-                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    float nx = x / (float)width;
+
+                    // Multi-layer turbulent domain warp for vapor/smoke effect
+                    float tw1x = Mathf.PerlinNoise(nx * 0.5f + offsetX, ny * 0.5f + offsetY + 3.1f);
+                    float tw1y = Mathf.PerlinNoise(nx * 0.5f + offsetX + 7.8f, ny * 0.5f + offsetY);
+                    float wx = nx + (tw1x - 0.5f) * 0.9f;
+                    float wy = ny + (tw1y - 0.5f) * 0.9f;
+
+                    // Second turbulence cascade
+                    float tw2x = Mathf.PerlinNoise(wx * 0.8f + 4.6f, wy * 0.8f + 9.2f);
+                    float tw2y = Mathf.PerlinNoise(wx * 0.8f + 2.3f, wy * 0.8f + 5.7f);
+                    wx += (tw2x - 0.5f) * 0.5f;
+                    wy += (tw2y - 0.5f) * 0.5f;
+
+                    // Third cascade for fine turbulence
+                    float tw3x = Mathf.PerlinNoise(wx * 1.3f + 8.4f, wy * 1.3f + 1.6f);
+                    float tw3y = Mathf.PerlinNoise(wx * 1.3f + 6.1f, wy * 1.3f + 3.9f);
+                    wx += (tw3x - 0.5f) * 0.25f;
+                    wy += (tw3y - 0.5f) * 0.25f;
+
+                    // Ultra-low frequency vapor formations
+                    float n1 = Mathf.PerlinNoise(wx * 0.4f + offsetX + 2.5f, wy * 0.4f + offsetY + 6.8f);
+                    float n2 = Mathf.PerlinNoise(wx * 0.7f + 5.2f, wy * 0.7f + 8.9f);
+                    float n3 = Mathf.PerlinNoise(wx * 1.1f + 9.3f, wy * 1.1f + 4.1f);
+
+                    float vapor = n1 * 0.55f + n2 * 0.3f + n3 * 0.15f;
+
+                    // Quintic smoothstep for impossibly soft edges
+                    vapor = vapor * vapor * vapor * (vapor * (vapor * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.01f, 0.32f, vapor);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
 
             texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 192f);
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
         }
 
         private static Sprite CreateBubblesSprite()
@@ -2010,39 +2109,55 @@ namespace Decantra.Presentation
 
         private static Sprite CreateBubblesSprite(int seed)
         {
-            const int width = 256;
-            const int height = 256;
+            const int width = 320;
+            const int height = 320;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Repeat;
             texture.filterMode = FilterMode.Bilinear;
 
-            var centers = new List<Vector2>();
-            var radii = new List<float>();
             var rand = new System.Random(seed);
+            float offsetX = (float)rand.NextDouble() * 30f;
+            float offsetY = (float)rand.NextDouble() * 30f;
 
-            for (int i = 0; i < 18; i++)
-            {
-                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                radii.Add(Mathf.Lerp(8f, 32f, (float)rand.NextDouble()));
-            }
-
+            // Ethereal luminous nebulae - soft glowing clouds with no hard edges
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
-                    float v = 0f;
-                    for (int i = 0; i < centers.Count; i++)
-                    {
-                        float dist = Vector2.Distance(new Vector2(x, y), centers[i]);
-                        float r = radii[i];
-                        float t = Mathf.Clamp01(1f - dist / r);
-                        float ring = Mathf.Abs(dist - r * 0.8f) / (r * 0.35f);
-                        float ringVal = Mathf.Clamp01(1f - ring);
-                        float center = t * t * 0.4f;
-                        float bubble = Mathf.Max(ringVal * ringVal * 0.7f, center);
-                        v = Mathf.Max(v, bubble);
-                    }
-                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    float nx = x / (float)width;
+
+                    // Heavy turbulent flow for nebula-like shapes
+                    float tw1x = Mathf.PerlinNoise(nx * 0.7f + offsetX, ny * 0.7f + offsetY + 2.4f);
+                    float tw1y = Mathf.PerlinNoise(nx * 0.7f + offsetX + 6.1f, ny * 0.7f + offsetY + 8.3f);
+                    float wx = nx + (tw1x - 0.5f) * 0.7f;
+                    float wy = ny + (tw1y - 0.5f) * 0.7f;
+
+                    float tw2x = Mathf.PerlinNoise(wx * 1.1f + 3.7f, wy * 1.1f + 9.5f);
+                    float tw2y = Mathf.PerlinNoise(wx * 1.1f + 8.2f, wy * 1.1f + 1.8f);
+                    wx += (tw2x - 0.5f) * 0.4f;
+                    wy += (tw2y - 0.5f) * 0.4f;
+
+                    float tw3x = Mathf.PerlinNoise(wx * 1.7f + 5.9f, wy * 1.7f + 4.3f);
+                    float tw3y = Mathf.PerlinNoise(wx * 1.7f + 2.1f, wy * 1.7f + 7.6f);
+                    wx += (tw3x - 0.5f) * 0.2f;
+                    wy += (tw3y - 0.5f) * 0.2f;
+
+                    // Layered nebula with glow concentrations
+                    float n1 = Mathf.PerlinNoise(wx * 0.6f + offsetX + 4.2f, wy * 0.6f + offsetY + 7.9f);
+                    float n2 = Mathf.PerlinNoise(wx * 1.0f + 6.5f, wy * 1.0f + 2.8f);
+                    float n3 = Mathf.PerlinNoise(wx * 1.6f + 1.3f, wy * 1.6f + 5.4f);
+
+                    // Create glowing orb concentrations
+                    float base_cloud = n1 * 0.5f + n2 * 0.33f + n3 * 0.17f;
+
+                    // Threshold for glow spots while keeping everything soft
+                    float glow = Mathf.SmoothStep(0.38f, 0.72f, base_cloud);
+
+                    // Quintic for ultra-soft edges
+                    glow = glow * glow * glow * (glow * (glow * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.0f, 0.35f, glow);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
@@ -2133,31 +2248,31 @@ namespace Decantra.Presentation
 
         private static Sprite CreateLargeStructureSprite(int seed)
         {
-            const int width = 256;
-            const int height = 256;
+            const int width = 384;
+            const int height = 384;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
 
             var rand = new System.Random(seed);
 
-            // Determine theme based on seed (changes approximately every 10 levels due to zone grouping)
+            // All themes are ultra-soft atmospheric phenomena
             int themeSelector = (seed >> 16) & 0xFF;
             int themeIndex = themeSelector % 4;
 
             switch (themeIndex)
             {
-                case 0: // Scattered round circles (small to large)
-                    RenderScatteredCircles(texture, width, height, rand);
+                case 0: // Cumulus dreamscape - massive soft cloud masses
+                    RenderCumulusDreamscape(texture, width, height, rand);
                     break;
-                case 1: // Geometric polygons
-                    RenderGeometricPolygons(texture, width, height, rand);
+                case 1: // Stratospheric haze - gentle horizontal layers
+                    RenderStratosphericHaze(texture, width, height, rand);
                     break;
-                case 2: // Wave lines
-                    RenderWaveLines(texture, width, height, rand);
+                case 2: // Watercolor bloom - organic spreading pigment
+                    RenderWatercolorBloom(texture, width, height, rand);
                     break;
-                case 3: // Fractal-like scattered shapes
-                    RenderFractalShapes(texture, width, height, rand);
+                case 3: // Borealis flow - ethereal flowing ribbons
+                    RenderBorealisFlow(texture, width, height, rand);
                     break;
             }
 
@@ -2165,212 +2280,320 @@ namespace Decantra.Presentation
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
         }
 
+        /// <summary>
+        /// Massive soft cloud formations like dreamy cumulus
+        /// </summary>
+        private static void RenderCumulusDreamscape(Texture2D texture, int width, int height, System.Random rand)
+        {
+            float offsetX = (float)rand.NextDouble() * 40f;
+            float offsetY = (float)rand.NextDouble() * 40f;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)height;
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+
+                    // Extreme multi-layer turbulent warping
+                    float tw1x = Mathf.PerlinNoise(nx * 0.4f + offsetX, ny * 0.4f + offsetY + 1.8f);
+                    float tw1y = Mathf.PerlinNoise(nx * 0.4f + offsetX + 5.3f, ny * 0.4f + offsetY + 9.1f);
+                    float wx = nx + (tw1x - 0.5f) * 1.0f;
+                    float wy = ny + (tw1y - 0.5f) * 1.0f;
+
+                    float tw2x = Mathf.PerlinNoise(wx * 0.7f + 3.6f, wy * 0.7f + 7.2f);
+                    float tw2y = Mathf.PerlinNoise(wx * 0.7f + 8.9f, wy * 0.7f + 2.4f);
+                    wx += (tw2x - 0.5f) * 0.55f;
+                    wy += (tw2y - 0.5f) * 0.55f;
+
+                    float tw3x = Mathf.PerlinNoise(wx * 1.2f + 6.1f, wy * 1.2f + 4.5f);
+                    float tw3y = Mathf.PerlinNoise(wx * 1.2f + 2.7f, wy * 1.2f + 8.3f);
+                    wx += (tw3x - 0.5f) * 0.28f;
+                    wy += (tw3y - 0.5f) * 0.28f;
+
+                    // Ultra-low frequency for massive cloud forms
+                    float n1 = Mathf.PerlinNoise(wx * 0.3f + offsetX + 4.4f, wy * 0.3f + offsetY + 7.7f);
+                    float n2 = Mathf.PerlinNoise(wx * 0.55f + 9.2f, wy * 0.55f + 1.6f);
+                    float n3 = Mathf.PerlinNoise(wx * 0.9f + 3.1f, wy * 0.9f + 5.8f);
+
+                    float cumulus = n1 * 0.55f + n2 * 0.3f + n3 * 0.15f;
+
+                    // Quintic smoothstep for impossibly soft edges
+                    cumulus = cumulus * cumulus * cumulus * (cumulus * (cumulus * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.01f, 0.42f, cumulus);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gentle horizontal stratospheric haze layers
+        /// </summary>
+        private static void RenderStratosphericHaze(Texture2D texture, int width, int height, System.Random rand)
+        {
+            float offsetX = (float)rand.NextDouble() * 40f;
+            float offsetY = (float)rand.NextDouble() * 40f;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)height;
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+
+                    // Horizontal-biased turbulence
+                    float tw1x = Mathf.PerlinNoise(nx * 0.3f + offsetX, ny * 1.2f + offsetY + 3.5f);
+                    float tw1y = Mathf.PerlinNoise(nx * 0.5f + offsetX + 7.8f, ny * 0.8f + offsetY);
+                    float wx = nx + (tw1x - 0.5f) * 0.5f;
+                    float wy = ny + (tw1y - 0.5f) * 0.25f;
+
+                    float tw2x = Mathf.PerlinNoise(wx * 0.6f + 4.2f, wy * 1.5f + 8.1f);
+                    float tw2y = Mathf.PerlinNoise(wx * 0.8f + 9.6f, wy * 1.0f + 2.3f);
+                    wx += (tw2x - 0.5f) * 0.3f;
+                    wy += (tw2y - 0.5f) * 0.12f;
+
+                    // Horizontal banding with organic wavering
+                    float haze1 = Mathf.PerlinNoise(wx * 0.4f + offsetX + 5.7f, wy * 2.0f + offsetY + 1.9f);
+                    float haze2 = Mathf.PerlinNoise(wx * 0.6f + 2.1f, wy * 1.4f + 6.4f);
+                    float haze3 = Mathf.PerlinNoise(wx * 0.9f + 8.3f, wy * 0.8f + 3.6f);
+
+                    float combined = haze1 * 0.5f + haze2 * 0.33f + haze3 * 0.17f;
+                    combined = combined * combined * combined * (combined * (combined * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.01f, 0.38f, combined);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Watercolor bloom - organic spreading pigment in water
+        /// </summary>
+        private static void RenderWatercolorBloom(Texture2D texture, int width, int height, System.Random rand)
+        {
+            float offsetX = (float)rand.NextDouble() * 40f;
+            float offsetY = (float)rand.NextDouble() * 40f;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)height;
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+
+                    // Extreme turbulent warping for watercolor bleeding effect
+                    float tw1x = Mathf.PerlinNoise(nx * 0.5f + offsetX, ny * 0.5f + offsetY + 2.7f);
+                    float tw1y = Mathf.PerlinNoise(nx * 0.5f + offsetX + 8.4f, ny * 0.5f + offsetY + 5.1f);
+                    float wx = nx + (tw1x - 0.5f) * 0.95f;
+                    float wy = ny + (tw1y - 0.5f) * 0.95f;
+
+                    float tw2x = Mathf.PerlinNoise(wx * 0.8f + 6.2f, wy * 0.8f + 3.9f);
+                    float tw2y = Mathf.PerlinNoise(wx * 0.8f + 1.5f, wy * 0.8f + 9.3f);
+                    wx += (tw2x - 0.5f) * 0.5f;
+                    wy += (tw2y - 0.5f) * 0.5f;
+
+                    float tw3x = Mathf.PerlinNoise(wx * 1.4f + 4.8f, wy * 1.4f + 7.6f);
+                    float tw3y = Mathf.PerlinNoise(wx * 1.4f + 9.7f, wy * 1.4f + 2.1f);
+                    wx += (tw3x - 0.5f) * 0.25f;
+                    wy += (tw3y - 0.5f) * 0.25f;
+
+                    // Soft bloom formations
+                    float n1 = Mathf.PerlinNoise(wx * 0.35f + offsetX + 3.3f, wy * 0.35f + offsetY + 6.6f);
+                    float n2 = Mathf.PerlinNoise(wx * 0.6f + 8.1f, wy * 0.6f + 4.4f);
+                    float n3 = Mathf.PerlinNoise(wx * 1.0f + 2.5f, wy * 1.0f + 9.8f);
+
+                    float bloom = n1 * 0.52f + n2 * 0.32f + n3 * 0.16f;
+                    bloom = bloom * bloom * bloom * (bloom * (bloom * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.01f, 0.4f, bloom);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ethereal flowing aurora-like ribbons
+        /// </summary>
+        private static void RenderBorealisFlow(Texture2D texture, int width, int height, System.Random rand)
+        {
+            float offsetX = (float)rand.NextDouble() * 40f;
+            float offsetY = (float)rand.NextDouble() * 40f;
+
+            for (int y = 0; y < height; y++)
+            {
+                float ny = y / (float)height;
+                for (int x = 0; x < width; x++)
+                {
+                    float nx = x / (float)width;
+
+                    // Vertical-biased turbulence for flowing ribbons
+                    float tw1x = Mathf.PerlinNoise(nx * 1.5f + offsetX, ny * 0.4f + offsetY + 4.2f);
+                    float tw1y = Mathf.PerlinNoise(nx * 0.6f + offsetX + 7.1f, ny * 0.8f + offsetY);
+                    float wx = nx + (tw1x - 0.5f) * 0.35f;
+                    float wy = ny + (tw1y - 0.5f) * 0.6f;
+
+                    float tw2x = Mathf.PerlinNoise(wx * 2.0f + 5.8f, wy * 0.6f + 9.4f);
+                    float tw2y = Mathf.PerlinNoise(wx * 0.9f + 2.6f, wy * 1.2f + 3.7f);
+                    wx += (tw2x - 0.5f) * 0.2f;
+                    wy += (tw2y - 0.5f) * 0.35f;
+
+                    // Flowing vertical wisps
+                    float wisp1 = Mathf.PerlinNoise(wx * 2.5f + offsetX + 1.4f, wy * 0.5f + offsetY + 8.9f);
+                    float wisp2 = Mathf.PerlinNoise(wx * 1.8f + 6.3f, wy * 0.7f + 2.5f);
+                    float wisp3 = Mathf.PerlinNoise(wx * 1.2f + 9.5f, wy * 1.0f + 5.2f);
+
+                    float aurora = wisp1 * 0.48f + wisp2 * 0.32f + wisp3 * 0.2f;
+                    aurora = aurora * aurora * aurora * (aurora * (aurora * 6f - 15f) + 10f);
+
+                    float alpha = Mathf.Lerp(0.01f, 0.36f, aurora);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Soft cloud puffs - replaces hard-edged scattered circles
+        /// </summary>
         private static void RenderScatteredCircles(Texture2D texture, int width, int height, System.Random rand)
         {
-            // 5-8 circles of varying sizes scattered randomly
-            int circleCount = 5 + rand.Next(0, 4);
-            var centers = new List<Vector2>(circleCount);
-            var radii = new List<float>(circleCount);
-
-            for (int i = 0; i < circleCount; i++)
-            {
-                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                radii.Add(Mathf.Lerp(40f, 100f, (float)rand.NextDouble()));
-            }
-
-            float noiseOffsetX = (float)rand.NextDouble() * 10f;
-            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+            float offsetX = (float)rand.NextDouble() * 100f;
+            float offsetY = (float)rand.NextDouble() * 100f;
 
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
-                    float v = 0f;
-                    for (int i = 0; i < centers.Count; i++)
-                    {
-                        float dist = Vector2.Distance(new Vector2(x, y), centers[i]);
-                        float t = Mathf.Clamp01(1f - dist / radii[i]);
-                        float eased = t * t * (3f - 2f * t);
-                        v = Mathf.Max(v, eased);
-                    }
-
                     float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float noise = Mathf.PerlinNoise(nx * 3f + noiseOffsetX, ny * 3f + noiseOffsetY);
-                    v = Mathf.Lerp(v, v * noise, 0.4f);
 
-                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.5f;
+                    // Soft scattered cloud puffs using domain-warped noise
+                    float warp1 = Mathf.PerlinNoise(nx * 2f + offsetX, ny * 2f + offsetY) * 0.35f;
+                    float warp2 = Mathf.PerlinNoise(nx * 2f + offsetX + 6.2f, ny * 2f + offsetY + 3.8f) * 0.35f;
+                    float warpedX = nx + warp1;
+                    float warpedY = ny + warp2;
+
+                    float n1 = Mathf.PerlinNoise(warpedX * 2f + offsetX, warpedY * 2f + offsetY);
+                    float n2 = Mathf.PerlinNoise(warpedX * 3.5f + 4.1f, warpedY * 3.5f + 7.3f);
+
+                    float cloud = n1 * 0.65f + n2 * 0.35f;
+                    cloud = cloud * cloud * (3f - 2f * cloud);
+
+                    float alpha = Mathf.Lerp(0.02f, 0.5f, cloud);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
         }
 
+        /// <summary>
+        /// Soft flowing mist - replaces hard-edged geometric polygons
+        /// </summary>
         private static void RenderGeometricPolygons(Texture2D texture, int width, int height, System.Random rand)
         {
-            // 4-6 geometric shapes (triangles, squares, hexagons)
-            int shapeCount = 4 + rand.Next(0, 3);
-            var centers = new List<Vector2>(shapeCount);
-            var sizes = new List<float>(shapeCount);
-            var rotations = new List<float>(shapeCount);
-            var sidesCounts = new List<int>(shapeCount);
-
-            for (int i = 0; i < shapeCount; i++)
-            {
-                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                sizes.Add(Mathf.Lerp(50f, 90f, (float)rand.NextDouble()));
-                rotations.Add((float)rand.NextDouble() * Mathf.PI * 2f);
-                sidesCounts.Add(3 + rand.Next(0, 4)); // 3-6 sides
-            }
-
-            float noiseOffsetX = (float)rand.NextDouble() * 10f;
-            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+            float offsetX = (float)rand.NextDouble() * 100f;
+            float offsetY = (float)rand.NextDouble() * 100f;
 
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
-                    float v = 0f;
-                    for (int i = 0; i < centers.Count; i++)
-                    {
-                        float dx = x - centers[i].x;
-                        float dy = y - centers[i].y;
-                        float angle = Mathf.Atan2(dy, dx) - rotations[i];
-                        float dist = Mathf.Sqrt(dx * dx + dy * dy);
-
-                        // Polygon distance approximation
-                        int sides = sidesCounts[i];
-                        float angleStep = Mathf.PI * 2f / sides;
-                        float polygonDist = sizes[i] / Mathf.Cos((angle % angleStep) - angleStep * 0.5f);
-
-                        float t = Mathf.Clamp01(1f - dist / polygonDist);
-                        float eased = t * t * (3f - 2f * t);
-                        v = Mathf.Max(v, eased);
-                    }
-
                     float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float noise = Mathf.PerlinNoise(nx * 2.5f + noiseOffsetX, ny * 2.5f + noiseOffsetY);
-                    v = Mathf.Lerp(v, v * noise, 0.35f);
 
-                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.45f;
+                    // Multiple layers of soft flowing mist
+                    float warp = Mathf.PerlinNoise(nx * 1.5f + offsetX, ny * 1.5f + offsetY) * 0.4f;
+                    float warpedX = nx + warp;
+
+                    float n1 = Mathf.PerlinNoise(warpedX * 1.8f + offsetX, ny * 2.5f + offsetY);
+                    float n2 = Mathf.PerlinNoise(warpedX * 3f + 5.2f, ny * 1.2f + 8.4f);
+                    float n3 = Mathf.PerlinNoise(warpedX * 2.2f + 9.7f, ny * 3.8f + 2.1f);
+
+                    float mist = n1 * 0.5f + n2 * 0.3f + n3 * 0.2f;
+                    mist = mist * mist * (3f - 2f * mist);
+
+                    float alpha = Mathf.Lerp(0.03f, 0.45f, mist);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
         }
 
+        /// <summary>
+        /// Soft flowing cloud bands - replaces hard-edged wave lines
+        /// </summary>
         private static void RenderWaveLines(Texture2D texture, int width, int height, System.Random rand)
         {
-            // 3-5 flowing wave ribbons
-            int waveCount = 3 + rand.Next(0, 3);
-            var yOffsets = new List<float>(waveCount);
-            var amplitudes = new List<float>(waveCount);
-            var frequencies = new List<float>(waveCount);
-            var phases = new List<float>(waveCount);
-            var thicknesses = new List<float>(waveCount);
-
-            for (int i = 0; i < waveCount; i++)
-            {
-                yOffsets.Add((float)rand.NextDouble() * height);
-                amplitudes.Add(Mathf.Lerp(20f, 60f, (float)rand.NextDouble()));
-                frequencies.Add(Mathf.Lerp(0.01f, 0.03f, (float)rand.NextDouble()));
-                phases.Add((float)rand.NextDouble() * Mathf.PI * 2f);
-                thicknesses.Add(Mathf.Lerp(15f, 35f, (float)rand.NextDouble()));
-            }
-
-            float noiseOffsetX = (float)rand.NextDouble() * 10f;
-            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+            float offsetX = (float)rand.NextDouble() * 100f;
+            float offsetY = (float)rand.NextDouble() * 100f;
 
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
-                    float v = 0f;
-                    for (int i = 0; i < waveCount; i++)
-                    {
-                        float waveY = yOffsets[i] + Mathf.Sin(x * frequencies[i] + phases[i]) * amplitudes[i];
-                        float dist = Mathf.Abs(y - waveY);
-                        float t = Mathf.Clamp01(1f - dist / thicknesses[i]);
-                        float eased = t * t * (3f - 2f * t);
-                        v = Mathf.Max(v, eased);
-                    }
-
                     float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float noise = Mathf.PerlinNoise(nx * 2f + noiseOffsetX, ny * 2f + noiseOffsetY);
-                    v = Mathf.Lerp(v, v * noise, 0.3f);
 
-                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.5f;
+                    // Soft flowing horizontal bands with domain warping
+                    float warpX = Mathf.PerlinNoise(nx * 2f + offsetX, ny * 1.5f + offsetY) * 0.3f;
+                    float warpY = Mathf.PerlinNoise(nx * 1.5f + offsetX + 4.5f, ny * 2f + offsetY + 7.2f) * 0.25f;
+                    float warpedX = nx + warpX;
+                    float warpedY = ny + warpY;
+
+                    // Horizontal flow bias
+                    float n1 = Mathf.PerlinNoise(warpedX * 1.2f + offsetX, warpedY * 3f + offsetY);
+                    float n2 = Mathf.PerlinNoise(warpedX * 0.8f + 5.8f, warpedY * 2f + 2.3f);
+                    float n3 = Mathf.PerlinNoise(warpedX * 2f + 9.1f, warpedY * 1.5f + 6.7f);
+
+                    float flow = n1 * 0.5f + n2 * 0.3f + n3 * 0.2f;
+                    flow = flow * flow * (3f - 2f * flow);
+
+                    float alpha = Mathf.Lerp(0.03f, 0.5f, flow);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
         }
 
+        /// <summary>
+        /// Soft nebula-like clouds - replaces hard-edged fractal shapes
+        /// </summary>
         private static void RenderFractalShapes(Texture2D texture, int width, int height, System.Random rand)
         {
-            // Fractal-like distribution: main shapes with smaller satellites
-            int mainCount = 2 + rand.Next(0, 2);
-            var mainCenters = new List<Vector2>(mainCount);
-            var mainRadii = new List<float>(mainCount);
-
-            for (int i = 0; i < mainCount; i++)
-            {
-                mainCenters.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                mainRadii.Add(Mathf.Lerp(70f, 110f, (float)rand.NextDouble()));
-            }
-
-            // Smaller satellites around main shapes
-            var satellites = new List<Vector2>();
-            var satelliteRadii = new List<float>();
-            foreach (var center in mainCenters)
-            {
-                int satCount = 3 + rand.Next(0, 4);
-                for (int i = 0; i < satCount; i++)
-                {
-                    float angle = (float)rand.NextDouble() * Mathf.PI * 2f;
-                    float distance = Mathf.Lerp(50f, 90f, (float)rand.NextDouble());
-                    satellites.Add(center + new Vector2(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance));
-                    satelliteRadii.Add(Mathf.Lerp(20f, 45f, (float)rand.NextDouble()));
-                }
-            }
-
-            float noiseOffsetX = (float)rand.NextDouble() * 10f;
-            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+            float offsetX = (float)rand.NextDouble() * 100f;
+            float offsetY = (float)rand.NextDouble() * 100f;
 
             for (int y = 0; y < height; y++)
             {
+                float ny = y / (float)height;
                 for (int x = 0; x < width; x++)
                 {
-                    float v = 0f;
-
-                    // Main shapes
-                    for (int i = 0; i < mainCenters.Count; i++)
-                    {
-                        float dist = Vector2.Distance(new Vector2(x, y), mainCenters[i]);
-                        float t = Mathf.Clamp01(1f - dist / mainRadii[i]);
-                        float eased = t * t * (3f - 2f * t);
-                        v = Mathf.Max(v, eased);
-                    }
-
-                    // Satellites
-                    for (int i = 0; i < satellites.Count; i++)
-                    {
-                        float dist = Vector2.Distance(new Vector2(x, y), satellites[i]);
-                        float t = Mathf.Clamp01(1f - dist / satelliteRadii[i]);
-                        float eased = t * t * (3f - 2f * t);
-                        v = Mathf.Max(v, eased * 0.7f); // Slightly less intense
-                    }
-
                     float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float noise = Mathf.PerlinNoise(nx * 3.5f + noiseOffsetX, ny * 3.5f + noiseOffsetY);
-                    v = Mathf.Lerp(v, v * noise, 0.4f);
 
-                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.5f;
+                    // Heavy domain warping for organic nebula effect
+                    float warp1X = Mathf.PerlinNoise(nx * 1.2f + offsetX, ny * 1.2f + offsetY) * 0.5f;
+                    float warp1Y = Mathf.PerlinNoise(nx * 1.2f + offsetX + 6.4f, ny * 1.2f + offsetY + 3.1f) * 0.5f;
+                    float warp2X = Mathf.PerlinNoise((nx + warp1X) * 1.8f + 2.7f, (ny + warp1Y) * 1.8f + 8.3f) * 0.3f;
+                    float warp2Y = Mathf.PerlinNoise((nx + warp1X) * 1.8f + 9.2f, (ny + warp1Y) * 1.8f + 1.6f) * 0.3f;
+
+                    float warpedX = nx + warp1X + warp2X;
+                    float warpedY = ny + warp1Y + warp2Y;
+
+                    // Multiple soft layers for nebula depth
+                    float n1 = Mathf.PerlinNoise(warpedX * 0.9f + offsetX, warpedY * 0.9f + offsetY);
+                    float n2 = Mathf.PerlinNoise(warpedX * 1.7f + 4.8f, warpedY * 1.7f + 7.2f);
+                    float n3 = Mathf.PerlinNoise(warpedX * 2.8f + 1.3f, warpedY * 2.8f + 5.9f);
+
+                    float nebula = n1 * 0.55f + n2 * 0.3f + n3 * 0.15f;
+                    nebula = nebula * nebula * nebula * (nebula * (6f * nebula - 15f) + 10f); // Extra smooth
+
+                    float alpha = Mathf.Lerp(0.02f, 0.5f, nebula);
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
         }
 
+        /// <summary>
+        /// Creates soft cloud structure sprite - renamed from geometric for clarity.
+        /// All render methods now produce cloud-like patterns.
+        /// </summary>
         private static Sprite CreateGeometricStructureSprite(int seed)
         {
             const int width = 256;
@@ -2381,23 +2604,22 @@ namespace Decantra.Presentation
 
             var rand = new System.Random(seed);
 
-            // Determine theme based on seed (changes approximately every 10 levels due to zone grouping)
+            // All themes now produce soft cloud variations
             int themeSelector = (seed >> 16) & 0xFF;
             int themeIndex = themeSelector % 4;
 
-            // For geometric structure, use same theme system but with sharper edges
             switch (themeIndex)
             {
-                case 0: // Sharp scattered circles
+                case 0: // Soft cloud puffs
                     RenderScatteredCircles(texture, width, height, rand);
                     break;
-                case 1: // Angular geometric polygons
+                case 1: // Flowing mist
                     RenderGeometricPolygons(texture, width, height, rand);
                     break;
-                case 2: // Straight wave lines
+                case 2: // Cloud bands
                     RenderWaveLines(texture, width, height, rand);
                     break;
-                case 3: // Fractal geometric clusters
+                case 3: // Nebula clouds
                     RenderFractalShapes(texture, width, height, rand);
                     break;
             }
