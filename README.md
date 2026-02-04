@@ -42,7 +42,7 @@ Decantra is a bottle-sorting puzzle game for Android built in Unity.
 
 ## Installation
 
-1. Download the APK from the latest GitHub release (`decantra-<version>.apk` for normal installs; use `decantra-<version>-debug.apk` only if you need a debug build).
+1. Download the APK from the latest GitHub release (`decantra-<version>.apk`).
 2. Open the downloaded file on your Android device (Files app or notification).
 3. If prompted, allow installs from unknown sources for the browser/files app.
 4. Tap Install to finish.
