@@ -132,10 +132,10 @@ namespace Decantra.Domain.Tests
         }
 
         [Test]
-        public void Registry_SelectsZone2AsCurlFlowAdvection()
+        public void Registry_SelectsZone2AsOrganicCells()
         {
             var archetype = BackgroundGeneratorRegistry.SelectArchetypeForZone(2, TestSeed);
-            Assert.AreEqual(GeneratorArchetype.CurlFlowAdvection, archetype);
+            Assert.AreEqual(GeneratorArchetype.OrganicCells, archetype);
         }
 
         [Test]

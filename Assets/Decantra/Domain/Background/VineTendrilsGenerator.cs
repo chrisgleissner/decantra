@@ -84,7 +84,9 @@ namespace Decantra.Domain.Background
             // Density adjustment
             for (int i = 0; i < field.Length; i++)
             {
-                field[i] = SmoothRemap(field[i], 0.08f, 0.88f);
+                float value = field[i];
+                if (!float.IsFinite(value)) value = 0f;
+                field[i] = SmoothRemap(value, 0.08f, 0.88f);
             }
 
             EnforceNoCenterBias(field, width, height);
@@ -172,6 +174,7 @@ namespace Decantra.Domain.Background
                 y += MathF.Sin(currentAngle) * stepLen;
 
                 float tendrilThickness = 0.003f * (1f - t);
+                if (tendrilThickness <= 0.0001f) break;
                 DrawSoftCircle(field, width, height, x, y, tendrilThickness, 0.5f);
             }
         }
@@ -194,6 +197,8 @@ namespace Decantra.Domain.Background
         private void DrawSoftCircle(float[] field, int width, int height,
             float cx, float cy, float radius, float intensity)
         {
+            if (radius <= 0.0001f || intensity <= 0f) return;
+
             int pixelRadius = (int)(radius * width) + 2;
             int centerX = (int)(cx * width);
             int centerY = (int)(cy * height);
