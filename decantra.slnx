@@ -1,7 +1,7 @@
 ﻿<Solution>
   <Project Path="Decantra.Domain.csproj" />
-  <Project Path="Decantra.Domain.Tests.csproj" />
   <Project Path="Decantra.App.Editor.csproj" />
+  <Project Path="Decantra.Domain.Tests.csproj" />
   <Project Path="Decantra.Presentation.csproj" />
   <Project Path="Decantra.Presentation.Editor.csproj" />
   <Project Path="Decantra.App.csproj" />

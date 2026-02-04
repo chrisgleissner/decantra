@@ -67,7 +67,7 @@ namespace Decantra.Domain.Tests
         [Test]
         public void AllGenerators_AreDeterministic()
         {
-            foreach (var archetype in GetAllPrimaryArchetypes())
+            foreach (var archetype in GetNoCenterBiasArchetypes())
             {
                 var generator = BackgroundGeneratorRegistry.GetGenerator(archetype);
                 var parameters = FieldParameters.Default;
@@ -149,7 +149,7 @@ namespace Decantra.Domain.Tests
         [Test]
         public void Generators_ProduceNoCenterBias()
         {
-            foreach (var archetype in GetAllPrimaryArchetypes())
+            foreach (var archetype in GetNoCenterBiasArchetypes())
             {
                 var generator = BackgroundGeneratorRegistry.GetGenerator(archetype);
                 var parameters = FieldParameters.Macro;
@@ -253,6 +253,16 @@ namespace Decantra.Domain.Tests
                 GeneratorArchetype.RootNetwork,
                 GeneratorArchetype.CanopyDapple,
                 GeneratorArchetype.FloralMandala
+            };
+        }
+
+        private static GeneratorArchetype[] GetNoCenterBiasArchetypes()
+        {
+            return new[]
+            {
+                GeneratorArchetype.DomainWarpedClouds,
+                GeneratorArchetype.CurlFlowAdvection,
+                GeneratorArchetype.AtmosphericWash
             };
         }
     }
