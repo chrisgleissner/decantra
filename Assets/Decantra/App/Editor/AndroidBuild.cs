@@ -162,7 +162,7 @@ namespace Decantra.App.Editor
                 AndroidSdkVersions.AndroidApiLevel35;
             ConfigureAndroidToolchainFromEnv();
             ConfigureVersioningFromEnv();
-            bool requireKeystore = ShouldRequireKeystore(options, buildAppBundle);
+            bool requireKeystore = ShouldRequireKeystore(options);
 
             Debug.Log($"AndroidBuild: Release signing required: {requireKeystore}");
 
@@ -250,19 +250,14 @@ namespace Decantra.App.Editor
             Debug.Log($"Android {artifactLabel} built at {outputPath}");
         }
 
-        private static bool ShouldRequireKeystore(BuildOptions options, bool buildAppBundle)
+        private static bool ShouldRequireKeystore(BuildOptions options)
         {
             if ((options & BuildOptions.Development) == BuildOptions.Development)
             {
                 return false;
             }
 
-            if (buildAppBundle)
-            {
-                return true;
-            }
-
-            // Release APKs must be signed with a custom keystore as well.
+            // Release builds must be signed with a custom keystore.
             return true;
         }
 
