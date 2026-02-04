@@ -277,6 +277,13 @@ jobs:
           echo "DECANTRA_REQUIRE_KEYSTORE=${require_keystore}" >> "$GITHUB_ENV"
           echo "Resolved VERSION_NAME=${version_name}, VERSION_CODE=${version_code}, REQUIRE_KEYSTORE=${require_keystore}"
 
+      - name: Require release keystore for signing
+        run: |
+          if [[ "${HAS_KEYSTORE:-false}" != "true" ]]; then
+            echo "Missing release keystore; refusing to build release artifacts to avoid debug signing." >&2
+            exit 1
+          fi
+
       - name: Build Release APK
         id: build_release
         uses: game-ci/unity-builder@v4

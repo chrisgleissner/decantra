@@ -156,7 +156,7 @@ namespace Decantra.App.Editor
                 AndroidSdkVersions.AndroidApiLevel35;
             ConfigureAndroidToolchainFromEnv();
             ConfigureVersioningFromEnv();
-            ConfigureAndroidSigningFromEnv(ShouldRequireKeystore(options));
+            ConfigureAndroidSigningFromEnv(ShouldRequireKeystore(options, buildAppBundle));
             string[] args = Environment.GetCommandLineArgs();
             string outputPath = defaultPath;
             for (int i = 0; i < args.Length - 1; i++)
@@ -204,25 +204,20 @@ namespace Decantra.App.Editor
             Debug.Log($"Android {artifactLabel} built at {outputPath}");
         }
 
-        private static bool ShouldRequireKeystore(BuildOptions options)
+        private static bool ShouldRequireKeystore(BuildOptions options, bool buildAppBundle)
         {
             if ((options & BuildOptions.Development) == BuildOptions.Development)
             {
                 return false;
             }
 
-            if (IsTruthyEnv("DECANTRA_REQUIRE_KEYSTORE")
-                || IsTruthyEnv("REQUIRE_ANDROID_KEYSTORE"))
+            if (buildAppBundle)
             {
                 return true;
             }
 
-            if (IsTruthyEnv("CI") && IsTagBuild())
-            {
-                return true;
-            }
-
-            return false;
+            // Release APKs must be signed with a custom keystore as well.
+            return true;
         }
 
         private static bool IsTagBuild()
