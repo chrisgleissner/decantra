@@ -9,6 +9,9 @@
 - [x] Add deterministic layout component to size and align the in-game logo to the button row bounds.
 - [x] Import Decantra logo asset for the top banner (Resources/Decantra.png) with Unity meta.
 - [x] Adjust top banner logo placement above the button row with gap tied to Reset button spacing and widen by 3%.
+- [x] Fix solver solution generation timeouts for late levels.
+- [x] Align top logo gap to match top-row-to-reset spacing (not 2x).
+- [x] Stabilize EditMode performance test with generator warm-up.
 - [x] Regenerate ALL screenshots (intro + gameplay + interstitial) using the build pipeline.
 - [x] Run full local test suite (EditMode + PlayMode).
 - [ ] Verify CI is green for the active branch/PR.
@@ -23,12 +26,19 @@
 - [ ] Confirm logo aspect ratio preserved and no stretching across portrait aspect ratios.
 - [ ] Confirm no per-frame allocations or jitter in logo sizing.
 - [ ] Confirm top logo sits above button row with 2x gap relative to button-to-reset spacing and ~3% wider than row.
+- [ ] Confirm top logo sits above button row with equal gap to button-to-reset spacing and ~3% wider than row.
+- [ ] Recreate screenshots after logo positioning verification.
+- [x] Confirm solver-solutions-debug.txt contains no TIMEOUT/ERROR lines.
+- [x] Confirm levels 492 and 560 have valid difficulty values.
 
 ## Commands / Outputs
 
 - [x] `./build --screenshots`
 	- Result: OK (tests + screenshots). Logs: Logs/test_editmode.log, Logs/test_playmode.log, Logs/test_bootstrap.log
 	- Screenshots: doc/play-store-assets/screenshots/phone/screenshot-01-launch.png through screenshot-07-level-36.png
+- [x] `./build --screenshots --generate-solutions`
+	- Result: OK (tests + build + screenshots + solutions). Logs: Logs/test_editmode.log, Logs/test_playmode.log, Logs/test_bootstrap.log
+	- Solutions: solver-solutions-debug.txt updated with no TIMEOUT/ERROR entries
 - [ ] CI status checked on the active PR (status currently pending).
 
 ## Verification Results

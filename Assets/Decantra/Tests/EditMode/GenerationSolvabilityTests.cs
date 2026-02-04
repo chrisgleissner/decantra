@@ -135,6 +135,9 @@ namespace Decantra.Tests.EditMode
             var generator = new LevelGenerator(solver);
             var profile = LevelDifficultyEngine.GetProfile(1);
 
+            // Warm-up to avoid cold-start JIT impacting the timing budget
+            _ = generator.Generate(12345, profile);
+
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var state = generator.Generate(12345, profile);
             stopwatch.Stop();

@@ -1,6 +1,6 @@
 # Decantra
 
-<img src="./logo.png" alt="Decantra Logo" width="200"/>
+<img src="./doc/img/logo.png" alt="Decantra Logo" width="200"/>
 
 Decantra is a bottle-sorting puzzle game for Android built in Unity.
 

@@ -14,6 +14,8 @@ public class Program
 {
     private const int MaxSolveMillis = 3000;
     private const int MaxSolveNodes = 2_000_000;
+    private const int RetrySolveMillis = 8000;
+    private const int RetrySolveNodes = 8_000_000;
 
     public static int Main(string[] args)
     {
@@ -206,6 +208,11 @@ public class Program
                 // NO minComplexity parameter - generate naturally
                 var state = generator.Generate(seed, profile);
                 var solveResult = solver.SolveWithPath(state, MaxSolveNodes, MaxSolveMillis);
+                if (solveResult.OptimalMoves < 0 && solveResult.Status == SolverStatus.Timeout)
+                {
+                    Console.WriteLine($"[Retry] level={l}, reason=TIMEOUT, limits={RetrySolveMillis}ms/{RetrySolveNodes:N0} nodes");
+                    solveResult = solver.SolveWithPath(state, RetrySolveNodes, RetrySolveMillis);
+                }
                 var report = generator.LastReport;
                 var elapsedMillis = levelStopwatch.ElapsedMilliseconds;
                 levelTimesMs[l] = elapsedMillis;

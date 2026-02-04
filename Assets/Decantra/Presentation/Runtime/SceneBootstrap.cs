@@ -463,6 +463,7 @@ namespace Decantra.Presentation
             if (resetButton != null)
             {
                 SetPrivateField(brandLayout, "resetButtonRect", resetButton.GetComponent<RectTransform>());
+                brandLayout.ForceLayout();
             }
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
