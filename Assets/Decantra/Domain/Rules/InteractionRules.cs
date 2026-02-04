@@ -22,7 +22,8 @@ namespace Decantra.Domain.Rules
         public static bool CanUseAsTarget(Bottle bottle)
         {
             if (bottle == null) throw new ArgumentNullException(nameof(bottle));
-            return !bottle.IsSink;
+            // Sinks CAN be targets - you can pour INTO them, just not FROM them
+            return true;
         }
 
         public static bool CanDrag(Bottle bottle)

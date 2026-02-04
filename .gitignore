@@ -15,6 +15,9 @@ UserSettings/
 *.sln
 *.slnx
 
+# Compiled files
+Reproduction/bin
+
 # Code Coverage reports
 Coverage
 Coverage/**

@@ -22,7 +22,6 @@ namespace Decantra.Domain.Rules
             var source = state.Bottles[sourceIndex];
             var target = state.Bottles[targetIndex];
             if (!InteractionRules.CanUseAsSource(source)) return false;
-            if (!InteractionRules.CanUseAsTarget(target)) return false;
             return source.MaxPourAmountInto(target) > 0;
         }
 
