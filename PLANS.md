@@ -1,47 +1,26 @@
-# PLANS.md - Intro Splash + Banner Corrections
+# PLANS.md - Android AAB Release Signing Enforcement
 
 ## Plan
 
-- [x] Audit runtime UI construction and intro logic to locate banner injection and intro timing.
-- [x] Implement corrected intro splash overlay (black background, centered logo, 0.5s fade-in / 1.0s hold / 0.5s fade-out).
-- [x] Remove incorrect startup banner overlay paths and banner sprite usage from intro/startup code.
-- [x] Replace in-game top banner with Decantra logo and compute width from the three stat buttons.
-- [x] Add deterministic layout component to size and align the in-game logo to the button row bounds.
-- [x] Import Decantra logo asset for the top banner (Resources/Decantra.png) with Unity meta.
-- [x] Adjust top banner logo placement above the button row with gap tied to Reset button spacing and widen by 3%.
-- [x] Fix solver solution generation timeouts for late levels.
-- [x] Align top logo gap to match top-row-to-reset spacing (not 2x).
-- [x] Stabilize EditMode performance test with generator warm-up.
-- [x] Regenerate ALL screenshots (intro + gameplay + interstitial) using the build pipeline.
-- [x] Run full local test suite (EditMode + PlayMode).
-- [ ] Verify CI is green for the active branch/PR.
-- [ ] Document verification results (intro timing, no banner flash, logo sizing) and commands run.
+- [x] Audit current Android build pipeline code paths that configure signing and output AABs.
+- [x] Implement explicit release signing configuration sourced from environment variables.
+- [x] Add mandatory pre-build diagnostics and fail-fast validation for signing inputs.
+- [x] Add deterministic post-build AAB signing verification with `jarsigner` and fail on debug signing.
+- [ ] Run local build/verification workflow and capture results.
+- [ ] Document verification outputs and completion status in this plan.
 
 ## Verification Notes
 
-- [ ] Confirm no startup banner overlay appears or flashes during scene load or intro transition.
-- [ ] Confirm intro shows only centered logo on true black with exact 2.0s timing.
-- [ ] Confirm intro plays only on cold start and never on level restart.
-- [ ] Confirm in-game top banner uses Decantra logo and width equals the full button-row width.
-- [ ] Confirm logo aspect ratio preserved and no stretching across portrait aspect ratios.
-- [ ] Confirm no per-frame allocations or jitter in logo sizing.
-- [ ] Confirm top logo sits above button row with 2x gap relative to button-to-reset spacing and ~3% wider than row.
-- [ ] Confirm top logo sits above button row with equal gap to button-to-reset spacing and ~3% wider than row.
-- [ ] Recreate screenshots after logo positioning verification.
-- [x] Confirm solver-solutions-debug.txt contains no TIMEOUT/ERROR lines.
-- [x] Confirm levels 492 and 560 have valid difficulty values.
+- [ ] Confirm batchmode build sets `useCustomKeystore = true` and all signing fields.
+- [ ] Confirm build fails if keystore path, passwords, or alias are missing/invalid.
+- [ ] Confirm log includes "ANDROID RELEASE SIGNING CONFIGURED" marker before build.
+- [ ] Confirm AAB verification rejects debug signing and validates expected signer.
+- [ ] Confirm local developer run performs the same verification automatically.
 
 ## Commands / Outputs
 
-- [x] `./build --screenshots`
-	- Result: OK (tests + screenshots). Logs: Logs/test_editmode.log, Logs/test_playmode.log, Logs/test_bootstrap.log
-	- Screenshots: doc/play-store-assets/screenshots/phone/screenshot-01-launch.png through screenshot-07-level-36.png
-- [x] `./build --screenshots --generate-solutions`
-	- Result: OK (tests + build + screenshots + solutions). Logs: Logs/test_editmode.log, Logs/test_playmode.log, Logs/test_bootstrap.log
-	- Solutions: solver-solutions-debug.txt updated with no TIMEOUT/ERROR entries
-- [ ] CI status checked on the active PR (status currently pending).
-
-## Verification Results
-
-- Visual verification of intro timing, banner suppression, and logo alignment is pending on-device review.
-- CI status is pending for PR #5 (no completed checks reported).
+- [x] `keytool -list -v -keystore release.keystore -alias $KEYSTORE_KEY_ALIAS -storepass $KEYSTORE_STORE_PASSWORD | grep -E "Owner:|Issuer:|SHA-256|SHA256"`
+	- Result: Owner/Issuer show CN=decantra; SHA256 fingerprint is 28:17:2D:55:C4:09:01:9D:92:5E:05:E3:E0:2A:98:D2:D0:15:F6:7E:B0:89:5F:04:70:C3:9C:6D:DC:05:0B:C9
+- [x] `jarsigner -verify -verbose -certs Builds/Android/decantra-0.9.0.aab | grep -E "Owner:|Issuer:|SHA-256|SHA256|Android Debug"`
+	- Result: AAB is signed by Android Debug (verification failed; release signing not applied).
+- [ ] Unity batchmode build for Release AAB executed with new signing enforcement (Unity not available on PATH in this environment).

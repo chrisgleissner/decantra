@@ -156,7 +156,8 @@ namespace Decantra.App.Editor
                 AndroidSdkVersions.AndroidApiLevel35;
             ConfigureAndroidToolchainFromEnv();
             ConfigureVersioningFromEnv();
-            ConfigureAndroidSigningFromEnv(ShouldRequireKeystore(options, buildAppBundle));
+            bool requireKeystore = ShouldRequireKeystore(options, buildAppBundle);
+            KeystoreConfig keystoreConfig = ConfigureAndroidSigningFromEnv(requireKeystore);
             string[] args = Environment.GetCommandLineArgs();
             string outputPath = defaultPath;
             for (int i = 0; i < args.Length - 1; i++)
@@ -199,6 +200,11 @@ namespace Decantra.App.Editor
             {
                 Debug.LogError($"Android build failed: {report.summary.result}");
                 throw new Exception("Android build failed");
+            }
+
+            if (buildAppBundle && requireKeystore)
+            {
+                VerifyAabSigning(outputPath, keystoreConfig);
             }
 
             Debug.Log($"Android {artifactLabel} built at {outputPath}");
@@ -262,38 +268,267 @@ namespace Decantra.App.Editor
             }
         }
 
-        private static void ConfigureAndroidSigningFromEnv(bool requireKeystore)
+        private static KeystoreConfig ConfigureAndroidSigningFromEnv(bool requireKeystore)
         {
-            string keystorePath = Environment.GetEnvironmentVariable("KEYSTORE_STORE_FILE");
+            string keystorePathRaw = Environment.GetEnvironmentVariable("KEYSTORE_STORE_FILE");
             string keystorePass = Environment.GetEnvironmentVariable("KEYSTORE_STORE_PASSWORD");
             string keyAlias = Environment.GetEnvironmentVariable("KEYSTORE_KEY_ALIAS");
             string keyPass = Environment.GetEnvironmentVariable("KEYSTORE_KEY_PASSWORD");
 
-            if (!string.IsNullOrWhiteSpace(keystorePath)
-                && File.Exists(keystorePath)
-                && !string.IsNullOrWhiteSpace(keystorePass)
-                && !string.IsNullOrWhiteSpace(keyAlias))
+            if (string.IsNullOrWhiteSpace(keystorePathRaw)
+                || string.IsNullOrWhiteSpace(keystorePass)
+                || string.IsNullOrWhiteSpace(keyAlias))
             {
-                PlayerSettings.Android.useCustomKeystore = true;
-                PlayerSettings.Android.keystoreName = keystorePath;
-                PlayerSettings.Android.keystorePass = keystorePass;
-                PlayerSettings.Android.keyaliasName = keyAlias;
-                PlayerSettings.Android.keyaliasPass = string.IsNullOrWhiteSpace(keyPass)
-                    ? keystorePass
-                    : keyPass;
-                Debug.Log("AndroidBuild: Using custom keystore for release signing.");
-            }
-            else
-            {
-                PlayerSettings.Android.useCustomKeystore = false;
-                Debug.LogWarning("AndroidBuild: Keystore env vars missing or file not found; using default signing.");
                 if (requireKeystore)
                 {
-                    throw new InvalidOperationException(
-                        "AndroidBuild: Release signing required but keystore env vars are missing."
+                    FailBuild(
+                        "AndroidBuild: Release signing required but keystore env vars are missing. "
+                            + "Expected KEYSTORE_STORE_FILE, KEYSTORE_STORE_PASSWORD, KEYSTORE_KEY_ALIAS."
                     );
                 }
+
+                PlayerSettings.Android.useCustomKeystore = false;
+                Debug.LogWarning("AndroidBuild: Keystore env vars missing; default signing will be used.");
+                return null;
             }
+
+            string keystorePath = ResolveKeystorePath(keystorePathRaw);
+            EnsureReadableFile(keystorePath, "keystore");
+            string resolvedKeyPass = string.IsNullOrWhiteSpace(keyPass)
+                ? keystorePass
+                : keyPass;
+
+            PlayerSettings.Android.useCustomKeystore = true;
+            PlayerSettings.Android.keystoreName = keystorePath;
+            PlayerSettings.Android.keystorePass = keystorePass;
+            PlayerSettings.Android.keyaliasName = keyAlias;
+            PlayerSettings.Android.keyaliasPass = resolvedKeyPass;
+
+            Debug.Log($"AndroidBuild: Custom keystore enabled: {PlayerSettings.Android.useCustomKeystore}");
+            Debug.Log($"AndroidBuild: Keystore path (absolute): {keystorePath}");
+            Debug.Log($"AndroidBuild: Key alias: {keyAlias}");
+            Debug.Log("ANDROID RELEASE SIGNING CONFIGURED");
+
+            return new KeystoreConfig(keystorePath, keystorePass, keyAlias, resolvedKeyPass);
+        }
+
+        private static string ResolveKeystorePath(string keystorePathRaw)
+        {
+            string trimmed = keystorePathRaw.Trim();
+            if (Path.IsPathRooted(trimmed))
+            {
+                return Path.GetFullPath(trimmed);
+            }
+
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            return Path.GetFullPath(Path.Combine(projectRoot, trimmed));
+        }
+
+        private static void EnsureReadableFile(string path, string label)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                FailBuild($"AndroidBuild: Required {label} file not found at '{path}'.");
+            }
+
+            try
+            {
+                using (FileStream stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    stream.ReadByte();
+                }
+            }
+            catch (Exception ex)
+            {
+                FailBuild($"AndroidBuild: Required {label} file is not readable: {ex.Message}");
+            }
+        }
+
+        private static void VerifyAabSigning(string aabPath, KeystoreConfig config)
+        {
+            if (config == null)
+            {
+                FailBuild("AndroidBuild: Missing keystore configuration for AAB verification.");
+            }
+
+            if (string.IsNullOrWhiteSpace(aabPath))
+            {
+                FailBuild("AndroidBuild: AAB path is empty; cannot verify signing.");
+            }
+
+            string resolvedAabPath = Path.GetFullPath(aabPath);
+            if (!File.Exists(resolvedAabPath))
+            {
+                FailBuild($"AndroidBuild: AAB not found at '{resolvedAabPath}'.");
+            }
+
+            string jarsignerOutput = RunProcess(
+                "jarsigner",
+                $"-verify -verbose -certs \"{resolvedAabPath}\"",
+                "jarsigner"
+            );
+
+            if (string.IsNullOrWhiteSpace(jarsignerOutput))
+            {
+                FailBuild("AndroidBuild: jarsigner returned no output; cannot verify signing.");
+            }
+
+            if (jarsignerOutput.IndexOf("Android Debug", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                Debug.LogError("AndroidBuild: jarsigner output indicates Android Debug signing.");
+                Debug.LogError(jarsignerOutput);
+                FailBuild("AndroidBuild: Release AAB is debug-signed.");
+            }
+
+            string keytoolOutput = RunProcess(
+                "keytool",
+                $"-list -v -keystore \"{config.KeystorePath}\" -alias \"{config.KeyAlias}\" -storepass \"{config.KeystorePass}\"",
+                "keytool"
+            );
+
+            string expectedFingerprint = ExtractFingerprint(keytoolOutput, "SHA256");
+            if (string.IsNullOrWhiteSpace(expectedFingerprint))
+            {
+                Debug.LogError("AndroidBuild: Unable to read SHA-256 fingerprint from keystore.");
+                Debug.LogError(keytoolOutput);
+                FailBuild("AndroidBuild: Release keystore fingerprint could not be determined.");
+            }
+
+            string normalizedExpected = NormalizeFingerprint(expectedFingerprint);
+            string normalizedJarsigner = NormalizeFingerprint(jarsignerOutput);
+            if (normalizedJarsigner.IndexOf(normalizedExpected, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                Debug.LogError("AndroidBuild: jarsigner output does not match expected release signer.");
+                Debug.LogError("--- jarsigner output ---");
+                Debug.LogError(jarsignerOutput);
+                Debug.LogError("--- keytool output ---");
+                Debug.LogError(keytoolOutput);
+                FailBuild("AndroidBuild: Release AAB signer does not match the expected keystore.");
+            }
+
+            Debug.Log("AndroidBuild: AAB signing verification succeeded.");
+        }
+
+        private static string RunProcess(string fileName, string arguments, string toolName)
+        {
+            try
+            {
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = System.Diagnostics.Process.Start(startInfo))
+                {
+                    if (process == null)
+                    {
+                        FailBuild($"AndroidBuild: Failed to start {toolName}.");
+                    }
+
+                    string output = process.StandardOutput.ReadToEnd();
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit(60000);
+                    if (process.ExitCode != 0)
+                    {
+                        Debug.LogError($"AndroidBuild: {toolName} failed with exit code {process.ExitCode}.");
+                        Debug.LogError(output);
+                        Debug.LogError(error);
+                        FailBuild($"AndroidBuild: {toolName} failed while verifying signing.");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(error))
+                    {
+                        output = string.Concat(output, Environment.NewLine, error);
+                    }
+
+                    return output;
+                }
+            }
+            catch (Exception ex)
+            {
+                FailBuild($"AndroidBuild: Failed to run {toolName}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static string ExtractFingerprint(string keytoolOutput, string algorithm)
+        {
+            if (string.IsNullOrWhiteSpace(keytoolOutput))
+            {
+                return null;
+            }
+
+            string[] lines = keytoolOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string line in lines)
+            {
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith(algorithm, StringComparison.OrdinalIgnoreCase))
+                {
+                    int index = trimmed.IndexOf(':');
+                    if (index >= 0 && index + 1 < trimmed.Length)
+                    {
+                        return trimmed.Substring(index + 1).Trim();
+                    }
+                }
+
+                if (trimmed.StartsWith("SHA-256", StringComparison.OrdinalIgnoreCase))
+                {
+                    int index = trimmed.IndexOf(':');
+                    if (index >= 0 && index + 1 < trimmed.Length)
+                    {
+                        return trimmed.Substring(index + 1).Trim();
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static string NormalizeFingerprint(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string normalized = value.Replace(":", string.Empty)
+                .Replace(" ", string.Empty)
+                .Replace("\t", string.Empty)
+                .Replace("-", string.Empty)
+                .ToUpperInvariant();
+
+            return normalized;
+        }
+
+        private static void FailBuild(string message)
+        {
+            Debug.LogError(message);
+            if (Application.isBatchMode)
+            {
+                EditorApplication.Exit(1);
+            }
+            throw new InvalidOperationException(message);
+        }
+
+        private sealed class KeystoreConfig
+        {
+            public KeystoreConfig(string keystorePath, string keystorePass, string keyAlias, string keyPass)
+            {
+                KeystorePath = keystorePath;
+                KeystorePass = keystorePass;
+                KeyAlias = keyAlias;
+                KeyPass = keyPass;
+            }
+
+            public string KeystorePath { get; }
+            public string KeystorePass { get; }
+            public string KeyAlias { get; }
+            public string KeyPass { get; }
         }
 
         private static void ConfigureVersioningFromEnv()
