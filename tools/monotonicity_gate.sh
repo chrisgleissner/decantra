@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Decantra Monotonicity Gate
-# Validates that solver-solutions-debug.txt has zero monotonicity violations.
-# Difficulty must be non-decreasing for levels 1-100 and constant at 100 for 101+.
+# Decantra Difficulty Invariant Gate
+# Validates that solver-solutions-debug.txt satisfies:
+# - Levels 1..200: difficulty == level
+# - Levels >= 201: difficulty == 100
 
 set -euo pipefail
 
@@ -18,13 +19,11 @@ fi
 echo "=== Monotonicity Gate ==="
 echo "Checking ${SOLUTIONS_FILE}..."
 
-# Extract level and difficulty pairs, validate monotonicity
+# Extract level and difficulty pairs, validate invariant
 awk -F'[=,]' '
 BEGIN {
-  prev_level = 0
-  prev_diff = 0
+  expected_level = 1
   violations = 0
-  first_violation = 0
 }
 /^level=/ {
   # Extract level number (field 2) and difficulty (field 4)
@@ -34,39 +33,40 @@ BEGIN {
   # Skip if error line
   if (diff == 0) next
   
-  # Check monotonicity for levels 1-100
-  if (level <= 100) {
-    if (prev_level > 0 && diff < prev_diff) {
+  # Validate level sequence (no gaps/regressions)
+  if (level != expected_level) {
+    violations++
+    if (violations <= 5) {
+      print "  VIOLATION: Level sequence mismatch at " level " (expected " expected_level ")"
+    }
+    expected_level = level
+  }
+  expected_level++
+
+  # Validate invariant
+  if (level <= 200) {
+    if (diff != level) {
       violations++
-      if (first_violation == 0) {
-        first_violation = level
-        first_diff = diff
-        first_prev = prev_diff
-      }
       if (violations <= 5) {
-        print "  VIOLATION: Level " level ": difficulty=" diff " < prev=" prev_diff
+        print "  VIOLATION: Level " level ": difficulty=" diff " expected=" level
+      }
+    }
+  } else {
+    if (diff != 100) {
+      violations++
+      if (violations <= 5) {
+        print "  VIOLATION: Level " level ": difficulty=" diff " expected=100"
       }
     }
   }
-  
-  # For levels > 100, difficulty should be 100 (maximum)
-  if (level > 100 && diff < 100) {
-    # This is a warning, not a violation - plateau allows variance
-    # Strict plateau check disabled for now
-    # print "  WARNING: Level " level ": difficulty=" diff " < 100 (plateau)"
-  }
-  
-  prev_level = level
-  prev_diff = diff
 }
 END {
   if (violations > 0) {
     print ""
-    print "FAIL: " violations " monotonicity violation(s) found"
-    print "First violation at level " first_violation ": " first_diff " < " first_prev
+    print "FAIL: " violations " difficulty invariant violation(s) found"
     exit 1
   } else {
-    print "PASS: No monotonicity violations"
+    print "PASS: Difficulty invariant satisfied"
     exit 0
   }
 }

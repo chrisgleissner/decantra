@@ -113,6 +113,7 @@ namespace Decantra.Domain.Solver
             int targetLength = optimalLength + nearOptimalMargin;
             int visitedCount = 0;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            bool useTimeLimit = maxMillis > 0 && maxMillis < int.MaxValue;
 
             var startKey = StateEncoder.EncodeCanonicalKey(initial);
             visited.Add(startKey);
@@ -120,7 +121,7 @@ namespace Decantra.Domain.Solver
 
             while (queue.Count > 0 && solutionCount < maxSolutions)
             {
-                if (visitedCount >= maxVisited || stopwatch.ElapsedMilliseconds > maxMillis)
+                if (visitedCount >= maxVisited || (useTimeLimit && stopwatch.ElapsedMilliseconds > maxMillis))
                     break;
 
                 var (state, depth, prefix) = queue.Dequeue();
@@ -207,7 +208,11 @@ namespace Decantra.Domain.Solver
                     continue;
 
                 // Try to solve from this state with limited budget
-                var result = solver.Solve(testState, nodeBudget, 100);
+                int timeLimit = 100;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                timeLimit = int.MaxValue;
+#endif
+                var result = solver.Solve(testState, nodeBudget, timeLimit);
 
                 // Count as trap if:
                 // 1. Solver times out (too hard)

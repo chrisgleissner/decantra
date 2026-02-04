@@ -85,11 +85,14 @@ namespace Decantra.Domain.Generation
                     int attemptScrambleTarget = Math.Max(4, scrambleMovesTarget - attempt / 3);
 
                     // Adaptive strategy: If we fail repeatedly, ensure we keep at least one empty bottle
-                    int minEmptyDuringScramble = (attempt >= 5 && profile.EmptyBottleCount > 1) ? 1 : 0;
+                    int minEmptyDuringScramble = profile.LevelIndex <= 6
+                        ? 1
+                        : (attempt >= 5 && profile.EmptyBottleCount > 1) ? 1 : 0;
                     int maxEmptyDuringScramble = Math.Max(profile.EmptyBottleCount + 2, profile.EmptyBottleCount);
 
                     var attemptState = new LevelState(CloneBottles(solved), 0, 0, 0, profile.LevelIndex, seed);
-                    int appliedMoves = ScrambleState(attemptState, attemptRng, attemptScrambleTarget, minEmptyDuringScramble, maxEmptyDuringScramble);
+                    bool preventEmptySourceDuringScramble = profile.LevelIndex <= 6;
+                    int appliedMoves = ScrambleState(attemptState, attemptRng, attemptScrambleTarget, minEmptyDuringScramble, maxEmptyDuringScramble, preventEmptySourceDuringScramble);
 
                     if (appliedMoves <= 0)
                     {
@@ -99,11 +102,8 @@ namespace Decantra.Domain.Generation
 
                     if (profile.LevelIndex <= 6 && HasSolvedBottle(attemptState.Bottles))
                     {
-                        if (!BreakSolvedBottles(attemptState, attemptRng, minEmptyDuringScramble, maxEmptyDuringScramble, Math.Max(1, appliedMoves) * 6))
-                        {
-                            lastFailure = "break_solved";
-                            continue;
-                        }
+                        // Best-effort only for early tutorial levels; do not fail generation if we cannot break solved bottles.
+                        BreakSolvedBottles(attemptState, attemptRng, minEmptyDuringScramble, maxEmptyDuringScramble, Math.Max(1, appliedMoves) * 6);
                     }
 
                     if (CountEmpty(attemptState.Bottles) > profile.EmptyBottleCount)
@@ -325,6 +325,7 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveMaxAttempts(int levelIndex)
         {
+            if (levelIndex <= 6) return 6;
             if (levelIndex >= 100) return 10;
             if (levelIndex >= 60) return 14;
             return 20;
@@ -332,6 +333,7 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveCandidatesPerAttempt(int levelIndex)
         {
+            if (levelIndex <= 6) return 1;
             if (levelIndex >= 100) return 1;
             if (levelIndex >= 60) return 2;
             return 3;
@@ -339,6 +341,7 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveRelaxedAttempt(int levelIndex, int maxAttempts)
         {
+            if (levelIndex <= 6) return Math.Min(3, maxAttempts - 1);
             if (levelIndex >= 100) return Math.Min(5, maxAttempts - 1);
             if (levelIndex >= 60) return Math.Min(8, maxAttempts - 1);
             return Math.Min(12, maxAttempts - 1);
@@ -346,9 +349,13 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveSolveTimeLimitMs(int levelIndex)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            return int.MaxValue;
+#else
             if (levelIndex >= 100) return 1200;
             if (levelIndex >= 60) return 1500;
             return 2000;
+#endif
         }
 
         private static int ResolveSolveNodeLimit(int levelIndex)
@@ -385,8 +392,12 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveMultiplicityTimeLimitMs(int levelIndex)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            return int.MaxValue;
+#else
             if (levelIndex >= 50) return 30;
             return 60;
+#endif
         }
 
         /// <summary>
@@ -479,7 +490,7 @@ namespace Decantra.Domain.Generation
             return topColors.Count;
         }
 
-        private static int ScrambleState(LevelState state, Random rng, int moves, int minEmptyCount, int maxEmptyCount)
+        private static int ScrambleState(LevelState state, Random rng, int moves, int minEmptyCount, int maxEmptyCount, bool preventEmptySource)
         {
             if (state == null) return 0;
             if (rng == null) throw new ArgumentNullException(nameof(rng));
@@ -492,7 +503,7 @@ namespace Decantra.Domain.Generation
 
             while (applied < moves && guard-- > 0)
             {
-                var candidates = EnumerateScrambleMovePairs(state, buffer, lastMove);
+                var candidates = EnumerateScrambleMovePairs(state, buffer, lastMove, preventEmptySource);
                 if (candidates.Count == 0)
                 {
                     break;
@@ -500,7 +511,7 @@ namespace Decantra.Domain.Generation
 
                 var move = candidates[rng.Next(candidates.Count)];
                 int poured;
-                if (!TryApplyScrambleMove(state, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, out poured))
+                if (!TryApplyScrambleMove(state, move.Source, move.Target, rng, minEmptyCount, maxEmptyCount, preventEmptySource, out poured))
                 {
                     continue;
                 }
@@ -512,13 +523,17 @@ namespace Decantra.Domain.Generation
             return applied;
         }
 
-        private static List<Move> EnumerateScrambleMovePairs(LevelState state, List<Move> buffer, Move? lastMove)
+        private static List<Move> EnumerateScrambleMovePairs(LevelState state, List<Move> buffer, Move? lastMove, bool preventEmptySource)
         {
             buffer.Clear();
             for (int i = 0; i < state.Bottles.Count; i++)
             {
                 var source = state.Bottles[i];
                 if (source.IsEmpty) continue;
+                // CRITICAL: Sink bottles cannot be sources in forward gameplay,
+                // so they must not be sources during reverse scrambling either
+                if (source.IsSink) continue;
+
                 for (int j = 0; j < state.Bottles.Count; j++)
                 {
                     if (i == j) continue;
@@ -530,7 +545,7 @@ namespace Decantra.Domain.Generation
                     if (state.Bottles[j].IsSink) continue;
 
                     var target = state.Bottles[j];
-                    int maxAmount = GetMaxReverseAmount(source, target);
+                    int maxAmount = GetMaxReversibleReverseAmount(source, target, preventEmptySource);
                     if (maxAmount <= 0) continue;
                     buffer.Add(new Move(i, j, maxAmount));
                 }
@@ -538,7 +553,7 @@ namespace Decantra.Domain.Generation
             return buffer;
         }
 
-        private static bool TryApplyScrambleMove(LevelState state, int sourceIndex, int targetIndex, Random rng, int minEmptyCount, int maxEmptyCount, out int appliedAmount)
+        private static bool TryApplyScrambleMove(LevelState state, int sourceIndex, int targetIndex, Random rng, int minEmptyCount, int maxEmptyCount, bool preventEmptySource, out int appliedAmount)
         {
             appliedAmount = 0;
             if (state == null) return false;
@@ -550,11 +565,11 @@ namespace Decantra.Domain.Generation
             var source = state.Bottles[sourceIndex];
             var target = state.Bottles[targetIndex];
             if (target.IsSink) return false;
-            int maxAmount = GetMaxReverseAmount(source, target);
+            int maxAmount = GetMaxReversibleReverseAmount(source, target, preventEmptySource);
             // Scramble must respect the "Pour All" rule of the game.
             // If we reverse-pour a partial amount, the forward solution might require a partial pour 
             // which is not allowed by the game rules (MoveRules).
-            // Therefore, always move the maximum possible amount to simulate a valid inverse move.
+            // Therefore, always move the maximum reversible amount to simulate a valid inverse move.
             int amount = maxAmount;
             int emptyCount = CountEmpty(state.Bottles);
             bool targetWasEmpty = target.IsEmpty;
@@ -586,7 +601,7 @@ namespace Decantra.Domain.Generation
             int emptyCount = CountEmpty(state.Bottles);
             if (emptyCount > profile.EmptyBottleCount) return false;
 
-            if (profile.LevelIndex <= 6 && HasSolvedBottle(state.Bottles)) return false;
+            // Early tutorial levels can still start with solved bottles if other constraints pass.
 
             int distinct = CountDistinctColors(state.Bottles);
             if (profile.LevelIndex > 3)
@@ -623,8 +638,7 @@ namespace Decantra.Domain.Generation
                         if (target.IsSink) continue;
                         if (!target.IsEmpty) continue;
 
-                        int maxAmount = GetMaxReverseAmount(source, target);
-                        maxAmount = Math.Min(maxAmount, source.Count - 1);
+                        int maxAmount = GetMaxReversibleReverseAmount(source, target, preventEmptySource: true);
                         if (maxAmount <= 0) continue;
 
                         candidates.Add(new Move(i, j, maxAmount));
@@ -637,7 +651,7 @@ namespace Decantra.Domain.Generation
                 }
 
                 var pick = candidates[rng.Next(candidates.Count)];
-                int amount = rng.Next(1, pick.Amount + 1);
+                int amount = pick.Amount;
                 if (!state.Bottles[pick.Source].TryReversePourInto(state.Bottles[pick.Target], amount))
                 {
                     return false;
@@ -652,6 +666,73 @@ namespace Decantra.Domain.Generation
             if (source == null || target == null) return 0;
             int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
             return Math.Max(0, maxAmount);
+        }
+
+        /// <summary>
+        /// Computes the maximum reverse-pour amount that ensures reversibility.
+        /// A reverse move is only valid if it can be undone by a forward move.
+        /// </summary>
+        private static int GetMaxReversibleReverseAmount(Bottle source, Bottle target, bool preventEmptySource)
+        {
+            if (source == null || target == null) return 0;
+            var color = source.TopColor;
+            if (!color.HasValue) return 0;
+
+            // CRITICAL: If target already has the same top color as source, the inverse forward  
+            // move would pour more than the reverse amount, breaking reversibility.
+            // Example: Source=[R,R,B], Target=[R]. Reverse pour 2R -> Source=[_,_,B], Target=[R,R,R]
+            // Forward reverse: Target top=R (3), Source top=B. R!=B so forward move impossible.
+            var targetTop = target.TopColor;
+            if (targetTop.HasValue && targetTop.Value == color.Value)
+            {
+                return 0;
+            }
+
+            int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
+            if (maxAmount <= 0) return 0;
+
+            int maxAllowed = maxAmount;
+
+            // If removing the entire top block would reveal a different color beneath,
+            // then the inverse forward move would become illegal (top colors would mismatch).
+            // Example: Source=[R,R,B], maxAmount=2. After reverse: Source=[_,_,B] top=B
+            // For forward reverse, target would need top=B, but if target was empty,
+            // it now has top=R. Can't pour B->R.
+            if (source.ContiguousTopCount == maxAmount && source.Count > maxAmount)
+            {
+                maxAllowed = Math.Min(maxAllowed, source.ContiguousTopCount - 1);
+            }
+
+            if (preventEmptySource)
+            {
+                maxAllowed = Math.Min(maxAllowed, source.Count - 1);
+            }
+
+            return Math.Max(0, maxAllowed);
+        }
+
+        /// <summary>
+        /// Computes a relaxed maximum reverse-pour amount that keeps the source top color stable
+        /// (or empty), without enforcing strict forward-reversibility on target top color.
+        /// </summary>
+        private static int GetMaxRelaxedReverseAmount(Bottle source, Bottle target, bool preventEmptySource)
+        {
+            if (source == null || target == null) return 0;
+            int maxAmount = Math.Min(source.ContiguousTopCount, target.FreeSpace);
+            if (maxAmount <= 0) return 0;
+
+            int maxAllowed = maxAmount;
+            if (source.ContiguousTopCount == maxAmount && source.Count > maxAmount)
+            {
+                maxAllowed = Math.Min(maxAllowed, source.ContiguousTopCount - 1);
+            }
+
+            if (preventEmptySource)
+            {
+                maxAllowed = Math.Min(maxAllowed, source.Count - 1);
+            }
+
+            return Math.Max(0, maxAllowed);
         }
 
         private static int CountDistinctColors(IReadOnlyList<Bottle> bottles)
@@ -706,12 +787,19 @@ namespace Decantra.Domain.Generation
                 {
                     var source = state.Bottles[i];
                     if (!source.IsSolvedBottle()) continue;
+                    // CRITICAL: Sink bottles cannot be sources in forward gameplay
+                    if (source.IsSink) continue;
+
                     for (int j = 0; j < state.Bottles.Count; j++)
                     {
                         if (i == j) continue;
                         if (state.Bottles[j].IsSink) continue;
                         var target = state.Bottles[j];
-                        int maxAmount = GetMaxReverseAmount(source, target);
+                        int maxAmount = GetMaxReversibleReverseAmount(source, target, preventEmptySource: false);
+                        if (maxAmount <= 0)
+                        {
+                            maxAmount = GetMaxRelaxedReverseAmount(source, target, preventEmptySource: false);
+                        }
                         if (maxAmount <= 0) continue;
                         candidates.Add(new Move(i, j, maxAmount));
                     }
@@ -721,13 +809,23 @@ namespace Decantra.Domain.Generation
                 var move = candidates[rng.Next(candidates.Count)];
                 var moveSource = state.Bottles[move.Source];
                 var moveTarget = state.Bottles[move.Target];
-                int moveMaxAmount = GetMaxReverseAmount(moveSource, moveTarget);
-                if (moveMaxAmount <= 0) continue;
-
-                int amount = rng.Next(1, moveMaxAmount + 1);
-                if (moveTarget.IsEmpty && moveSource.Count == moveMaxAmount && amount == moveMaxAmount)
+                int moveMaxAmount = GetMaxReversibleReverseAmount(moveSource, moveTarget, preventEmptySource: false);
+                if (moveMaxAmount <= 0)
                 {
-                    amount = Math.Max(1, moveMaxAmount - 1);
+                    moveMaxAmount = GetMaxRelaxedReverseAmount(moveSource, moveTarget, preventEmptySource: false);
+                }
+                if (moveMaxAmount <= 0) continue;
+                int amount = moveMaxAmount;
+
+                int emptyCount = CountEmpty(state.Bottles);
+                bool targetWasEmpty = moveTarget.IsEmpty;
+                bool sourceBecomesEmpty = moveSource.Count == amount;
+                int newEmptyCount = emptyCount;
+                if (targetWasEmpty) newEmptyCount--;
+                if (sourceBecomesEmpty) newEmptyCount++;
+                if (newEmptyCount < minEmptyCount || newEmptyCount > maxEmptyCount)
+                {
+                    continue;
                 }
 
                 moveSource.TryReversePourInto(moveTarget, amount);

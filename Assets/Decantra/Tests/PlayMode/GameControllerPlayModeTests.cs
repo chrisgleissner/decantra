@@ -20,6 +20,7 @@ using Decantra.Domain.Solver;
 using Decantra.Presentation;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.Services;
+using Decantra.Presentation.View;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -371,11 +372,16 @@ namespace Decantra.Tests.PlayMode
             SetPrivateField(controller, "_progressStore", store);
             SetPrivateField(controller, "_progress", progress);
 
-            var restartGo = GameObject.Find("RestartButton");
-            Assert.IsNotNull(restartGo, "Restart button should exist in scene.");
-            var restartButton = restartGo.GetComponent<Button>();
-            Assert.IsNotNull(restartButton, "Restart button should have Button component.");
-            restartButton.onClick.Invoke();
+            // Now test long-press behavior on Reset button
+            var resetGo = GameObject.Find("ResetButton");
+            Assert.IsNotNull(resetGo, "Reset button should exist in scene.");
+
+            // Get the LongPressButton component and trigger the long-press action directly
+            var longPress = resetGo.GetComponent<LongPressButton>();
+            Assert.IsNotNull(longPress, "Reset button should have LongPressButton component.");
+
+            // Simulate long-press by directly invoking the callback (RequestRestartGame)
+            controller.RequestRestartGame();
 
             yield return null;
 

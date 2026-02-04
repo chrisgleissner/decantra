@@ -103,8 +103,24 @@ rm -f "${OUTPUT_DIR}"/*.png || true
 
 adb -s "${DEVICE_ID}" shell pm clear "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 adb -s "${DEVICE_ID}" shell rm -rf "/sdcard/Android/data/${PACKAGE_NAME}/files/DecantraScreenshots" >/dev/null 2>&1 || true
+adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 
-adb -s "${DEVICE_ID}" install -r "${APK_PATH}"
+install_output=""
+install_status=0
+if ! install_output=$(adb -s "${DEVICE_ID}" install -r "${APK_PATH}" 2>&1); then
+  install_status=$?
+fi
+
+if [[ ${install_status} -ne 0 ]]; then
+  if echo "${install_output}" | grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE"; then
+    echo "Install failed due to signature mismatch. Uninstalling ${PACKAGE_NAME} and retrying..." >&2
+    adb -s "${DEVICE_ID}" uninstall "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+    adb -s "${DEVICE_ID}" install -r "${APK_PATH}"
+  else
+    echo "APK install failed: ${install_output}" >&2
+    exit ${install_status}
+  fi
+fi
 adb -s "${DEVICE_ID}" shell pm enable "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 
 extras=(--ez decantra_screenshots true)
@@ -112,13 +128,16 @@ if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
   extras+=(--ez decantra_screenshots_only true)
 fi
 
-adb -s "${DEVICE_ID}" shell am start -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null
+adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null
 
 expected=(
   "screenshot-01-launch.png"
-  "screenshot-02-initial-level.png"
-  "screenshot-03-interstitial.png"
-  "screenshot-04-advanced-level.png"
+  "screenshot-02-intro.png"
+  "screenshot-03-level-01.png"
+  "screenshot-04-level-12.png"
+  "screenshot-05-level-24.png"
+  "screenshot-06-interstitial.png"
+  "screenshot-07-level-36.png"
 )
 
 remote_dir="files/DecantraScreenshots"

@@ -13,15 +13,21 @@ This is the authoritative, ordered checklist for preparing and publishing Decant
   - [ ] `./build --screenshots`
 - [ ] Verify screenshots exist:
   - [ ] `doc/play-store-assets/screenshots/phone/screenshot-01-launch.png`
-  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-02-initial-level.png`
-  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-03-interstitial.png`
-  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-04-advanced-level.png`
+  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-02-intro.png`
+  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png`
+  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-04-level-12.png`
+  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png`
+  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-06-interstitial.png`
+  - [ ] `doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png`
 
 ### Screenshot navigation (deterministic)
 - Launch screen: Intro banner shown, logo visible.
-- Initial level: `LoadLevel(1, 10991)`.
+- Intro screen: `IntroBanner` playback.
+- Level 1: `LoadLevel(1, 10991)`.
+- Level 12: `LoadLevel(12, 473921)`.
+- Level 24: `LoadLevel(24, 873193)`.
 - Interstitial: `LevelCompleteBanner.Show(level=2, stars=4, score=280, grade=A)`.
-- Advanced level: `LoadLevel(12, 473921)`.
+- Level 36: `LoadLevel(36, 192731)`.
 
 ## 2) Build & test (local)
 

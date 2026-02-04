@@ -14,27 +14,28 @@ namespace Decantra.Presentation
 {
     public sealed class IntroBanner : MonoBehaviour
     {
-        [SerializeField] private RectTransform panel;
-        [SerializeField] private Text titleText;
-        [SerializeField] private Image dimmer;
-        [SerializeField] private CanvasGroup canvasGroup;
-        [SerializeField] private float enterDuration = 0.6f;
+        [SerializeField] private RectTransform root;
+        [SerializeField] private RectTransform logoRect;
+        [SerializeField] private Image logoImage;
+        [SerializeField] private Image background;
+        [SerializeField] private CanvasGroup logoGroup;
+        [SerializeField] private float enterDuration = 0.5f;
         [SerializeField] private float holdDuration = 1.0f;
-        [SerializeField] private float exitDuration = 0.6f;
-        [SerializeField] private float dimmerAlpha = 0.9f;
+        [SerializeField] private float exitDuration = 0.5f;
 
         private bool _dismissRequested;
+        private bool _isPlaying;
+
+        public bool IsPlaying => _isPlaying;
 
         public void EnableScreenshotMode()
         {
-            enterDuration = Mathf.Max(enterDuration, 0.7f);
-            holdDuration = Mathf.Max(holdDuration, 1.2f);
-            exitDuration = Mathf.Max(exitDuration, 0.7f);
+            // Intentionally no-op: intro timing must remain exact for captures.
         }
 
         public float GetCaptureDelay()
         {
-            return enterDuration + Mathf.Min(0.35f, holdDuration * 0.5f);
+            return enterDuration + (holdDuration * 0.5f);
         }
 
         public void DismissEarly()
@@ -42,63 +43,126 @@ namespace Decantra.Presentation
             _dismissRequested = true;
         }
 
+        public void PrepareForIntro()
+        {
+            EnsureReferences();
+            ApplyLayout();
+            _dismissRequested = false;
+            SetBackgroundAlpha(1f);
+            SetLogoAlpha(0f);
+            SetLogoRaycasts(false);
+        }
+
+        public void HideImmediate()
+        {
+            EnsureReferences();
+            _dismissRequested = false;
+            _isPlaying = false;
+            SetLogoAlpha(0f);
+            SetBackgroundAlpha(0f);
+            SetLogoRaycasts(false);
+        }
+
         public IEnumerator Play()
         {
-            if (panel == null || canvasGroup == null)
+            EnsureReferences();
+            if (logoRect == null || logoImage == null)
             {
                 yield break;
             }
-
-            canvasGroup.alpha = 0f;
-            canvasGroup.blocksRaycasts = false;
-            canvasGroup.interactable = false;
-            panel.anchoredPosition = new Vector2(0, -240);
-            _dismissRequested = false;
-            SetDimmerAlpha(0f);
+            _isPlaying = true;
+            PrepareForIntro();
 
             float time = 0f;
-            while (time < enterDuration)
+            while (time < enterDuration && !_dismissRequested)
             {
-                time += Time.deltaTime;
-                float t = Mathf.SmoothStep(0f, 1f, time / enterDuration);
-                canvasGroup.alpha = t;
-                panel.anchoredPosition = Vector2.Lerp(new Vector2(0, -240), Vector2.zero, t);
-                SetDimmerAlpha(Mathf.Lerp(0f, dimmerAlpha, t));
+                time += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(time / enterDuration);
+                SetLogoAlpha(t);
                 yield return null;
             }
 
-            canvasGroup.alpha = 1f;
-            panel.anchoredPosition = Vector2.zero;
+            SetLogoAlpha(1f);
             float held = 0f;
             while (!_dismissRequested && held < holdDuration)
             {
-                held += Time.deltaTime;
+                held += Time.unscaledDeltaTime;
                 yield return null;
             }
 
             time = 0f;
             while (time < exitDuration)
             {
-                time += Time.deltaTime;
-                float t = Mathf.SmoothStep(0f, 1f, time / exitDuration);
-                canvasGroup.alpha = 1f - t;
-                panel.anchoredPosition = Vector2.Lerp(Vector2.zero, new Vector2(0, 400), t);
-                SetDimmerAlpha(Mathf.Lerp(dimmerAlpha, 0f, t));
+                time += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(time / exitDuration);
+                SetLogoAlpha(1f - t);
                 yield return null;
             }
 
-            canvasGroup.alpha = 0f;
-            canvasGroup.blocksRaycasts = false;
-            canvasGroup.interactable = false;
-            SetDimmerAlpha(0f);
+            SetLogoAlpha(0f);
+            SetBackgroundAlpha(0f);
+            SetLogoRaycasts(false);
+            _isPlaying = false;
         }
 
-        private void SetDimmerAlpha(float alpha)
+        private void EnsureReferences()
         {
-            if (dimmer == null) return;
-            var color = dimmer.color;
+            if (root == null)
+            {
+                root = GetComponent<RectTransform>();
+            }
+            if (logoRect == null && logoImage != null)
+            {
+                logoRect = logoImage.GetComponent<RectTransform>();
+            }
+        }
+
+        private void ApplyLayout()
+        {
+            if (root == null || logoRect == null || logoImage == null || logoImage.sprite == null)
+            {
+                return;
+            }
+
+            Canvas.ForceUpdateCanvases();
+            float width = root.rect.width * 0.6f;
+            float aspect = logoImage.sprite.rect.height / logoImage.sprite.rect.width;
+            float height = width * aspect;
+
+            logoRect.anchorMin = new Vector2(0.5f, 0.5f);
+            logoRect.anchorMax = new Vector2(0.5f, 0.5f);
+            logoRect.pivot = new Vector2(0.5f, 0.5f);
+            logoRect.anchoredPosition = Vector2.zero;
+            logoRect.sizeDelta = new Vector2(width, height);
+        }
+
+        private void SetBackgroundAlpha(float alpha)
+        {
+            if (background == null) return;
+            var color = background.color;
             color.a = alpha;
-            dimmer.color = color;
+            background.color = color;
+        }
+
+        private void SetLogoAlpha(float alpha)
+        {
+            if (logoGroup != null)
+            {
+                logoGroup.alpha = alpha;
+                return;
+            }
+
+            if (logoImage == null) return;
+            var color = logoImage.color;
+            color.a = alpha;
+            logoImage.color = color;
+        }
+
+        private void SetLogoRaycasts(bool enabled)
+        {
+            if (logoGroup == null) return;
+            logoGroup.blocksRaycasts = enabled;
+            logoGroup.interactable = enabled;
         }
     }
 }

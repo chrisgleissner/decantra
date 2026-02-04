@@ -14,12 +14,24 @@ public class Program
 {
     private const int MaxSolveMillis = 3000;
     private const int MaxSolveNodes = 2_000_000;
+    private const int RetrySolveMillis = 8000;
+    private const int RetrySolveNodes = 8_000_000;
 
     public static int Main(string[] args)
     {
         var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
-        Console.SetOut(stdout);
-        Console.SetError(stdout);
+        var stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
+
+        if (Console.IsOutputRedirected)
+        {
+            Console.SetOut(stderr);
+            Console.SetError(stderr);
+        }
+        else
+        {
+            Console.SetOut(stdout);
+            Console.SetError(stderr);
+        }
 
         if (args.Length == 0)
         {
@@ -196,6 +208,11 @@ public class Program
                 // NO minComplexity parameter - generate naturally
                 var state = generator.Generate(seed, profile);
                 var solveResult = solver.SolveWithPath(state, MaxSolveNodes, MaxSolveMillis);
+                if (solveResult.OptimalMoves < 0 && solveResult.Status == SolverStatus.Timeout)
+                {
+                    Console.WriteLine($"[Retry] level={l}, reason=TIMEOUT, limits={RetrySolveMillis}ms/{RetrySolveNodes:N0} nodes");
+                    solveResult = solver.SolveWithPath(state, RetrySolveNodes, RetrySolveMillis);
+                }
                 var report = generator.LastReport;
                 var elapsedMillis = levelStopwatch.ElapsedMilliseconds;
                 levelTimesMs[l] = elapsedMillis;
@@ -402,17 +419,7 @@ public class Program
         File.WriteAllLines("solver-solutions-debug.txt", lines);
         Console.WriteLine("Refreshed solver-solutions-debug.txt");
 
-        // Validate monotonicity and linearity (diagnostic only; uses intrinsic difficulty)
-        var intrinsicDifficulties = new Dictionary<int, int>();
-        for (int l = 1; l <= count; l++)
-        {
-            if (results.TryGetValue(l, out var result) && !result.IsError)
-            {
-                intrinsicDifficulties[l] = result.Difficulty;
-            }
-        }
-        // Intrinsic difficulty is not expected to be linear with level progression.
-        return ValidateProgression(intrinsicDifficulties, count, requireLinear: false);
+        return ValidateDifficultyInvariantFromFile("solver-solutions-debug.txt", count);
     }
 
     private static double ComputeCorrelation(double[] scores)
@@ -443,88 +450,123 @@ public class Program
         return numerator / denominator;
     }
 
-    private static int ValidateProgression(Dictionary<int, int> difficulties, int count, bool requireLinear = true)
+    private static int ValidateDifficultyInvariantFromFile(string path, int count)
     {
-        Console.WriteLine("\n=== MONOTONICITY VALIDATION ===");
-        var monotonicResult = MonotonicDifficultyMapper.ValidateMonotonicity(difficulties);
+        Console.WriteLine("\n=== DIFFICULTY INVARIANT VALIDATION ===");
 
-        Console.WriteLine(monotonicResult.Message);
-        if (!monotonicResult.IsValid)
+        if (!File.Exists(path))
         {
-            Console.WriteLine($"First violation at level {monotonicResult.FirstViolationLevel}");
-            foreach (var violation in monotonicResult.Violations.Take(5))
+            Console.WriteLine($"FAIL: {path} not found.");
+            return 1;
+        }
+
+        var violations = new List<string>();
+        var seenLevels = new HashSet<int>();
+        int expectedLevel = 1;
+
+        foreach (var line in File.ReadLines(path))
+        {
+            if (!line.StartsWith("level=", StringComparison.Ordinal))
+                continue;
+
+            if (!TryParseLevelDifficulty(line, out int level, out int difficulty))
             {
-                Console.WriteLine($"  {violation}");
+                violations.Add($"Unparseable line: {line}");
+                continue;
             }
-            if (monotonicResult.Violations.Count > 5)
+
+            if (level != expectedLevel)
             {
-                Console.WriteLine($"  ... and {monotonicResult.Violations.Count - 5} more violations");
+                violations.Add($"Level sequence gap or regression at level {level} (expected {expectedLevel})");
+                expectedLevel = level;
+            }
+
+            expectedLevel++;
+            seenLevels.Add(level);
+
+            if (difficulty <= 0)
+            {
+                violations.Add($"Level {level}: difficulty is invalid ({difficulty})");
+                continue;
+            }
+
+            if (level <= LevelDifficultyEngine.LinearDifficultyMaxLevel)
+            {
+                if (difficulty != level)
+                {
+                    violations.Add($"Level {level}: difficulty={difficulty} expected {level}");
+                }
+            }
+            else
+            {
+                if (difficulty != LevelDifficultyEngine.DifficultyClampValue)
+                {
+                    violations.Add($"Level {level}: difficulty={difficulty} expected {LevelDifficultyEngine.DifficultyClampValue}");
+                }
             }
         }
 
-        LinearityValidation linearityResult = null;
-        if (requireLinear)
+        for (int level = 1; level <= count; level++)
         {
-            Console.WriteLine("\n=== LINEARITY VALIDATION ===");
-            linearityResult = MonotonicDifficultyMapper.ValidateLinearity(difficulties);
-
-            Console.WriteLine(linearityResult.Message);
-            if (!linearityResult.IsValid || linearityResult.Warnings.Count > 0)
+            if (!seenLevels.Contains(level))
             {
-                foreach (var warning in linearityResult.Warnings.Take(5))
-                {
-                    Console.WriteLine($"  {warning}");
-                }
-                if (linearityResult.Warnings.Count > 5)
-                {
-                    Console.WriteLine($"  ... and {linearityResult.Warnings.Count - 5} more warnings");
-                }
+                violations.Add($"Missing level {level} in output");
             }
         }
 
-        Console.WriteLine("\n=== DIFFICULTY STATISTICS ===");
-        var sortedDifficulties = difficulties.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList();
+        Console.WriteLine(violations.Count == 0
+            ? "PASS: Difficulty invariant satisfied."
+            : $"FAIL: {violations.Count} difficulty invariant violation(s) found.");
 
-        if (sortedDifficulties.Count > 0)
+        foreach (var violation in violations.Take(10))
         {
-            int min = sortedDifficulties.Min();
-            int max = sortedDifficulties.Max();
-            double avg = sortedDifficulties.Average();
+            Console.WriteLine($"  {violation}");
+        }
 
-            Console.WriteLine($"Range: {min} - {max}");
-            Console.WriteLine($"Average: {avg:F2}");
-
-            // Distribution
-            var ranges = new[] { 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
-            Console.WriteLine("\nDistribution:");
-            for (int r = 0; r < ranges.Length - 1; r++)
-            {
-                int low = ranges[r];
-                int high = ranges[r + 1];
-                int inRange = sortedDifficulties.Count(d => d >= low && d < high);
-                double pct = 100.0 * inRange / sortedDifficulties.Count;
-                Console.WriteLine($"  [{low,3}-{high,3}): {inRange,4} levels ({pct,5:F1}%)");
-            }
-            int at100 = sortedDifficulties.Count(d => d == 100);
-            Console.WriteLine($"  [100    ]: {at100,4} levels ({100.0 * at100 / sortedDifficulties.Count:F1}%)");
+        if (violations.Count > 10)
+        {
+            Console.WriteLine($"  ... and {violations.Count - 10} more");
         }
 
         Console.WriteLine("\n=== FINAL VERDICT ===");
-        bool allPass = monotonicResult.IsValid && (!requireLinear || (linearityResult != null && linearityResult.IsValid));
 
-        if (allPass)
+        if (violations.Count == 0)
         {
             Console.WriteLine("PASS: All validation checks passed.");
             return 0;
         }
-        else
+
+        Console.WriteLine("FAIL: Validation checks failed.");
+        return 1;
+    }
+
+    private static bool TryParseLevelDifficulty(string line, out int level, out int difficulty)
+    {
+        level = 0;
+        difficulty = 0;
+
+        try
         {
-            Console.WriteLine("FAIL: Validation checks failed.");
-            if (!monotonicResult.IsValid)
-                Console.WriteLine($"  Monotonicity: {monotonicResult.Violations.Count} violations");
-            if (requireLinear && linearityResult != null && !linearityResult.IsValid)
-                Console.WriteLine($"  Linearity: {linearityResult.Warnings.Count} issues");
-            return 1;
+            var parts = line.Split(',');
+            if (parts.Length < 2)
+                return false;
+
+            var levelPart = parts[0].Trim();
+            var difficultyPart = parts[1].Trim();
+
+            if (!levelPart.StartsWith("level=", StringComparison.Ordinal) ||
+                !difficultyPart.StartsWith("difficulty=", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            level = int.Parse(levelPart.Substring("level=".Length));
+            difficulty = int.Parse(difficultyPart.Substring("difficulty=".Length));
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -532,7 +574,7 @@ public class Program
     {
         public int Level;
         public double RawComplexity;  // Stage 1 raw score
-        public int Difficulty;        // Intrinsic difficulty score (1-100); not a monotonic level mapping
+        public int Difficulty;        // Deterministic difficulty mapping for solver output
         public int Optimal;
         public float Forced;
         public float Branch;

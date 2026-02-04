@@ -30,14 +30,39 @@ namespace Decantra.Presentation
         private static Sprite topReflectionSprite;
         private static Sprite reflectionStripSprite;
 
-        // Cached structural background sprites keyed by groupIndex (levelIndex / 10)
-        private static readonly Dictionary<int, Sprite> _organicShapesByGroup = new Dictionary<int, Sprite>();
-        private static readonly Dictionary<int, Sprite> _bubblesByGroup = new Dictionary<int, Sprite>();
-        private static readonly Dictionary<int, Sprite> _largeStructureByGroup = new Dictionary<int, Sprite>();
-        private static readonly Dictionary<int, Sprite> _geometricShapesByGroup = new Dictionary<int, Sprite>();
-        private static readonly Dictionary<int, Sprite> _ribbonStreamsByGroup = new Dictionary<int, Sprite>();
-        private static readonly Dictionary<int, Sprite> _geometricStructuresByGroup = new Dictionary<int, Sprite>();
-        private static int _lastLevelIndex = -1;
+        private readonly struct ZonePatternCacheKey : System.IEquatable<ZonePatternCacheKey>
+        {
+            private readonly int _globalSeed;
+            private readonly int _zoneIndex;
+
+            public ZonePatternCacheKey(int globalSeed, int zoneIndex)
+            {
+                _globalSeed = globalSeed;
+                _zoneIndex = zoneIndex;
+            }
+
+            public bool Equals(ZonePatternCacheKey other)
+            {
+                return _globalSeed == other._globalSeed && _zoneIndex == other._zoneIndex;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is ZonePatternCacheKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (_globalSeed * 397) ^ _zoneIndex;
+                }
+            }
+        }
+
+        private static readonly Dictionary<ZonePatternCacheKey, BackgroundPatternGenerator.PatternSprites> _zonePatternsByKey = new Dictionary<ZonePatternCacheKey, BackgroundPatternGenerator.PatternSprites>();
+        private static int _lastZoneIndex = -1;
+        private static int _lastZoneSeed = int.MinValue;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         [Preserve]
         public static void EnsureScene()
@@ -47,7 +72,6 @@ namespace Decantra.Presentation
             {
                 EnsureRestartDialog(existingController);
                 WireResetButton(existingController);
-                WireRestartButton(existingController);
                 WireShareButton(existingController);
                 EnsureLevelJumpOverlay(existingController);
                 WireLevelJumpOverlay(existingController);
@@ -113,7 +137,6 @@ namespace Decantra.Presentation
 
             var restartDialog = CreateRestartDialog(canvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
-            WireRestartButton(controller);
             WireShareButton(controller);
             WireLevelJumpOverlay(controller);
 
@@ -220,6 +243,8 @@ namespace Decantra.Presentation
             baseImage.type = Image.Type.Simple;
             baseImage.raycastTarget = false;
 
+            var initialPatterns = GetZonePatternSprites(0, 0);
+
             var largeStructureGo = CreateUiChild(parent, "BackgroundLargeStructure");
             var largeRect = largeStructureGo.GetComponent<RectTransform>();
             largeRect.anchorMin = Vector2.zero;
@@ -228,7 +253,7 @@ namespace Decantra.Presentation
             largeRect.offsetMax = Vector2.zero;
 
             var largeImage = largeStructureGo.AddComponent<Image>();
-            largeImage.sprite = CreateLargeStructureSprite();
+            largeImage.sprite = initialPatterns.Macro;
             largeImage.color = new Color(1f, 1f, 1f, 0.35f);
             largeImage.type = Image.Type.Simple;
             largeImage.raycastTarget = false;
@@ -246,7 +271,7 @@ namespace Decantra.Presentation
             flowRect.offsetMax = Vector2.zero;
 
             var flowImage = flowGo.AddComponent<Image>();
-            flowImage.sprite = CreateFlowSprite();
+            flowImage.sprite = initialPatterns.Meso;
             flowImage.color = new Color(1f, 1f, 1f, 0.45f);
             flowImage.type = Image.Type.Simple;
             flowImage.raycastTarget = false;
@@ -264,7 +289,7 @@ namespace Decantra.Presentation
             shapesRect.offsetMax = Vector2.zero;
 
             var shapesImage = shapesGo.AddComponent<Image>();
-            shapesImage.sprite = CreateOrganicShapesSprite();
+            shapesImage.sprite = initialPatterns.Accent;
             shapesImage.color = new Color(1f, 1f, 1f, 0.32f);
             shapesImage.type = Image.Type.Simple;
             shapesImage.raycastTarget = false;
@@ -282,7 +307,7 @@ namespace Decantra.Presentation
             detailRect.offsetMax = Vector2.zero;
 
             var detailImage = detailGo.AddComponent<Image>();
-            detailImage.sprite = CreateSoftNoiseSprite();
+            detailImage.sprite = initialPatterns.Micro;
             detailImage.color = new Color(1f, 1f, 1f, 0.36f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
@@ -300,7 +325,7 @@ namespace Decantra.Presentation
             bubblesRect.offsetMax = Vector2.zero;
 
             var bubblesImage = bubblesGo.AddComponent<Image>();
-            bubblesImage.sprite = CreateBubblesSprite();
+            bubblesImage.sprite = initialPatterns.Micro;
             bubblesImage.color = new Color(1f, 1f, 1f, 0.28f);
             bubblesImage.type = Image.Type.Simple;
             bubblesImage.raycastTarget = false;
@@ -310,6 +335,7 @@ namespace Decantra.Presentation
             SetPrivateField(bubblesDrift, "rotationAmplitude", 0.4f);
             SetPrivateField(bubblesDrift, "rotationSpeed", 0.012f);
 
+            // Vignette effect completely disabled - creates dated egg-shaped spotlight appearance
             var vignetteGo = CreateUiChild(parent, "BackgroundVignette");
             var vignetteRect = vignetteGo.GetComponent<RectTransform>();
             vignetteRect.anchorMin = Vector2.zero;
@@ -319,9 +345,10 @@ namespace Decantra.Presentation
 
             var vignetteImage = vignetteGo.AddComponent<Image>();
             vignetteImage.sprite = CreateVignetteSprite();
-            vignetteImage.color = new Color(0f, 0f, 0f, 0.3f);
+            vignetteImage.color = new Color(0f, 0f, 0f, 0f); // Alpha = 0 to completely disable vignette
             vignetteImage.type = Image.Type.Simple;
             vignetteImage.raycastTarget = false;
+            vignetteGo.SetActive(false); // Disable vignette GameObject entirely
 
             bg.transform.SetAsFirstSibling();
             largeStructureGo.transform.SetSiblingIndex(1);
@@ -371,21 +398,6 @@ namespace Decantra.Presentation
             safeRect.offsetMax = Vector2.zero;
             safeRoot.AddComponent<Decantra.Presentation.View.SafeAreaInset>();
 
-            var brandGo = CreateUiChild(safeRoot.transform, "BrandLockup");
-            var brandRect = brandGo.GetComponent<RectTransform>();
-            brandRect.anchorMin = new Vector2(0.5f, 1f);
-            brandRect.anchorMax = new Vector2(0.5f, 1f);
-            brandRect.pivot = new Vector2(0.5f, 1f);
-            brandRect.anchoredPosition = new Vector2(0, -18);
-            brandRect.sizeDelta = new Vector2(932, 190);
-
-            var brandSprite = Resources.Load<Sprite>("DecantraBanner");
-            var brandImage = brandGo.AddComponent<Image>();
-            brandImage.sprite = brandSprite;
-            brandImage.preserveAspect = true;
-            brandImage.color = Color.white;
-            brandImage.raycastTarget = false;
-
             var hudViewGo = CreateUiChild(hudRoot.transform, "HudView");
             var hudView = hudViewGo.GetComponent<HudView>() ?? hudViewGo.AddComponent<HudView>();
 
@@ -404,10 +416,34 @@ namespace Decantra.Presentation
             topLayout.spacing = 16f;
 
             var levelText = CreateStatPanel(topHud.transform, "LevelPanel", "LEVEL", out var levelPanel);
-            var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES", out _);
-            var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out _);
+            var movesText = CreateStatPanel(topHud.transform, "MovesPanel", "MOVES", out var movesPanel);
+            var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out var scorePanel);
 
             _ = AddPanelButton(levelPanel);
+
+            var brandGo = CreateUiChild(safeRoot.transform, "BrandLockup");
+            var brandRect = brandGo.GetComponent<RectTransform>();
+            brandRect.anchorMin = new Vector2(0.5f, 1f);
+            brandRect.anchorMax = new Vector2(0.5f, 1f);
+            brandRect.pivot = new Vector2(0.5f, 1f);
+            brandRect.anchoredPosition = new Vector2(0, -18);
+
+            var brandSprite = Resources.Load<Sprite>("Decantra");
+            var brandImage = brandGo.AddComponent<Image>();
+            brandImage.sprite = brandSprite;
+            brandImage.preserveAspect = true;
+            brandImage.color = Color.white;
+            brandImage.raycastTarget = false;
+
+            var brandLayout = brandGo.AddComponent<TopBannerLogoLayout>();
+            SetPrivateField(brandLayout, "logoRect", brandRect);
+            SetPrivateField(brandLayout, "logoImage", brandImage);
+            SetPrivateField(brandLayout, "buttonRects", new[]
+            {
+                levelPanel.GetComponent<RectTransform>(),
+                movesPanel.GetComponent<RectTransform>(),
+                scorePanel.GetComponent<RectTransform>()
+            });
 
             var secondaryHud = CreateUiChild(safeRoot.transform, "SecondaryHud");
             var secondaryRect = secondaryHud.GetComponent<RectTransform>();
@@ -423,8 +459,12 @@ namespace Decantra.Presentation
             secondaryLayout.childForceExpandHeight = false;
             secondaryLayout.spacing = 32f;
 
-            CreateResetButton(secondaryHud.transform);
-            CreateRestartButton(secondaryHud.transform);
+            var resetButton = CreateResetButton(secondaryHud.transform);
+            if (resetButton != null)
+            {
+                SetPrivateField(brandLayout, "resetButtonRect", resetButton.GetComponent<RectTransform>());
+                brandLayout.ForceLayout();
+            }
 
             var bottomHud = CreateUiChild(hudRoot.transform, "BottomHud");
             var bottomRect = bottomHud.GetComponent<RectTransform>();
@@ -432,7 +472,8 @@ namespace Decantra.Presentation
             bottomRect.anchorMax = new Vector2(0.5f, 0f);
             bottomRect.pivot = new Vector2(0.5f, 0f);
             bottomRect.anchoredPosition = new Vector2(0f, 60f);
-            bottomRect.sizeDelta = new Vector2(980, 150);
+            // Width matches top HUD (1000px) for pixel-perfect horizontal alignment
+            bottomRect.sizeDelta = new Vector2(1000, 150);
 
             var bottomLayout = bottomHud.AddComponent<HorizontalLayoutGroup>();
             bottomLayout.childAlignment = TextAnchor.MiddleCenter;
@@ -446,8 +487,10 @@ namespace Decantra.Presentation
                 Object.Destroy(bottomImage);
             }
 
-            var maxLevelText = CreateBottomStatText(bottomHud.transform, "MaxLevelPanel", "MAX LEVEL");
-            var highScoreText = CreateBottomStatText(bottomHud.transform, "HighScorePanel", "HIGH SCORE");
+            // Use wider bottom stat panels for "MAX LEVEL" and "HIGH SCORE"
+            // Each panel width = 458px to match combined width of top 3 panels (932px total)
+            var maxLevelText = CreateBottomStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LEVEL", out _);
+            var highScoreText = CreateBottomStatPanel(bottomHud.transform, "HighScorePanel", "HIGH SCORE", out _);
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
@@ -733,20 +776,6 @@ namespace Decantra.Presentation
             anchorCollarRect.anchoredPosition = new Vector2(0, -152);
             anchorCollarGo.SetActive(false);
 
-            var anchorShadowGo = CreateUiChild(bottleGo.transform, "AnchorShadow");
-            var anchorShadow = anchorShadowGo.AddComponent<Image>();
-            anchorShadow.sprite = softCircle;
-            anchorShadow.type = Image.Type.Simple;
-            anchorShadow.color = new Color(0f, 0f, 0f, 0.35f);
-            anchorShadow.raycastTarget = false;
-            var anchorShadowRect = anchorShadowGo.GetComponent<RectTransform>();
-            anchorShadowRect.anchorMin = new Vector2(0.5f, 0f);
-            anchorShadowRect.anchorMax = new Vector2(0.5f, 0f);
-            anchorShadowRect.pivot = new Vector2(0.5f, 0.5f);
-            anchorShadowRect.sizeDelta = new Vector2(170, 40);
-            anchorShadowRect.anchoredPosition = new Vector2(0, -186);
-            anchorShadowGo.SetActive(false);
-            anchorShadowGo.transform.SetAsFirstSibling();
             shadowGo.transform.SetAsFirstSibling();
 
             var stopperGo = CreateUiChild(bottleGo.transform, "Stopper");
@@ -779,7 +808,6 @@ namespace Decantra.Presentation
             SetPrivateField(bottleView, "baseAccent", basePlate);
             SetPrivateField(bottleView, "curvedHighlight", highlight);
             SetPrivateField(bottleView, "anchorCollar", anchorCollar);
-            SetPrivateField(bottleView, "anchorShadow", anchorShadow);
             SetPrivateField(bottleView, "normalShadow", shadow);
             SetPrivateField(bottleView, "liquidSurface", liquidSurface);
             SetPrivateField(bottleView, "liquidSprite", liquidSprite);
@@ -899,59 +927,43 @@ namespace Decantra.Presentation
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            var group = root.AddComponent<CanvasGroup>();
-            group.alpha = 0f;
+            var backgroundGo = CreateUiChild(root.transform, "Background");
+            var backgroundRect = backgroundGo.GetComponent<RectTransform>();
+            backgroundRect.anchorMin = Vector2.zero;
+            backgroundRect.anchorMax = Vector2.one;
+            backgroundRect.offsetMin = Vector2.zero;
+            backgroundRect.offsetMax = Vector2.zero;
+            var backgroundImage = backgroundGo.AddComponent<Image>();
+            backgroundImage.color = new Color(0f, 0f, 0f, 1f);
+            backgroundImage.raycastTarget = false;
+            backgroundGo.transform.SetAsFirstSibling();
 
-            var panel = CreateUiChild(root.transform, "Panel");
-            var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0f, 1f);
-            panelRect.anchorMax = new Vector2(1f, 1f);
-            panelRect.pivot = new Vector2(0.5f, 1f);
-            panelRect.sizeDelta = new Vector2(0f, 320);
-            panelRect.anchoredPosition = new Vector2(0f, 0f);
-
-            var panelImage = panel.AddComponent<Image>();
-            panelImage.sprite = GetRoundedSprite();
-            panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(1f, 1f, 1f, 0f);
-            panelImage.raycastTarget = false;
-
-            var dimmerGo = CreateUiChild(root.transform, "Dimmer");
-            var dimmerRect = dimmerGo.GetComponent<RectTransform>();
-            dimmerRect.anchorMin = Vector2.zero;
-            dimmerRect.anchorMax = Vector2.one;
-            dimmerRect.offsetMin = Vector2.zero;
-            dimmerRect.offsetMax = new Vector2(0f, -320f);
-            var dimmerImage = dimmerGo.AddComponent<Image>();
-            dimmerImage.color = new Color(0f, 0f, 0f, 0.9f);
-            dimmerImage.raycastTarget = false;
-            dimmerGo.transform.SetAsFirstSibling();
-
-            var content = CreateUiChild(panel.transform, "Content");
-            var contentRect = content.GetComponent<RectTransform>();
-            contentRect.anchorMin = new Vector2(0f, 0f);
-            contentRect.anchorMax = new Vector2(1f, 1f);
-            contentRect.pivot = new Vector2(0.5f, 0.5f);
-            contentRect.sizeDelta = new Vector2(0f, 0f);
-
-            var logoSprite = Resources.Load<Sprite>("DecantraBanner")
-                ?? Resources.Load<Sprite>("DecantraLogo");
-            var logoGo = CreateUiChild(content.transform, "FeatureGraphic");
+            var logoSprite = Resources.Load<Sprite>("DecantraLogo");
+            var logoGo = CreateUiChild(root.transform, "Logo");
             var logoImage = logoGo.AddComponent<Image>();
             logoImage.sprite = logoSprite;
             logoImage.preserveAspect = true;
             logoImage.color = Color.white;
+            logoImage.raycastTarget = false;
+
             var logoRect = logoGo.GetComponent<RectTransform>();
-            logoRect.anchorMin = new Vector2(0f, 0f);
-            logoRect.anchorMax = new Vector2(1f, 1f);
+            logoRect.anchorMin = new Vector2(0.5f, 0.5f);
+            logoRect.anchorMax = new Vector2(0.5f, 0.5f);
             logoRect.pivot = new Vector2(0.5f, 0.5f);
-            logoRect.sizeDelta = new Vector2(-80f, -20f);
+            logoRect.anchoredPosition = Vector2.zero;
+
+            var logoGroup = logoGo.AddComponent<CanvasGroup>();
+            logoGroup.alpha = 0f;
+            logoGroup.blocksRaycasts = false;
+            logoGroup.interactable = false;
 
             var banner = root.AddComponent<IntroBanner>();
-            SetPrivateField(banner, "panel", panelRect);
-            SetPrivateField<Text>(banner, "titleText", null);
-            SetPrivateField(banner, "canvasGroup", group);
-            SetPrivateField(banner, "dimmer", dimmerImage);
+            SetPrivateField(banner, "root", rect);
+            SetPrivateField(banner, "logoRect", logoRect);
+            SetPrivateField(banner, "logoImage", logoImage);
+            SetPrivateField(banner, "background", backgroundImage);
+            SetPrivateField(banner, "logoGroup", logoGroup);
+            root.transform.SetAsLastSibling();
             return banner;
         }
 
@@ -1013,7 +1025,7 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(760, 300);
+            panelRect.sizeDelta = new Vector2(800, 450);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
@@ -1021,18 +1033,36 @@ namespace Decantra.Presentation
             panelImage.color = new Color(1f, 1f, 1f, 0.18f);
             panelImage.raycastTarget = false;
 
+            var title = CreateHudText(panel.transform, "TitleText");
+            title.fontSize = 48;
+            title.text = "Start New Game?";
+            title.color = Color.white;
+            title.alignment = TextAnchor.UpperCenter;
+            var titleRect = title.GetComponent<RectTransform>();
+            titleRect.anchorMin = new Vector2(0, 1);
+            titleRect.anchorMax = new Vector2(1, 1);
+            titleRect.pivot = new Vector2(0.5f, 1);
+            titleRect.anchoredPosition = new Vector2(0, -40);
+            titleRect.sizeDelta = new Vector2(0, 80);
+
             var message = CreateHudText(panel.transform, "MessageText");
-            message.fontSize = 38;
-            message.text = "Are you sure? This will reset all progress.";
+            message.fontSize = 32;
+            message.text = "This will start the game from Level 1 and permanently clear your progress and high score.";
             message.color = new Color(1f, 0.95f, 0.7f, 1f);
+            var msgRect = message.GetComponent<RectTransform>();
+            msgRect.anchorMin = new Vector2(0.1f, 0.25f);
+            msgRect.anchorMax = new Vector2(0.9f, 0.75f);
+            msgRect.offsetMin = Vector2.zero;
+            msgRect.offsetMax = Vector2.zero;
+            message.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             var buttonsRoot = CreateUiChild(panel.transform, "Buttons");
             var buttonsRect = buttonsRoot.GetComponent<RectTransform>();
             buttonsRect.anchorMin = new Vector2(0.5f, 0f);
             buttonsRect.anchorMax = new Vector2(0.5f, 0f);
             buttonsRect.pivot = new Vector2(0.5f, 0f);
-            buttonsRect.anchoredPosition = new Vector2(0f, 20f);
-            buttonsRect.sizeDelta = new Vector2(600, 100);
+            buttonsRect.anchoredPosition = new Vector2(0f, 30f);
+            buttonsRect.sizeDelta = new Vector2(760, 100);
 
             var buttonsLayout = buttonsRoot.AddComponent<HorizontalLayoutGroup>();
             buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
@@ -1048,21 +1078,21 @@ namespace Decantra.Presentation
                 image.type = Image.Type.Sliced;
                 image.color = color;
                 var rectTransform = buttonGo.GetComponent<RectTransform>();
-                rectTransform.sizeDelta = new Vector2(220, 90);
+                rectTransform.sizeDelta = new Vector2(280, 90);
                 var element = buttonGo.AddComponent<LayoutElement>();
                 element.minWidth = 220;
                 element.minHeight = 90;
                 var button = buttonGo.AddComponent<Button>();
                 button.targetGraphic = image;
                 var text = CreateHudText(buttonGo.transform, "Label");
-                text.fontSize = 34;
+                text.fontSize = 30;
                 text.text = label;
                 text.color = Color.white;
                 return button;
             }
 
-            var cancelButton = CreateDialogButton("CancelButton", "CANCEL", new Color(1f, 1f, 1f, 0.25f));
-            var restartButton = CreateDialogButton("ConfirmRestartButton", "RESTART", new Color(1f, 0.5f, 0.4f, 0.72f));
+            var cancelButton = CreateDialogButton("CancelButton", "Cancel", new Color(1f, 1f, 1f, 0.25f));
+            var restartButton = CreateDialogButton("ConfirmRestartButton", "Start New Game", new Color(1f, 0.3f, 0.3f, 0.85f));
 
             var dialog = root.AddComponent<RestartGameDialog>();
             SetPrivateField(dialog, "panel", panelRect);
@@ -1074,68 +1104,18 @@ namespace Decantra.Presentation
             return dialog;
         }
 
-        private static Text CreateBottomStatText(Transform parent, string name, string label)
-        {
-            var panel = CreateUiChild(parent, name);
-
-            // Add dark glass treatment matching top HUD panels
-            var image = panel.AddComponent<Image>();
-            image.sprite = GetRoundedSprite();
-            image.type = Image.Type.Sliced;
-            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
-            image.raycastTarget = false;
-
-            var shadowGo = CreateUiChild(panel.transform, "Shadow");
-            var shadowImage = shadowGo.AddComponent<Image>();
-            shadowImage.sprite = GetRoundedSprite();
-            shadowImage.type = Image.Type.Sliced;
-            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
-            shadowImage.raycastTarget = false;
-            var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
-            shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(308, 148);
-            shadowRect.anchoredPosition = new Vector2(4f, -4f);
-            shadowGo.transform.SetAsFirstSibling();
-
-            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
-            var glassImage = glassGo.AddComponent<Image>();
-            glassImage.sprite = GetRoundedSprite();
-            glassImage.type = Image.Type.Sliced;
-            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
-            glassImage.raycastTarget = false;
-            var glassRect = glassGo.GetComponent<RectTransform>();
-            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
-            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
-            glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(292, 64);
-            glassRect.anchoredPosition = new Vector2(0f, 32f);
-
-            var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(300, 140);
-            var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 300;
-            element.minHeight = 140;
-            element.flexibleWidth = 1f;
-
-            var text = CreateHudText(panel.transform, "Value");
-            text.fontSize = 56;
-            text.text = label;
-            text.color = new Color(1f, 0.98f, 0.92f, 1f);
-            AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
-            return text;
-        }
-
         private static Text CreateStatPanel(Transform parent, string name, string label, out GameObject panel)
         {
             panel = CreateUiChild(parent, name);
+
+            // Main panel background
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
             image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
             image.raycastTarget = false;
 
+            // Shadow effect (dark, slightly offset)
             var shadowGo = CreateUiChild(panel.transform, "Shadow");
             var shadowImage = shadowGo.AddComponent<Image>();
             shadowImage.sprite = GetRoundedSprite();
@@ -1150,6 +1130,7 @@ namespace Decantra.Presentation
             shadowRect.anchoredPosition = new Vector2(4f, -4f);
             shadowGo.transform.SetAsFirstSibling();
 
+            // Glass highlight effect (light, top portion)
             var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
             var glassImage = glassGo.AddComponent<Image>();
             glassImage.sprite = GetRoundedSprite();
@@ -1163,18 +1144,107 @@ namespace Decantra.Presentation
             glassRect.sizeDelta = new Vector2(292, 64);
             glassRect.anchoredPosition = new Vector2(0f, 32f);
 
+            // Panel size and layout
             var rect = panel.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(300, 140);
             var element = panel.AddComponent<LayoutElement>();
             element.minWidth = 300;
             element.minHeight = 140;
-            element.flexibleWidth = 1f;
 
+            // Value text
             var text = CreateHudText(panel.transform, "Value");
             text.fontSize = 56;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 20;
+            text.resizeTextMaxSize = 56;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.alignment = TextAnchor.MiddleCenter;
             text.text = label;
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
+
+            // Add horizontal padding so text fits within bounds (test expects 64px total padding)
+            var textRect = text.GetComponent<RectTransform>();
+            textRect.offsetMin = new Vector2(32, 0);
+            textRect.offsetMax = new Vector2(-32, 0);
+
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
+
+            return text;
+        }
+
+        /// <summary>
+        /// Creates a wider stat panel for the bottom HUD buttons (MAX LEVEL, HIGH SCORE).
+        /// Width = 458px = (3 * 300 + 2 * 16) / 2 to match combined top panels width.
+        /// Font size matches top panels (56px).
+        /// </summary>
+        private static Text CreateBottomStatPanel(Transform parent, string name, string label, out GameObject panel)
+        {
+            panel = CreateUiChild(parent, name);
+
+            // Main panel background
+            var image = panel.AddComponent<Image>();
+            image.sprite = GetRoundedSprite();
+            image.type = Image.Type.Sliced;
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+            image.raycastTarget = false;
+
+            // Shadow effect (dark, slightly offset)
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(466, 148);  // Wider shadow for bottom panel
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            // Glass highlight effect (light, top portion)
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(442, 64);  // Wider glass for bottom panel
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
+
+            // Panel size and layout - wider to fit "HIGH SCORE" on single line
+            // Width = 458px = (3 * 300 + 2 * 16) / 2 = 932 / 2 = 466 each
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(458, 140);
+            var element = panel.AddComponent<LayoutElement>();
+            element.minWidth = 458;
+            element.minHeight = 140;
+
+            // Value text - same font size as top panels (56px)
+            var text = CreateHudText(panel.transform, "Value");
+            text.fontSize = 56;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 32;  // Higher minimum for readability
+            text.resizeTextMaxSize = 56;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.text = label;
+            text.color = new Color(1f, 0.98f, 0.92f, 1f);
+
+            // Add horizontal padding
+            var textRect = text.GetComponent<RectTransform>();
+            textRect.offsetMin = new Vector2(32, 0);
+            textRect.offsetMax = new Vector2(-32, 0);
+
+            AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
+
             return text;
         }
 
@@ -1271,16 +1341,16 @@ namespace Decantra.Presentation
             button.targetGraphic = image;
 
             var text = CreateHudText(panel.transform, "Label");
-            text.fontSize = 32;
+            text.fontSize = 40;  // Increased from 32 for better visibility
             text.text = "RESET";
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
             return button;
         }
 
-        private static Button CreateRestartButton(Transform parent)
+        private static Button CreateNewGameButton(Transform parent)
         {
-            var panel = CreateUiChild(parent, "RestartButton");
+            var panel = CreateUiChild(parent, "NewGameButton");
             var image = panel.AddComponent<Image>();
             image.sprite = GetRoundedSprite();
             image.type = Image.Type.Sliced;
@@ -1324,7 +1394,7 @@ namespace Decantra.Presentation
 
             var text = CreateHudText(panel.transform, "Label");
             text.fontSize = 32;
-            text.text = "RESTART";
+            text.text = "NEW GAME";
             text.color = new Color(1f, 0.98f, 0.92f, 1f);
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
             return button;
@@ -1339,17 +1409,15 @@ namespace Decantra.Presentation
             if (button == null) return;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.ResetCurrentLevel);
+
+            // Add long-press component for 8 second hold to trigger full game reset
+            var longPress = resetGo.GetComponent<LongPressButton>() ?? resetGo.AddComponent<LongPressButton>();
+            longPress.Configure(8f, controller.RequestRestartGame);
         }
 
         private static void WireRestartButton(GameController controller)
         {
-            if (controller == null) return;
-            var restartGo = GameObject.Find("RestartButton");
-            if (restartGo == null) return;
-            var button = restartGo.GetComponent<Button>();
-            if (button == null) return;
-            button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(controller.RequestRestartGame);
+            // Legacy method kept for compatibility - now handled by WireResetButton
         }
 
         private static void WireShareButton(GameController controller)
@@ -1780,6 +1848,63 @@ namespace Decantra.Presentation
         }
 
         /// <summary>
+        /// Creates a full-screen directional wave pattern sprite.
+        /// Uses non-radial screen-space wave interference for even coverage.
+        /// NO center bias - pattern strength is uniform across the texture.
+        /// </summary>
+        private static Sprite CreateDirectionalWaveSprite()
+        {
+            const int width = 256;
+            const int height = 256;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+
+            // Directional wave parameters - NO radial/center components
+            // Wave 1: diagonal from bottom-left to top-right
+            float freq1 = 0.04f;
+            float angle1 = 0.785f; // 45 degrees
+            float kx1 = Mathf.Cos(angle1) * freq1;
+            float ky1 = Mathf.Sin(angle1) * freq1;
+
+            // Wave 2: diagonal from top-left to bottom-right
+            float freq2 = 0.035f;
+            float angle2 = -0.524f; // -30 degrees
+            float kx2 = Mathf.Cos(angle2) * freq2;
+            float ky2 = Mathf.Sin(angle2) * freq2;
+
+            // Wave 3: near-horizontal for variety
+            float freq3 = 0.028f;
+            float angle3 = 0.175f; // 10 degrees
+            float kx3 = Mathf.Cos(angle3) * freq3;
+            float ky3 = Mathf.Sin(angle3) * freq3;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    // Screen-space wave interference - NO distance-from-center
+                    float wave1 = Mathf.Sin(x * kx1 + y * ky1);
+                    float wave2 = Mathf.Sin(x * kx2 + y * ky2 + 1.2f);
+                    float wave3 = Mathf.Sin(x * kx3 + y * ky3 + 2.4f);
+
+                    // Combine waves with different weights
+                    float combined = wave1 * 0.4f + wave2 * 0.35f + wave3 * 0.25f;
+
+                    // Normalize to 0-1 range
+                    float v = (combined + 1f) * 0.5f;
+
+                    // Create soft bands
+                    float alpha = Mathf.SmoothStep(0.2f, 0.8f, v) * 0.6f;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
+        }
+
+        /// <summary>
         /// Deterministic hash combining two integers for seed derivation.
         /// </summary>
         private static int HashSeed(string prefix, int value)
@@ -1796,165 +1921,76 @@ namespace Decantra.Presentation
             }
         }
 
-        /// <summary>
-        /// Get or create organic shapes sprite for the given level.
-        /// Sprites are cached per group (Zone group).
-        /// </summary>
-        public static Sprite GetOrganicShapesSpriteForLevel(int levelIndex)
+        private static BackgroundPatternGenerator.PatternSprites GetZonePatternSprites(int zoneIndex, int globalSeed)
         {
-            int groupIndex = GetBackgroundGroupIndex(levelIndex);
-            if (_organicShapesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            var key = new ZonePatternCacheKey(globalSeed, zoneIndex);
+            if (_zonePatternsByKey.TryGetValue(key, out var cached) && cached.Macro != null)
             {
                 return cached;
             }
 
-            int groupSeed = HashSeed("bg-group", groupIndex);
-            int levelSeed = HashSeed("bg-level", levelIndex);
-            var sprite = CreateOrganicShapesSprite(groupSeed ^ levelSeed);
-            _organicShapesByGroup[groupIndex] = sprite;
-            return sprite;
-        }
-
-        /// <summary>
-        /// Get or create bubbles sprite for the given level.
-        /// Sprites are cached per group (Zone group).
-        /// </summary>
-        public static Sprite GetBubblesSpriteForLevel(int levelIndex)
-        {
-            int groupIndex = GetBackgroundGroupIndex(levelIndex);
-            if (_bubblesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
+            var zoneTheme = BackgroundRules.GetZoneTheme(zoneIndex, globalSeed);
+            var request = new BackgroundPatternGenerator.PatternRequest
             {
-                return cached;
-            }
+                PrimaryFamily = zoneTheme.PrimaryGeneratorFamily,
+                SecondaryFamily = zoneTheme.SecondaryGeneratorFamily,
+                Density = zoneTheme.DensityProfile,
+                MacroCount = zoneTheme.MacroCount,
+                MesoCount = zoneTheme.MesoCount,
+                MicroCount = zoneTheme.MicroCount,
+                ZoneSeed = BackgroundRules.GetZoneSeed(globalSeed, zoneIndex)
+            };
 
-            int groupSeed = HashSeed("bg-group", groupIndex);
-            int levelSeed = HashSeed("bg-level", levelIndex);
-            var sprite = CreateBubblesSprite(groupSeed ^ levelSeed);
-            _bubblesByGroup[groupIndex] = sprite;
-            return sprite;
-        }
+            var generated = BackgroundPatternGenerator.Generate(request);
+            _zonePatternsByKey[key] = generated;
 
-        /// <summary>
-        /// Get or create large structure sprite for the given level.
-        /// Sprites are cached per group (Zone group).
-        /// </summary>
-        public static Sprite GetLargeStructureSpriteForLevel(int levelIndex)
-        {
-            int groupIndex = GetBackgroundGroupIndex(levelIndex);
-            if (_largeStructureByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
-            {
-                return cached;
-            }
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra BackgroundPattern zone={zoneIndex} family={zoneTheme.PrimaryGeneratorFamily} ms={generated.GenerationMilliseconds:0.0}");
+#endif
 
-            int groupSeed = HashSeed("bg-group", groupIndex);
-            int levelSeed = HashSeed("bg-level", levelIndex);
-            var sprite = CreateLargeStructureSprite(groupSeed ^ levelSeed);
-            _largeStructureByGroup[groupIndex] = sprite;
-            return sprite;
-        }
-
-        private static int GetBackgroundGroupIndex(int levelIndex)
-        {
-            return BackgroundRules.GetZoneIndex(levelIndex);
-        }
-
-        /// <summary>
-        /// Get or create geometric shapes sprite for the given level.
-        /// Sprites are cached per group (Zone group).
-        /// </summary>
-        public static Sprite GetGeometricShapesSpriteForLevel(int levelIndex)
-        {
-            int groupIndex = GetBackgroundGroupIndex(levelIndex);
-            if (_geometricShapesByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
-            {
-                return cached;
-            }
-
-            int groupSeed = HashSeed("bg-geom-group", groupIndex);
-            int levelSeed = HashSeed("bg-geom-level", levelIndex);
-            var sprite = CreateGeometricShapesSprite(groupSeed ^ levelSeed);
-            _geometricShapesByGroup[groupIndex] = sprite;
-            return sprite;
-        }
-
-        /// <summary>
-        /// Get or create ribbon streams sprite for the given level.
-        /// Sprites are cached per group (Zone group).
-        /// </summary>
-        public static Sprite GetRibbonStreamsSpriteForLevel(int levelIndex)
-        {
-            int groupIndex = GetBackgroundGroupIndex(levelIndex);
-            if (_ribbonStreamsByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
-            {
-                return cached;
-            }
-
-            int groupSeed = HashSeed("bg-ribbon-group", groupIndex);
-            int levelSeed = HashSeed("bg-ribbon-level", levelIndex);
-            var sprite = CreateRibbonStreamsSprite(groupSeed ^ levelSeed);
-            _ribbonStreamsByGroup[groupIndex] = sprite;
-            return sprite;
-        }
-
-        /// <summary>
-        /// Get or create geometric structure sprite for the given level.
-        /// Sprites are cached per group (Zone group).
-        /// </summary>
-        public static Sprite GetGeometricStructureSpriteForLevel(int levelIndex)
-        {
-            int groupIndex = GetBackgroundGroupIndex(levelIndex);
-            if (_geometricStructuresByGroup.TryGetValue(groupIndex, out var cached) && cached != null)
-            {
-                return cached;
-            }
-
-            int groupSeed = HashSeed("bg-structure-group", groupIndex);
-            int levelSeed = HashSeed("bg-structure-level", levelIndex);
-            var sprite = CreateGeometricStructureSprite(groupSeed ^ levelSeed);
-            _geometricStructuresByGroup[groupIndex] = sprite;
-            return sprite;
+            return generated;
         }
 
         /// <summary>
         /// Updates background structural sprites for a given level.
         /// Call this from GameController when transitioning levels.
         /// </summary>
-        public static void UpdateBackgroundSpritesForLevel(int levelIndex, int globalSeed, Image shapesImage, Image bubblesImage, Image largeStructureImage)
+        public static void UpdateBackgroundSpritesForLevel(int levelIndex, int globalSeed, Image flowImage, Image shapesImage, Image bubblesImage, Image largeStructureImage, Image detailImage)
         {
-            if (_lastLevelIndex == levelIndex) return;
-            _lastLevelIndex = levelIndex;
-
             int zoneIndex = BackgroundRules.GetZoneIndex(levelIndex);
-            var zoneTheme = BackgroundRules.GetZoneTheme(zoneIndex, globalSeed);
-
-            bool useGeometric = zoneTheme.GeometryVocabulary == GeometryVocabulary.RectanglesAndDiagonals
-                                || zoneTheme.GeometryVocabulary == GeometryVocabulary.TrianglesOnly
-                                || zoneTheme.GeometryVocabulary == GeometryVocabulary.HexagonalTiling
-                                || zoneTheme.GeometryVocabulary == GeometryVocabulary.PointsAndLines;
-
-            bool useRibbons = zoneTheme.PrimaryGeneratorFamily == GeneratorFamily.WaveInterference
-                              || zoneTheme.PrimaryGeneratorFamily == GeneratorFamily.RadialPolar;
-
-            if (shapesImage != null)
+            if (_lastZoneIndex == zoneIndex && _lastZoneSeed == globalSeed)
             {
-                shapesImage.sprite = useGeometric
-                    ? GetGeometricShapesSpriteForLevel(levelIndex)
-                    : GetOrganicShapesSpriteForLevel(levelIndex);
+                return;
             }
 
-            // Find bubbles image by name if not passed directly
-            if (bubblesImage != null)
-            {
-                bubblesImage.sprite = useGeometric || useRibbons
-                    ? GetRibbonStreamsSpriteForLevel(levelIndex)
-                    : GetBubblesSpriteForLevel(levelIndex);
-            }
+            _lastZoneIndex = zoneIndex;
+            _lastZoneSeed = globalSeed;
+
+            var sprites = GetZonePatternSprites(zoneIndex, globalSeed);
 
             if (largeStructureImage != null)
             {
-                largeStructureImage.sprite = useGeometric
-                    ? GetGeometricStructureSpriteForLevel(levelIndex)
-                    : GetLargeStructureSpriteForLevel(levelIndex);
+                largeStructureImage.sprite = sprites.Macro;
+            }
+
+            if (flowImage != null)
+            {
+                flowImage.sprite = sprites.Meso;
+            }
+
+            if (shapesImage != null)
+            {
+                shapesImage.sprite = sprites.Accent;
+            }
+
+            if (bubblesImage != null)
+            {
+                bubblesImage.sprite = sprites.Micro;
+            }
+
+            if (detailImage != null)
+            {
+                detailImage.sprite = sprites.Micro;
             }
         }
 
@@ -2136,14 +2172,47 @@ namespace Decantra.Presentation
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
 
-            var centers = new List<Vector2>(4);
-            var radii = new List<float>(4);
             var rand = new System.Random(seed);
-            for (int i = 0; i < 4; i++)
+
+            // Determine theme based on seed (changes approximately every 10 levels due to zone grouping)
+            int themeSelector = (seed >> 16) & 0xFF;
+            int themeIndex = themeSelector % 4;
+
+            switch (themeIndex)
+            {
+                case 0: // Scattered round circles (small to large)
+                    RenderScatteredCircles(texture, width, height, rand);
+                    break;
+                case 1: // Geometric polygons
+                    RenderGeometricPolygons(texture, width, height, rand);
+                    break;
+                case 2: // Wave lines
+                    RenderWaveLines(texture, width, height, rand);
+                    break;
+                case 3: // Fractal-like scattered shapes
+                    RenderFractalShapes(texture, width, height, rand);
+                    break;
+            }
+
+            texture.Apply();
+            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
+        }
+
+        private static void RenderScatteredCircles(Texture2D texture, int width, int height, System.Random rand)
+        {
+            // 5-8 circles of varying sizes scattered randomly
+            int circleCount = 5 + rand.Next(0, 4);
+            var centers = new List<Vector2>(circleCount);
+            var radii = new List<float>(circleCount);
+
+            for (int i = 0; i < circleCount; i++)
             {
                 centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                radii.Add(Mathf.Lerp(80f, 140f, (float)rand.NextDouble()));
+                radii.Add(Mathf.Lerp(40f, 100f, (float)rand.NextDouble()));
             }
+
+            float noiseOffsetX = (float)rand.NextDouble() * 10f;
+            float noiseOffsetY = (float)rand.NextDouble() * 10f;
 
             for (int y = 0; y < height; y++)
             {
@@ -2160,16 +2229,179 @@ namespace Decantra.Presentation
 
                     float nx = x / (float)width;
                     float ny = y / (float)height;
-                    float noise = Mathf.PerlinNoise(nx * 2.5f + 5.2f, ny * 2.5f + 3.7f);
-                    v = Mathf.Lerp(v, v * noise, 0.35f);
+                    float noise = Mathf.PerlinNoise(nx * 3f + noiseOffsetX, ny * 3f + noiseOffsetY);
+                    v = Mathf.Lerp(v, v * noise, 0.4f);
 
-                    float alpha = Mathf.SmoothStep(0f, 1f, v);
+                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.5f;
                     texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
                 }
             }
+        }
 
-            texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 256f);
+        private static void RenderGeometricPolygons(Texture2D texture, int width, int height, System.Random rand)
+        {
+            // 4-6 geometric shapes (triangles, squares, hexagons)
+            int shapeCount = 4 + rand.Next(0, 3);
+            var centers = new List<Vector2>(shapeCount);
+            var sizes = new List<float>(shapeCount);
+            var rotations = new List<float>(shapeCount);
+            var sidesCounts = new List<int>(shapeCount);
+
+            for (int i = 0; i < shapeCount; i++)
+            {
+                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                sizes.Add(Mathf.Lerp(50f, 90f, (float)rand.NextDouble()));
+                rotations.Add((float)rand.NextDouble() * Mathf.PI * 2f);
+                sidesCounts.Add(3 + rand.Next(0, 4)); // 3-6 sides
+            }
+
+            float noiseOffsetX = (float)rand.NextDouble() * 10f;
+            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < centers.Count; i++)
+                    {
+                        float dx = x - centers[i].x;
+                        float dy = y - centers[i].y;
+                        float angle = Mathf.Atan2(dy, dx) - rotations[i];
+                        float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                        // Polygon distance approximation
+                        int sides = sidesCounts[i];
+                        float angleStep = Mathf.PI * 2f / sides;
+                        float polygonDist = sizes[i] / Mathf.Cos((angle % angleStep) - angleStep * 0.5f);
+
+                        float t = Mathf.Clamp01(1f - dist / polygonDist);
+                        float eased = t * t * (3f - 2f * t);
+                        v = Mathf.Max(v, eased);
+                    }
+
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float noise = Mathf.PerlinNoise(nx * 2.5f + noiseOffsetX, ny * 2.5f + noiseOffsetY);
+                    v = Mathf.Lerp(v, v * noise, 0.35f);
+
+                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.45f;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
+        private static void RenderWaveLines(Texture2D texture, int width, int height, System.Random rand)
+        {
+            // 3-5 flowing wave ribbons
+            int waveCount = 3 + rand.Next(0, 3);
+            var yOffsets = new List<float>(waveCount);
+            var amplitudes = new List<float>(waveCount);
+            var frequencies = new List<float>(waveCount);
+            var phases = new List<float>(waveCount);
+            var thicknesses = new List<float>(waveCount);
+
+            for (int i = 0; i < waveCount; i++)
+            {
+                yOffsets.Add((float)rand.NextDouble() * height);
+                amplitudes.Add(Mathf.Lerp(20f, 60f, (float)rand.NextDouble()));
+                frequencies.Add(Mathf.Lerp(0.01f, 0.03f, (float)rand.NextDouble()));
+                phases.Add((float)rand.NextDouble() * Mathf.PI * 2f);
+                thicknesses.Add(Mathf.Lerp(15f, 35f, (float)rand.NextDouble()));
+            }
+
+            float noiseOffsetX = (float)rand.NextDouble() * 10f;
+            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+                    for (int i = 0; i < waveCount; i++)
+                    {
+                        float waveY = yOffsets[i] + Mathf.Sin(x * frequencies[i] + phases[i]) * amplitudes[i];
+                        float dist = Mathf.Abs(y - waveY);
+                        float t = Mathf.Clamp01(1f - dist / thicknesses[i]);
+                        float eased = t * t * (3f - 2f * t);
+                        v = Mathf.Max(v, eased);
+                    }
+
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float noise = Mathf.PerlinNoise(nx * 2f + noiseOffsetX, ny * 2f + noiseOffsetY);
+                    v = Mathf.Lerp(v, v * noise, 0.3f);
+
+                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.5f;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
+        private static void RenderFractalShapes(Texture2D texture, int width, int height, System.Random rand)
+        {
+            // Fractal-like distribution: main shapes with smaller satellites
+            int mainCount = 2 + rand.Next(0, 2);
+            var mainCenters = new List<Vector2>(mainCount);
+            var mainRadii = new List<float>(mainCount);
+
+            for (int i = 0; i < mainCount; i++)
+            {
+                mainCenters.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
+                mainRadii.Add(Mathf.Lerp(70f, 110f, (float)rand.NextDouble()));
+            }
+
+            // Smaller satellites around main shapes
+            var satellites = new List<Vector2>();
+            var satelliteRadii = new List<float>();
+            foreach (var center in mainCenters)
+            {
+                int satCount = 3 + rand.Next(0, 4);
+                for (int i = 0; i < satCount; i++)
+                {
+                    float angle = (float)rand.NextDouble() * Mathf.PI * 2f;
+                    float distance = Mathf.Lerp(50f, 90f, (float)rand.NextDouble());
+                    satellites.Add(center + new Vector2(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance));
+                    satelliteRadii.Add(Mathf.Lerp(20f, 45f, (float)rand.NextDouble()));
+                }
+            }
+
+            float noiseOffsetX = (float)rand.NextDouble() * 10f;
+            float noiseOffsetY = (float)rand.NextDouble() * 10f;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float v = 0f;
+
+                    // Main shapes
+                    for (int i = 0; i < mainCenters.Count; i++)
+                    {
+                        float dist = Vector2.Distance(new Vector2(x, y), mainCenters[i]);
+                        float t = Mathf.Clamp01(1f - dist / mainRadii[i]);
+                        float eased = t * t * (3f - 2f * t);
+                        v = Mathf.Max(v, eased);
+                    }
+
+                    // Satellites
+                    for (int i = 0; i < satellites.Count; i++)
+                    {
+                        float dist = Vector2.Distance(new Vector2(x, y), satellites[i]);
+                        float t = Mathf.Clamp01(1f - dist / satelliteRadii[i]);
+                        float eased = t * t * (3f - 2f * t);
+                        v = Mathf.Max(v, eased * 0.7f); // Slightly less intense
+                    }
+
+                    float nx = x / (float)width;
+                    float ny = y / (float)height;
+                    float noise = Mathf.PerlinNoise(nx * 3.5f + noiseOffsetX, ny * 3.5f + noiseOffsetY);
+                    v = Mathf.Lerp(v, v * noise, 0.4f);
+
+                    float alpha = Mathf.SmoothStep(0f, 1f, v) * 0.5f;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
         }
 
         private static Sprite CreateGeometricStructureSprite(int seed)
@@ -2181,41 +2413,26 @@ namespace Decantra.Presentation
             texture.filterMode = FilterMode.Bilinear;
 
             var rand = new System.Random(seed);
-            int shardCount = 6 + rand.Next(0, 4);
-            var centers = new List<Vector2>(shardCount);
-            var sizes = new List<Vector2>(shardCount);
-            for (int i = 0; i < shardCount; i++)
+
+            // Determine theme based on seed (changes approximately every 10 levels due to zone grouping)
+            int themeSelector = (seed >> 16) & 0xFF;
+            int themeIndex = themeSelector % 4;
+
+            // For geometric structure, use same theme system but with sharper edges
+            switch (themeIndex)
             {
-                centers.Add(new Vector2((float)rand.NextDouble() * width, (float)rand.NextDouble() * height));
-                sizes.Add(new Vector2(Mathf.Lerp(60f, 120f, (float)rand.NextDouble()), Mathf.Lerp(30f, 80f, (float)rand.NextDouble())));
-            }
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    float v = 0f;
-                    for (int i = 0; i < centers.Count; i++)
-                    {
-                        float dx = Mathf.Abs(x - centers[i].x);
-                        float dy = Mathf.Abs(y - centers[i].y);
-                        float rx = sizes[i].x;
-                        float ry = sizes[i].y;
-                        float shard = 1f - ((dx / rx) + (dy / ry) * 0.7f);
-                        if (shard > 0f)
-                        {
-                            v = Mathf.Max(v, shard * shard);
-                        }
-                    }
-
-                    float nx = x / (float)width;
-                    float ny = y / (float)height;
-                    float noise = Mathf.PerlinNoise(nx * 3.1f + 2.4f, ny * 3.1f + 4.6f);
-                    v = Mathf.Lerp(v, v * noise, 0.4f);
-
-                    float alpha = Mathf.SmoothStep(0f, 1f, v);
-                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
-                }
+                case 0: // Sharp scattered circles
+                    RenderScatteredCircles(texture, width, height, rand);
+                    break;
+                case 1: // Angular geometric polygons
+                    RenderGeometricPolygons(texture, width, height, rand);
+                    break;
+                case 2: // Straight wave lines
+                    RenderWaveLines(texture, width, height, rand);
+                    break;
+                case 3: // Fractal geometric clusters
+                    RenderFractalShapes(texture, width, height, rand);
+                    break;
             }
 
             texture.Apply();

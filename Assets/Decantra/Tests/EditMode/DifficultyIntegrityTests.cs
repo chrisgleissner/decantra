@@ -15,8 +15,8 @@ using Decantra.Domain.Model;
 namespace Decantra.Tests.EditMode
 {
     /// <summary>
-    /// Tests for the two-stage difficulty system integrity.
-    /// Validates that difficulty is derived from solver metrics, not level number.
+    /// Tests for solver metric scoring integrity.
+    /// Validates that raw complexity metrics remain deterministic and meaningful.
     /// </summary>
     public sealed class DifficultyIntegrityTests
     {

@@ -68,6 +68,14 @@ have_cmd() {
 }
 
 find_adb_device() {
+  # Prefer emulator over physical devices for reliable testing
+  local emulator_device
+  emulator_device="$(adb devices | awk 'NR>1 && $2=="device" && $1 ~ /^emulator/ {print $1; exit}')"
+  if [[ -n "${emulator_device}" ]]; then
+    echo "${emulator_device}"
+    return
+  fi
+  # Fall back to first available device
   adb devices | awk 'NR>1 && $2=="device" {print $1; exit}'
 }
 

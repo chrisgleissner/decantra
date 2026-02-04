@@ -41,11 +41,10 @@ namespace Decantra.Domain.Generation
                 (0.10 * multiNorm));
         }
 
-        /// <summary>Returns difficulty (1-100) bound to level index to ensure monotonic progression.</summary>
+        /// <summary>Returns deterministic difficulty bound to level index.</summary>
         public static int ComputeDifficulty100(LevelMetrics metrics, int optimalMoves, int levelIndex = 0)
         {
-            int effectiveLevel = LevelDifficultyEngine.GetEffectiveLevel(levelIndex);
-            return Math.Max(1, effectiveLevel);
+            return LevelDifficultyEngine.GetDifficultyForLevel(levelIndex);
         }
 
         /// <summary>Metric-based 1..100 score for assessment when level index is unknown.</summary>
@@ -57,7 +56,7 @@ namespace Decantra.Domain.Generation
             return Math.Max(1, Math.Min(100, rawScore));
         }
 
-        public static int TargetDifficultyForLevel(int levelIndex) => LevelDifficultyEngine.GetEffectiveLevel(levelIndex);
+        public static int TargetDifficultyForLevel(int levelIndex) => LevelDifficultyEngine.GetDifficultyForLevel(levelIndex);
 
         public static int MinDifficultyForLevel(int levelIndex) => TargetDifficultyForLevel(levelIndex);
 

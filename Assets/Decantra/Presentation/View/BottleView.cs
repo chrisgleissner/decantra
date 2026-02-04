@@ -30,7 +30,6 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image curvedHighlight;
         [SerializeField] private Image reflectionStrip;
         [SerializeField] private Image anchorCollar;
-        [SerializeField] private Image anchorShadow;
         [SerializeField] private Image normalShadow;
         [SerializeField] private Image liquidSurface;
         [SerializeField] private Sprite liquidSprite;
@@ -261,11 +260,6 @@ namespace Decantra.Presentation.View
                     anchorCollar.gameObject.SetActive(true);
                 }
 
-                if (anchorShadow != null)
-                {
-                    anchorShadow.gameObject.SetActive(true);
-                }
-
                 if (normalShadow != null)
                 {
                     normalShadow.gameObject.SetActive(false);
@@ -293,11 +287,6 @@ namespace Decantra.Presentation.View
                 if (anchorCollar != null)
                 {
                     anchorCollar.gameObject.SetActive(false);
-                }
-
-                if (anchorShadow != null)
-                {
-                    anchorShadow.gameObject.SetActive(false);
                 }
 
                 if (normalShadow != null)
