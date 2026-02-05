@@ -197,9 +197,9 @@ namespace Decantra.Presentation
             for (int i = 0; i < field.Length; i++)
             {
                 float alphaFloat = Mathf.Clamp01(field[i]);
-            alphaFloat = SmoothStep(smoothMin, smoothMax, alphaFloat);
-            alphaFloat = Mathf.Pow(alphaFloat, gamma);
-            alphaFloat = Mathf.Clamp01(alphaFloat * gain);
+                alphaFloat = SmoothStep(smoothMin, smoothMax, alphaFloat);
+                alphaFloat = Mathf.Pow(alphaFloat, gamma);
+                alphaFloat = Mathf.Clamp01(alphaFloat * gain);
                 if (feather > 0f && wrapMode == TextureWrapMode.Clamp)
                 {
                     int x = i % width;
