@@ -23,20 +23,16 @@ Decantra is a bottle-sorting puzzle game for Android built in Unity.
 
 <table>
   <tr>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-01-launch.png" alt="Launch screen" width="180"/></td>
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-02-intro.png" alt="Intro screen" width="180"/></td>
-  </tr>
-  <tr>
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png" alt="Level 1" width="180"/></td>
+  </tr>
+  <tr>
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-06-interstitial.png" alt="Interstitial" width="180"/></td>
-  </tr>
-  <tr>
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-04-level-12.png" alt="Level 12" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png" alt="Level 24" width="180"/></td>
   </tr>
   <tr>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png" alt="Level 24" width="180"/></td>
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png" alt="Level 36" width="180"/></td>
-    <td></td>
   </tr>
 </table>
 

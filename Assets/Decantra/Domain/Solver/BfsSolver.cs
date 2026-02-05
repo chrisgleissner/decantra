@@ -197,8 +197,13 @@ namespace Decantra.Domain.Solver
                 for (int j = 0; j < state.Bottles.Count; j++)
                 {
                     if (i == j) continue;
-                    // Optimization: GetPourAmount calls IsValidMove which checks a lot.
-                    // We can duplicate some checks here for speed if needed.
+                    // Solver optimization: skip sink targets.
+                    // Level generation ensures solutions never require pouring INTO sinks.
+                    // (Scrambling explicitly skips sinks as targets, so forward solutions don't need them.)
+                    // The game UI still allows sink pours via MoveRules for player flexibility.
+                    var target = state.Bottles[j];
+                    if (target.IsSink) continue;
+
                     int amount = MoveRules.GetPourAmount(state, i, j);
                     if (amount <= 0) continue;
 

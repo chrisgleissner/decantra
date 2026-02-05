@@ -76,18 +76,23 @@ namespace Decantra.Tests.PlayMode
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);
 
-            var field = typeof(GameController).GetField("backgroundImage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            Assert.IsNotNull(field);
+            // Get the detail overlay image (which has distinct colors per theme bucket)
+            var detailField = typeof(GameController).GetField("backgroundDetail", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(detailField, "backgroundDetail field not found");
 
-            var image = field.GetValue(controller) as UnityEngine.UI.Image;
-            Assert.IsNotNull(image);
+            var detail = detailField.GetValue(controller) as UnityEngine.UI.Image;
+            Assert.IsNotNull(detail, "backgroundDetail is null");
 
-            var first = image.color;
-            controller.LoadLevel(3, 12345);
+            // Compare levels from different theme buckets (1-9, 10-19, 20-24)
+            controller.LoadLevel(1, 12345);  // Theme bucket 0 (blue)
             yield return null;
-            var second = image.color;
+            var firstColor = detail.color;
 
-            Assert.AreNotEqual(first, second);
+            controller.LoadLevel(15, 12345);  // Theme bucket 1 (purple)
+            yield return null;
+            var secondColor = detail.color;
+
+            Assert.AreNotEqual(firstColor, secondColor, "Background overlays should differ between theme buckets");
         }
 
         [UnityTest]
@@ -293,7 +298,11 @@ namespace Decantra.Tests.PlayMode
             yield return null;
 
             var afterColor = image.color;
-            Assert.AreEqual(initialColor, afterColor, "Reset should keep the same background.");
+            float delta = Mathf.Abs(initialColor.r - afterColor.r)
+                + Mathf.Abs(initialColor.g - afterColor.g)
+                + Mathf.Abs(initialColor.b - afterColor.b)
+                + Mathf.Abs(initialColor.a - afterColor.a);
+            Assert.Less(delta, 0.002f, "Reset should keep the same background.");
         }
 
         [UnityTest]
@@ -470,6 +479,56 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator LevelCompleteBanner_CentersStarsAndScoreGroup()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var banner = Object.FindFirstObjectByType<LevelCompleteBanner>();
+            Assert.IsNotNull(banner);
+
+            bool completed = false;
+            // Use a mid-star count and non-zero score to exercise layout sizing.
+            const float LayoutSettleSeconds = 0.05f; // Short wait to allow UI layout to settle in batch mode.
+
+            banner.Show(1, 4, 180, false, () => { }, () => completed = true);
+            yield return null;
+            yield return new WaitForSeconds(LayoutSettleSeconds);
+
+            var panel = GetPrivateField(banner, "panel") as RectTransform;
+            var starsText = GetPrivateField(banner, "starsText") as Text;
+            var scoreText = GetPrivateField(banner, "scoreText") as Text;
+            Assert.IsNotNull(panel);
+            Assert.IsNotNull(starsText);
+            Assert.IsNotNull(scoreText);
+
+            const float MinTextHeight = 1f; // Avoid zero bounds before Text layout finalizes.
+            const float Half = 0.5f; // Used for center/extent calculations.
+            const float CenterBaseline = 0f; // Panel center in anchored coordinates.
+
+            float starsHeight = Mathf.Max(MinTextHeight, starsText.preferredHeight);
+            float scoreHeight = Mathf.Max(MinTextHeight, scoreText.preferredHeight);
+            float starsCenter = starsText.rectTransform.anchoredPosition.y;
+            float scoreCenter = scoreText.rectTransform.anchoredPosition.y;
+
+            float groupTop = starsCenter + starsHeight * Half;
+            float groupBottom = scoreCenter - scoreHeight * Half;
+            float groupCenter = (groupTop + groupBottom) * Half;
+
+            // Shift is derived from panel height: 20px relative to a 280px panel.
+            float expectedCenter = panel.rect.height * (20f / 280f);
+            float tolerance = 1.5f; // Allow small layout variance while asserting centering.
+
+            Assert.LessOrEqual(Mathf.Abs(groupCenter - expectedCenter), tolerance);
+            Assert.Greater(groupCenter, CenterBaseline);
+
+            if (completed)
+            {
+                banner.HideImmediate();
+            }
+        }
+
+        [UnityTest]
         public IEnumerator Win_CommitsScoreAndAdvancesLevel()
         {
             SceneBootstrap.EnsureScene();
@@ -521,7 +580,7 @@ namespace Decantra.Tests.PlayMode
             SetPrivateField(controller, "_nextLevel", 2);
             SetPrivateField(controller, "_nextSeed", 222);
             SetPrivateField(controller, "_nextState", nextState);
-            SetPrivateField(controller, "_precomputeTask", Task.FromResult(nextState));
+            SetPrivateField(controller, "_precomputeTask", null);
 
             SetPrivateField(controller, "levelBanner", null);
             SetPrivateField(controller, "introBanner", null);

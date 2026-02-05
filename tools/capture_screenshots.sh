@@ -7,6 +7,7 @@ APK_PATH="${PROJECT_ROOT}/Builds/Android/Decantra.apk"
 OUTPUT_DIR="${PROJECT_ROOT}/doc/play-store-assets/screenshots/phone"
 DEVICE_ID=""
 SCREENSHOTS_ONLY=false
+CAPTURE_MOTION=false
 DECANTRA_SCREENSHOT_TIMEOUT="${DECANTRA_SCREENSHOT_TIMEOUT:-120}"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
 
@@ -21,6 +22,7 @@ Options:
   --device <id>          Specific adb device ID
   --output-dir <path>    Output directory for screenshots
   --screenshots-only     Pass screenshots-only flag to the app
+  --motion-capture       Capture starfield motion frames after screenshots
   --timeout <seconds>    Capture timeout (default: 120)
   -h, --help             Show help
 EOF
@@ -42,6 +44,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --screenshots-only)
       SCREENSHOTS_ONLY=true
+      shift
+      ;;
+    --motion-capture)
+      CAPTURE_MOTION=true
       shift
       ;;
     --timeout)
@@ -134,7 +140,9 @@ expected=(
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"
   "screenshot-03-level-01.png"
+  "screenshot-08-level-10.png"
   "screenshot-04-level-12.png"
+  "screenshot-09-level-20.png"
   "screenshot-05-level-24.png"
   "screenshot-06-interstitial.png"
   "screenshot-07-level-36.png"
@@ -191,3 +199,36 @@ for file in "${expected[@]}"; do
 adb -s "${DEVICE_ID}" shell am force-stop uk.gleissner.decantra >/dev/null 2>&1 || true
 
 printf "\nScreenshots captured to %s\n" "${OUTPUT_DIR}"
+
+if [[ "${CAPTURE_MOTION}" == "true" ]]; then
+  echo "\n==> Capturing starfield motion frames"
+  motion_extras=(--ez decantra_motion_capture true)
+
+  adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+  adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${motion_extras[@]}" >/dev/null
+
+  motion_remote_dir="/sdcard/Android/data/${PACKAGE_NAME}/files/DecantraScreenshots/motion"
+  motion_complete="${motion_remote_dir}/motion.complete"
+  start_time=$(date +%s)
+  while true; do
+    if adb -s "${DEVICE_ID}" shell ls "${motion_complete}" >/dev/null 2>&1; then
+      break
+    fi
+    now=$(date +%s)
+    if (( now - start_time > DECANTRA_SCREENSHOT_TIMEOUT )); then
+      echo "Timed out waiting for motion capture." >&2
+      exit 1
+    fi
+    sleep 1
+  done
+
+  mkdir -p "${OUTPUT_DIR}/motion"
+  adb -s "${DEVICE_ID}" pull "${motion_remote_dir}" "${OUTPUT_DIR}" >/dev/null
+  adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+
+  if ! ls "${OUTPUT_DIR}/motion"/frame-*.png >/dev/null 2>&1; then
+    echo "Motion frames missing in ${OUTPUT_DIR}/motion" >&2
+    exit 1
+  fi
+  echo "Motion frames captured to ${OUTPUT_DIR}/motion"
+fi

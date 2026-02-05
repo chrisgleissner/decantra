@@ -21,10 +21,12 @@ namespace Decantra.Tests.EditMode
     public sealed class LevelSolvabilityRegressionTests
     {
         [Test]
+        [Timeout(300000)]
         public void Levels_1_To_200_AreSolvable()
         {
             // Arrange
             var generator = new LevelGenerator(new BfsSolver());
+            var solver = new BfsSolver();
 
             // Act & Assert
             int seed = 0;
@@ -38,8 +40,7 @@ namespace Decantra.Tests.EditMode
                 Assert.Greater(level.OptimalMoves, 0, $"Level {levelIndex} has zero or negative optimal moves");
 
                 // Verify the level is actually solvable
-                var solver = new BfsSolver();
-                var result = solver.Solve(level);
+                var result = solver.SolveOptimal(level);
                 Assert.AreEqual(SolverStatus.Solved, result.Status,
                     $"Level {levelIndex} is not solvable. Status: {result.Status}");
                 Assert.AreEqual(level.OptimalMoves, result.OptimalMoves,

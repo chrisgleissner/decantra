@@ -11,6 +11,7 @@ using System.Collections;
 using System.IO;
 using Decantra.Presentation.Controller;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Decantra.Presentation
 {
@@ -18,14 +19,20 @@ namespace Decantra.Presentation
     {
         private const string ScreenshotFlag = "decantra_screenshots";
         private const string ScreenshotOnlyFlag = "decantra_screenshots_only";
+        private const string MotionCaptureFlag = "decantra_motion_capture";
         private const string OutputDirectoryName = "DecantraScreenshots";
+        private const string MotionDirectoryName = "motion";
+        private const int MotionFrameCount = 6;
+        private const float MotionFrameIntervalMs = 600f;
 
         private static readonly string[] ScreenshotFiles =
         {
             "screenshot-01-launch.png",
             "screenshot-02-intro.png",
             "screenshot-03-level-01.png",
+            "screenshot-08-level-10.png",
             "screenshot-04-level-12.png",
+            "screenshot-09-level-20.png",
             "screenshot-05-level-24.png",
             "screenshot-06-interstitial.png",
             "screenshot-07-level-36.png"
@@ -35,7 +42,7 @@ namespace Decantra.Presentation
 
         private void Start()
         {
-            if (!IsScreenshotModeEnabled())
+            if (!IsScreenshotModeEnabled() && !IsMotionCaptureEnabled())
             {
                 Destroy(this);
                 return;
@@ -44,7 +51,15 @@ namespace Decantra.Presentation
             Debug.Log("RuntimeScreenshot: capture sequence enabled");
             Debug.Log($"RuntimeScreenshot path: {Application.persistentDataPath}");
             DontDestroyOnLoad(gameObject);
-            StartCoroutine(CaptureSequence());
+
+            if (IsMotionCaptureEnabled())
+            {
+                StartCoroutine(MotionCaptureSequence());
+            }
+            else
+            {
+                StartCoroutine(CaptureSequence());
+            }
         }
 
         private IEnumerator CaptureSequence()
@@ -64,10 +79,12 @@ namespace Decantra.Presentation
             yield return CaptureLaunchScreenshot(outputDir);
             yield return CaptureIntroScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[2]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[3]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[4]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[3]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[4]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, ScreenshotFiles[5]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[6]);
             yield return CaptureInterstitialScreenshot(outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[6]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[8]);
 
             yield return new WaitForEndOfFrame();
             WriteCompletionMarker(outputDir);
@@ -89,9 +106,171 @@ namespace Decantra.Presentation
             }
         }
 
+        private IEnumerator MotionCaptureSequence()
+        {
+            Debug.Log("RuntimeScreenshot: motion capture mode - capturing starfield animation");
+
+            float previousTimeScale = Time.timeScale;
+            Time.timeScale = 1f;
+
+            var controller = FindController();
+            while (controller == null)
+            {
+                yield return null;
+                controller = FindController();
+            }
+
+            yield return WaitForControllerReady(controller);
+
+            string outputDir = Path.Combine(Application.persistentDataPath, OutputDirectoryName);
+            string motionDir = Path.Combine(outputDir, MotionDirectoryName);
+            Directory.CreateDirectory(motionDir);
+
+            // Load level 1 for star motion capture
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+            controller.LoadLevel(1, 10991);
+            yield return new WaitForSecondsRealtime(1.0f); // Allow scene to stabilize
+
+            // Capture multiple frames for motion detection
+            Debug.Log($"RuntimeScreenshot: capturing {MotionFrameCount} frames at {MotionFrameIntervalMs}ms intervals");
+
+            var starMaterial = TryGetStarMaterial();
+            var starImage = TryGetStarImage();
+            var baseImage = TryGetBackgroundImage();
+            Color? baseColor = baseImage != null ? baseImage.color : (Color?)null;
+
+            for (int i = 0; i < MotionFrameCount; i++)
+            {
+                float starTime = i * (MotionFrameIntervalMs / 1000f);
+                Shader.SetGlobalFloat("_DecantraStarTime", starTime);
+                if (starMaterial != null)
+                {
+                    starMaterial.SetFloat("_DecantraStarTime", starTime);
+                }
+                if (starImage != null)
+                {
+                    float uvOffset = starTime * 0.08f;
+                    starImage.uvRect = new Rect(0f, uvOffset, 1f, 1f);
+                    starImage.SetAllDirty();
+                }
+                if (baseImage != null && baseColor.HasValue)
+                {
+                    float pulse = 0.96f + 0.08f * Mathf.Sin(starTime * 1.3f);
+                    baseImage.color = baseColor.Value * pulse;
+                    baseImage.SetAllDirty();
+                }
+                string framePath = Path.Combine(motionDir, $"frame-{i:D2}.png");
+                yield return CaptureScreenshot(framePath);
+
+                if (i < MotionFrameCount - 1)
+                {
+                    yield return new WaitForSecondsRealtime(MotionFrameIntervalMs / 1000f);
+                }
+            }
+
+            yield return new WaitForEndOfFrame();
+            Shader.SetGlobalFloat("_DecantraStarTime", 0f);
+            if (starMaterial != null)
+            {
+                starMaterial.SetFloat("_DecantraStarTime", 0f);
+            }
+            if (starImage != null)
+            {
+                starImage.uvRect = new Rect(0f, 0f, 1f, 1f);
+                starImage.SetAllDirty();
+            }
+            if (baseImage != null && baseColor.HasValue)
+            {
+                baseImage.color = baseColor.Value;
+                baseImage.SetAllDirty();
+            }
+            WriteMotionCompletionMarker(motionDir);
+            yield return new WaitForSecondsRealtime(0.3f);
+
+            if (_failed)
+            {
+                Debug.LogError("RuntimeScreenshot: motion capture failed.");
+            }
+            else
+            {
+                Debug.Log($"RuntimeScreenshot: motion capture completed - {MotionFrameCount} frames saved to {motionDir}");
+            }
+
+            Time.timeScale = previousTimeScale;
+            Application.Quit(_failed ? 1 : 0);
+        }
+
+        private static void WriteMotionCompletionMarker(string outputDir)
+        {
+            try
+            {
+                string statusPath = Path.Combine(outputDir, "motion.complete");
+                File.WriteAllText(statusPath, DateTime.UtcNow.ToString("O"));
+                Debug.Log($"RuntimeScreenshot: wrote motion completion marker to {statusPath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"RuntimeScreenshot: failed to write motion completion marker: {ex.Message}");
+            }
+        }
+
         private static GameController FindController()
         {
             return UnityEngine.Object.FindFirstObjectByType<GameController>();
+        }
+
+        private static Material TryGetStarMaterial()
+        {
+            var rawImage = TryGetStarImage();
+            if (rawImage == null)
+            {
+                return null;
+            }
+
+            return rawImage.material != null ? rawImage.material : rawImage.materialForRendering;
+        }
+
+        private static RawImage TryGetStarImage()
+        {
+            var rawImages = UnityEngine.Object.FindObjectsByType<RawImage>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var rawImage in rawImages)
+            {
+                if (rawImage == null) continue;
+                if (string.Equals(rawImage.gameObject.name, "BackgroundStars", StringComparison.Ordinal))
+                {
+                    return rawImage;
+                }
+            }
+
+            var starObject = GameObject.Find("BackgroundStars");
+            if (starObject == null)
+            {
+                return null;
+            }
+
+            return starObject.GetComponentInChildren<RawImage>(true);
+        }
+
+        private static Image TryGetBackgroundImage()
+        {
+            var images = UnityEngine.Object.FindObjectsByType<Image>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var image in images)
+            {
+                if (image == null) continue;
+                if (string.Equals(image.gameObject.name, "Background", StringComparison.Ordinal))
+                {
+                    return image;
+                }
+            }
+
+            var backgroundObject = GameObject.Find("Background");
+            if (backgroundObject == null)
+            {
+                return null;
+            }
+
+            return backgroundObject.GetComponentInChildren<Image>(true);
         }
 
         private static IEnumerator WaitForControllerReady(GameController controller)
@@ -152,7 +331,7 @@ namespace Decantra.Presentation
             banner.Show(2, 4, 280, false, () => { }, () => complete = true);
             yield return WaitForInterstitialVisible();
             yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[5]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[7]));
             float timeout = 4f;
             float elapsed = 0f;
             while (!complete && elapsed < timeout)
@@ -276,6 +455,11 @@ namespace Decantra.Presentation
         private static bool IsScreenshotsOnly()
         {
             return HasFlag(ScreenshotOnlyFlag) || HasFlag("--screenshots-only");
+        }
+
+        private static bool IsMotionCaptureEnabled()
+        {
+            return HasFlag(MotionCaptureFlag) || HasFlag("--motion-capture");
         }
 
         private static bool HasFlag(string key)

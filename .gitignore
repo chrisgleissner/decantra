@@ -15,6 +15,9 @@ UserSettings/
 *.sln
 *.slnx
 
+# Compiled files
+Reproduction/bin/
+
 # Code Coverage reports
 Coverage
 Coverage/**
@@ -84,3 +87,5 @@ MemoryCaptures/
 plans.md
 solver-solutions-debug.txt
 solutions-1-1000.txt
+release.keystore
+.env

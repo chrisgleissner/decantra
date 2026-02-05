@@ -32,14 +32,14 @@ namespace Decantra.Domain.Scoring
             ProvisionalScore = 0;
         }
 
-        public void UpdateProvisional(int levelIndex, int optimalMoves, int movesUsed, bool usedUndo, bool usedHints, int streak)
+        public void UpdateProvisional(int optimalMoves, int movesUsed, int movesAllowed, int difficulty100, bool cleanSolve)
         {
-            ProvisionalScore = ScoreCalculator.CalculateLevelScore(levelIndex, optimalMoves, movesUsed, usedUndo, usedHints, streak);
+            ProvisionalScore = ScoreCalculator.CalculateLevelScore(optimalMoves, movesUsed, movesAllowed, difficulty100, cleanSolve);
         }
 
         public void CommitLevel()
         {
-            TotalScore = AttemptStartTotalScore + ProvisionalScore;
+            TotalScore = ScoreCalculator.CalculateTotalScore(AttemptStartTotalScore, ProvisionalScore);
             ProvisionalScore = 0;
             AttemptStartTotalScore = TotalScore;
         }

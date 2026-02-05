@@ -75,7 +75,6 @@ jobs:
           lfs: true
           fetch-depth: 0
 
-      # Unity Library cache - critical for asset import performance
       - name: Restore Unity Library cache
         uses: actions/cache@v4
         id: cache-library
@@ -214,9 +213,13 @@ jobs:
             if [[ -f "$KEYSTORE_STORE_FILE" ]]; then
               echo "Using keystore at $KEYSTORE_STORE_FILE"
             else
-              echo "$KEYSTORE_STORE_FILE" | base64 -d > "$RUNNER_TEMP/decantra-release.keystore" 2>/dev/null || true
-              if [[ -s "$RUNNER_TEMP/decantra-release.keystore" ]]; then
-                KEYSTORE_STORE_FILE="$RUNNER_TEMP/decantra-release.keystore"
+              # Decode to a workspace-relative path so containerized build steps can read it.
+              mkdir -p "$GITHUB_WORKSPACE/.ci"
+              decode_target_rel=".ci/decantra-release.keystore"
+              decode_target_abs="$GITHUB_WORKSPACE/$decode_target_rel"
+              printf '%s' "$KEYSTORE_STORE_FILE" | base64 -d > "$decode_target_abs" 2>/dev/null || true
+              if [[ -s "$decode_target_abs" ]]; then
+                KEYSTORE_STORE_FILE="$decode_target_rel"
                 echo "Decoded keystore secret to $KEYSTORE_STORE_FILE"
               else
                 echo "Keystore secret present but could not decode to file; skipping custom keystore."
@@ -274,11 +277,19 @@ jobs:
 
           echo "VERSION_NAME=${version_name}" >> "$GITHUB_ENV"
           echo "VERSION_CODE=${version_code}" >> "$GITHUB_ENV"
-          echo "DECANTRA_REQUIRE_KEYSTORE=${require_keystore}" >> "$GITHUB_ENV"
           echo "Resolved VERSION_NAME=${version_name}, VERSION_CODE=${version_code}, REQUIRE_KEYSTORE=${require_keystore}"
+
+      - name: Require release keystore for signing
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}
+        run: |
+          if [[ "${HAS_KEYSTORE:-false}" != "true" ]]; then
+            echo "Missing release keystore; refusing to build release artifacts to avoid debug signing." >&2
+            exit 1
+          fi
 
       - name: Build Release APK
         id: build_release
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}
         uses: game-ci/unity-builder@v4
         with:
           projectPath: .
@@ -293,6 +304,7 @@ jobs:
 
       - name: Build Release AAB
         id: build_release_aab
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}
         uses: game-ci/unity-builder@v4
         with:
           projectPath: .

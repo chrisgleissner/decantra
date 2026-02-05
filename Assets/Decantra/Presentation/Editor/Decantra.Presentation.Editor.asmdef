@@ -1,7 +1,8 @@
 {
   "name": "Decantra.Presentation.Editor",
   "references": [
-    "Decantra.Presentation"
+    "Decantra.Presentation",
+    "Decantra.Domain"
   ],
   "includePlatforms": [
     "Editor"

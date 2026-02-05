@@ -6,9 +6,9 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
-using UnityEngine;
-using UnityEngine.UI;
 using System.Collections;
+using UnityEngine.UI;
+using UnityEngine;
 
 namespace Decantra.Presentation.View
 {
@@ -24,7 +24,15 @@ namespace Decantra.Presentation.View
 
         private Coroutine _scoreEffectRoutine;
 
-        public void Render(int levelIndex, int movesUsed, int movesAllowed, int optimalMoves, int score, int highScore, int maxLevel)
+        public void Render(
+            int levelIndex,
+            int movesUsed,
+            int movesAllowed,
+            int optimalMoves,
+            int score,
+            int highScore,
+            int maxLevel,
+            int difficulty100)
         {
             if (titleText != null)
             {
@@ -33,12 +41,17 @@ namespace Decantra.Presentation.View
 
             if (levelText != null)
             {
-                levelText.text = $"LEVEL\n{levelIndex}";
+                int clampedDifficulty = Mathf.Clamp(difficulty100, 0, 100);
+                string circles = ResolveDifficultyCircles(clampedDifficulty);
+
+                // Use smaller size for circles without affecting the level number.
+                // Using a percentage keeps behavior stable across different base font sizes.
+                levelText.text = $"LEVEL\n{levelIndex} <size=50%>{circles}</size>";
             }
 
             if (movesText != null)
             {
-                movesText.text = $"MOVES\n{movesUsed}/{movesAllowed}";
+                movesText.text = $"MOVES\n{movesUsed} / {movesAllowed}";
             }
 
             if (optimalText != null)
@@ -66,13 +79,31 @@ namespace Decantra.Presentation.View
             }
         }
 
+        private static string ResolveDifficultyCircles(int difficulty100)
+        {
+            // Keep behavior identical to prior implementation.
+            if (difficulty100 <= 65)
+            {
+                return "●○○";
+            }
+
+            if (difficulty100 <= 85)
+            {
+                return "●●○";
+            }
+
+            return "●●●";
+        }
+
         public void AnimateScoreUpdate()
         {
             if (scoreText == null) return;
+
             if (_scoreEffectRoutine != null)
             {
                 StopCoroutine(_scoreEffectRoutine);
             }
+
             _scoreEffectRoutine = StartCoroutine(ScoreEffect());
         }
 
@@ -80,6 +111,10 @@ namespace Decantra.Presentation.View
         {
             float duration = 0.6f;
             float time = 0f;
+
+            // Preserve prior behavior: the animation always assumes a "neutral" original state.
+            // If your design ever sets scoreText scale/color elsewhere, consider capturing the
+            // real originals (scoreText.rectTransform.localScale / scoreText.color) instead.
             Vector3 originalScale = Vector3.one;
             Color originalColor = new Color(1f, 0.98f, 0.92f, 1f);
 
@@ -90,6 +125,7 @@ namespace Decantra.Presentation.View
                     _scoreEffectRoutine = null;
                     yield break;
                 }
+
                 time += Time.deltaTime;
                 float t = Mathf.Clamp01(time / duration);
                 float curve = Mathf.Sin(t * Mathf.PI);
@@ -100,11 +136,13 @@ namespace Decantra.Presentation.View
 
                 yield return null;
             }
+
             if (scoreText != null)
             {
                 scoreText.rectTransform.localScale = originalScale;
                 scoreText.color = originalColor;
             }
+
             _scoreEffectRoutine = null;
         }
     }
