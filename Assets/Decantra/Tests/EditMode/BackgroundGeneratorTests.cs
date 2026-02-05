@@ -99,10 +99,13 @@ namespace Decantra.Domain.Tests
         }
 
         [Test]
-        public void Registry_SelectsLevel1AsCurlFlowAdvection()
+        public void Registry_SelectsEarlyLevelsAsDomainWarpedClouds()
         {
-            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(1, unchecked((int)TestSeed));
-            Assert.AreEqual(GeneratorArchetype.CurlFlowAdvection, archetype);
+            for (int level = 1; level <= 24; level++)
+            {
+                var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, unchecked((int)TestSeed));
+                Assert.AreEqual(GeneratorArchetype.DomainWarpedClouds, archetype, $"Level {level} should use DomainWarpedClouds");
+            }
         }
 
         [Test]
@@ -114,11 +117,9 @@ namespace Decantra.Domain.Tests
 
             for (int i = 0; i < allowed.Count; i++)
             {
-                int level = i + 1;
+                int level = i + 25;
                 var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, unchecked((int)TestSeed));
-                GeneratorArchetype expected = level == 1
-                    ? allowed[0]
-                    : allowed[1 + ((level - 2 + offset) % remainingCount)];
+                GeneratorArchetype expected = allowed[1 + ((level - 2 + offset) % remainingCount)];
                 Assert.AreEqual(expected, archetype, $"Level {level} should use {expected}");
             }
         }
@@ -128,7 +129,7 @@ namespace Decantra.Domain.Tests
         {
             var allowed = BackgroundGeneratorRegistry.GetAllowedArchetypes();
 
-            for (int i = 1; i < allowed.Count; i++)
+            for (int i = 25; i < 25 + allowed.Count - 1; i++)
             {
                 var prev = BackgroundGeneratorRegistry.SelectArchetypeForLevel(i, unchecked((int)TestSeed));
                 var curr = BackgroundGeneratorRegistry.SelectArchetypeForLevel(i + 1, unchecked((int)TestSeed));
@@ -152,7 +153,7 @@ namespace Decantra.Domain.Tests
                 .Select(name => name.Split('_')[0])
                 .ToHashSet(System.StringComparer.OrdinalIgnoreCase);
 
-            CollectionAssert.AreEquivalent(allowed, fileNames);
+            CollectionAssert.IsSubsetOf(allowed, fileNames);
         }
 
         [Test]

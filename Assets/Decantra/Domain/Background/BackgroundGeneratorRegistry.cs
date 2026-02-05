@@ -21,10 +21,8 @@ namespace Decantra.Domain.Background
         private static readonly Dictionary<GeneratorArchetype, IBackgroundFieldGenerator> Generators;
         private static readonly GeneratorArchetype[] AllowedArchetypesOrdered =
         {
-            GeneratorArchetype.CurlFlowAdvection,
-            GeneratorArchetype.AtmosphericWash,
             GeneratorArchetype.DomainWarpedClouds,
-            GeneratorArchetype.OrganicCells,
+            GeneratorArchetype.CurlFlowAdvection,
             GeneratorArchetype.NebulaGlow,
             GeneratorArchetype.MarbledFlow,
             GeneratorArchetype.ConcentricRipples,
@@ -111,13 +109,13 @@ namespace Decantra.Domain.Background
 
         /// <summary>
         /// Selects an archetype for a specific level index.
-        /// Level 1 always starts with CurlFlowAdvection for a calm introduction.
+        /// Levels 1-24 always use DomainWarpedClouds for a modern introduction.
         /// </summary>
         public static GeneratorArchetype SelectArchetypeForLevel(int levelIndex, int globalSeed)
         {
-            if (levelIndex <= 1)
+            if (levelIndex <= 24)
             {
-                return GeneratorArchetype.CurlFlowAdvection;
+                return GeneratorArchetype.DomainWarpedClouds;
             }
 
             int remainingCount = AllowedArchetypesOrdered.Length - 1;
@@ -135,9 +133,9 @@ namespace Decantra.Domain.Background
         public static GeneratorArchetype SelectArchetypeForZone(int zoneIndex, ulong seed)
         {
             _ = seed;
-            if (zoneIndex <= 0)
+            if (zoneIndex <= 2)
             {
-                return GeneratorArchetype.CurlFlowAdvection;
+                return GeneratorArchetype.DomainWarpedClouds;
             }
 
             int index = zoneIndex % AllowedArchetypesOrdered.Length;

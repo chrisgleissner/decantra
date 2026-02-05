@@ -200,19 +200,19 @@ namespace Decantra.Presentation.Controller
 
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
-            // Modern vibrant palettes with blues, purples, sunrise yellows - no vignette
-            // Palette 0: Calm deep blue - level 1 anchor (dark, pleasant, low contrast)
-            new BackgroundPalette { Hue = 0.6f, Saturation = 0.42f, Value = 0.82f, DetailSaturation = 0.18f, DetailValue = 0.78f, FlowSaturation = 0.22f, FlowValue = 0.8f, FlowAlpha = 0.18f, ShapeSaturation = 0.2f, ShapeValue = 0.78f, ShapeAlpha = 0.14f },
-            // Palette 1: Soft purple - youthful and calm
-            new BackgroundPalette { Hue = 0.78f, Saturation = 0.45f, Value = 0.92f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.3f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
-            // Palette 2: Sunrise warm - golden and inviting
-            new BackgroundPalette { Hue = 0.08f, Saturation = 0.5f, Value = 0.96f, DetailSaturation = 0.25f, DetailValue = 0.92f, FlowSaturation = 0.3f, FlowValue = 0.92f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.9f, ShapeAlpha = 0.18f },
-            // Palette 3: Violet-blue - premium depth
-            new BackgroundPalette { Hue = 0.72f, Saturation = 0.5f, Value = 0.94f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.32f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
-            // Palette 4: Teal cyan - fresh and modern
-            new BackgroundPalette { Hue = 0.5f, Saturation = 0.5f, Value = 0.93f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.32f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
-            // Palette 5: Coral sunrise - warm premium
-            new BackgroundPalette { Hue = 0.03f, Saturation = 0.48f, Value = 0.96f, DetailSaturation = 0.25f, DetailValue = 0.92f, FlowSaturation = 0.3f, FlowValue = 0.92f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.9f, ShapeAlpha = 0.18f }
+            // Dark blue palettes for cloud overlays (avoid bottle liquid colors)
+            // Palette 0: Deep navy
+            new BackgroundPalette { Hue = 0.62f, Saturation = 0.32f, Value = 0.32f, DetailSaturation = 0.28f, DetailValue = 0.38f, FlowSaturation = 0.3f, FlowValue = 0.36f, FlowAlpha = 0.32f, ShapeSaturation = 0.28f, ShapeValue = 0.34f, ShapeAlpha = 0.26f },
+            // Palette 1: Midnight blue
+            new BackgroundPalette { Hue = 0.58f, Saturation = 0.28f, Value = 0.3f, DetailSaturation = 0.26f, DetailValue = 0.36f, FlowSaturation = 0.28f, FlowValue = 0.35f, FlowAlpha = 0.3f, ShapeSaturation = 0.26f, ShapeValue = 0.33f, ShapeAlpha = 0.25f },
+            // Palette 2: Indigo
+            new BackgroundPalette { Hue = 0.66f, Saturation = 0.34f, Value = 0.34f, DetailSaturation = 0.3f, DetailValue = 0.4f, FlowSaturation = 0.32f, FlowValue = 0.38f, FlowAlpha = 0.32f, ShapeSaturation = 0.3f, ShapeValue = 0.36f, ShapeAlpha = 0.26f },
+            // Palette 3: Deep teal-blue
+            new BackgroundPalette { Hue = 0.54f, Saturation = 0.3f, Value = 0.31f, DetailSaturation = 0.26f, DetailValue = 0.37f, FlowSaturation = 0.28f, FlowValue = 0.35f, FlowAlpha = 0.3f, ShapeSaturation = 0.26f, ShapeValue = 0.33f, ShapeAlpha = 0.25f },
+            // Palette 4: Slate blue
+            new BackgroundPalette { Hue = 0.7f, Saturation = 0.3f, Value = 0.33f, DetailSaturation = 0.28f, DetailValue = 0.39f, FlowSaturation = 0.3f, FlowValue = 0.37f, FlowAlpha = 0.32f, ShapeSaturation = 0.28f, ShapeValue = 0.35f, ShapeAlpha = 0.26f },
+            // Palette 5: Nightfall blue
+            new BackgroundPalette { Hue = 0.6f, Saturation = 0.26f, Value = 0.29f, DetailSaturation = 0.24f, DetailValue = 0.35f, FlowSaturation = 0.26f, FlowValue = 0.34f, FlowAlpha = 0.3f, ShapeSaturation = 0.24f, ShapeValue = 0.32f, ShapeAlpha = 0.24f }
         };
 
         private const float BackgroundFamilyTransitionSeconds = 0.75f;
@@ -1273,6 +1273,37 @@ namespace Decantra.Presentation.Controller
             Color bubbleTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.12f, 1f), palette.DetailSaturation * 0.9f, Mathf.Clamp01(palette.DetailValue + 0.02f));
             bubbleTint.a = Mathf.Lerp(palette.FlowAlpha * 0.4f, palette.FlowAlpha * 0.9f, colorJitter2) * family.BubbleAlphaScale;
 
+            if (levelIndex <= 24)
+            {
+                baseTint = new Color(0f, 0f, 0f, 1f);
+                var deepBlue = new Color(0.04f, 0.08f, 0.16f, 1f);
+                detailTint = deepBlue;
+                flowTint = deepBlue;
+                shapeTint = deepBlue;
+                macroTint = deepBlue;
+                bubbleTint = deepBlue;
+
+                if (levelIndex <= 9)
+                {
+                    detailTint.a = 0.2f;
+                    flowTint.a = 0.24f;
+                    shapeTint.a = 0.2f;
+                    macroTint.a = 0.12f;
+                    bubbleTint.a = 0.16f;
+                }
+                else
+                {
+                    detailTint.a = 0.1f;
+                    flowTint.a = 0.1f;
+                    shapeTint.a = 0.08f;
+                    macroTint.a = 0f;
+                    bubbleTint.a = 0.08f;
+                }
+
+                family.GradientTop = Color.black;
+                family.GradientBottom = Color.black;
+            }
+
             // Vignette effect completely disabled
             float vignetteAlpha = 0f;
 
@@ -1387,8 +1418,8 @@ namespace Decantra.Presentation.Controller
             float topValue = Mathf.Clamp01(value + zoneLayout.GradientIntensity * 0.18f);
             float bottomValue = Mathf.Clamp01(value - zoneLayout.GradientIntensity * 0.18f);
 
-            Color top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.9f), topValue);
-            Color bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 1.05f), bottomValue);
+            Color top = Color.black;
+            Color bottom = Color.black;
 
             GetLayerWeightsForArchetype(archetype, out float macroWeight, out float mesoWeight, out float microWeight);
 
@@ -1404,8 +1435,8 @@ namespace Decantra.Presentation.Controller
 
                 topValue = Mathf.Clamp01(value + zoneLayout.GradientIntensity * 0.12f);
                 bottomValue = Mathf.Clamp01(value - zoneLayout.GradientIntensity * 0.12f);
-                top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.85f), topValue);
-                bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 0.95f), bottomValue);
+                top = Color.black;
+                bottom = Color.black;
             }
             float detailAlpha = Mathf.Lerp(0.85f, 1.2f, microWeight) * accentStrength;
             float flowAlpha = Mathf.Lerp(0.9f, 1.2f, mesoWeight) * accentStrength;
@@ -1424,7 +1455,7 @@ namespace Decantra.Presentation.Controller
             {
                 Hue = hue,
                 Saturation = saturation,
-                Value = value,
+                Value = 0f,
                 DetailAlphaScale = detailAlpha,
                 FlowAlphaScale = flowAlpha,
                 ShapeAlphaScale = shapeAlpha,
@@ -1437,7 +1468,7 @@ namespace Decantra.Presentation.Controller
                 BubbleScale = bubbleScale,
                 GradientTop = top,
                 GradientBottom = bottom,
-                GradientDirection = zoneLayout.GradientDirection
+                GradientDirection = 0f
             };
         }
 
@@ -1447,9 +1478,9 @@ namespace Decantra.Presentation.Controller
             {
                 case GeneratorArchetype.AtmosphericWash:
                 case GeneratorArchetype.DomainWarpedClouds:
-                    macroWeight = 0.45f;
-                    mesoWeight = 0.3f;
-                    microWeight = 0.25f;
+                    macroWeight = 0.25f;
+                    mesoWeight = 0.45f;
+                    microWeight = 0.3f;
                     break;
                 case GeneratorArchetype.CurlFlowAdvection:
                 case GeneratorArchetype.MarbledFlow:
@@ -1597,26 +1628,34 @@ namespace Decantra.Presentation.Controller
                 return sprite;
             }
 
-            var created = CreateGradientSprite(family.GradientTop, family.GradientBottom);
+            var created = CreateGradientSprite(familyIndex, family.GradientTop, family.GradientBottom);
             BackgroundFamilyGradients[key] = created;
             return created;
         }
 
-        private static Sprite CreateGradientSprite(Color top, Color bottom)
+        private static Sprite CreateGradientSprite(int familyIndex, Color top, Color bottom)
         {
-            const int width = 2;
+            const int width = 128;
             const int height = 256;
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
 
+            var rng = new DeterministicRng(unchecked((ulong)(familyIndex * 1000003 + 0x9E3779B9)));
+            float warpOffsetX = rng.NextFloat() * 10f;
+            float warpOffsetY = rng.NextFloat() * 10f;
+
             for (int y = 0; y < height; y++)
             {
-                float t = y / (float)(height - 1);
-                float curve = Mathf.SmoothStep(0f, 1f, t);
-                var color = Color.Lerp(bottom, top, curve);
+                float ny = y / (float)(height - 1);
                 for (int x = 0; x < width; x++)
                 {
+                    float nx = x / (float)(width - 1);
+                    float warp = rng.FBm(nx * 2.2f + warpOffsetX, ny * 2.0f + warpOffsetY, 3, 2f, 0.5f);
+                    float warp2 = rng.FBm(nx * 4.1f + warpOffsetX + 3.3f, ny * 4.1f + warpOffsetY + 1.7f, 2, 2f, 0.55f);
+                    float warpedNy = Mathf.Clamp01(ny + (warp - 0.5f) * 0.18f + (warp2 - 0.5f) * 0.08f);
+                    float curve = Mathf.SmoothStep(0f, 1f, warpedNy);
+                    var color = Color.Lerp(bottom, top, curve);
                     texture.SetPixel(x, y, color);
                 }
             }
@@ -1629,7 +1668,8 @@ namespace Decantra.Presentation.Controller
         {
             if (levelIndex <= 3)
             {
-                return 0;
+                var earlyVariant = BackgroundRules.GetLevelVariant(levelIndex, seed ^ 0x71F04C3A, BackgroundPalettes.Length);
+                return earlyVariant.PaletteIndex;
             }
             var variant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
             return variant.PaletteIndex;

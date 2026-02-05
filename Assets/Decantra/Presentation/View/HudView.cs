@@ -46,7 +46,7 @@ namespace Decantra.Presentation.View
 
                 // Use smaller size for circles without affecting the level number.
                 // Using a percentage keeps behavior stable across different base font sizes.
-                levelText.text = $"LEVEL\n{levelIndex} <size=70%>{circles}</size>";
+                levelText.text = $"LEVEL\n{levelIndex} <size=50%>{circles}</size>";
             }
 
             if (movesText != null)

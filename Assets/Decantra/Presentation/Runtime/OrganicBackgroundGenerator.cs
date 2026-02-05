@@ -52,6 +52,12 @@ namespace Decantra.Presentation
                 ? request.LevelSeed
                 : BackgroundRules.GetLevelSeed(request.GlobalSeed, request.LevelIndex);
 
+            if (request.LevelIndex <= 24)
+            {
+                levelSeed ^= 0xC3D2E1F0A5B49786ul;
+                levelSeed = (levelSeed << 7) | (levelSeed >> 57);
+            }
+
             // Select archetype based on level progression
             var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(request.LevelIndex, request.GlobalSeed);
             var generator = BackgroundGeneratorRegistry.GetGenerator(archetype);
@@ -61,6 +67,17 @@ namespace Decantra.Presentation
             var mesoParams = GetParameters(archetype, ScaleBand.Meso, request.Density);
             var accentParams = GetParameters(archetype, ScaleBand.Meso, request.Density);
             var microParams = GetParameters(archetype, ScaleBand.Micro, request.Density);
+
+            if (request.LevelIndex > 0 && request.LevelIndex % 10 == 0)
+            {
+                macroParams.Scale *= 0.75f;
+                macroParams.WarpAmplitude = Mathf.Clamp01(macroParams.WarpAmplitude + 0.2f);
+                macroParams.Octaves = Mathf.Min(6, macroParams.Octaves + 1);
+
+                mesoParams.Scale *= 0.8f;
+                mesoParams.WarpAmplitude = Mathf.Clamp01(mesoParams.WarpAmplitude + 0.15f);
+                mesoParams.Octaves = Mathf.Min(6, mesoParams.Octaves + 1);
+            }
 
             // Vary seeds for each layer
             ulong macroSeed = levelSeed ^ 0xA13F2B19ul;
@@ -75,10 +92,12 @@ namespace Decantra.Presentation
             var microField = GenerateMicroField(MicroResolution, MicroResolution, microSeed);
 
             // Create sprites
-            var macroSprite = CreateSpriteFromField(macroField, MacroResolution, MacroResolution, TextureWrapMode.Clamp, 256f);
-            var mesoSprite = CreateSpriteFromField(mesoField, MesoResolution, MesoResolution, TextureWrapMode.Clamp, 256f);
-            var accentSprite = CreateSpriteFromField(accentField, AccentResolution, AccentResolution, TextureWrapMode.Clamp, 256f);
-            var microSprite = CreateSpriteFromField(microField, MicroResolution, MicroResolution, TextureWrapMode.Repeat, 128f);
+            float edgeFeather = request.LevelIndex <= 24 ? 0.25f : 0.12f;
+
+            var macroSprite = CreateSpriteFromField(macroField, MacroResolution, MacroResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
+            var mesoSprite = CreateSpriteFromField(mesoField, MesoResolution, MesoResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
+            var accentSprite = CreateSpriteFromField(accentField, AccentResolution, AccentResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
+            var microSprite = CreateSpriteFromField(microField, MicroResolution, MicroResolution, TextureWrapMode.Repeat, 128f, 0f);
 
             timer.Stop();
 
@@ -114,20 +133,20 @@ namespace Decantra.Presentation
         }
 
         /// <summary>
-        /// Generates a subtle accent field using atmospheric wash for contrast.
+        /// Generates a subtle accent field using domain-warped clouds for contrast.
         /// </summary>
         private static float[] GenerateAccentField(GeneratorArchetype mainArchetype, int width, int height, ulong seed)
         {
-            // Use AtmosphericWash for accent regardless of main archetype
-            // This provides consistent, subtle accent layers
-            var generator = BackgroundGeneratorRegistry.GetGenerator(GeneratorArchetype.AtmosphericWash);
+            _ = mainArchetype;
+            // Use DomainWarpedClouds for accent to avoid linear or Voronoi artifacts
+            var generator = BackgroundGeneratorRegistry.GetGenerator(GeneratorArchetype.DomainWarpedClouds);
             var parameters = new FieldParameters
             {
-                Scale = 0.6f,
-                Density = 0.4f,
-                Octaves = 2,
-                WarpAmplitude = 0.15f,
-                Softness = 0.8f,
+                Scale = 0.55f,
+                Density = 0.35f,
+                Octaves = 3,
+                WarpAmplitude = 0.35f,
+                Softness = 0.85f,
                 IsMacroLayer = false
             };
 
@@ -161,12 +180,26 @@ namespace Decantra.Presentation
             return field;
         }
 
-        private static Sprite CreateSpriteFromField(float[] field, int width, int height, TextureWrapMode wrapMode, float pixelsPerUnit)
+        private static Sprite CreateSpriteFromField(float[] field, int width, int height, TextureWrapMode wrapMode, float pixelsPerUnit, float edgeFeather)
         {
             var colors = new Color32[field.Length];
+            int maxX = width - 1;
+            int maxY = height - 1;
+            float feather = Mathf.Clamp01(edgeFeather);
             for (int i = 0; i < field.Length; i++)
             {
-                byte alpha = (byte)Mathf.Clamp(Mathf.RoundToInt(field[i] * 255f), 0, 255);
+                float alphaFloat = Mathf.Clamp01(field[i]);
+                if (feather > 0f && wrapMode == TextureWrapMode.Clamp)
+                {
+                    int x = i % width;
+                    int y = i / width;
+                    float dx = Mathf.Min(x / (float)maxX, (maxX - x) / (float)maxX);
+                    float dy = Mathf.Min(y / (float)maxY, (maxY - y) / (float)maxY);
+                    float edge = Mathf.Min(dx, dy);
+                    float edgeFactor = SmoothStep(0f, feather, edge);
+                    alphaFloat *= edgeFactor;
+                }
+                byte alpha = (byte)Mathf.Clamp(Mathf.RoundToInt(alphaFloat * 255f), 0, 255);
                 colors[i] = new Color32(255, 255, 255, alpha);
             }
 
