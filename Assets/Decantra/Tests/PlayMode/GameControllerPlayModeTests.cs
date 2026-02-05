@@ -479,6 +479,56 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator LevelCompleteBanner_CentersStarsAndScoreGroup()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var banner = Object.FindFirstObjectByType<LevelCompleteBanner>();
+            Assert.IsNotNull(banner);
+
+            bool completed = false;
+            // Use a mid-star count and non-zero score to exercise layout sizing.
+            const float LayoutSettleSeconds = 0.05f; // Short wait to allow UI layout to settle in batch mode.
+
+            banner.Show(1, 4, 180, false, () => { }, () => completed = true);
+            yield return null;
+            yield return new WaitForSeconds(LayoutSettleSeconds);
+
+            var panel = GetPrivateField(banner, "panel") as RectTransform;
+            var starsText = GetPrivateField(banner, "starsText") as Text;
+            var scoreText = GetPrivateField(banner, "scoreText") as Text;
+            Assert.IsNotNull(panel);
+            Assert.IsNotNull(starsText);
+            Assert.IsNotNull(scoreText);
+
+            const float MinTextHeight = 1f; // Avoid zero bounds before Text layout finalizes.
+            const float Half = 0.5f; // Used for center/extent calculations.
+            const float CenterBaseline = 0f; // Panel center in anchored coordinates.
+
+            float starsHeight = Mathf.Max(MinTextHeight, starsText.preferredHeight);
+            float scoreHeight = Mathf.Max(MinTextHeight, scoreText.preferredHeight);
+            float starsCenter = starsText.rectTransform.anchoredPosition.y;
+            float scoreCenter = scoreText.rectTransform.anchoredPosition.y;
+
+            float groupTop = starsCenter + starsHeight * Half;
+            float groupBottom = scoreCenter - scoreHeight * Half;
+            float groupCenter = (groupTop + groupBottom) * Half;
+
+            // Shift is derived from panel height: 20px relative to a 280px panel.
+            float expectedCenter = panel.rect.height * (20f / 280f);
+            float tolerance = 1.5f; // Allow small layout variance while asserting centering.
+
+            Assert.LessOrEqual(Mathf.Abs(groupCenter - expectedCenter), tolerance);
+            Assert.Greater(groupCenter, CenterBaseline);
+
+            if (completed)
+            {
+                banner.HideImmediate();
+            }
+        }
+
+        [UnityTest]
         public IEnumerator Win_CommitsScoreAndAdvancesLevel()
         {
             SceneBootstrap.EnsureScene();

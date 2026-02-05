@@ -89,6 +89,7 @@ namespace Decantra.Presentation.Controller
         private int _completionStreak;
         private bool _usedUndo;
         private bool _usedHints;
+        private bool _usedRestart;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
         private AudioSource _audioSource;
@@ -330,6 +331,7 @@ namespace Decantra.Presentation.Controller
             _isFailing = false;
             _usedUndo = false;
             _usedHints = false;
+            _usedRestart = false;
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
@@ -409,6 +411,7 @@ namespace Decantra.Presentation.Controller
             _isCompleting = false;
 
             RestartCurrentLevel();
+            _usedRestart = true;
             _inputLocked = false;
             _isResetting = false;
         }
@@ -620,9 +623,9 @@ namespace Decantra.Presentation.Controller
             int nextLevel = _currentLevel + 1;
             float efficiency = ScoreCalculator.CalculateEfficiency(_state.OptimalMoves, _state.MovesUsed);
             _lastGrade = ScoreCalculator.CalculateGrade(_state.OptimalMoves, _state.MovesUsed);
-            _lastStars = CalculateStars(_lastGrade);
+            _lastStars = CalculateStars(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed);
 
-            _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
+            _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
             int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
             // CommitLevel delayed to onScoreApply
             _completionStreak++;
@@ -853,21 +856,9 @@ namespace Decantra.Presentation.Controller
             _progressStore.Save(_progress);
         }
 
-        private int CalculateStars(PerformanceGrade grade)
+        private int CalculateStars(int optimalMoves, int movesUsed, int movesAllowed)
         {
-            switch (grade)
-            {
-                case PerformanceGrade.S:
-                    return 5;
-                case PerformanceGrade.A:
-                    return 4;
-                case PerformanceGrade.B:
-                    return 3;
-                case PerformanceGrade.C:
-                    return 2;
-                default:
-                    return 1;
-            }
+            return ScoreCalculator.CalculateStars(optimalMoves, movesUsed, movesAllowed);
         }
 
         private bool TryApplyMoveAndScore(int sourceIndex, int targetIndex, out int poured)
@@ -881,7 +872,7 @@ namespace Decantra.Presentation.Controller
 
             RecordMove(sourceIndex, targetIndex);
 
-            _scoreSession?.UpdateProvisional(_state.LevelIndex, _state.OptimalMoves, _state.MovesUsed, _usedUndo, _usedHints, _completionStreak);
+            _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra ScoreUpdate level={_state.LevelIndex} movesUsed={_state.MovesUsed} optimal={_state.OptimalMoves} provisional={_scoreSession?.ProvisionalScore ?? 0}");
@@ -940,6 +931,8 @@ namespace Decantra.Presentation.Controller
                 shareButton.gameObject.SetActive(visible);
             }
         }
+
+        private bool IsCleanSolve => !_usedUndo && !_usedHints && !_usedRestart;
 
         private void RecordMove(int sourceIndex, int targetIndex)
         {
@@ -1179,6 +1172,7 @@ namespace Decantra.Presentation.Controller
             _completionStreak = 0;
             _usedUndo = false;
             _usedHints = false;
+            _usedRestart = false;
             _selectedIndex = -1;
             _isCompleting = false;
             _isFailing = false;
@@ -1213,6 +1207,7 @@ namespace Decantra.Presentation.Controller
             _isFailing = false;
             _usedUndo = false;
             _usedHints = false;
+            _usedRestart = false;
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;

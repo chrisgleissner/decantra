@@ -67,7 +67,7 @@ Shader "Decantra/BackgroundStars"
                 return h;
             }
 
-            float StarLayer(float2 uv, float2 grid, float speed, float brightness, float density)
+            float StarLayer(float2 uv, float2 grid, float speed, float density)
             {
                 float2 uvScroll = uv;
                 float starTime = _Time.y + _DecantraStarTime;
@@ -84,6 +84,11 @@ Shader "Decantra/BackgroundStars"
                 float radius = lerp(0.12, 0.26, Hash(cell + 1.73));
                 float falloff = smoothstep(radius, 0.0, length(delta));
 
+                float brightnessSeed = Hash(cell + 9.87);
+                // Continuous brightness (infinite levels) with a dim-heavy distribution.
+                // 0.25 sets the darkest grey; 1.0 keeps rare bright stars; exponent 1.6 biases dim.
+                float brightness = lerp(0.25, 1.0, pow(brightnessSeed, 1.6));
+
                 return starMask * falloff * brightness;
             }
 
@@ -91,17 +96,17 @@ Shader "Decantra/BackgroundStars"
             {
                 float2 uv = i.uv;
 
-                // Three layers of stars with high brightness and density for visibility
-                float star1 = StarLayer(uv, float2(90.0, 160.0), 0.40, 1.0, 0.14);
-                float star2 = StarLayer(uv, float2(120.0, 210.0), 0.70, 1.0, 0.12);
-                float star3 = StarLayer(uv, float2(160.0, 280.0), 1.00, 1.0, 0.10);
+                // Density reduced by >=50% and speed reduced to ~30% of prior values (calmer motion).
+                float star1 = StarLayer(uv, float2(90.0, 160.0), 0.12, 0.07);
+                float star2 = StarLayer(uv, float2(120.0, 210.0), 0.21, 0.06);
+                float star3 = StarLayer(uv, float2(160.0, 280.0), 0.30, 0.05);
 
                 float intensity = saturate(star1 + star2 + star3);
-                
-                // Boost star visibility - multiply intensity
-                intensity = saturate(intensity * 4.5);
-                
-                return fixed4(1.0, 1.0, 1.0, intensity) * i.color;
+
+                // Mild visibility lift after density reduction (keeps stars calm but visible).
+                intensity = saturate(intensity * 1.6);
+
+                return fixed4(intensity, intensity, intensity, intensity) * i.color;
             }
             ENDCG
         }

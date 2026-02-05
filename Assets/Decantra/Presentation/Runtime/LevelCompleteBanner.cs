@@ -45,6 +45,9 @@ namespace Decantra.Presentation
         private Image[] _flyingStars;
         private bool _effectsReady;
         private Action _onScoreApply;
+        private Vector2 _starsBasePosition;
+        private Vector2 _scoreBasePosition;
+        private bool _layoutCached;
 
         private static Sprite _sparkleSpriteCache;
         private static Sprite _glistenSpriteCache;
@@ -159,7 +162,7 @@ namespace Decantra.Presentation
 
             StopAllCoroutines();
             _onScoreApply = onScoreApply;
-            int clampedStars = Mathf.Clamp(stars, 1, 5);
+            int clampedStars = Mathf.Clamp(stars, 0, 5);
             _lastStarCount = clampedStars;
             starsText.text = new string('★', clampedStars);
             var tag = messages[Mathf.Abs(level) % messages.Length];
@@ -168,6 +171,7 @@ namespace Decantra.Presentation
             {
                 scoreText.text = $"+{awardedScore}";
             }
+            UpdateScoreLayout();
             EnsureEffects();
             DisableEffects();
             if (sfxEnabled)
@@ -200,6 +204,43 @@ namespace Decantra.Presentation
         {
             yield return AnimatePanel(starsText, starsHoldDuration);
             onComplete?.Invoke();
+        }
+
+        private void UpdateScoreLayout()
+        {
+            if (panel == null || starsText == null || scoreText == null) return;
+
+            var starsRect = starsText.rectTransform;
+            var scoreRect = scoreText.rectTransform;
+
+            if (!_layoutCached)
+            {
+                _starsBasePosition = starsRect.anchoredPosition;
+                _scoreBasePosition = scoreRect.anchoredPosition;
+                _layoutCached = true;
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(starsRect);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(scoreRect);
+
+            const float MinTextHeight = 1f; // Avoid zero-height bounds when fonts report 0 on first frame.
+            const float Half = 0.5f; // Used for center/extent calculations.
+
+            float starsHeight = Mathf.Max(MinTextHeight, starsText.preferredHeight);
+            float scoreHeight = Mathf.Max(MinTextHeight, scoreText.preferredHeight);
+            float centerDistance = Mathf.Abs(_starsBasePosition.y - _scoreBasePosition.y);
+            float spacing = Mathf.Max(0f, centerDistance - (starsHeight * Half + scoreHeight * Half));
+            float groupHeight = starsHeight + scoreHeight + spacing;
+
+            // Shift up by ~20 px relative to the 280 px panel height (layout-derived, scales with panel).
+            float shiftUp = panel.rect.height * (20f / 280f);
+            float groupCenter = shiftUp;
+
+            float starsY = groupCenter + (groupHeight * Half - starsHeight * Half);
+            float scoreY = groupCenter - (groupHeight * Half - scoreHeight * Half);
+
+            starsRect.anchoredPosition = new Vector2(_starsBasePosition.x, starsY);
+            scoreRect.anchoredPosition = new Vector2(_scoreBasePosition.x, scoreY);
         }
 
         private IEnumerator AnimatePanel(Text activeText, float holdDuration)
@@ -698,7 +739,8 @@ namespace Decantra.Presentation
         private void PlayStarLayers(int stars)
         {
             if (_starClip == null || _starSources == null) return;
-            int layers = Mathf.Clamp(stars, 1, _starSources.Length);
+            if (stars <= 0) return;
+            int layers = Mathf.Min(stars, _starSources.Length);
             for (int i = 0; i < layers; i++)
             {
                 var source = _starSources[i];
