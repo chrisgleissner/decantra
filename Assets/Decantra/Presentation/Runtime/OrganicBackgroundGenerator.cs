@@ -79,6 +79,14 @@ namespace Decantra.Presentation
                 mesoParams.Octaves = Mathf.Min(6, mesoParams.Octaves + 1);
             }
 
+            if (request.LevelIndex <= 24)
+            {
+                macroParams.Softness = Mathf.Clamp01(macroParams.Softness * 0.55f);
+                mesoParams.Softness = Mathf.Clamp01(mesoParams.Softness * 0.6f);
+                accentParams.Softness = Mathf.Clamp01(accentParams.Softness * 0.6f);
+                microParams.Softness = Mathf.Clamp01(microParams.Softness * 0.7f);
+            }
+
             // Vary seeds for each layer
             ulong macroSeed = levelSeed ^ 0xA13F2B19ul;
             ulong mesoSeed = levelSeed ^ 0xB24E3C28ul;
@@ -189,6 +197,8 @@ namespace Decantra.Presentation
             for (int i = 0; i < field.Length; i++)
             {
                 float alphaFloat = Mathf.Clamp01(field[i]);
+                alphaFloat = SmoothStep(0.2f, 0.8f, alphaFloat);
+                alphaFloat = Mathf.Pow(alphaFloat, 0.85f);
                 if (feather > 0f && wrapMode == TextureWrapMode.Clamp)
                 {
                     int x = i % width;

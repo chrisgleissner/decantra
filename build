@@ -25,6 +25,7 @@ BUILD_VARIANT="release"
 BUILD_FORMAT="apk"
 CAPTURE_SCREENSHOTS=false
 SCREENSHOTS_ONLY=false
+CAPTURE_MOTION=false
 GENERATE_SOLUTIONS=false
 GENERATE_BACKGROUND_SAMPLES=false
 
@@ -55,6 +56,7 @@ Options:
   --aab                Build release AAB instead of APK (for Play Store)
   --screenshots        Capture Play Store screenshots after build
   --screenshots-only   Capture screenshots only (skip tests/build/install)
+  --motion-capture     Capture starfield motion frames (uses screenshot flow)
   --generate-solutions Regenerate solver-solutions-debug.txt (requires dotnet)
   --generate-background-samples  Generate background sample images for inspection
   -h, --help           Show this help message
@@ -587,6 +589,11 @@ while [[ $# -gt 0 ]]; do
       RUN_INSTALL=false
       shift
       ;;
+    --motion-capture)
+      CAPTURE_SCREENSHOTS=true
+      CAPTURE_MOTION=true
+      shift
+      ;;
     --generate-solutions)
       GENERATE_SOLUTIONS=true
       shift
@@ -736,6 +743,9 @@ if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
   fi
   if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
     screenshot_args+=("--screenshots-only")
+  fi
+  if [[ "${CAPTURE_MOTION}" == "true" ]]; then
+    screenshot_args+=("--motion-capture")
   fi
   "${ROOT_DIR}/tools/capture_screenshots.sh" "${screenshot_args[@]}"
 fi

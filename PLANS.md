@@ -48,6 +48,69 @@ The previous fix addressed screen-corner coverage (scaling up rotated elements) 
 
 ## Fix Implementation Plan
 
+### Background Visibility Hard Gates (Authoritative)
+
+**Contract:** All gates A–F must pass for:
+- `doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png`
+- Every image in `doc/play-store-assets/screenshots/phone`
+
+Each gate records **measured values**, **thresholds**, and **pass/fail** in this plan.
+Any threshold change requires a documented failure analysis and explicit approval.
+
+#### Gate A: Low-Frequency Cloud Visibility
+- Method: blurred luminance (sigma = max(20, round(0.01 * H))) on background ROIs
+- Thresholds (fixed): contrast ≥ 0.35 for BOTH ROIs
+
+#### Gate B: Low-Frequency Transition Count
+- Method: transitions along inset rectangular path (5 px averaged, step 1 px)
+- Thresholds (fixed): total transitions ≥ 12, each ROI ≥ 4
+
+#### Gate C: Starfield Preservation (Static)
+- Method: unblurred luminance, star density per ROI
+- Thresholds: star_density ≥ 0.0005 per ROI
+
+#### Gate D: Non-Black Dominance
+- Method: unblurred luminance P50/P05 per ROI
+- Thresholds: P50 ≥ 14.0 AND P05 ≥ 6.0
+
+#### Gate E: Motion Presence (Required)
+- Method: motion frames (≥3 frames, ≥200 ms apart), moving pixel ratio per ROI
+- Thresholds: moving_pixel_ratio ≥ 0.002 per ROI
+
+#### Gate F: Theme Separation (Sanity)
+- Method: blurred luminance histogram correlation
+- Thresholds: correlation ≤ 0.75 (Level 1 vs 10, Level 10 vs 20)
+
+**Gate Execution Checklist**
+- [x] Gate A–F implemented in tools/verify_background_visibility.py
+- [x] Gate A–F executed for screenshot-03-level-01.png
+- [x] Gate A–F executed for ALL phone screenshots
+- [ ] Gate E motion frames generated (≥3 frames, ≥200 ms apart)
+- [ ] CI integrated and passing
+
+**Metrics: screenshot-03-level-01.png**
+- Gate A (Left ROI contrast): 0.1905 (threshold ≥ 0.35) [FAIL]
+- Gate A (Right ROI contrast): 0.1524 (threshold ≥ 0.35) [FAIL]
+- Gate B (Left ROI transitions): 0 (threshold ≥ 4) [FAIL]
+- Gate B (Right ROI transitions): 0 (threshold ≥ 4) [FAIL]
+- Gate B (Total transitions): 0 (threshold ≥ 12) [FAIL]
+- Gate C (Left ROI star_density): 0.000000 (threshold ≥ 0.0005) [FAIL]
+- Gate C (Right ROI star_density): 0.000000 (threshold ≥ 0.0005) [FAIL]
+- Gate D (Left ROI P50/P05): 7.81 / 6.59 (thresholds ≥ 14.0 / ≥ 6.0) [FAIL]
+- Gate D (Right ROI P50/P05): 7.81 / 6.52 (thresholds ≥ 14.0 / ≥ 6.0) [FAIL]
+- Gate E (Left ROI moving_ratio): MISSING (no motion frames) (threshold ≥ 0.002) [FAIL]
+- Gate E (Right ROI moving_ratio): MISSING (no motion frames) (threshold ≥ 0.002) [FAIL]
+- Gate F (L1 vs L10 correlation): MISSING (level 10 screenshot) (threshold ≤ 0.75) [FAIL]
+- Gate F (L10 vs L20 correlation): MISSING (level 20 screenshot) (threshold ≤ 0.75) [FAIL]
+
+**Metrics: ALL phone screenshots**
+- Gate A summary: 2 / 7 passing (Left ROI) ; 2 / 7 passing (Right ROI)
+- Gate B summary: 0 / 7 passing (Left ROI) ; 0 / 7 passing (Right ROI) ; 0 / 7 passing (Total)
+- Gate C summary: 0 / 7 passing (Left ROI) ; 0 / 7 passing (Right ROI)
+- Gate D summary: 2 / 7 passing (Left ROI) ; 2 / 7 passing (Right ROI)
+- Gate E summary: 0 / 7 passing (Left ROI) ; 0 / 7 passing (Right ROI) (motion frames missing)
+- Gate F summary: L1 vs L10 MISSING (FAIL), L10 vs L20 MISSING (FAIL)
+
 ### Phase 1: Make Base Layer Translucent
 - [x] 1.1 Modify gradient sprite creation to use translucent colors
 - [x] 1.2 Set gradient top/bottom alpha to ~0.85-0.90 (visible but shows stars through)

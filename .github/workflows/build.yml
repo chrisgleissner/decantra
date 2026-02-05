@@ -75,6 +75,23 @@ jobs:
           lfs: true
           fetch-depth: 0
 
+      - name: Install background verification dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow numpy opencv-python
+
+      - name: Verify background visibility (Level 01)
+        run: |
+          python3 tools/verify_background_visibility.py \
+            --image doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png \
+            --require-motion
+
+      - name: Verify background visibility (all phone screenshots)
+        run: |
+          python3 tools/verify_background_visibility.py \
+            --dir doc/play-store-assets/screenshots/phone \
+            --require-motion
+
       # Unity Library cache - critical for asset import performance
       - name: Restore Unity Library cache
         uses: actions/cache@v4

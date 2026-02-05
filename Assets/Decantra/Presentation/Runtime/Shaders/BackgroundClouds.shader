@@ -18,7 +18,7 @@ Shader "Decantra/BackgroundClouds"
         Cull Off
         ZWrite Off
         ZTest Always
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend SrcAlpha One
 
         Pass
         {

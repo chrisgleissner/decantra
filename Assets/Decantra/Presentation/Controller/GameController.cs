@@ -1293,41 +1293,41 @@ namespace Decantra.Presentation.Controller
                 if (levelIndex <= 9)
                 {
                     // Theme 0 (levels 1-9): Deep blue/indigo - "Midnight Ocean"
-                    deepTop = new Color(0.02f, 0.04f, 0.18f, 0.35f);
-                    deepBottom = new Color(0.01f, 0.02f, 0.12f, 0.42f);
+                    deepTop = new Color(0.04f, 0.08f, 0.22f, 0.24f);
+                    deepBottom = new Color(0.015f, 0.03f, 0.14f, 0.18f);
 
                     // Blue-tinted cloud overlays with higher alpha for texture visibility
-                    detailTint = new Color(0.04f, 0.08f, 0.25f, 0.35f);
-                    flowTint = new Color(0.03f, 0.06f, 0.22f, 0.30f);
-                    shapeTint = new Color(0.04f, 0.08f, 0.24f, 0.25f);
-                    macroTint = new Color(0.03f, 0.05f, 0.18f, 0.22f);
-                    bubbleTint = new Color(0.03f, 0.06f, 0.20f, 0.18f);
+                    detailTint = new Color(0.10f, 0.18f, 0.34f, 0.30f);
+                    flowTint = new Color(0.08f, 0.14f, 0.30f, 0.26f);
+                    shapeTint = new Color(0.10f, 0.18f, 0.32f, 0.22f);
+                    macroTint = new Color(0.08f, 0.14f, 0.26f, 0.20f);
+                    bubbleTint = new Color(0.08f, 0.16f, 0.28f, 0.16f);
                 }
                 else if (levelIndex <= 19)
                 {
                     // Theme 1 (levels 10-19): Deep magenta/violet - "Cosmic Nebula"
-                    deepTop = new Color(0.16f, 0.02f, 0.18f, 0.35f);
-                    deepBottom = new Color(0.10f, 0.01f, 0.12f, 0.42f);
+                    deepTop = new Color(0.22f, 0.06f, 0.26f, 0.28f);
+                    deepBottom = new Color(0.12f, 0.03f, 0.18f, 0.22f);
 
                     // Magenta-tinted cloud overlays
-                    detailTint = new Color(0.20f, 0.04f, 0.25f, 0.35f);
-                    flowTint = new Color(0.16f, 0.03f, 0.22f, 0.30f);
-                    shapeTint = new Color(0.18f, 0.04f, 0.24f, 0.25f);
-                    macroTint = new Color(0.12f, 0.03f, 0.18f, 0.22f);
-                    bubbleTint = new Color(0.14f, 0.03f, 0.20f, 0.18f);
+                    detailTint = new Color(0.30f, 0.10f, 0.36f, 0.34f);
+                    flowTint = new Color(0.26f, 0.08f, 0.32f, 0.30f);
+                    shapeTint = new Color(0.28f, 0.10f, 0.34f, 0.26f);
+                    macroTint = new Color(0.22f, 0.08f, 0.28f, 0.22f);
+                    bubbleTint = new Color(0.24f, 0.08f, 0.30f, 0.18f);
                 }
                 else
                 {
                     // Theme 2 (levels 20-24): Deep teal/emerald - "Deep Space"
-                    deepTop = new Color(0.02f, 0.16f, 0.14f, 0.35f);
-                    deepBottom = new Color(0.01f, 0.10f, 0.08f, 0.42f);
+                    deepTop = new Color(0.04f, 0.22f, 0.18f, 0.26f);
+                    deepBottom = new Color(0.015f, 0.12f, 0.10f, 0.20f);
 
                     // Teal-tinted cloud overlays
-                    detailTint = new Color(0.04f, 0.20f, 0.18f, 0.35f);
-                    flowTint = new Color(0.03f, 0.16f, 0.14f, 0.30f);
-                    shapeTint = new Color(0.04f, 0.18f, 0.16f, 0.25f);
-                    macroTint = new Color(0.03f, 0.12f, 0.10f, 0.22f);
-                    bubbleTint = new Color(0.03f, 0.14f, 0.12f, 0.18f);
+                    detailTint = new Color(0.10f, 0.30f, 0.26f, 0.32f);
+                    flowTint = new Color(0.08f, 0.24f, 0.20f, 0.28f);
+                    shapeTint = new Color(0.10f, 0.28f, 0.24f, 0.24f);
+                    macroTint = new Color(0.08f, 0.20f, 0.18f, 0.20f);
+                    bubbleTint = new Color(0.08f, 0.24f, 0.20f, 0.16f);
                 }
 
                 // baseTint is multiplied with gradient - use white (1,1,1) to not alter gradient colors
@@ -1540,7 +1540,7 @@ namespace Decantra.Presentation.Controller
             Color bottom = Color.HSVToRGB(hue, saturation, bottomValue);
             // Make gradient translucent to allow starfield to show through
             // Very low alpha (0.25-0.35) ensures stars remain clearly visible
-            top.a = 0.25f;
+            top.a = 0.26f;
             bottom.a = 0.30f;
 
             GetLayerWeightsForArchetype(archetype, out float macroWeight, out float mesoWeight, out float microWeight);
@@ -1777,9 +1777,17 @@ namespace Decantra.Presentation.Controller
                     float nx = x / (float)(width - 1);
                     float warp = rng.FBm(nx * 2.2f + warpOffsetX, ny * 2.0f + warpOffsetY, 3, 2f, 0.5f);
                     float warp2 = rng.FBm(nx * 4.1f + warpOffsetX + 3.3f, ny * 4.1f + warpOffsetY + 1.7f, 2, 2f, 0.55f);
-                    float warpedNy = Mathf.Clamp01(ny + (warp - 0.5f) * 0.18f + (warp2 - 0.5f) * 0.08f);
+                    float warpedNy = Mathf.Clamp01(ny + (warp - 0.5f) * 0.26f + (warp2 - 0.5f) * 0.12f);
                     float curve = Mathf.SmoothStep(0f, 1f, warpedNy);
                     var color = Color.Lerp(bottom, top, curve);
+                    float band = Mathf.Clamp01(0.5f + (warp - 0.5f) * 2.2f + (warp2 - 0.5f) * 1.6f);
+                    float brightness = Mathf.Lerp(0.35f, 2.4f, band);
+                    float alphaBoost = Mathf.Lerp(0.3f, 2.0f, band);
+                    color = new Color(
+                        Mathf.Clamp01(color.r * brightness),
+                        Mathf.Clamp01(color.g * brightness),
+                        Mathf.Clamp01(color.b * brightness),
+                        Mathf.Clamp01(color.a * alphaBoost));
                     texture.SetPixel(x, y, color);
                 }
             }
