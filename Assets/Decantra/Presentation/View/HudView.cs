@@ -7,22 +7,20 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System.Collections;
-using TMPro;
+using UnityEngine.UI;
 using UnityEngine;
 
 namespace Decantra.Presentation.View
 {
     public sealed class HudView : MonoBehaviour
     {
-        // TextMeshPro equivalents for legacy UnityEngine.UI.Text fields.
-        // IMPORTANT: Update the Inspector references after this change.
-        [SerializeField] private TMP_Text levelText;
-        [SerializeField] private TMP_Text movesText;
-        [SerializeField] private TMP_Text optimalText;
-        [SerializeField] private TMP_Text scoreText;
-        [SerializeField] private TMP_Text highScoreText;
-        [SerializeField] private TMP_Text maxLevelText;
-        [SerializeField] private TMP_Text titleText;
+        [SerializeField] private Text levelText;
+        [SerializeField] private Text movesText;
+        [SerializeField] private Text optimalText;
+        [SerializeField] private Text scoreText;
+        [SerializeField] private Text highScoreText;
+        [SerializeField] private Text maxLevelText;
+        [SerializeField] private Text titleText;
 
         private Coroutine _scoreEffectRoutine;
 
