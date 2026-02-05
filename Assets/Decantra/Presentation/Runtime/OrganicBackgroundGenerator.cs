@@ -93,23 +93,6 @@ namespace Decantra.Presentation
             };
         }
 
-        /// <summary>
-        /// Generates organic background sprites from a legacy GeneratorFamily request.
-        /// Maps the legacy family to the appropriate organic archetype.
-        /// </summary>
-        internal static OrganicPatternSprites GenerateFromLegacy(BackgroundPatternGenerator.PatternRequest legacyRequest)
-        {
-            var request = new OrganicPatternRequest
-            {
-                LevelIndex = 1,
-                GlobalSeed = unchecked((int)(legacyRequest.ZoneSeed & 0x7FFFFFFF)),
-                LevelSeed = legacyRequest.ZoneSeed,
-                Density = legacyRequest.Density
-            };
-
-            return Generate(request);
-        }
-
         private static FieldParameters GetParameters(GeneratorArchetype archetype, ScaleBand scaleBand, DensityProfile density)
         {
             var baseParams = BackgroundGeneratorRegistry.GetDefaultParameters(archetype, scaleBand);

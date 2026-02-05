@@ -132,35 +132,7 @@ namespace Decantra.Domain.Background
         /// </summary>
         FloralMandala = 15,
 
-        /// <summary>
-        /// Legacy compatibility: maps to AtmosphericWash.
-        /// </summary>
-        [System.Obsolete("Use AtmosphericWash instead")]
-        LegacyDirectionalLines = 100,
-
-        /// <summary>
-        /// Legacy compatibility: maps to AtmosphericWash.
-        /// </summary>
-        [System.Obsolete("Use AtmosphericWash instead")]
-        LegacyBandGradients = 101,
-
-        /// <summary>
-        /// Legacy compatibility: maps to DomainWarpedClouds.
-        /// </summary>
-        [System.Obsolete("Use DomainWarpedClouds instead")]
-        LegacyVoronoi = 102,
-
-        /// <summary>
-        /// Legacy compatibility: maps to CurlFlowAdvection.
-        /// </summary>
-        [System.Obsolete("Use CurlFlowAdvection instead")]
-        LegacyWaveInterference = 103,
-
-        /// <summary>
-        /// Legacy compatibility: maps to DomainWarpedClouds.
-        /// </summary>
-        [System.Obsolete("Use DomainWarpedClouds instead")]
-        LegacyFractalLite = 104,
+        // Intentionally no legacy archetypes.
     }
 
     /// <summary>

@@ -14,12 +14,11 @@ namespace Decantra.Domain.Background
 {
     /// <summary>
     /// Registry for background field generators.
-    /// Provides lookup by archetype and mapping from legacy GeneratorFamily enum.
+    /// Provides lookup by archetype.
     /// </summary>
     public static class BackgroundGeneratorRegistry
     {
         private static readonly Dictionary<GeneratorArchetype, IBackgroundFieldGenerator> Generators;
-        private static readonly Dictionary<GeneratorFamily, GeneratorArchetype> LegacyMapping;
         private static readonly GeneratorArchetype[] AllowedArchetypesOrdered =
         {
             GeneratorArchetype.CurlFlowAdvection,
@@ -63,23 +62,6 @@ namespace Decantra.Domain.Background
                 { GeneratorArchetype.FloralMandala, new FloralMandalaGenerator() },
             };
 
-            // Map legacy GeneratorFamily to new archetypes
-            LegacyMapping = new Dictionary<GeneratorFamily, GeneratorArchetype>
-            {
-                // Line/band patterns → AtmosphericWash (soft gradients)
-                { GeneratorFamily.DirectionalLineFields, GeneratorArchetype.AtmosphericWash },
-                { GeneratorFamily.BandGradients, GeneratorArchetype.AtmosphericWash },
-
-                // Cell-based patterns → DomainWarpedClouds (organic alternative)
-                { GeneratorFamily.VoronoiRegions, GeneratorArchetype.DomainWarpedClouds },
-                { GeneratorFamily.PolygonShards, GeneratorArchetype.DomainWarpedClouds },
-
-                // Wave/noise patterns → CurlFlowAdvection (flowing alternative)
-                { GeneratorFamily.WaveInterference, GeneratorArchetype.CurlFlowAdvection },
-
-                // Fractal patterns → DomainWarpedClouds (similar organic quality)
-                { GeneratorFamily.FractalLite, GeneratorArchetype.DomainWarpedClouds },
-            };
         }
 
         /// <summary>
@@ -94,30 +76,6 @@ namespace Decantra.Domain.Background
             }
 
             throw new ArgumentException($"Generator archetype {archetype} is not yet implemented. Deferred to Phase 3.");
-        }
-
-        /// <summary>
-        /// Gets the generator for the specified legacy GeneratorFamily.
-        /// Maps to appropriate new archetype.
-        /// </summary>
-        public static IBackgroundFieldGenerator GetGenerator(GeneratorFamily legacyFamily)
-        {
-            var archetype = MapLegacyToArchetype(legacyFamily);
-            return GetGenerator(archetype);
-        }
-
-        /// <summary>
-        /// Maps a legacy GeneratorFamily to the new GeneratorArchetype.
-        /// </summary>
-        public static GeneratorArchetype MapLegacyToArchetype(GeneratorFamily legacyFamily)
-        {
-            if (LegacyMapping.TryGetValue(legacyFamily, out var archetype))
-            {
-                return archetype;
-            }
-
-            // Default fallback
-            return GeneratorArchetype.AtmosphericWash;
         }
 
         /// <summary>

@@ -9,7 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 using System.IO;
 using System.Linq;
 using Decantra.Domain.Background;
-using Decantra.Domain.Rules;
 using NUnit.Framework;
 
 namespace Decantra.Domain.Tests
@@ -97,19 +96,6 @@ namespace Decantra.Domain.Tests
             Assert.AreEqual(GeneratorArchetype.DomainWarpedClouds, clouds.Archetype);
             Assert.AreEqual(GeneratorArchetype.CurlFlowAdvection, curl.Archetype);
             Assert.AreEqual(GeneratorArchetype.AtmosphericWash, wash.Archetype);
-        }
-
-        [Test]
-        public void Registry_MapsLegacyFamiliesCorrectly()
-        {
-            // Test legacy mapping
-            var fromLines = BackgroundGeneratorRegistry.MapLegacyToArchetype(GeneratorFamily.DirectionalLineFields);
-            var fromVoronoi = BackgroundGeneratorRegistry.MapLegacyToArchetype(GeneratorFamily.VoronoiRegions);
-            var fromWave = BackgroundGeneratorRegistry.MapLegacyToArchetype(GeneratorFamily.WaveInterference);
-
-            Assert.AreEqual(GeneratorArchetype.AtmosphericWash, fromLines);
-            Assert.AreEqual(GeneratorArchetype.DomainWarpedClouds, fromVoronoi);
-            Assert.AreEqual(GeneratorArchetype.CurlFlowAdvection, fromWave);
         }
 
         [Test]
