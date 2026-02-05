@@ -24,7 +24,7 @@ namespace Decantra.Presentation.View
 
         private Coroutine _scoreEffectRoutine;
 
-        public void Render(int levelIndex, int movesUsed, int movesAllowed, int optimalMoves, int score, int highScore, int maxLevel)
+        public void Render(int levelIndex, int movesUsed, int movesAllowed, int optimalMoves, int score, int highScore, int maxLevel, int difficulty100)
         {
             if (titleText != null)
             {
@@ -33,12 +33,14 @@ namespace Decantra.Presentation.View
 
             if (levelText != null)
             {
-                levelText.text = $"LEVEL\n{levelIndex}";
+                int clampedDifficulty = Mathf.Clamp(difficulty100, 0, 100);
+                string circles = ResolveDifficultyCircles(clampedDifficulty);
+                levelText.text = $"LEVEL\n{levelIndex} {circles}";
             }
 
             if (movesText != null)
             {
-                movesText.text = $"MOVES\n{movesUsed}/{movesAllowed}";
+                movesText.text = $"MOVES\n{movesUsed} / {movesAllowed}";
             }
 
             if (optimalText != null)
@@ -64,6 +66,21 @@ namespace Decantra.Presentation.View
             {
                 maxLevelText.text = $"MAX LEVEL\n{maxLevel}";
             }
+        }
+
+        private static string ResolveDifficultyCircles(int difficulty100)
+        {
+            if (difficulty100 <= 65)
+            {
+                return "●○○";
+            }
+
+            if (difficulty100 <= 85)
+            {
+                return "●●○";
+            }
+
+            return "●●●";
         }
 
         public void AnimateScoreUpdate()

@@ -30,12 +30,10 @@ namespace Decantra.Presentation
 
         internal struct OrganicPatternRequest
         {
-            public int ZoneIndex;
-            public ulong ZoneSeed;
+            public int LevelIndex;
+            public int GlobalSeed;
+            public ulong LevelSeed;
             public DensityProfile Density;
-            public int MacroCount;
-            public int MesoCount;
-            public int MicroCount;
         }
 
         private const int MacroResolution = 256;
@@ -50,8 +48,12 @@ namespace Decantra.Presentation
         {
             var timer = System.Diagnostics.Stopwatch.StartNew();
 
-            // Select archetype based on zone
-            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForZone(request.ZoneIndex, request.ZoneSeed);
+            ulong levelSeed = request.LevelSeed != 0
+                ? request.LevelSeed
+                : BackgroundRules.GetLevelSeed(request.GlobalSeed, request.LevelIndex);
+
+            // Select archetype based on level progression
+            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(request.LevelIndex, request.GlobalSeed);
             var generator = BackgroundGeneratorRegistry.GetGenerator(archetype);
 
             // Get parameters for each scale band
@@ -61,10 +63,10 @@ namespace Decantra.Presentation
             var microParams = GetParameters(archetype, ScaleBand.Micro, request.Density);
 
             // Vary seeds for each layer
-            ulong macroSeed = request.ZoneSeed ^ 0xA13F2B19ul;
-            ulong mesoSeed = request.ZoneSeed ^ 0xB24E3C28ul;
-            ulong accentSeed = request.ZoneSeed ^ 0xC35F4D37ul;
-            ulong microSeed = request.ZoneSeed ^ 0xD46A5E46ul;
+            ulong macroSeed = levelSeed ^ 0xA13F2B19ul;
+            ulong mesoSeed = levelSeed ^ 0xB24E3C28ul;
+            ulong accentSeed = levelSeed ^ 0xC35F4D37ul;
+            ulong microSeed = levelSeed ^ 0xD46A5E46ul;
 
             // Generate fields
             var macroField = generator.Generate(MacroResolution, MacroResolution, macroParams, macroSeed);
@@ -97,27 +99,15 @@ namespace Decantra.Presentation
         /// </summary>
         internal static OrganicPatternSprites GenerateFromLegacy(BackgroundPatternGenerator.PatternRequest legacyRequest)
         {
-            // Compute zone index from seed (approximate - for compatibility)
-            int zoneIndex = EstimateZoneFromSeed(legacyRequest.ZoneSeed);
-
             var request = new OrganicPatternRequest
             {
-                ZoneIndex = zoneIndex,
-                ZoneSeed = legacyRequest.ZoneSeed,
-                Density = legacyRequest.Density,
-                MacroCount = legacyRequest.MacroCount,
-                MesoCount = legacyRequest.MesoCount,
-                MicroCount = legacyRequest.MicroCount
+                LevelIndex = 1,
+                GlobalSeed = unchecked((int)(legacyRequest.ZoneSeed & 0x7FFFFFFF)),
+                LevelSeed = legacyRequest.ZoneSeed,
+                Density = legacyRequest.Density
             };
 
             return Generate(request);
-        }
-
-        private static int EstimateZoneFromSeed(ulong seed)
-        {
-            // Extract zone hint from seed structure if available
-            // Otherwise return a default that cycles through archetypes
-            return (int)((seed >> 16) % 10);
         }
 
         private static FieldParameters GetParameters(GeneratorArchetype archetype, ScaleBand scaleBand, DensityProfile density)

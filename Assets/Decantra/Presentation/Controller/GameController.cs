@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Decantra.Domain.Background;
 using Decantra.Domain.Export;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
@@ -67,11 +68,13 @@ namespace Decantra.Presentation.Controller
         private LevelState _nextState;
         private int _nextLevel;
         private int _nextSeed;
+        private int _currentDifficulty100;
+        private int _nextDifficulty100;
         private bool _introDismissed;
         private int _currentBackgroundFamily = -1;
         private Coroutine _backgroundTransition;
         private CancellationTokenSource _precomputeCts;
-        private Task<LevelState> _precomputeTask;
+        private Task<GeneratedLevel> _precomputeTask;
         private bool _wasInputLockedBeforeOverlay;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
@@ -96,6 +99,18 @@ namespace Decantra.Presentation.Controller
 
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
+
+        private readonly struct GeneratedLevel
+        {
+            public GeneratedLevel(LevelState state, int difficulty100)
+            {
+                State = state;
+                Difficulty100 = difficulty100;
+            }
+
+            public LevelState State { get; }
+            public int Difficulty100 { get; }
+        }
 
         private struct BackgroundPalette
         {
@@ -186,8 +201,8 @@ namespace Decantra.Presentation.Controller
         private static readonly BackgroundPalette[] BackgroundPalettes =
         {
             // Modern vibrant palettes with blues, purples, sunrise yellows - no vignette
-            // Palette 0: Cool blue - premium modern feel
-            new BackgroundPalette { Hue = 0.58f, Saturation = 0.55f, Value = 0.95f, DetailSaturation = 0.25f, DetailValue = 0.92f, FlowSaturation = 0.35f, FlowValue = 0.92f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
+            // Palette 0: Calm deep blue - level 1 anchor (dark, pleasant, low contrast)
+            new BackgroundPalette { Hue = 0.6f, Saturation = 0.42f, Value = 0.82f, DetailSaturation = 0.18f, DetailValue = 0.78f, FlowSaturation = 0.22f, FlowValue = 0.8f, FlowAlpha = 0.18f, ShapeSaturation = 0.2f, ShapeValue = 0.78f, ShapeAlpha = 0.14f },
             // Palette 1: Soft purple - youthful and calm
             new BackgroundPalette { Hue = 0.78f, Saturation = 0.45f, Value = 0.92f, DetailSaturation = 0.25f, DetailValue = 0.9f, FlowSaturation = 0.3f, FlowValue = 0.9f, FlowAlpha = 0.25f, ShapeSaturation = 0.25f, ShapeValue = 0.88f, ShapeAlpha = 0.18f },
             // Palette 2: Sunrise warm - golden and inviting
@@ -305,7 +320,9 @@ namespace Decantra.Presentation.Controller
             _levelSessionId++;
             _currentLevel = Mathf.Max(1, levelIndex);
             _currentSeed = seed > 0 ? seed : NextSeed(_currentLevel, _currentSeed);
-            _state = EnsureBackground(GenerateLevelWithRetry(_currentLevel, _currentSeed), _currentLevel, _currentSeed);
+            var generated = GenerateLevelWithRetry(_currentLevel, _currentSeed);
+            _currentDifficulty100 = generated.Difficulty100;
+            _state = EnsureBackground(generated.State, _currentLevel, _currentSeed);
             CaptureInitialState(_state);
             _selectedIndex = -1;
             _isCompleting = false;
@@ -574,7 +591,7 @@ namespace Decantra.Presentation.Controller
                 int displayScore = total;
                 int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
-                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel);
+                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel, _currentDifficulty100);
             }
 
             if (_state.IsWin() && !_isCompleting)
@@ -657,7 +674,9 @@ namespace Decantra.Presentation.Controller
 
             if (_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully)
             {
-                _nextState = _precomputeTask.Result;
+                var precomputed = _precomputeTask.Result;
+                _nextState = precomputed.State;
+                _nextDifficulty100 = precomputed.Difficulty100;
             }
 
             int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
@@ -731,14 +750,24 @@ namespace Decantra.Presentation.Controller
             _precomputeTask = Task.Run(() => GenerateLevelWithRetryThreadSafe(level, seed, 6, tokenSource.Token), tokenSource.Token);
         }
 
-        private LevelState GenerateLevelWithRetry(int level, int seed, int maxAttempts = 8)
+        private GeneratedLevel GenerateLevelWithRetry(int level, int seed, int maxAttempts = 8)
         {
-            return GenerateLevelWithRetryInternal(level, seed, maxAttempts, CancellationToken.None, useThreadSafeSeed: false);
+            var state = GenerateLevelWithRetryInternal(level, seed, maxAttempts, CancellationToken.None, useThreadSafeSeed: false);
+            int difficulty = ResolveLastDifficulty100();
+            return new GeneratedLevel(state, difficulty);
         }
 
-        private LevelState GenerateLevelWithRetryThreadSafe(int level, int seed, int maxAttempts, CancellationToken token)
+        private GeneratedLevel GenerateLevelWithRetryThreadSafe(int level, int seed, int maxAttempts, CancellationToken token)
         {
-            return GenerateLevelWithRetryInternal(level, seed, maxAttempts, token, useThreadSafeSeed: true);
+            var state = GenerateLevelWithRetryInternal(level, seed, maxAttempts, token, useThreadSafeSeed: true);
+            int difficulty = ResolveLastDifficulty100();
+            return new GeneratedLevel(state, difficulty);
+        }
+
+        private int ResolveLastDifficulty100()
+        {
+            int difficulty = _generator?.LastReport?.Difficulty100 ?? 1;
+            return Mathf.Clamp(difficulty, 0, 100);
         }
 
         private LevelState GenerateLevelWithRetryInternal(int level, int seed, int maxAttempts, CancellationToken token, bool useThreadSafeSeed)
@@ -753,8 +782,6 @@ namespace Decantra.Presentation.Controller
                 try
                 {
                     var generated = _generator.Generate(currentSeed, profile);
-                    int zoneIndex = BackgroundRules.GetZoneIndex(level);
-                    BackgroundRules.GetZoneTheme(zoneIndex, currentSeed);
                     return EnsureBackground(generated, level, currentSeed);
                 }
                 catch
@@ -1016,11 +1043,14 @@ namespace Decantra.Presentation.Controller
 
             if (_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully)
             {
-                _nextState = _precomputeTask.Result;
+                var precomputed = _precomputeTask.Result;
+                _nextState = precomputed.State;
+                _nextDifficulty100 = precomputed.Difficulty100;
             }
 
             if (_nextState != null && _nextLevel == nextLevel)
             {
+                _currentDifficulty100 = _nextDifficulty100;
                 ApplyLoadedState(_nextState, _nextLevel, _nextSeed);
                 _inputLocked = false;
                 yield break;
@@ -1028,10 +1058,11 @@ namespace Decantra.Presentation.Controller
 
             CancelPrecompute();
 
-            LevelState loaded = null;
+            GeneratedLevel loaded = default;
+            bool hasLoaded = false;
             int attempt = 0;
             int currentSeed = seed;
-            while (loaded == null && attempt < 2)
+            while (!hasLoaded && attempt < 2)
             {
                 int attemptSeed = currentSeed;
                 using (var tokenSource = new CancellationTokenSource())
@@ -1055,9 +1086,10 @@ namespace Decantra.Presentation.Controller
                         continue;
                     }
 
-                    if (task.IsCompletedSuccessfully && task.Result != null)
+                    if (task.IsCompletedSuccessfully && task.Result.State != null)
                     {
                         loaded = task.Result;
+                        hasLoaded = true;
                     }
                     else
                     {
@@ -1067,7 +1099,7 @@ namespace Decantra.Presentation.Controller
                 }
             }
 
-            if (loaded == null)
+            if (!hasLoaded)
             {
                 using (var tokenSource = new CancellationTokenSource())
                 {
@@ -1080,9 +1112,10 @@ namespace Decantra.Presentation.Controller
                         yield return null;
                     }
 
-                    if (task.IsCompletedSuccessfully && task.Result != null)
+                    if (task.IsCompletedSuccessfully && task.Result.State != null)
                     {
                         loaded = task.Result;
+                        hasLoaded = true;
                     }
                     else
                     {
@@ -1094,24 +1127,26 @@ namespace Decantra.Presentation.Controller
                 }
             }
 
-            if (loaded == null)
+            if (!hasLoaded)
             {
                 loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 2);
+                hasLoaded = loaded.State != null;
             }
 
-            if (loaded == null)
+            if (!hasLoaded)
             {
                 int emergencyAttempts = 0;
                 int emergencySeed = NextSeed(nextLevel, currentSeed + 97);
-                while (loaded == null && emergencyAttempts < 2)
+                while (!hasLoaded && emergencyAttempts < 2)
                 {
                     loaded = GenerateLevelWithRetry(nextLevel, emergencySeed, 2);
+                    hasLoaded = loaded.State != null;
                     emergencyAttempts++;
                     emergencySeed = NextSeed(nextLevel, emergencySeed + 97);
                 }
             }
 
-            if (loaded == null)
+            if (!hasLoaded)
             {
 #if UNITY_EDITOR
                 Debug.LogWarning($"TransitionToLevel failed to generate level={nextLevel}");
@@ -1120,7 +1155,8 @@ namespace Decantra.Presentation.Controller
                 yield break;
             }
 
-            ApplyLoadedState(loaded, nextLevel, currentSeed);
+            _currentDifficulty100 = loaded.Difficulty100;
+            ApplyLoadedState(loaded.State, nextLevel, currentSeed);
             _inputLocked = false;
         }
 
@@ -1197,13 +1233,14 @@ namespace Decantra.Presentation.Controller
             var backgroundTimer = System.Diagnostics.Stopwatch.StartNew();
 #endif
 
-            // Update structural background sprites based on zone (deterministic per zone)
+            // Update structural background sprites based on level (deterministic per level)
             SceneBootstrap.UpdateBackgroundSpritesForLevel(levelIndex, seed, backgroundFlow, backgroundShapes, backgroundBubbles, backgroundLargeStructure, backgroundDetail);
 
-            int familyIndex = GetThemeFamilyIndex(levelIndex);
-            var zoneTheme = BackgroundRules.GetZoneTheme(familyIndex, seed);
+            int zoneIndex = BackgroundRules.GetZoneIndex(levelIndex);
             var levelVariant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
-            var zoneLayout = GetZoneLayout(familyIndex, seed);
+            var zoneLayout = GetZoneLayout(zoneIndex, seed);
+            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(levelIndex, seed);
+            int backgroundKey = (int)archetype;
 
             int paletteIndex = backgroundPaletteIndex >= 0
                 ? backgroundPaletteIndex
@@ -1213,7 +1250,7 @@ namespace Decantra.Presentation.Controller
             float colorJitter = Mathf.Repeat(levelVariant.PhaseOffset / (Mathf.PI * 2f), 1f);
             float colorJitter2 = Mathf.Repeat(levelVariant.PhaseOffset * 0.37f, 1f);
 
-            var family = GetBackgroundFamilyProfile(familyIndex, zoneTheme, levelVariant, palette, zoneLayout);
+            var family = GetBackgroundFamilyProfile(archetype, levelVariant, palette, zoneLayout);
             float hue = Mathf.Repeat(family.Hue, 1f);
             float sat = Mathf.Clamp01(family.Saturation + Mathf.Lerp(-0.03f, 0.03f, colorJitter2));
             float val = Mathf.Clamp01(family.Value + Mathf.Lerp(-0.04f, 0.04f, 1f - colorJitter));
@@ -1259,31 +1296,25 @@ namespace Decantra.Presentation.Controller
             Vector2 bubbleOffset = zoneLayout.BubbleOffset;
             float bubbleRotation = zoneLayout.BubbleRotation;
 
-            if (_currentBackgroundFamily != familyIndex)
+            if (_currentBackgroundFamily != backgroundKey)
             {
                 if (_backgroundTransition != null)
                 {
                     StopCoroutine(_backgroundTransition);
                 }
-                _backgroundTransition = StartCoroutine(AnimateBackgroundTransition(baseTint, detailTint, flowTint, shapeTint, macroTint, bubbleTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, macroScale, macroOffset, macroRotation, bubbleScale, bubbleOffset, bubbleRotation, familyIndex, family));
-                _currentBackgroundFamily = familyIndex;
+                _backgroundTransition = StartCoroutine(AnimateBackgroundTransition(baseTint, detailTint, flowTint, shapeTint, macroTint, bubbleTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, macroScale, macroOffset, macroRotation, bubbleScale, bubbleOffset, bubbleRotation, backgroundKey, family));
+                _currentBackgroundFamily = backgroundKey;
             }
             else
             {
-                ApplyBackgroundVisuals(baseTint, detailTint, flowTint, shapeTint, macroTint, bubbleTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, macroScale, macroOffset, macroRotation, bubbleScale, bubbleOffset, bubbleRotation, familyIndex, family);
+                ApplyBackgroundVisuals(baseTint, detailTint, flowTint, shapeTint, macroTint, bubbleTint, vignetteAlpha, detailScale, detailOffset, flowScale, flowOffset, flowRotation, shapeScale, shapeOffset, shapeRotation, macroScale, macroOffset, macroRotation, bubbleScale, bubbleOffset, bubbleRotation, backgroundKey, family);
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             backgroundTimer.Stop();
-            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} base={backgroundImage.color} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
-            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} zone={familyIndex} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
+            Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} archetype={archetype} base={backgroundImage.color} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
+            AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} archetype={archetype} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
 #endif
-        }
-
-        private static int GetThemeFamilyIndex(int levelIndex)
-        {
-            if (levelIndex <= 0) return 0;
-            return BackgroundRules.GetZoneIndex(levelIndex);
         }
 
         private static ZoneLayout GetZoneLayout(int zoneIndex, int seed)
@@ -1346,7 +1377,7 @@ namespace Decantra.Presentation.Controller
             }
         }
 
-        private static BackgroundFamilyProfile GetBackgroundFamilyProfile(int familyIndex, ZoneTheme zoneTheme, LevelVariant levelVariant, BackgroundPalette palette, ZoneLayout zoneLayout)
+        private static BackgroundFamilyProfile GetBackgroundFamilyProfile(GeneratorArchetype archetype, LevelVariant levelVariant, BackgroundPalette palette, ZoneLayout zoneLayout)
         {
             float hue = Mathf.Repeat(palette.Hue + levelVariant.HueShift, 1f);
             float saturation = Mathf.Lerp(levelVariant.SaturationLow, levelVariant.SaturationHigh, 0.5f);
@@ -1359,11 +1390,23 @@ namespace Decantra.Presentation.Controller
             Color top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.9f), topValue);
             Color bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 1.05f), bottomValue);
 
-            float macroWeight = zoneTheme.MacroCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
-            float mesoWeight = zoneTheme.MesoCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
-            float microWeight = zoneTheme.MicroCount / (float)Mathf.Max(1, zoneTheme.LayerCount);
+            GetLayerWeightsForArchetype(archetype, out float macroWeight, out float mesoWeight, out float microWeight);
 
             float accentStrength = Mathf.Lerp(0.65f, 1.25f, levelVariant.AccentStrength);
+
+            if (levelVariant.LevelIndex <= 3)
+            {
+                float calmT = Mathf.Clamp01((levelVariant.LevelIndex - 1f) / 2f);
+                float calmValue = Mathf.Lerp(0.26f, 0.42f, calmT);
+                value = Mathf.Min(value, calmValue);
+                saturation = Mathf.Lerp(saturation, 0.38f, 0.7f);
+                accentStrength *= Mathf.Lerp(0.6f, 0.8f, calmT);
+
+                topValue = Mathf.Clamp01(value + zoneLayout.GradientIntensity * 0.12f);
+                bottomValue = Mathf.Clamp01(value - zoneLayout.GradientIntensity * 0.12f);
+                top = Color.HSVToRGB(Mathf.Repeat(hue + gradientShift, 1f), Mathf.Clamp01(saturation * 0.85f), topValue);
+                bottom = Color.HSVToRGB(Mathf.Repeat(hue - gradientShift, 1f), Mathf.Clamp01(saturation * 0.95f), bottomValue);
+            }
             float detailAlpha = Mathf.Lerp(0.85f, 1.2f, microWeight) * accentStrength;
             float flowAlpha = Mathf.Lerp(0.9f, 1.2f, mesoWeight) * accentStrength;
             float shapeAlpha = Mathf.Lerp(0.85f, 1.2f, macroWeight) * accentStrength;
@@ -1396,6 +1439,37 @@ namespace Decantra.Presentation.Controller
                 GradientBottom = bottom,
                 GradientDirection = zoneLayout.GradientDirection
             };
+        }
+
+        private static void GetLayerWeightsForArchetype(GeneratorArchetype archetype, out float macroWeight, out float mesoWeight, out float microWeight)
+        {
+            switch (archetype)
+            {
+                case GeneratorArchetype.AtmosphericWash:
+                case GeneratorArchetype.DomainWarpedClouds:
+                    macroWeight = 0.45f;
+                    mesoWeight = 0.3f;
+                    microWeight = 0.25f;
+                    break;
+                case GeneratorArchetype.CurlFlowAdvection:
+                case GeneratorArchetype.MarbledFlow:
+                case GeneratorArchetype.ConcentricRipples:
+                    macroWeight = 0.35f;
+                    mesoWeight = 0.4f;
+                    microWeight = 0.25f;
+                    break;
+                case GeneratorArchetype.FractalEscapeDensity:
+                case GeneratorArchetype.OrganicCells:
+                    macroWeight = 0.32f;
+                    mesoWeight = 0.33f;
+                    microWeight = 0.35f;
+                    break;
+                default:
+                    macroWeight = 0.38f;
+                    mesoWeight = 0.34f;
+                    microWeight = 0.28f;
+                    break;
+            }
         }
 
         private void ApplyBackgroundVisuals(Color baseTint, Color detailTint, Color flowTint, Color shapeTint, Color macroTint, Color bubbleTint, float vignetteAlpha, float detailScale, Vector2 detailOffset, float flowScale, Vector2 flowOffset, float flowRotation, float shapeScale, Vector2 shapeOffset, float shapeRotation, float macroScale, Vector2 macroOffset, float macroRotation, float bubbleScale, Vector2 bubbleOffset, float bubbleRotation, int familyIndex, BackgroundFamilyProfile family)
@@ -1553,6 +1627,10 @@ namespace Decantra.Presentation.Controller
 
         private int ResolveBackgroundPaletteIndex(int levelIndex, int seed)
         {
+            if (levelIndex <= 3)
+            {
+                return 0;
+            }
             var variant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
             return variant.PaletteIndex;
         }
@@ -1615,6 +1693,7 @@ namespace Decantra.Presentation.Controller
             }
             _precomputeTask = null;
             _nextState = null;
+            _nextDifficulty100 = 0;
         }
     }
 }

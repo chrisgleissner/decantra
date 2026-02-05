@@ -6,6 +6,8 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System.IO;
+using System.Linq;
 using Decantra.Domain.Background;
 using Decantra.Domain.Rules;
 using NUnit.Framework;
@@ -111,39 +113,60 @@ namespace Decantra.Domain.Tests
         }
 
         [Test]
-        public void Registry_SelectsZone0AsAtmosphericWash()
+        public void Registry_SelectsLevel1AsCurlFlowAdvection()
         {
-            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForZone(0, TestSeed);
-            Assert.AreEqual(GeneratorArchetype.AtmosphericWash, archetype);
+            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(1, unchecked((int)TestSeed));
+            Assert.AreEqual(GeneratorArchetype.CurlFlowAdvection, archetype);
         }
 
         [Test]
-        public void Registry_SelectsZone1AsDomainWarpedClouds()
+        public void Registry_LevelProgressionMatchesAllowedOrder()
         {
-            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForZone(1, TestSeed);
-            Assert.AreEqual(GeneratorArchetype.DomainWarpedClouds, archetype);
-        }
+            var allowed = BackgroundGeneratorRegistry.GetAllowedArchetypes();
+            int remainingCount = allowed.Count - 1;
+            int offset = (int)(unchecked((uint)TestSeed) % (uint)remainingCount);
 
-        [Test]
-        public void Registry_SelectsZone2AsOrganicCells()
-        {
-            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForZone(2, TestSeed);
-            Assert.AreEqual(GeneratorArchetype.OrganicCells, archetype);
-        }
-
-        [Test]
-        public void Registry_AdjacentZonesAreDifferent()
-        {
-            ulong seed = 0x123456789ABCDEF0;
-
-            for (int zone = 1; zone < 10; zone++)
+            for (int i = 0; i < allowed.Count; i++)
             {
-                var prev = BackgroundGeneratorRegistry.SelectArchetypeForZone(zone - 1, seed);
-                var curr = BackgroundGeneratorRegistry.SelectArchetypeForZone(zone, seed);
-
-                Assert.AreNotEqual(prev, curr,
-                    $"Zone {zone} should be different from zone {zone - 1}");
+                int level = i + 1;
+                var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, unchecked((int)TestSeed));
+                GeneratorArchetype expected = level == 1
+                    ? allowed[0]
+                    : allowed[1 + ((level - 2 + offset) % remainingCount)];
+                Assert.AreEqual(expected, archetype, $"Level {level} should use {expected}");
             }
+        }
+
+        [Test]
+        public void Registry_AdjacentLevelsAreDifferentInFirstCycle()
+        {
+            var allowed = BackgroundGeneratorRegistry.GetAllowedArchetypes();
+
+            for (int i = 1; i < allowed.Count; i++)
+            {
+                var prev = BackgroundGeneratorRegistry.SelectArchetypeForLevel(i, unchecked((int)TestSeed));
+                var curr = BackgroundGeneratorRegistry.SelectArchetypeForLevel(i + 1, unchecked((int)TestSeed));
+                Assert.AreNotEqual(prev, curr, $"Level {i + 1} should differ from level {i}");
+            }
+        }
+
+        [Test]
+        public void AllowedArchetypes_MatchBackgroundSampleFilenames()
+        {
+            var allowed = BackgroundGeneratorRegistry.GetAllowedArchetypes()
+                .Select(a => a.ToString())
+                .ToHashSet(System.StringComparer.OrdinalIgnoreCase);
+
+            string samplesPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "doc", "img", "background-samples"));
+            Assert.IsTrue(Directory.Exists(samplesPath), $"Background samples directory missing: {samplesPath}");
+
+            var fileNames = Directory.GetFiles(samplesPath, "*_zone*.png")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Split('_')[0])
+                .ToHashSet(System.StringComparer.OrdinalIgnoreCase);
+
+            CollectionAssert.AreEquivalent(allowed, fileNames);
         }
 
         [Test]

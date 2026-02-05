@@ -20,6 +20,25 @@ namespace Decantra.Domain.Background
     {
         private static readonly Dictionary<GeneratorArchetype, IBackgroundFieldGenerator> Generators;
         private static readonly Dictionary<GeneratorFamily, GeneratorArchetype> LegacyMapping;
+        private static readonly GeneratorArchetype[] AllowedArchetypesOrdered =
+        {
+            GeneratorArchetype.CurlFlowAdvection,
+            GeneratorArchetype.AtmosphericWash,
+            GeneratorArchetype.DomainWarpedClouds,
+            GeneratorArchetype.OrganicCells,
+            GeneratorArchetype.NebulaGlow,
+            GeneratorArchetype.MarbledFlow,
+            GeneratorArchetype.ConcentricRipples,
+            GeneratorArchetype.ImplicitBlobHaze,
+            GeneratorArchetype.BotanicalIFS,
+            GeneratorArchetype.BranchingTree,
+            GeneratorArchetype.RootNetwork,
+            GeneratorArchetype.VineTendrils,
+            GeneratorArchetype.CanopyDapple,
+            GeneratorArchetype.FloralMandala,
+            GeneratorArchetype.CrystallineFrost,
+            GeneratorArchetype.FractalEscapeDensity
+        };
 
         static BackgroundGeneratorRegistry()
         {
@@ -114,7 +133,39 @@ namespace Decantra.Domain.Background
         /// </summary>
         public static IEnumerable<GeneratorArchetype> GetImplementedArchetypes()
         {
-            return Generators.Keys;
+            for (int i = 0; i < AllowedArchetypesOrdered.Length; i++)
+            {
+                var archetype = AllowedArchetypesOrdered[i];
+                if (Generators.ContainsKey(archetype))
+                {
+                    yield return archetype;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the allowed archetypes in deterministic progression order.
+        /// </summary>
+        public static IReadOnlyList<GeneratorArchetype> GetAllowedArchetypes()
+        {
+            return AllowedArchetypesOrdered;
+        }
+
+        /// <summary>
+        /// Selects an archetype for a specific level index.
+        /// Level 1 always starts with CurlFlowAdvection for a calm introduction.
+        /// </summary>
+        public static GeneratorArchetype SelectArchetypeForLevel(int levelIndex, int globalSeed)
+        {
+            if (levelIndex <= 1)
+            {
+                return GeneratorArchetype.CurlFlowAdvection;
+            }
+
+            int remainingCount = AllowedArchetypesOrdered.Length - 1;
+            int offset = (int)((uint)globalSeed % (uint)remainingCount);
+            int index = (levelIndex - 2 + offset) % remainingCount;
+            return AllowedArchetypesOrdered[1 + index];
         }
 
         /// <summary>
@@ -125,57 +176,14 @@ namespace Decantra.Domain.Background
         /// <param name="seed">Deterministic seed for variation within archetype selection.</param>
         public static GeneratorArchetype SelectArchetypeForZone(int zoneIndex, ulong seed)
         {
-            // All available archetypes for zone selection
-            GeneratorArchetype[] allArchetypes =
+            _ = seed;
+            if (zoneIndex <= 0)
             {
-                GeneratorArchetype.AtmosphericWash,
-                GeneratorArchetype.DomainWarpedClouds,
-                GeneratorArchetype.CurlFlowAdvection,
-                GeneratorArchetype.FractalEscapeDensity,
-                GeneratorArchetype.BotanicalIFS,
-                GeneratorArchetype.ImplicitBlobHaze,
-                GeneratorArchetype.MarbledFlow,
-                GeneratorArchetype.ConcentricRipples,
-                GeneratorArchetype.NebulaGlow,
-                GeneratorArchetype.OrganicCells,
-                GeneratorArchetype.CrystallineFrost,
-                GeneratorArchetype.BranchingTree,
-                GeneratorArchetype.VineTendrils,
-                GeneratorArchetype.RootNetwork,
-                GeneratorArchetype.CanopyDapple,
-                GeneratorArchetype.FloralMandala,
-            };
-
-            // Zone 0 (tutorial/early game): Always use AtmosphericWash for gentleness
-            if (zoneIndex == 0)
-            {
-                return GeneratorArchetype.AtmosphericWash;
+                return GeneratorArchetype.CurlFlowAdvection;
             }
 
-            // Zone 1-5: Introduce specific archetypes progressively
-            if (zoneIndex == 1) return GeneratorArchetype.DomainWarpedClouds;
-            if (zoneIndex == 2) return GeneratorArchetype.OrganicCells; // User's favorite!
-            if (zoneIndex == 3) return GeneratorArchetype.BranchingTree;
-            if (zoneIndex == 4) return GeneratorArchetype.FloralMandala;
-            if (zoneIndex == 5) return GeneratorArchetype.NebulaGlow;
-
-            // Zone 6+: Cycle through all archetypes with deterministic variety
-            var rng = new DeterministicRng(seed ^ (ulong)zoneIndex);
-
-            // Ensure adjacent zones are different
-            var previousArchetype = SelectArchetypeForZone(zoneIndex - 1, seed);
-
-            // Pick randomly but exclude previous
-            GeneratorArchetype selected;
-            int attempts = 0;
-            do
-            {
-                int index = rng.NextInt(0, allArchetypes.Length);
-                selected = allArchetypes[index];
-                attempts++;
-            } while (selected == previousArchetype && attempts < 15);
-
-            return selected;
+            int index = zoneIndex % AllowedArchetypesOrdered.Length;
+            return AllowedArchetypesOrdered[index];
         }
 
         /// <summary>

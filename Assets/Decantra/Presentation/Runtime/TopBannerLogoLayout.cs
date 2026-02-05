@@ -145,6 +145,14 @@ namespace Decantra.Presentation
             float targetY = logoTop;
 
             var parentRect = _parent.rect;
+            float maxLogoTop = parentRect.yMax;
+            if (logoTop > maxLogoTop)
+            {
+                float delta = logoTop - maxLogoTop;
+                logoTop -= delta;
+                logoBottom -= delta;
+                targetY = logoTop;
+            }
             var anchorMin = logoRect.anchorMin;
             var anchorLocal = new Vector2(
                 parentRect.xMin + parentRect.width * anchorMin.x,

@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System.Collections.Generic;
 using System.Reflection;
+using Decantra.Domain.Background;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
@@ -29,40 +30,39 @@ namespace Decantra.Presentation
         private static Sprite softCircleSprite;
         private static Sprite topReflectionSprite;
         private static Sprite reflectionStripSprite;
+        private static Sprite placeholderSprite;
 
-        private readonly struct ZonePatternCacheKey : System.IEquatable<ZonePatternCacheKey>
+        private readonly struct LevelPatternCacheKey : System.IEquatable<LevelPatternCacheKey>
         {
             private readonly int _globalSeed;
-            private readonly int _zoneIndex;
+            private readonly int _levelIndex;
 
-            public ZonePatternCacheKey(int globalSeed, int zoneIndex)
+            public LevelPatternCacheKey(int globalSeed, int levelIndex)
             {
                 _globalSeed = globalSeed;
-                _zoneIndex = zoneIndex;
+                _levelIndex = levelIndex;
             }
 
-            public bool Equals(ZonePatternCacheKey other)
+            public bool Equals(LevelPatternCacheKey other)
             {
-                return _globalSeed == other._globalSeed && _zoneIndex == other._zoneIndex;
+                return _globalSeed == other._globalSeed && _levelIndex == other._levelIndex;
             }
 
             public override bool Equals(object obj)
             {
-                return obj is ZonePatternCacheKey other && Equals(other);
+                return obj is LevelPatternCacheKey other && Equals(other);
             }
 
             public override int GetHashCode()
             {
                 unchecked
                 {
-                    return (_globalSeed * 397) ^ _zoneIndex;
+                    return (_globalSeed * 397) ^ _levelIndex;
                 }
             }
         }
 
-        private static readonly Dictionary<ZonePatternCacheKey, BackgroundPatternGenerator.PatternSprites> _zonePatternsByKey = new Dictionary<ZonePatternCacheKey, BackgroundPatternGenerator.PatternSprites>();
-        private static int _lastZoneIndex = -1;
-        private static int _lastZoneSeed = int.MinValue;
+        private static readonly Dictionary<LevelPatternCacheKey, BackgroundPatternGenerator.PatternSprites> _levelPatternsByKey = new Dictionary<LevelPatternCacheKey, BackgroundPatternGenerator.PatternSprites>();
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         [Preserve]
         public static void EnsureScene()
@@ -84,8 +84,11 @@ namespace Decantra.Presentation
             var backgroundLayers = CreateBackground(canvas.transform);
             CreateEventSystem();
 
-            var hudView = CreateHud(canvas.transform);
-            var gridRoot = CreateGridRoot(canvas.transform);
+            var hudView = CreateHud(canvas.transform, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect, out var layoutPadding);
+            var gridRoot = CreateGridRoot(canvas.transform, out var bottleAreaRect);
+
+            var hudSafeLayout = canvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
+            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding, layoutPadding);
 
             var palette = CreatePalette();
 
@@ -238,7 +241,7 @@ namespace Decantra.Presentation
             rect.offsetMax = Vector2.zero;
 
             var baseImage = bg.AddComponent<Image>();
-            baseImage.sprite = CreateSunsetSprite();
+            baseImage.sprite = GetPlaceholderSprite();
             baseImage.color = Color.white;
             baseImage.type = Image.Type.Simple;
             baseImage.raycastTarget = false;
@@ -251,7 +254,7 @@ namespace Decantra.Presentation
             largeRect.offsetMax = Vector2.zero;
 
             var largeImage = largeStructureGo.AddComponent<Image>();
-            largeImage.sprite = CreateLargeStructureSprite();
+            largeImage.sprite = GetPlaceholderSprite();
             largeImage.color = new Color(1f, 1f, 1f, 0.35f);
             largeImage.type = Image.Type.Simple;
             largeImage.raycastTarget = false;
@@ -269,7 +272,7 @@ namespace Decantra.Presentation
             flowRect.offsetMax = Vector2.zero;
 
             var flowImage = flowGo.AddComponent<Image>();
-            flowImage.sprite = CreateFlowSprite();
+            flowImage.sprite = GetPlaceholderSprite();
             flowImage.color = new Color(1f, 1f, 1f, 0.45f);
             flowImage.type = Image.Type.Simple;
             flowImage.raycastTarget = false;
@@ -287,7 +290,7 @@ namespace Decantra.Presentation
             shapesRect.offsetMax = Vector2.zero;
 
             var shapesImage = shapesGo.AddComponent<Image>();
-            shapesImage.sprite = CreateOrganicShapesSprite();
+            shapesImage.sprite = GetPlaceholderSprite();
             shapesImage.color = new Color(1f, 1f, 1f, 0.32f);
             shapesImage.type = Image.Type.Simple;
             shapesImage.raycastTarget = false;
@@ -305,7 +308,7 @@ namespace Decantra.Presentation
             detailRect.offsetMax = Vector2.zero;
 
             var detailImage = detailGo.AddComponent<Image>();
-            detailImage.sprite = CreateSoftNoiseSprite();
+            detailImage.sprite = GetPlaceholderSprite();
             detailImage.color = new Color(1f, 1f, 1f, 0.36f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
@@ -323,7 +326,7 @@ namespace Decantra.Presentation
             bubblesRect.offsetMax = Vector2.zero;
 
             var bubblesImage = bubblesGo.AddComponent<Image>();
-            bubblesImage.sprite = CreateBubblesSprite();
+            bubblesImage.sprite = GetPlaceholderSprite();
             bubblesImage.color = new Color(1f, 1f, 1f, 0.28f);
             bubblesImage.type = Image.Type.Simple;
             bubblesImage.raycastTarget = false;
@@ -378,7 +381,7 @@ namespace Decantra.Presentation
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
         }
 
-        private static HudView CreateHud(Transform parent)
+        private static HudView CreateHud(Transform parent, out RectTransform topHudRect, out RectTransform secondaryHudRect, out RectTransform brandLockupRect, out RectTransform bottomHudRect, out float layoutPadding)
         {
             var hudRoot = CreateUiChild(parent, "HUD");
             var hudRect = hudRoot.GetComponent<RectTransform>();
@@ -399,7 +402,14 @@ namespace Decantra.Presentation
             var hudViewGo = CreateUiChild(hudRoot.transform, "HudView");
             var hudView = hudViewGo.GetComponent<HudView>() ?? hudViewGo.AddComponent<HudView>();
 
-            var topHud = CreateUiChild(safeRoot.transform, "TopHud");
+            var topShiftRoot = CreateUiChild(safeRoot.transform, "TopShiftRoot");
+            var topShiftRect = topShiftRoot.GetComponent<RectTransform>();
+            topShiftRect.anchorMin = Vector2.zero;
+            topShiftRect.anchorMax = Vector2.one;
+            topShiftRect.offsetMin = Vector2.zero;
+            topShiftRect.offsetMax = Vector2.zero;
+
+            var topHud = CreateUiChild(topShiftRoot.transform, "TopHud");
             var topRect = topHud.GetComponent<RectTransform>();
             topRect.anchorMin = new Vector2(0.5f, 1f);
             topRect.anchorMax = new Vector2(0.5f, 1f);
@@ -419,7 +429,7 @@ namespace Decantra.Presentation
 
             _ = AddPanelButton(levelPanel);
 
-            var brandGo = CreateUiChild(safeRoot.transform, "BrandLockup");
+            var brandGo = CreateUiChild(topShiftRoot.transform, "BrandLockup");
             var brandRect = brandGo.GetComponent<RectTransform>();
             brandRect.anchorMin = new Vector2(0.5f, 1f);
             brandRect.anchorMax = new Vector2(0.5f, 1f);
@@ -443,7 +453,7 @@ namespace Decantra.Presentation
                 scorePanel.GetComponent<RectTransform>()
             });
 
-            var secondaryHud = CreateUiChild(safeRoot.transform, "SecondaryHud");
+            var secondaryHud = CreateUiChild(topShiftRoot.transform, "SecondaryHud");
             var secondaryRect = secondaryHud.GetComponent<RectTransform>();
             secondaryRect.anchorMin = new Vector2(0.5f, 1f);
             secondaryRect.anchorMax = new Vector2(0.5f, 1f);
@@ -497,18 +507,41 @@ namespace Decantra.Presentation
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
             SetPrivateField<Text>(hudView, "titleText", null);
 
+            float movesHeight = movesPanel.GetComponent<RectTransform>().rect.height;
+            if (movesHeight <= 0f)
+            {
+                var movesLayout = movesPanel.GetComponent<LayoutElement>();
+                movesHeight = movesLayout != null ? movesLayout.minHeight : 140f;
+            }
+
+            topShiftRect.offsetMin = new Vector2(0f, -movesHeight);
+            topShiftRect.offsetMax = new Vector2(0f, -movesHeight);
+
+            layoutPadding = Mathf.Clamp(movesHeight * 0.18f, 18f, 32f);
+
+            if (brandLayout != null)
+            {
+                brandLayout.ForceLayout();
+            }
+
+            topHudRect = topRect;
+            secondaryHudRect = secondaryRect;
+            brandLockupRect = brandRect;
+            bottomHudRect = bottomRect;
+
             return hudView;
         }
 
-        private static GameObject CreateGridRoot(Transform parent)
+        private static GameObject CreateGridRoot(Transform parent, out RectTransform bottleAreaRect)
         {
             var area = CreateUiChild(parent, "BottleArea");
             var areaRect = area.GetComponent<RectTransform>();
             areaRect.anchorMin = new Vector2(0, 0);
             areaRect.anchorMax = new Vector2(1, 1);
             areaRect.pivot = new Vector2(0.5f, 0.5f);
-            areaRect.offsetMin = new Vector2(0, 90);
-            areaRect.offsetMax = new Vector2(0, -500);
+            areaRect.offsetMin = Vector2.zero;
+            areaRect.offsetMax = Vector2.zero;
+            bottleAreaRect = areaRect;
 
             var gridRoot = CreateUiChild(area.transform, "BottleGrid");
             var gridRect = gridRoot.GetComponent<RectTransform>();
@@ -1998,77 +2031,59 @@ namespace Decantra.Presentation
             }
         }
 
-        /// <summary>
-        /// When true, uses the new organic background generators (Phase 1 implementation).
-        /// When false (default), uses the legacy BackgroundPatternGenerator.
-        /// Set via SceneBootstrap.UseOrganicBackgrounds = true before level load.
-        /// </summary>
-        public static bool UseOrganicBackgrounds { get; set; } = false;
-
-        private static BackgroundPatternGenerator.PatternSprites GetZonePatternSprites(int zoneIndex, int globalSeed)
+        private static BackgroundPatternGenerator.PatternSprites GetLevelPatternSprites(int levelIndex, int globalSeed)
         {
-            var key = new ZonePatternCacheKey(globalSeed, zoneIndex);
-            if (_zonePatternsByKey.TryGetValue(key, out var cached) && cached.Macro != null)
+            var key = new LevelPatternCacheKey(globalSeed, levelIndex);
+            if (_levelPatternsByKey.TryGetValue(key, out var cached) && cached.Macro != null)
             {
                 return cached;
             }
 
-            var zoneTheme = BackgroundRules.GetZoneTheme(zoneIndex, globalSeed);
+            var levelSeed = BackgroundRules.GetLevelSeed(globalSeed, levelIndex);
+            var density = GetDensityForLevel(levelIndex, globalSeed);
 
-            BackgroundPatternGenerator.PatternSprites generated;
-
-            if (UseOrganicBackgrounds)
+            var organicRequest = new OrganicBackgroundGenerator.OrganicPatternRequest
             {
-                // Use the new organic archetype-based generators
-                var organicRequest = new OrganicBackgroundGenerator.OrganicPatternRequest
-                {
-                    ZoneIndex = zoneIndex,
-                    ZoneSeed = BackgroundRules.GetZoneSeed(globalSeed, zoneIndex),
-                    Density = zoneTheme.DensityProfile,
-                    MacroCount = zoneTheme.MacroCount,
-                    MesoCount = zoneTheme.MesoCount,
-                    MicroCount = zoneTheme.MicroCount
-                };
+                LevelIndex = levelIndex,
+                GlobalSeed = globalSeed,
+                LevelSeed = levelSeed,
+                Density = density
+            };
 
-                var organicGenerated = OrganicBackgroundGenerator.Generate(organicRequest);
+            var organicGenerated = OrganicBackgroundGenerator.Generate(organicRequest);
 
-                // Convert to legacy PatternSprites format
-                generated = new BackgroundPatternGenerator.PatternSprites
-                {
-                    Macro = organicGenerated.Macro,
-                    Meso = organicGenerated.Meso,
-                    Accent = organicGenerated.Accent,
-                    Micro = organicGenerated.Micro,
-                    GenerationMilliseconds = organicGenerated.GenerationMilliseconds
-                };
+            // Convert to legacy PatternSprites format
+            var generated = new BackgroundPatternGenerator.PatternSprites
+            {
+                Macro = organicGenerated.Macro,
+                Meso = organicGenerated.Meso,
+                Accent = organicGenerated.Accent,
+                Micro = organicGenerated.Micro,
+                GenerationMilliseconds = organicGenerated.GenerationMilliseconds
+            };
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-                Debug.Log($"Decantra OrganicBackground zone={zoneIndex} archetype={organicGenerated.Archetype} ms={organicGenerated.GenerationMilliseconds:0.0}");
+            Debug.Log($"Decantra OrganicBackground level={levelIndex} archetype={organicGenerated.Archetype} ms={organicGenerated.GenerationMilliseconds:0.0}");
 #endif
-            }
-            else
-            {
-                // Use the legacy pattern generator
-                var request = new BackgroundPatternGenerator.PatternRequest
-                {
-                    PrimaryFamily = zoneTheme.PrimaryGeneratorFamily,
-                    SecondaryFamily = zoneTheme.SecondaryGeneratorFamily,
-                    Density = zoneTheme.DensityProfile,
-                    MacroCount = zoneTheme.MacroCount,
-                    MesoCount = zoneTheme.MesoCount,
-                    MicroCount = zoneTheme.MicroCount,
-                    ZoneSeed = BackgroundRules.GetZoneSeed(globalSeed, zoneIndex)
-                };
 
-                generated = BackgroundPatternGenerator.Generate(request);
-
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-                Debug.Log($"Decantra BackgroundPattern zone={zoneIndex} family={zoneTheme.PrimaryGeneratorFamily} ms={generated.GenerationMilliseconds:0.0}");
-#endif
-            }
-
-            _zonePatternsByKey[key] = generated;
+            _levelPatternsByKey[key] = generated;
             return generated;
+        }
+
+        private static DensityProfile GetDensityForLevel(int levelIndex, int globalSeed)
+        {
+            if (levelIndex <= 3)
+            {
+                return DensityProfile.Sparse;
+            }
+
+            ulong levelSeed = BackgroundRules.GetLevelSeed(globalSeed, levelIndex);
+            var rng = new DeterministicRng(levelSeed ^ 0x7E3D1F5Bu);
+            float roll = rng.NextFloat();
+
+            if (roll < 0.2f) return DensityProfile.Sparse;
+            if (roll < 0.75f) return DensityProfile.Medium;
+            return DensityProfile.Dense;
         }
 
         /// <summary>
@@ -2079,8 +2094,34 @@ namespace Decantra.Presentation
         /// </summary>
         public static void UpdateBackgroundSpritesForLevel(int levelIndex, int globalSeed, Image flowImage, Image shapesImage, Image bubblesImage, Image largeStructureImage, Image detailImage)
         {
-            // No-op: Preserve 0.0.2 behavior where background sprites are set once during CreateBackground()
-            // and not dynamically replaced with procedural patterns.
+            if (levelIndex <= 0) return;
+
+            var patterns = GetLevelPatternSprites(levelIndex, globalSeed);
+
+            if (largeStructureImage != null)
+            {
+                largeStructureImage.sprite = patterns.Macro;
+            }
+
+            if (flowImage != null)
+            {
+                flowImage.sprite = patterns.Meso;
+            }
+
+            if (shapesImage != null)
+            {
+                shapesImage.sprite = patterns.Accent;
+            }
+
+            if (detailImage != null)
+            {
+                detailImage.sprite = patterns.Micro;
+            }
+
+            if (bubblesImage != null)
+            {
+                bubblesImage.sprite = patterns.Micro;
+            }
         }
 
         private static Sprite CreateOrganicShapesSprite()
@@ -2832,6 +2873,16 @@ namespace Decantra.Presentation
             if (roundedSprite != null) return roundedSprite;
             roundedSprite = CreateRoundedRectSprite(64, 12);
             return roundedSprite;
+        }
+
+        private static Sprite GetPlaceholderSprite()
+        {
+            if (placeholderSprite != null) return placeholderSprite;
+            var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            texture.SetPixel(0, 0, Color.white);
+            texture.Apply();
+            placeholderSprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+            return placeholderSprite;
         }
 
         private static Sprite CreateLiquidFillSprite()
