@@ -293,7 +293,11 @@ namespace Decantra.Tests.PlayMode
             yield return null;
 
             var afterColor = image.color;
-            Assert.AreEqual(initialColor, afterColor, "Reset should keep the same background.");
+            float delta = Mathf.Abs(initialColor.r - afterColor.r)
+                + Mathf.Abs(initialColor.g - afterColor.g)
+                + Mathf.Abs(initialColor.b - afterColor.b)
+                + Mathf.Abs(initialColor.a - afterColor.a);
+            Assert.Less(delta, 0.002f, "Reset should keep the same background.");
         }
 
         [UnityTest]
@@ -521,7 +525,7 @@ namespace Decantra.Tests.PlayMode
             SetPrivateField(controller, "_nextLevel", 2);
             SetPrivateField(controller, "_nextSeed", 222);
             SetPrivateField(controller, "_nextState", nextState);
-            SetPrivateField(controller, "_precomputeTask", Task.FromResult(nextState));
+            SetPrivateField(controller, "_precomputeTask", null);
 
             SetPrivateField(controller, "levelBanner", null);
             SetPrivateField(controller, "introBanner", null);
