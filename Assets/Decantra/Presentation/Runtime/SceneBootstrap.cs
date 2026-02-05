@@ -31,6 +31,15 @@ namespace Decantra.Presentation
         private static Sprite topReflectionSprite;
         private static Sprite reflectionStripSprite;
         private static Sprite placeholderSprite;
+        private static Material backgroundCloudMaterial;
+        private static Material backgroundStarsMaterial;
+
+        private struct RenderCameras
+        {
+            public Camera Background;
+            public Camera Game;
+            public Camera UI;
+        }
 
         private readonly struct LevelPatternCacheKey : System.IEquatable<LevelPatternCacheKey>
         {
@@ -76,9 +85,11 @@ namespace Decantra.Presentation
         [Preserve]
         public static void EnsureScene()
         {
+            var cameras = EnsureRenderCameras();
             var existingController = Object.FindFirstObjectByType<GameController>();
             if (existingController != null && HasRequiredWiring(existingController))
             {
+                EnsureBackgroundRendering(existingController, cameras);
                 EnsureRestartDialog(existingController);
                 WireResetButton(existingController);
                 WireShareButton(existingController);
@@ -89,14 +100,17 @@ namespace Decantra.Presentation
 
             Debug.Log("SceneBootstrap: building runtime UI");
 
-            var canvas = CreateCanvas();
-            var backgroundLayers = CreateBackground(canvas.transform);
+            var backgroundCanvas = CreateCanvas("Canvas_Background", cameras.Background, GetLayerIndex("BackgroundClouds"), false);
+            var gameCanvas = CreateCanvas("Canvas_Game", cameras.Game, GetLayerIndex("Game"), false);
+            var uiCanvas = CreateCanvas("Canvas_UI", cameras.UI, GetLayerIndex("UI"), true);
+
+            var backgroundLayers = CreateBackground(backgroundCanvas.transform);
             CreateEventSystem();
 
-            var hudView = CreateHud(canvas.transform, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect, out var layoutPadding);
-            var gridRoot = CreateGridRoot(canvas.transform, out var bottleAreaRect);
+            var hudView = CreateHud(uiCanvas.transform, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect, out var layoutPadding);
+            var gridRoot = CreateGridRoot(gameCanvas.transform, out var bottleAreaRect);
 
-            var hudSafeLayout = canvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
+            var hudSafeLayout = uiCanvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
             hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding, layoutPadding);
 
             var palette = CreatePalette();
@@ -128,26 +142,27 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "backgroundVignette", backgroundLayers.Vignette);
             SetPrivateField(controller, "backgroundBubbles", backgroundLayers.Bubbles);
             SetPrivateField(controller, "backgroundLargeStructure", backgroundLayers.LargeStructure);
+            SetPrivateField(controller, "backgroundStars", backgroundLayers.StarsRoot);
 
-            var banner = CreateLevelBanner(canvas.transform);
+            var banner = CreateLevelBanner(uiCanvas.transform);
             SetPrivateField(controller, "levelBanner", banner);
 
-            var levelJumpOverlay = CreateLevelJumpOverlay(canvas.transform);
+            var levelJumpOverlay = CreateLevelJumpOverlay(uiCanvas.transform);
             SetPrivateField(controller, "levelJumpOverlay", levelJumpOverlay.Root);
             SetPrivateField(controller, "levelJumpInput", levelJumpOverlay.Input);
             SetPrivateField(controller, "levelJumpGoButton", levelJumpOverlay.GoButton);
             SetPrivateField(controller, "levelJumpDismissButton", levelJumpOverlay.DismissButton);
 
-            var intro = CreateIntroBanner(canvas.transform);
+            var intro = CreateIntroBanner(uiCanvas.transform);
             SetPrivateField(controller, "introBanner", intro);
 
-            var outOfMoves = CreateOutOfMovesBanner(canvas.transform);
+            var outOfMoves = CreateOutOfMovesBanner(uiCanvas.transform);
             SetPrivateField(controller, "outOfMovesBanner", outOfMoves);
 
-            var settings = CreateSettingsPanel(canvas.transform, controller);
+            var settings = CreateSettingsPanel(uiCanvas.transform, controller);
             WireResetButton(controller);
 
-            var restartDialog = CreateRestartDialog(canvas.transform);
+            var restartDialog = CreateRestartDialog(uiCanvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
             WireShareButton(controller);
             WireLevelJumpOverlay(controller);
@@ -208,25 +223,271 @@ namespace Decantra.Presentation
             var bottleViews = GetPrivateField<List<BottleView>>(controller, "bottleViews");
             var hud = GetPrivateField<HudView>(controller, "hudView");
             var background = GetPrivateField<Image>(controller, "backgroundImage");
+            var stars = GetPrivateField<GameObject>(controller, "backgroundStars");
             var banner = GetPrivateField<LevelCompleteBanner>(controller, "levelBanner");
             var outOfMoves = GetPrivateField<OutOfMovesBanner>(controller, "outOfMovesBanner");
             var levelPanelButton = GetPrivateField<Button>(controller, "levelPanelButton");
             var shareButton = GetPrivateField<Button>(controller, "shareButton");
             var shareRoot = GetPrivateField<GameObject>(controller, "shareButtonRoot");
-            return bottleViews != null && bottleViews.Count > 0 && hud != null && background != null && banner != null && outOfMoves != null && levelPanelButton != null && shareButton != null && shareRoot != null;
+            return bottleViews != null && bottleViews.Count > 0 && hud != null && background != null && stars != null && banner != null && outOfMoves != null && levelPanelButton != null && shareButton != null && shareRoot != null;
         }
 
-        private static Canvas CreateCanvas()
+        private static Canvas CreateCanvas(string name, Camera camera, int layer, bool pixelPerfect)
         {
-            var canvasGo = new GameObject("Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            var canvasGo = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = camera;
+            canvas.planeDistance = 10f;
+            canvas.pixelPerfect = pixelPerfect;
 
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
 
+            SetLayerRecursively(canvasGo, layer);
             return canvas;
+        }
+
+        private static int GetLayerIndex(string name)
+        {
+            int layer = LayerMask.NameToLayer(name);
+            if (layer < 0)
+            {
+                Debug.LogError($"SceneBootstrap: Missing layer '{name}'. Check ProjectSettings/TagManager.asset.");
+                return 0;
+            }
+            return layer;
+        }
+
+        private static RenderCameras EnsureRenderCameras()
+        {
+            int starsLayer = GetLayerIndex("BackgroundStars");
+            int cloudsLayer = GetLayerIndex("BackgroundClouds");
+            int gameLayer = GetLayerIndex("Game");
+            int uiLayer = GetLayerIndex("UI");
+
+            int backgroundMask = (1 << starsLayer) | (1 << cloudsLayer);
+            int gameMask = 1 << gameLayer;
+            int uiMask = 1 << uiLayer;
+
+            var background = EnsureCamera("Camera_Background", CameraClearFlags.SolidColor, 0f, backgroundMask, Color.black);
+            var game = EnsureCamera("Camera_Game", CameraClearFlags.Depth, 1f, gameMask, Color.black);
+            var ui = EnsureCamera("Camera_UI", CameraClearFlags.Depth, 2f, uiMask, Color.black);
+
+            return new RenderCameras
+            {
+                Background = background,
+                Game = game,
+                UI = ui
+            };
+        }
+
+        private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
+        {
+            var go = GameObject.Find(name);
+            if (go == null)
+            {
+                go = new GameObject(name);
+            }
+
+            var camera = go.GetComponent<Camera>();
+            if (camera == null)
+            {
+                camera = go.AddComponent<Camera>();
+            }
+
+            camera.clearFlags = clearFlags;
+            camera.depth = depth;
+            camera.cullingMask = cullingMask;
+            camera.orthographic = true;
+            camera.backgroundColor = background;
+            camera.transform.position = new Vector3(0f, 0f, -10f);
+            camera.transform.rotation = Quaternion.identity;
+
+            return camera;
+        }
+
+        private static void EnsureBackgroundRendering(GameController controller, RenderCameras cameras)
+        {
+            if (controller == null) return;
+
+            var baseImage = GetPrivateField<Image>(controller, "backgroundImage");
+            var detailImage = GetPrivateField<Image>(controller, "backgroundDetail");
+            var flowImage = GetPrivateField<Image>(controller, "backgroundFlow");
+            var shapesImage = GetPrivateField<Image>(controller, "backgroundShapes");
+            var bubblesImage = GetPrivateField<Image>(controller, "backgroundBubbles");
+            var largeImage = GetPrivateField<Image>(controller, "backgroundLargeStructure");
+            var vignetteImage = GetPrivateField<Image>(controller, "backgroundVignette");
+            var starsRoot = GetPrivateField<GameObject>(controller, "backgroundStars");
+
+            int cloudsLayer = GetLayerIndex("BackgroundClouds");
+            int starsLayer = GetLayerIndex("BackgroundStars");
+
+            var cloudsMaterial = GetBackgroundCloudMaterial();
+
+            var backgroundCanvas = baseImage != null ? baseImage.GetComponentInParent<Canvas>() : null;
+            if (backgroundCanvas == null)
+            {
+                var backgroundCanvasGo = GameObject.Find("Canvas_Background");
+                backgroundCanvas = backgroundCanvasGo != null ? backgroundCanvasGo.GetComponent<Canvas>() : null;
+            }
+
+            if (backgroundCanvas != null && HasMissingBackgroundLayers(baseImage, detailImage, flowImage, shapesImage, bubblesImage, largeImage, vignetteImage))
+            {
+                var rebuilt = RebuildBackgroundLayers(backgroundCanvas.transform);
+                baseImage = rebuilt.Base;
+                detailImage = rebuilt.Detail;
+                flowImage = rebuilt.Flow;
+                shapesImage = rebuilt.Shapes;
+                bubblesImage = rebuilt.Bubbles;
+                largeImage = rebuilt.LargeStructure;
+                vignetteImage = rebuilt.Vignette;
+                starsRoot = rebuilt.StarsRoot;
+
+                SetPrivateField(controller, "backgroundImage", baseImage);
+                SetPrivateField(controller, "backgroundDetail", detailImage);
+                SetPrivateField(controller, "backgroundFlow", flowImage);
+                SetPrivateField(controller, "backgroundShapes", shapesImage);
+                SetPrivateField(controller, "backgroundBubbles", bubblesImage);
+                SetPrivateField(controller, "backgroundLargeStructure", largeImage);
+                SetPrivateField(controller, "backgroundVignette", vignetteImage);
+                SetPrivateField(controller, "backgroundStars", starsRoot);
+            }
+
+            if (baseImage != null) baseImage.material = cloudsMaterial;
+            if (detailImage != null) detailImage.material = cloudsMaterial;
+            if (flowImage != null) flowImage.material = cloudsMaterial;
+            if (shapesImage != null) shapesImage.material = cloudsMaterial;
+            if (bubblesImage != null) bubblesImage.material = cloudsMaterial;
+            if (largeImage != null) largeImage.material = cloudsMaterial;
+            if (vignetteImage != null) vignetteImage.material = cloudsMaterial;
+
+            if (backgroundCanvas != null)
+            {
+                backgroundCanvas.renderMode = RenderMode.ScreenSpaceCamera;
+                backgroundCanvas.worldCamera = cameras.Background;
+                backgroundCanvas.planeDistance = 10f;
+                backgroundCanvas.pixelPerfect = false;
+                SetLayerRecursively(backgroundCanvas.gameObject, cloudsLayer);
+            }
+
+            if (starsRoot == null && backgroundCanvas != null)
+            {
+                starsRoot = CreateStarfield(backgroundCanvas.transform, starsLayer, GetBackgroundStarsMaterial());
+                SetPrivateField(controller, "backgroundStars", starsRoot);
+            }
+
+            if (starsRoot != null)
+            {
+                SetLayerRecursively(starsRoot, starsLayer);
+                var starsImage = starsRoot.GetComponentInChildren<RawImage>(true);
+                if (starsImage != null)
+                {
+                    starsImage.material = GetBackgroundStarsMaterial();
+                }
+            }
+        }
+
+        private static bool HasMissingBackgroundLayers(Image baseImage, Image detailImage, Image flowImage, Image shapesImage, Image bubblesImage, Image largeImage, Image vignetteImage)
+        {
+            return baseImage == null || detailImage == null || flowImage == null || shapesImage == null || bubblesImage == null || largeImage == null || vignetteImage == null;
+        }
+
+        private static BackgroundLayers RebuildBackgroundLayers(Transform parent)
+        {
+            if (parent == null)
+            {
+                return default;
+            }
+
+            DestroyBackgroundChild(parent, "BackgroundStars");
+            DestroyBackgroundChild(parent, "Background");
+            DestroyBackgroundChild(parent, "BackgroundLargeStructure");
+            DestroyBackgroundChild(parent, "BackgroundFlow");
+            DestroyBackgroundChild(parent, "BackgroundShapes");
+            DestroyBackgroundChild(parent, "BackgroundBubbles");
+            DestroyBackgroundChild(parent, "BackgroundDetail");
+            DestroyBackgroundChild(parent, "BackgroundVignette");
+
+            return CreateBackground(parent);
+        }
+
+        private static void DestroyBackgroundChild(Transform parent, string name)
+        {
+            var child = parent.Find(name);
+            if (child == null) return;
+            Object.Destroy(child.gameObject);
+        }
+
+        private static GameObject CreateStarfield(Transform parent, int starsLayer, Material starsMaterial)
+        {
+            var starsGo = CreateUiChild(parent, "BackgroundStars");
+            var starsRect = starsGo.GetComponent<RectTransform>();
+            starsRect.anchorMin = Vector2.zero;
+            starsRect.anchorMax = Vector2.one;
+            starsRect.offsetMin = Vector2.zero;
+            starsRect.offsetMax = Vector2.zero;
+            var starsImage = starsGo.AddComponent<RawImage>();
+            starsImage.material = starsMaterial;
+            starsImage.color = Color.white;
+            starsImage.raycastTarget = false;
+            // Provide a texture for the RawImage - the shader generates stars procedurally
+            // but RawImage requires a texture to render at all
+            var starsTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            starsTex.SetPixel(0, 0, Color.white);
+            starsTex.Apply();
+            starsImage.texture = starsTex;
+            SetLayerRecursively(starsGo, starsLayer);
+            return starsGo;
+        }
+
+        private static Material GetBackgroundCloudMaterial()
+        {
+            if (backgroundCloudMaterial != null) return backgroundCloudMaterial;
+            var shader = Shader.Find("Decantra/BackgroundClouds");
+            if (shader == null)
+            {
+                Debug.LogError("SceneBootstrap: Missing Decantra/BackgroundClouds shader.");
+                return null;
+            }
+
+            backgroundCloudMaterial = new Material(shader)
+            {
+                renderQueue = 1999
+            };
+            return backgroundCloudMaterial;
+        }
+
+        private static Material GetBackgroundStarsMaterial()
+        {
+            if (backgroundStarsMaterial != null) return backgroundStarsMaterial;
+            var shader = Shader.Find("Decantra/BackgroundStars");
+            if (shader == null)
+            {
+                Debug.LogError("SceneBootstrap: Missing Decantra/BackgroundStars shader.");
+                return null;
+            }
+
+            backgroundStarsMaterial = new Material(shader)
+            {
+                renderQueue = 1000
+            };
+            return backgroundStarsMaterial;
+        }
+
+        private static void SetLayerRecursively(GameObject root, int layer)
+        {
+            if (root == null) return;
+            root.layer = layer;
+            for (int i = 0; i < root.transform.childCount; i++)
+            {
+                var child = root.transform.GetChild(i);
+                if (child != null)
+                {
+                    SetLayerRecursively(child.gameObject, layer);
+                }
+            }
         }
 
         private struct BackgroundLayers
@@ -238,10 +499,18 @@ namespace Decantra.Presentation
             public Image Vignette;
             public Image Bubbles;
             public Image LargeStructure;
+            public GameObject StarsRoot;
         }
 
         private static BackgroundLayers CreateBackground(Transform parent)
         {
+            int cloudsLayer = GetLayerIndex("BackgroundClouds");
+            int starsLayer = GetLayerIndex("BackgroundStars");
+            var cloudsMaterial = GetBackgroundCloudMaterial();
+            var starsMaterial = GetBackgroundStarsMaterial();
+
+            var starsGo = CreateStarfield(parent, starsLayer, starsMaterial);
+
             var bg = CreateUiChild(parent, "Background");
             var rect = bg.GetComponent<RectTransform>();
             rect.anchorMin = Vector2.zero;
@@ -254,8 +523,11 @@ namespace Decantra.Presentation
             baseImage.color = Color.white;
             baseImage.type = Image.Type.Simple;
             baseImage.raycastTarget = false;
+            baseImage.material = cloudsMaterial;
+            SetLayerRecursively(bg, cloudsLayer);
 
             var largeStructureGo = CreateUiChild(parent, "BackgroundLargeStructure");
+            SetLayerRecursively(largeStructureGo, cloudsLayer);
             var largeRect = largeStructureGo.GetComponent<RectTransform>();
             largeRect.anchorMin = Vector2.zero;
             largeRect.anchorMax = Vector2.one;
@@ -267,6 +539,7 @@ namespace Decantra.Presentation
             largeImage.color = new Color(1f, 1f, 1f, 0.35f);
             largeImage.type = Image.Type.Simple;
             largeImage.raycastTarget = false;
+            largeImage.material = cloudsMaterial;
             var largeDrift = largeStructureGo.AddComponent<BackgroundDrift>();
             SetPrivateField(largeDrift, "driftAmplitude", new Vector2(45f, 60f));
             SetPrivateField(largeDrift, "driftSpeed", new Vector2(0.012f, 0.009f));
@@ -274,6 +547,7 @@ namespace Decantra.Presentation
             SetPrivateField(largeDrift, "rotationSpeed", 0.015f);
 
             var flowGo = CreateUiChild(parent, "BackgroundFlow");
+            SetLayerRecursively(flowGo, cloudsLayer);
             var flowRect = flowGo.GetComponent<RectTransform>();
             flowRect.anchorMin = Vector2.zero;
             flowRect.anchorMax = Vector2.one;
@@ -285,6 +559,7 @@ namespace Decantra.Presentation
             flowImage.color = new Color(1f, 1f, 1f, 0.45f);
             flowImage.type = Image.Type.Simple;
             flowImage.raycastTarget = false;
+            flowImage.material = cloudsMaterial;
             var flowDrift = flowGo.AddComponent<BackgroundDrift>();
             SetPrivateField(flowDrift, "driftAmplitude", new Vector2(22f, 34f));
             SetPrivateField(flowDrift, "driftSpeed", new Vector2(0.02f, 0.017f));
@@ -292,6 +567,7 @@ namespace Decantra.Presentation
             SetPrivateField(flowDrift, "rotationSpeed", 0.025f);
 
             var shapesGo = CreateUiChild(parent, "BackgroundShapes");
+            SetLayerRecursively(shapesGo, cloudsLayer);
             var shapesRect = shapesGo.GetComponent<RectTransform>();
             shapesRect.anchorMin = Vector2.zero;
             shapesRect.anchorMax = Vector2.one;
@@ -303,6 +579,7 @@ namespace Decantra.Presentation
             shapesImage.color = new Color(1f, 1f, 1f, 0.32f);
             shapesImage.type = Image.Type.Simple;
             shapesImage.raycastTarget = false;
+            shapesImage.material = cloudsMaterial;
             var shapesDrift = shapesGo.AddComponent<BackgroundDrift>();
             SetPrivateField(shapesDrift, "driftAmplitude", new Vector2(12f, 18f));
             SetPrivateField(shapesDrift, "driftSpeed", new Vector2(0.028f, 0.022f));
@@ -310,6 +587,7 @@ namespace Decantra.Presentation
             SetPrivateField(shapesDrift, "rotationSpeed", 0.02f);
 
             var detailGo = CreateUiChild(parent, "BackgroundDetail");
+            SetLayerRecursively(detailGo, cloudsLayer);
             var detailRect = detailGo.GetComponent<RectTransform>();
             detailRect.anchorMin = Vector2.zero;
             detailRect.anchorMax = Vector2.one;
@@ -321,6 +599,7 @@ namespace Decantra.Presentation
             detailImage.color = new Color(1f, 1f, 1f, 0.36f);
             detailImage.type = Image.Type.Tiled;
             detailImage.raycastTarget = false;
+            detailImage.material = cloudsMaterial;
             var detailDrift = detailGo.AddComponent<BackgroundDrift>();
             SetPrivateField(detailDrift, "driftAmplitude", new Vector2(6f, 8f));
             SetPrivateField(detailDrift, "driftSpeed", new Vector2(0.06f, 0.05f));
@@ -328,6 +607,7 @@ namespace Decantra.Presentation
             SetPrivateField(detailDrift, "rotationSpeed", 0.05f);
 
             var bubblesGo = CreateUiChild(parent, "BackgroundBubbles");
+            SetLayerRecursively(bubblesGo, cloudsLayer);
             var bubblesRect = bubblesGo.GetComponent<RectTransform>();
             bubblesRect.anchorMin = Vector2.zero;
             bubblesRect.anchorMax = Vector2.one;
@@ -339,6 +619,7 @@ namespace Decantra.Presentation
             bubblesImage.color = new Color(1f, 1f, 1f, 0.28f);
             bubblesImage.type = Image.Type.Simple;
             bubblesImage.raycastTarget = false;
+            bubblesImage.material = cloudsMaterial;
             var bubblesDrift = bubblesGo.AddComponent<BackgroundDrift>();
             SetPrivateField(bubblesDrift, "driftAmplitude", new Vector2(8f, 12f));
             SetPrivateField(bubblesDrift, "driftSpeed", new Vector2(0.018f, 0.025f));
@@ -347,6 +628,7 @@ namespace Decantra.Presentation
 
             // Vignette effect completely disabled - creates dated egg-shaped spotlight appearance
             var vignetteGo = CreateUiChild(parent, "BackgroundVignette");
+            SetLayerRecursively(vignetteGo, cloudsLayer);
             var vignetteRect = vignetteGo.GetComponent<RectTransform>();
             vignetteRect.anchorMin = Vector2.zero;
             vignetteRect.anchorMax = Vector2.one;
@@ -358,15 +640,17 @@ namespace Decantra.Presentation
             vignetteImage.color = new Color(0f, 0f, 0f, 0f); // Alpha = 0 to completely disable vignette
             vignetteImage.type = Image.Type.Simple;
             vignetteImage.raycastTarget = false;
+            vignetteImage.material = cloudsMaterial;
             vignetteGo.SetActive(false); // Disable vignette GameObject entirely
 
-            bg.transform.SetAsFirstSibling();
-            largeStructureGo.transform.SetSiblingIndex(1);
-            flowGo.transform.SetSiblingIndex(2);
-            shapesGo.transform.SetSiblingIndex(3);
-            bubblesGo.transform.SetSiblingIndex(4);
-            detailGo.transform.SetSiblingIndex(5);
-            vignetteGo.transform.SetSiblingIndex(6);
+            starsGo.transform.SetSiblingIndex(0);
+            bg.transform.SetSiblingIndex(1);
+            largeStructureGo.transform.SetSiblingIndex(2);
+            flowGo.transform.SetSiblingIndex(3);
+            shapesGo.transform.SetSiblingIndex(4);
+            bubblesGo.transform.SetSiblingIndex(5);
+            detailGo.transform.SetSiblingIndex(6);
+            vignetteGo.transform.SetSiblingIndex(7);
 
             return new BackgroundLayers
             {
@@ -376,7 +660,8 @@ namespace Decantra.Presentation
                 Shapes = shapesImage,
                 Vignette = vignetteImage,
                 Bubbles = bubblesImage,
-                LargeStructure = largeImage
+                LargeStructure = largeImage,
+                StarsRoot = starsGo
             };
         }
 
@@ -1559,6 +1844,10 @@ namespace Decantra.Presentation
             var rect = go.GetComponent<RectTransform>();
             rect.SetParent(parent, false);
             rect.localScale = Vector3.one;
+            if (parent != null)
+            {
+                go.layer = parent.gameObject.layer;
+            }
             return go;
         }
 

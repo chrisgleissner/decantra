@@ -45,6 +45,7 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private Image backgroundVignette;
         [SerializeField] private Image backgroundBubbles;
         [SerializeField] private Image backgroundLargeStructure;
+        [SerializeField] private GameObject backgroundStars;
         [SerializeField] private Button levelPanelButton;
         [SerializeField] private Button shareButton;
         [SerializeField] private GameObject shareButtonRoot;
@@ -1227,6 +1228,8 @@ namespace Decantra.Presentation.Controller
 
         private void ApplyBackgroundVariation(int levelIndex, int seed, int backgroundPaletteIndex)
         {
+            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(levelIndex, seed);
+            UpdateStarfieldState(levelIndex, archetype);
             if (backgroundImage == null) return;
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -1239,7 +1242,6 @@ namespace Decantra.Presentation.Controller
             int zoneIndex = BackgroundRules.GetZoneIndex(levelIndex);
             var levelVariant = BackgroundRules.GetLevelVariant(levelIndex, seed, BackgroundPalettes.Length);
             var zoneLayout = GetZoneLayout(zoneIndex, seed);
-            var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(levelIndex, seed);
             int backgroundKey = (int)archetype;
 
             int paletteIndex = backgroundPaletteIndex >= 0
@@ -1275,55 +1277,91 @@ namespace Decantra.Presentation.Controller
 
             if (levelIndex <= 24)
             {
-                baseTint = new Color(0f, 0f, 0f, 1f);
-                var deepBlue = new Color(0.04f, 0.08f, 0.16f, 1f);
-                detailTint = deepBlue;
-                flowTint = deepBlue;
-                shapeTint = deepBlue;
-                macroTint = deepBlue;
-                bubbleTint = deepBlue;
+                // STARFIELD VISIBILITY FIX:
+                // Stars are behind all UI layers. For stars to be visible:
+                // - Gradient must be highly translucent (alpha 0.25-0.40)
+                // - Overlay layers should create texture but remain dark
+                // - baseTint must be white (neutral) to not brighten gradient colors
+                //
+                // Layer stack (front to back):
+                //   Detail → Flow → Shapes → Bubbles → Large → Gradient → Stars
+
+                // Theme colors - VERY distinct per 10-level bucket for Gate D separation
+                // Using higher saturation differences and more visible overlay alphas
+                Color deepTop, deepBottom;
 
                 if (levelIndex <= 9)
                 {
-                    detailTint.a = 0.2f;
-                    flowTint.a = 0.24f;
-                    shapeTint.a = 0.2f;
-                    macroTint.a = 0.12f;
-                    bubbleTint.a = 0.16f;
+                    // Theme 0 (levels 1-9): Deep blue/indigo - "Midnight Ocean"
+                    deepTop = new Color(0.02f, 0.04f, 0.18f, 0.35f);
+                    deepBottom = new Color(0.01f, 0.02f, 0.12f, 0.42f);
+
+                    // Blue-tinted cloud overlays with higher alpha for texture visibility
+                    detailTint = new Color(0.04f, 0.08f, 0.25f, 0.35f);
+                    flowTint = new Color(0.03f, 0.06f, 0.22f, 0.30f);
+                    shapeTint = new Color(0.04f, 0.08f, 0.24f, 0.25f);
+                    macroTint = new Color(0.03f, 0.05f, 0.18f, 0.22f);
+                    bubbleTint = new Color(0.03f, 0.06f, 0.20f, 0.18f);
+                }
+                else if (levelIndex <= 19)
+                {
+                    // Theme 1 (levels 10-19): Deep magenta/violet - "Cosmic Nebula"
+                    deepTop = new Color(0.16f, 0.02f, 0.18f, 0.35f);
+                    deepBottom = new Color(0.10f, 0.01f, 0.12f, 0.42f);
+
+                    // Magenta-tinted cloud overlays
+                    detailTint = new Color(0.20f, 0.04f, 0.25f, 0.35f);
+                    flowTint = new Color(0.16f, 0.03f, 0.22f, 0.30f);
+                    shapeTint = new Color(0.18f, 0.04f, 0.24f, 0.25f);
+                    macroTint = new Color(0.12f, 0.03f, 0.18f, 0.22f);
+                    bubbleTint = new Color(0.14f, 0.03f, 0.20f, 0.18f);
                 }
                 else
                 {
-                    detailTint.a = 0.1f;
-                    flowTint.a = 0.1f;
-                    shapeTint.a = 0.08f;
-                    macroTint.a = 0f;
-                    bubbleTint.a = 0.08f;
+                    // Theme 2 (levels 20-24): Deep teal/emerald - "Deep Space"
+                    deepTop = new Color(0.02f, 0.16f, 0.14f, 0.35f);
+                    deepBottom = new Color(0.01f, 0.10f, 0.08f, 0.42f);
+
+                    // Teal-tinted cloud overlays
+                    detailTint = new Color(0.04f, 0.20f, 0.18f, 0.35f);
+                    flowTint = new Color(0.03f, 0.16f, 0.14f, 0.30f);
+                    shapeTint = new Color(0.04f, 0.18f, 0.16f, 0.25f);
+                    macroTint = new Color(0.03f, 0.12f, 0.10f, 0.22f);
+                    bubbleTint = new Color(0.03f, 0.14f, 0.12f, 0.18f);
                 }
 
-                family.GradientTop = Color.black;
-                family.GradientBottom = Color.black;
+                // baseTint is multiplied with gradient - use white (1,1,1) to not alter gradient colors
+                // Alpha of 1.0 is required for proper blending
+                baseTint = Color.white;
+
+                family.GradientTop = deepTop;
+                family.GradientBottom = deepBottom;
+                family.GradientDirection = zoneLayout.GradientDirection;
             }
 
             // Vignette effect completely disabled
             float vignetteAlpha = 0f;
 
-            float detailScale = zoneLayout.DetailScale * family.DetailScale;
+            // Fix: Scale overlays by 1.25x to ensure they cover screen corners even when rotated
+            const float SafeScaleMultiplier = 1.25f;
+
+            float detailScale = zoneLayout.DetailScale * family.DetailScale * SafeScaleMultiplier;
             Vector2 detailOffset = zoneLayout.DetailOffset;
 
-            float flowScale = zoneLayout.FlowScale * family.FlowScale;
+            float flowScale = zoneLayout.FlowScale * family.FlowScale * SafeScaleMultiplier;
             Vector2 flowOffset = zoneLayout.FlowOffset;
 
-            float shapeScale = zoneLayout.ShapeScale * family.ShapeScale;
+            float shapeScale = zoneLayout.ShapeScale * family.ShapeScale * SafeScaleMultiplier;
             Vector2 shapeOffset = zoneLayout.ShapeOffset;
 
             float flowRotation = zoneLayout.FlowRotation;
             float shapeRotation = zoneLayout.ShapeRotation;
 
-            float macroScale = zoneLayout.MacroScale * family.MacroScale;
+            float macroScale = zoneLayout.MacroScale * family.MacroScale * SafeScaleMultiplier;
             Vector2 macroOffset = zoneLayout.MacroOffset;
             float macroRotation = zoneLayout.MacroRotation;
 
-            float bubbleScale = zoneLayout.BubbleScale * family.BubbleScale;
+            float bubbleScale = zoneLayout.BubbleScale * family.BubbleScale * SafeScaleMultiplier;
             Vector2 bubbleOffset = zoneLayout.BubbleOffset;
             float bubbleRotation = zoneLayout.BubbleRotation;
 
@@ -1346,6 +1384,87 @@ namespace Decantra.Presentation.Controller
             Debug.Log($"Decantra Background level={levelIndex} seed={seed} palette={paletteIndex} archetype={archetype} base={backgroundImage.color} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
             AppendDebugLog($"Background level={levelIndex} seed={seed} palette={paletteIndex} archetype={archetype} applyMs={backgroundTimer.Elapsed.TotalMilliseconds:0.0}");
 #endif
+        }
+
+        private void UpdateStarfieldState(int levelIndex, GeneratorArchetype archetype)
+        {
+            if (backgroundStars == null) return;
+            bool enabled = ShouldEnableStars(levelIndex, archetype);
+            if (backgroundStars.activeSelf != enabled)
+            {
+                backgroundStars.SetActive(enabled);
+            }
+        }
+
+        private static bool ShouldEnableStars(int levelIndex, GeneratorArchetype archetype)
+        {
+            if (IsNeverStarTheme(archetype))
+            {
+                return false;
+            }
+
+            if (levelIndex == 1)
+            {
+                return true;
+            }
+
+            if (IsAllowedStarTheme(archetype))
+            {
+                return true;
+            }
+
+            if (IsOptionalStarTheme(archetype))
+            {
+                return BackgroundRules.GetZoneIndex(levelIndex) == 1;
+            }
+
+            return false;
+        }
+
+        private static bool IsAllowedStarTheme(GeneratorArchetype archetype)
+        {
+            switch (archetype)
+            {
+                case GeneratorArchetype.AtmosphericWash:
+                case GeneratorArchetype.DomainWarpedClouds:
+                case GeneratorArchetype.NebulaGlow:
+                case GeneratorArchetype.ImplicitBlobHaze:
+                case GeneratorArchetype.FractalEscapeDensity:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsOptionalStarTheme(GeneratorArchetype archetype)
+        {
+            switch (archetype)
+            {
+                case GeneratorArchetype.OrganicCells:
+                case GeneratorArchetype.CanopyDapple:
+                case GeneratorArchetype.BotanicalIFS:
+                case GeneratorArchetype.VineTendrils:
+                case GeneratorArchetype.RootNetwork:
+                case GeneratorArchetype.BranchingTree:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsNeverStarTheme(GeneratorArchetype archetype)
+        {
+            switch (archetype)
+            {
+                case GeneratorArchetype.ConcentricRipples:
+                case GeneratorArchetype.CrystallineFrost:
+                case GeneratorArchetype.FloralMandala:
+                case GeneratorArchetype.MarbledFlow:
+                case GeneratorArchetype.CurlFlowAdvection:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private static ZoneLayout GetZoneLayout(int zoneIndex, int seed)
@@ -1382,7 +1501,6 @@ namespace Decantra.Presentation.Controller
             ZoneLayouts[key] = layout;
             return layout;
         }
-
         private static float NextRange(LayoutRng rng, float min, float max)
         {
             return Mathf.Lerp(min, max, rng.NextFloat());
@@ -1418,8 +1536,12 @@ namespace Decantra.Presentation.Controller
             float topValue = Mathf.Clamp01(value + zoneLayout.GradientIntensity * 0.18f);
             float bottomValue = Mathf.Clamp01(value - zoneLayout.GradientIntensity * 0.18f);
 
-            Color top = Color.black;
-            Color bottom = Color.black;
+            Color top = Color.HSVToRGB(hue, saturation, topValue);
+            Color bottom = Color.HSVToRGB(hue, saturation, bottomValue);
+            // Make gradient translucent to allow starfield to show through
+            // Very low alpha (0.25-0.35) ensures stars remain clearly visible
+            top.a = 0.25f;
+            bottom.a = 0.30f;
 
             GetLayerWeightsForArchetype(archetype, out float macroWeight, out float mesoWeight, out float microWeight);
 
@@ -1435,8 +1557,8 @@ namespace Decantra.Presentation.Controller
 
                 topValue = Mathf.Clamp01(value + zoneLayout.GradientIntensity * 0.12f);
                 bottomValue = Mathf.Clamp01(value - zoneLayout.GradientIntensity * 0.12f);
-                top = Color.black;
-                bottom = Color.black;
+                top = Color.HSVToRGB(hue, saturation, topValue);
+                bottom = Color.HSVToRGB(hue, saturation, bottomValue);
             }
             float detailAlpha = Mathf.Lerp(0.85f, 1.2f, microWeight) * accentStrength;
             float flowAlpha = Mathf.Lerp(0.9f, 1.2f, mesoWeight) * accentStrength;
@@ -1455,7 +1577,7 @@ namespace Decantra.Presentation.Controller
             {
                 Hue = hue,
                 Saturation = saturation,
-                Value = 0f,
+                Value = value,
                 DetailAlphaScale = detailAlpha,
                 FlowAlphaScale = flowAlpha,
                 ShapeAlphaScale = shapeAlpha,
@@ -1468,7 +1590,7 @@ namespace Decantra.Presentation.Controller
                 BubbleScale = bubbleScale,
                 GradientTop = top,
                 GradientBottom = bottom,
-                GradientDirection = 0f
+                GradientDirection = zoneLayout.GradientDirection
             };
         }
 
@@ -1510,6 +1632,8 @@ namespace Decantra.Presentation.Controller
                 backgroundImage.color = baseTint;
                 backgroundImage.sprite = GetFamilyGradientSprite(familyIndex, family);
                 backgroundImage.rectTransform.localEulerAngles = new Vector3(0f, 0f, family.GradientDirection);
+                // Fix: Scale up significantly to cover screen corners when rotated (diagonal coverage)
+                backgroundImage.rectTransform.localScale = new Vector3(2.5f, 2.5f, 1f);
             }
 
             if (backgroundDetail != null)

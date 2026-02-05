@@ -76,18 +76,23 @@ namespace Decantra.Tests.PlayMode
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);
 
-            var field = typeof(GameController).GetField("backgroundImage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            Assert.IsNotNull(field);
+            // Get the detail overlay image (which has distinct colors per theme bucket)
+            var detailField = typeof(GameController).GetField("backgroundDetail", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(detailField, "backgroundDetail field not found");
 
-            var image = field.GetValue(controller) as UnityEngine.UI.Image;
-            Assert.IsNotNull(image);
+            var detail = detailField.GetValue(controller) as UnityEngine.UI.Image;
+            Assert.IsNotNull(detail, "backgroundDetail is null");
 
-            var first = image.color;
-            controller.LoadLevel(3, 12345);
+            // Compare levels from different theme buckets (1-9, 10-19, 20-24)
+            controller.LoadLevel(1, 12345);  // Theme bucket 0 (blue)
             yield return null;
-            var second = image.color;
+            var firstColor = detail.color;
 
-            Assert.AreNotEqual(first, second);
+            controller.LoadLevel(15, 12345);  // Theme bucket 1 (purple)
+            yield return null;
+            var secondColor = detail.color;
+
+            Assert.AreNotEqual(firstColor, secondColor, "Background overlays should differ between theme buckets");
         }
 
         [UnityTest]

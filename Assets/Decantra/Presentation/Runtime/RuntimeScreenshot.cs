@@ -18,7 +18,11 @@ namespace Decantra.Presentation
     {
         private const string ScreenshotFlag = "decantra_screenshots";
         private const string ScreenshotOnlyFlag = "decantra_screenshots_only";
+        private const string MotionCaptureFlag = "decantra_motion_capture";
         private const string OutputDirectoryName = "DecantraScreenshots";
+        private const string MotionDirectoryName = "motion";
+        private const int MotionFrameCount = 6;
+        private const float MotionFrameIntervalMs = 50f;
 
         private static readonly string[] ScreenshotFiles =
         {
@@ -35,7 +39,7 @@ namespace Decantra.Presentation
 
         private void Start()
         {
-            if (!IsScreenshotModeEnabled())
+            if (!IsScreenshotModeEnabled() && !IsMotionCaptureEnabled())
             {
                 Destroy(this);
                 return;
@@ -44,7 +48,15 @@ namespace Decantra.Presentation
             Debug.Log("RuntimeScreenshot: capture sequence enabled");
             Debug.Log($"RuntimeScreenshot path: {Application.persistentDataPath}");
             DontDestroyOnLoad(gameObject);
-            StartCoroutine(CaptureSequence());
+
+            if (IsMotionCaptureEnabled())
+            {
+                StartCoroutine(MotionCaptureSequence());
+            }
+            else
+            {
+                StartCoroutine(CaptureSequence());
+            }
         }
 
         private IEnumerator CaptureSequence()
@@ -86,6 +98,73 @@ namespace Decantra.Presentation
             {
                 yield return new WaitForSeconds(0.3f);
                 Application.Quit(_failed ? 1 : 0);
+            }
+        }
+
+        private IEnumerator MotionCaptureSequence()
+        {
+            Debug.Log("RuntimeScreenshot: motion capture mode - capturing starfield animation");
+
+            var controller = FindController();
+            while (controller == null)
+            {
+                yield return null;
+                controller = FindController();
+            }
+
+            yield return WaitForControllerReady(controller);
+
+            string outputDir = Path.Combine(Application.persistentDataPath, OutputDirectoryName);
+            string motionDir = Path.Combine(outputDir, MotionDirectoryName);
+            Directory.CreateDirectory(motionDir);
+
+            // Load level 1 for star motion capture
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+            controller.LoadLevel(1, 10991);
+            yield return new WaitForSeconds(1.0f); // Allow scene to stabilize
+
+            // Capture multiple frames for motion detection
+            Debug.Log($"RuntimeScreenshot: capturing {MotionFrameCount} frames at {MotionFrameIntervalMs}ms intervals");
+
+            for (int i = 0; i < MotionFrameCount; i++)
+            {
+                string framePath = Path.Combine(motionDir, $"frame-{i:D2}.png");
+                yield return CaptureScreenshot(framePath);
+
+                if (i < MotionFrameCount - 1)
+                {
+                    yield return new WaitForSeconds(MotionFrameIntervalMs / 1000f);
+                }
+            }
+
+            yield return new WaitForEndOfFrame();
+            WriteMotionCompletionMarker(motionDir);
+            yield return new WaitForSeconds(0.3f);
+
+            if (_failed)
+            {
+                Debug.LogError("RuntimeScreenshot: motion capture failed.");
+            }
+            else
+            {
+                Debug.Log($"RuntimeScreenshot: motion capture completed - {MotionFrameCount} frames saved to {motionDir}");
+            }
+
+            Application.Quit(_failed ? 1 : 0);
+        }
+
+        private static void WriteMotionCompletionMarker(string outputDir)
+        {
+            try
+            {
+                string statusPath = Path.Combine(outputDir, "motion.complete");
+                File.WriteAllText(statusPath, DateTime.UtcNow.ToString("O"));
+                Debug.Log($"RuntimeScreenshot: wrote motion completion marker to {statusPath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"RuntimeScreenshot: failed to write motion completion marker: {ex.Message}");
             }
         }
 
@@ -276,6 +355,11 @@ namespace Decantra.Presentation
         private static bool IsScreenshotsOnly()
         {
             return HasFlag(ScreenshotOnlyFlag) || HasFlag("--screenshots-only");
+        }
+
+        private static bool IsMotionCaptureEnabled()
+        {
+            return HasFlag(MotionCaptureFlag) || HasFlag("--motion-capture");
         }
 
         private static bool HasFlag(string key)
