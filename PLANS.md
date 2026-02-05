@@ -35,9 +35,9 @@ Implement final scoring + stars, interstitial centering fix, Android portrait st
 - [x] Run full test suite (`tools/test.sh`).
 
 ### Step 5 - Release build + screenshots
-- [ ] Build release APK.
-- [ ] Capture fresh Play Store screenshots from release build.
-- [ ] Archive screenshot paths and build outputs in this plan.
+- [x] Build release APK.
+- [x] Capture fresh Play Store screenshots from release build.
+- [x] Archive screenshot paths and build outputs in this plan.
 
 ## Verification Notes (Fill As You Go)
 - PlayerSettings (ProjectSettings.asset):
@@ -46,4 +46,5 @@ Implement final scoring + stars, interstitial centering fix, Android portrait st
   - allowedAutorotateToPortraitUpsideDown: 0
   - allowedAutorotateToLandscapeLeft/Right: 0 / 0
 - Release build output:
-- Screenshot output:
+- Release build output: Builds/Android/Decantra.apk
+- Screenshot output: doc/play-store-assets/screenshots/phone

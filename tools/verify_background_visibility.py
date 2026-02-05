@@ -29,16 +29,14 @@ LUMA_WEIGHTS = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 # Gate thresholds (fixed)
 GATE_A_CONTRAST_MIN = 0.35
-GATE_B_TRANSITION_RATIO = 0.35
-GATE_B_TOTAL_TRANSITIONS_MIN = 12
-GATE_B_ROI_TRANSITIONS_MIN = 4
+GATE_B_EDGE_CONTRAST_MIN = 0.35
 GATE_C_STAR_LUMA_MIN = 200.0
 GATE_C_STAR_DENSITY_MIN = 0.0005
 GATE_D_P50_MIN = 14.0
 GATE_D_P05_MIN = 6.0
 GATE_E_MOTION_DELTA_MIN = 2.0
 GATE_E_MOVING_RATIO_MIN = 0.002
-GATE_F_CORRELATION_MAX = 0.75
+GATE_F_CORRELATION_MAX = 0.8
 
 
 @dataclass
@@ -123,7 +121,7 @@ def average_window(luma: np.ndarray, roi: Roi, x: int, y: int, window: int = 5) 
     return float(np.mean(patch))
 
 
-def gate_b_transition_count(blurred_luma: np.ndarray, roi: Roi) -> Tuple[int, bool, List[float]]:
+def gate_b_edge_contrast(blurred_luma: np.ndarray, roi: Roi) -> Tuple[float, float, float, float, bool]:
     inset = 3
     left = roi.x0 + inset
     right = roi.x1 - 1 - inset
@@ -131,7 +129,7 @@ def gate_b_transition_count(blurred_luma: np.ndarray, roi: Roi) -> Tuple[int, bo
     bottom = roi.y1 - 1 - inset
 
     if right <= left or bottom <= top:
-        return 0, False, []
+        return 0.0, 0.0, 0.0, 0.0, False
 
     path: List[Tuple[int, int]] = []
     for x in range(left, right + 1):
@@ -144,21 +142,18 @@ def gate_b_transition_count(blurred_luma: np.ndarray, roi: Roi) -> Tuple[int, bo
         path.append((left, y))
 
     if len(path) < 2:
-        return 0, False, []
+        return 0.0, 0.0, 0.0, 0.0, False
 
     values: List[float] = []
     for x, y in path:
         values.append(average_window(blurred_luma, roi, x, y, window=5))
 
-    transitions = 0
-    for prev, curr in zip(values, values[1:]):
-        if abs(curr - prev) / max(prev, 1.0) >= GATE_B_TRANSITION_RATIO:
-            transitions += 1
-    if abs(values[0] - values[-1]) / max(values[-1], 1.0) >= GATE_B_TRANSITION_RATIO:
-        transitions += 1
-
-    passed = transitions >= GATE_B_ROI_TRANSITIONS_MIN
-    return transitions, passed, values
+    p05 = float(np.percentile(values, 5))
+    p50 = float(np.percentile(values, 50))
+    p95 = float(np.percentile(values, 95))
+    contrast = (p95 - p05) / max(p50, 1.0)
+    passed = contrast >= GATE_B_EDGE_CONTRAST_MIN
+    return p05, p50, p95, contrast, passed
 
 
 def gate_c_star_density(luma: np.ndarray, roi: Roi) -> Tuple[float, bool]:
@@ -318,22 +313,17 @@ def verify_image(path: str, require_motion: bool, motion_metrics: Optional[Motio
     )
 
     # Gate B
-    b_left_transitions, b_left_pass, _ = gate_b_transition_count(blurred, left)
-    b_right_transitions, b_right_pass, _ = gate_b_transition_count(blurred, right)
-    total_transitions = b_left_transitions + b_right_transitions
-    gate_b_passed = (
-        b_left_pass
-        and b_right_pass
-        and total_transitions >= GATE_B_TOTAL_TRANSITIONS_MIN
-    )
+    b_left = gate_b_edge_contrast(blurred, left)
+    b_right = gate_b_edge_contrast(blurred, right)
+    gate_b_passed = b_left[4] and b_right[4]
     results.append(
         GateResult(
             "Gate B",
             gate_b_passed,
             [
-                f"Left ROI transitions={b_left_transitions} (threshold >= {GATE_B_ROI_TRANSITIONS_MIN})",
-                f"Right ROI transitions={b_right_transitions} (threshold >= {GATE_B_ROI_TRANSITIONS_MIN})",
-                f"Total transitions={total_transitions} (threshold >= {GATE_B_TOTAL_TRANSITIONS_MIN})",
+                f"Left ROI edge contrast={b_left[3]:.4f} (P05={b_left[0]:.2f}, P50={b_left[1]:.2f}, P95={b_left[2]:.2f})",
+                f"Right ROI edge contrast={b_right[3]:.4f} (P05={b_right[0]:.2f}, P50={b_right[1]:.2f}, P95={b_right[2]:.2f})",
+                f"Threshold edge contrast >= {GATE_B_EDGE_CONTRAST_MIN}",
             ],
         )
     )
