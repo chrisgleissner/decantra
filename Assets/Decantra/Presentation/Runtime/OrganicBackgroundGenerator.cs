@@ -81,10 +81,10 @@ namespace Decantra.Presentation
 
             if (request.LevelIndex <= 24)
             {
-                macroParams.Softness = Mathf.Clamp01(macroParams.Softness * 0.55f);
-                mesoParams.Softness = Mathf.Clamp01(mesoParams.Softness * 0.6f);
-                accentParams.Softness = Mathf.Clamp01(accentParams.Softness * 0.6f);
-                microParams.Softness = Mathf.Clamp01(microParams.Softness * 0.7f);
+                macroParams.Softness = Mathf.Clamp01(macroParams.Softness * 0.45f);
+                mesoParams.Softness = Mathf.Clamp01(mesoParams.Softness * 0.5f);
+                accentParams.Softness = Mathf.Clamp01(accentParams.Softness * 0.55f);
+                microParams.Softness = Mathf.Clamp01(microParams.Softness * 0.6f);
             }
 
             // Vary seeds for each layer
@@ -100,7 +100,7 @@ namespace Decantra.Presentation
             var microField = GenerateMicroField(MicroResolution, MicroResolution, microSeed);
 
             // Create sprites
-            float edgeFeather = request.LevelIndex <= 24 ? 0.25f : 0.12f;
+            float edgeFeather = request.LevelIndex <= 24 ? 0.18f : 0.12f;
 
             var macroSprite = CreateSpriteFromField(macroField, MacroResolution, MacroResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
             var mesoSprite = CreateSpriteFromField(mesoField, MesoResolution, MesoResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
@@ -197,8 +197,8 @@ namespace Decantra.Presentation
             for (int i = 0; i < field.Length; i++)
             {
                 float alphaFloat = Mathf.Clamp01(field[i]);
-                alphaFloat = SmoothStep(0.2f, 0.8f, alphaFloat);
-                alphaFloat = Mathf.Pow(alphaFloat, 0.85f);
+                alphaFloat = SmoothStep(0.28f, 0.72f, alphaFloat);
+                alphaFloat = Mathf.Pow(alphaFloat, 0.7f);
                 if (feather > 0f && wrapMode == TextureWrapMode.Clamp)
                 {
                     int x = i % width;

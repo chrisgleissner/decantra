@@ -137,6 +137,8 @@ namespace Decantra.Presentation
 
             var starMaterial = TryGetStarMaterial();
             var starImage = TryGetStarImage();
+            var baseImage = TryGetBackgroundImage();
+            Color? baseColor = baseImage != null ? baseImage.color : (Color?)null;
 
             for (int i = 0; i < MotionFrameCount; i++)
             {
@@ -151,6 +153,12 @@ namespace Decantra.Presentation
                     float uvOffset = starTime * 0.08f;
                     starImage.uvRect = new Rect(0f, uvOffset, 1f, 1f);
                     starImage.SetAllDirty();
+                }
+                if (baseImage != null && baseColor.HasValue)
+                {
+                    float pulse = 0.96f + 0.08f * Mathf.Sin(starTime * 1.3f);
+                    baseImage.color = baseColor.Value * pulse;
+                    baseImage.SetAllDirty();
                 }
                 string framePath = Path.Combine(motionDir, $"frame-{i:D2}.png");
                 yield return CaptureScreenshot(framePath);
@@ -170,6 +178,12 @@ namespace Decantra.Presentation
             if (starImage != null)
             {
                 starImage.uvRect = new Rect(0f, 0f, 1f, 1f);
+                starImage.SetAllDirty();
+            }
+            if (baseImage != null && baseColor.HasValue)
+            {
+                baseImage.color = baseColor.Value;
+                baseImage.SetAllDirty();
             }
             WriteMotionCompletionMarker(motionDir);
             yield return new WaitForSecondsRealtime(0.3f);
@@ -236,6 +250,27 @@ namespace Decantra.Presentation
             }
 
             return starObject.GetComponentInChildren<RawImage>(true);
+        }
+
+        private static Image TryGetBackgroundImage()
+        {
+            var images = UnityEngine.Object.FindObjectsByType<Image>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var image in images)
+            {
+                if (image == null) continue;
+                if (string.Equals(image.gameObject.name, "Background", StringComparison.Ordinal))
+                {
+                    return image;
+                }
+            }
+
+            var backgroundObject = GameObject.Find("Background");
+            if (backgroundObject == null)
+            {
+                return null;
+            }
+
+            return backgroundObject.GetComponentInChildren<Image>(true);
         }
 
         private static IEnumerator WaitForControllerReady(GameController controller)
