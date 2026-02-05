@@ -102,10 +102,10 @@ namespace Decantra.Presentation
             // Create sprites
             float edgeFeather = request.LevelIndex <= 24 ? 0.18f : 0.12f;
 
-            var macroSprite = CreateSpriteFromField(macroField, MacroResolution, MacroResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
-            var mesoSprite = CreateSpriteFromField(mesoField, MesoResolution, MesoResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
-            var accentSprite = CreateSpriteFromField(accentField, AccentResolution, AccentResolution, TextureWrapMode.Clamp, 256f, edgeFeather);
-            var microSprite = CreateSpriteFromField(microField, MicroResolution, MicroResolution, TextureWrapMode.Repeat, 128f, 0f);
+            var macroSprite = CreateSpriteFromField(macroField, MacroResolution, MacroResolution, TextureWrapMode.Clamp, 256f, edgeFeather, 0.45f, 0.55f, 0.6f, 1.15f);
+            var mesoSprite = CreateSpriteFromField(mesoField, MesoResolution, MesoResolution, TextureWrapMode.Clamp, 256f, edgeFeather, 0.42f, 0.58f, 0.65f, 1.12f);
+            var accentSprite = CreateSpriteFromField(accentField, AccentResolution, AccentResolution, TextureWrapMode.Clamp, 256f, edgeFeather, 0.4f, 0.6f, 0.7f, 1.08f);
+            var microSprite = CreateSpriteFromField(microField, MicroResolution, MicroResolution, TextureWrapMode.Repeat, 128f, 0f, 0.25f, 0.75f, 0.8f, 1.0f);
 
             timer.Stop();
 
@@ -188,7 +188,7 @@ namespace Decantra.Presentation
             return field;
         }
 
-        private static Sprite CreateSpriteFromField(float[] field, int width, int height, TextureWrapMode wrapMode, float pixelsPerUnit, float edgeFeather)
+        private static Sprite CreateSpriteFromField(float[] field, int width, int height, TextureWrapMode wrapMode, float pixelsPerUnit, float edgeFeather, float smoothMin, float smoothMax, float gamma, float gain)
         {
             var colors = new Color32[field.Length];
             int maxX = width - 1;
@@ -197,8 +197,9 @@ namespace Decantra.Presentation
             for (int i = 0; i < field.Length; i++)
             {
                 float alphaFloat = Mathf.Clamp01(field[i]);
-                alphaFloat = SmoothStep(0.28f, 0.72f, alphaFloat);
-                alphaFloat = Mathf.Pow(alphaFloat, 0.7f);
+            alphaFloat = SmoothStep(smoothMin, smoothMax, alphaFloat);
+            alphaFloat = Mathf.Pow(alphaFloat, gamma);
+            alphaFloat = Mathf.Clamp01(alphaFloat * gain);
                 if (feather > 0f && wrapMode == TextureWrapMode.Clamp)
                 {
                     int x = i % width;
