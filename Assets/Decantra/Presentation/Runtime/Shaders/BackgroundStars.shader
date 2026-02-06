@@ -4,8 +4,8 @@ Shader "Decantra/BackgroundStars"
     {
         _MainTex ("Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
-        _StarDensity ("Star Density", Range(0.01, 1.0)) = 0.35
-        _StarSpeed ("Star Speed", Range(0.01, 1.0)) = 0.40
+        _StarDensity ("Star Density", Range(0.01, 0.34)) = 0.175
+        _StarSpeed ("Star Speed", Range(0.01, 0.39)) = 0.20
         _StarBrightness ("Star Brightness", Range(0.05, 1.0)) = 0.50
     }
     SubShader
@@ -106,8 +106,8 @@ Shader "Decantra/BackgroundStars"
                 // Density uniform [0.01..1.0] scales base densities [0.07, 0.06, 0.05] around default 0.35.
                 // Speed uniform [0.01..1.0] scales base speeds [0.12, 0.21, 0.30] around default 0.40.
                 // Brightness uniform [0.05..1.0] scales the final intensity multiplier around default 0.50 → 1.6x.
-                float densityScale = _StarDensity / 0.35;
-                float speedScale = _StarSpeed / 0.40;
+                float densityScale = _StarDensity / 0.175;
+                float speedScale = _StarSpeed / 0.20;
                 float brightnessMultiplier = _StarBrightness / 0.50 * 1.6;
 
                 float star1 = StarLayer(uv, float2(90.0, 160.0), 0.12 * speedScale, 0.07 * densityScale);

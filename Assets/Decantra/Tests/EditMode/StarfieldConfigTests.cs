@@ -188,9 +188,9 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void MidRangeValues_PreservedExactly()
         {
-            var config = new StarfieldConfig(true, 0.42f, 0.73f, 0.18f);
-            Assert.AreEqual(0.42f, config.Density, 0.0001f);
-            Assert.AreEqual(0.73f, config.Speed, 0.0001f);
+            var config = new StarfieldConfig(true, 0.22f, 0.28f, 0.18f);
+            Assert.AreEqual(0.22f, config.Density, 0.0001f);
+            Assert.AreEqual(0.28f, config.Speed, 0.0001f);
             Assert.AreEqual(0.18f, config.Brightness, 0.0001f);
         }
     }

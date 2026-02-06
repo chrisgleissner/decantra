@@ -17,12 +17,12 @@ namespace Decantra.Domain.Model
     public sealed class StarfieldConfig : IEquatable<StarfieldConfig>
     {
         public const float DensityMin = 0.01f;
-        public const float DensityMax = 1.0f;
-        public const float DensityDefault = 0.35f;
+        public const float DensityMax = 0.34f;
+        public const float DensityDefault = 0.175f;
 
         public const float SpeedMin = 0.01f;
-        public const float SpeedMax = 1.0f;
-        public const float SpeedDefault = 0.40f;
+        public const float SpeedMax = 0.39f;
+        public const float SpeedDefault = 0.20f;
 
         public const float BrightnessMin = 0.05f;
         public const float BrightnessMax = 1.0f;

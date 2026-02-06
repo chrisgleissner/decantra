@@ -125,9 +125,9 @@ namespace Decantra.PlayMode.Tests
         [UnityTest]
         public IEnumerator SetStarfieldDensity_UpdatesConfig()
         {
-            _controller.SetStarfieldDensity(0.80f);
+            _controller.SetStarfieldDensity(0.25f);
             yield return null;
-            Assert.AreEqual(0.80f, _controller.StarfieldConfiguration.Density, 0.001f);
+            Assert.AreEqual(0.25f, _controller.StarfieldConfiguration.Density, 0.001f);
         }
 
         [UnityTest]
@@ -165,13 +165,13 @@ namespace Decantra.PlayMode.Tests
         [UnityTest]
         public IEnumerator FullConfigChange_AllValuesApplied()
         {
-            var custom = new StarfieldConfig(false, 0.20f, 0.75f, 0.30f);
+            var custom = new StarfieldConfig(false, 0.20f, 0.30f, 0.30f);
             _controller.SetStarfieldConfig(custom);
             yield return null;
 
             Assert.IsFalse(_controller.StarfieldConfiguration.Enabled);
             Assert.AreEqual(0.20f, _controller.StarfieldConfiguration.Density, 0.001f);
-            Assert.AreEqual(0.75f, _controller.StarfieldConfiguration.Speed, 0.001f);
+            Assert.AreEqual(0.30f, _controller.StarfieldConfiguration.Speed, 0.001f);
             Assert.AreEqual(0.30f, _controller.StarfieldConfiguration.Brightness, 0.001f);
             Assert.IsFalse(_starsGo.activeSelf);
         }

@@ -1771,7 +1771,7 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(820, 900);
+            panelRect.sizeDelta = new Vector2(820, 1020);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
@@ -1817,7 +1817,7 @@ namespace Decantra.Presentation
             contentLayout.childAlignment = TextAnchor.UpperCenter;
             contentLayout.childForceExpandWidth = true;
             contentLayout.childForceExpandHeight = false;
-            contentLayout.spacing = 28f;
+            contentLayout.spacing = 40f;
             contentLayout.padding = new RectOffset(0, 0, 16, 0);
 
             // Title
@@ -1832,17 +1832,17 @@ namespace Decantra.Presentation
 
             // Section header: Starfield
             var sectionHeader = CreateHudText(content.transform, "StarfieldHeader");
-            sectionHeader.fontSize = 32;
+            sectionHeader.fontSize = 45;
             sectionHeader.text = "STARFIELD";
             sectionHeader.color = new Color(0.7f, 0.75f, 0.85f, 0.9f);
             sectionHeader.alignment = TextAnchor.MiddleLeft;
             var sectionElement = sectionHeader.gameObject.AddComponent<LayoutElement>();
-            sectionElement.preferredHeight = 48;
+            sectionElement.preferredHeight = 60;
 
             // Enable toggle
             var toggleRow = CreateOptionsRow(content.transform, "EnableRow");
             var toggleLabel = CreateHudText(toggleRow.transform, "Label");
-            toggleLabel.fontSize = 30;
+            toggleLabel.fontSize = 39;
             toggleLabel.text = "Enabled";
             toggleLabel.color = new Color(1f, 0.98f, 0.92f, 0.9f);
             toggleLabel.alignment = TextAnchor.MiddleLeft;
@@ -1892,7 +1892,7 @@ namespace Decantra.Presentation
             // Close button
             var closeRow = CreateUiChild(content.transform, "CloseRow");
             var closeRowElement = closeRow.AddComponent<LayoutElement>();
-            closeRowElement.preferredHeight = 80;
+            closeRowElement.preferredHeight = 110;
             var closeRowLayout = closeRow.AddComponent<HorizontalLayoutGroup>();
             closeRowLayout.childAlignment = TextAnchor.MiddleCenter;
             closeRowLayout.childForceExpandWidth = false;
@@ -1904,17 +1904,17 @@ namespace Decantra.Presentation
             closeImage.type = Image.Type.Sliced;
             closeImage.color = new Color(0.12f, 0.14f, 0.20f, 0.9f);
             var closePanelRect = closePanel.GetComponent<RectTransform>();
-            closePanelRect.sizeDelta = new Vector2(240, 64);
+            closePanelRect.sizeDelta = new Vector2(336, 90);
             var closePanelElement = closePanel.AddComponent<LayoutElement>();
-            closePanelElement.preferredWidth = 240;
-            closePanelElement.preferredHeight = 64;
+            closePanelElement.preferredWidth = 336;
+            closePanelElement.preferredHeight = 90;
 
             var closeButton = closePanel.AddComponent<Button>();
             closeButton.targetGraphic = closeImage;
             closeButton.onClick.AddListener(() => { if (controller != null) controller.HideOptionsOverlay(); });
 
             var closeText = CreateHudText(closePanel.transform, "Label");
-            closeText.fontSize = 32;
+            closeText.fontSize = 45;
             closeText.text = "CLOSE";
             closeText.color = new Color(1f, 0.98f, 0.92f, 1f);
             closeText.alignment = TextAnchor.MiddleCenter;
@@ -1944,7 +1944,7 @@ namespace Decantra.Presentation
         {
             var row = CreateUiChild(parent, name);
             var rowElement = row.AddComponent<LayoutElement>();
-            rowElement.preferredHeight = 56;
+            rowElement.preferredHeight = 78;
             var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
             rowLayout.childAlignment = TextAnchor.MiddleLeft;
             rowLayout.childForceExpandWidth = false;
@@ -1958,7 +1958,7 @@ namespace Decantra.Presentation
             var row = CreateOptionsRow(parent, rowName);
 
             var label = CreateHudText(row.transform, "Label");
-            label.fontSize = 30;
+            label.fontSize = 39;
             label.text = labelText;
             label.color = new Color(1f, 0.98f, 0.92f, 0.9f);
             label.alignment = TextAnchor.MiddleLeft;
@@ -1968,7 +1968,7 @@ namespace Decantra.Presentation
             var sliderGo = CreateUiChild(row.transform, labelText + "Slider");
             var sliderElement = sliderGo.AddComponent<LayoutElement>();
             sliderElement.flexibleWidth = 1;
-            sliderElement.preferredHeight = 40;
+            sliderElement.preferredHeight = 64;
 
             // Slider background track
             var trackGo = CreateUiChild(sliderGo.transform, "Background");
@@ -1977,16 +1977,27 @@ namespace Decantra.Presentation
             trackImage.type = Image.Type.Sliced;
             trackImage.color = new Color(1f, 1f, 1f, 0.12f);
             var trackRect = trackGo.GetComponent<RectTransform>();
-            trackRect.anchorMin = new Vector2(0f, 0.25f);
-            trackRect.anchorMax = new Vector2(1f, 0.75f);
+            trackRect.anchorMin = new Vector2(0f, 0.3f);
+            trackRect.anchorMax = new Vector2(1f, 0.7f);
             trackRect.offsetMin = Vector2.zero;
             trackRect.offsetMax = Vector2.zero;
+
+            // Full-height transparent raycast target so taps anywhere on the track row register
+            var trackTouchGo = CreateUiChild(sliderGo.transform, "TrackTouch");
+            var trackTouchImage = trackTouchGo.AddComponent<Image>();
+            trackTouchImage.color = new Color(0f, 0f, 0f, 0f);
+            var trackTouchRect = trackTouchGo.GetComponent<RectTransform>();
+            trackTouchRect.anchorMin = Vector2.zero;
+            trackTouchRect.anchorMax = Vector2.one;
+            trackTouchRect.offsetMin = Vector2.zero;
+            trackTouchRect.offsetMax = Vector2.zero;
+            trackTouchGo.transform.SetAsFirstSibling();
 
             // Fill area
             var fillArea = CreateUiChild(sliderGo.transform, "Fill Area");
             var fillAreaRect = fillArea.GetComponent<RectTransform>();
-            fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
-            fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
+            fillAreaRect.anchorMin = new Vector2(0f, 0.3f);
+            fillAreaRect.anchorMax = new Vector2(1f, 0.7f);
             fillAreaRect.offsetMin = new Vector2(5, 0);
             fillAreaRect.offsetMax = new Vector2(-5, 0);
 
@@ -2014,7 +2025,16 @@ namespace Decantra.Presentation
             handleImage.sprite = GetSoftCircleSprite();
             handleImage.color = new Color(1f, 0.98f, 0.92f, 0.95f);
             var handleRect = handle.GetComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(32, 32);
+            handleRect.sizeDelta = new Vector2(48, 48);
+
+            // Invisible expanded touch target for reliable slider interaction
+            var touchTarget = CreateUiChild(handle.transform, "TouchTarget");
+            var touchImage = touchTarget.AddComponent<Image>();
+            touchImage.color = new Color(0f, 0f, 0f, 0f);
+            var touchRect = touchTarget.GetComponent<RectTransform>();
+            touchRect.anchorMin = new Vector2(0.5f, 0.5f);
+            touchRect.anchorMax = new Vector2(0.5f, 0.5f);
+            touchRect.sizeDelta = new Vector2(96, 96);
 
             var slider = sliderGo.AddComponent<Slider>();
             slider.targetGraphic = handleImage;
