@@ -16,6 +16,7 @@ using Decantra.Domain.Background;
 using Decantra.Domain.Export;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
+using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
 using Decantra.Domain.Scoring;
@@ -92,6 +93,9 @@ namespace Decantra.Presentation.Controller
         private bool _usedRestart;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
+        private StarfieldConfig _starfieldConfig;
+        private Material _starfieldMaterial;
+        private GameObject _optionsOverlay;
         private AudioSource _audioSource;
         private AudioClip _pourClip;
         private IShareService _shareService;
@@ -285,6 +289,8 @@ namespace Decantra.Presentation.Controller
             Canvas.ForceUpdateCanvases();
             _progress = _progressStore.Load();
             _sfxEnabled = _settingsStore.LoadSfxEnabled();
+            _starfieldConfig = _settingsStore.LoadStarfieldConfig();
+            ApplyStarfieldConfig();
             SetupAudio();
 
             _scoreSession = new ScoreSession(_progress?.CurrentScore ?? 0);
@@ -837,6 +843,71 @@ namespace Decantra.Presentation.Controller
             _settingsStore.SaveSfxEnabled(enabled);
         }
 
+        public StarfieldConfig StarfieldConfiguration => _starfieldConfig;
+
+        public void SetStarfieldConfig(StarfieldConfig config)
+        {
+            if (config == null) return;
+            _starfieldConfig = config;
+            _settingsStore.SaveStarfieldConfig(config);
+            ApplyStarfieldConfig();
+        }
+
+        public void SetStarfieldEnabled(bool enabled)
+        {
+            SetStarfieldConfig(_starfieldConfig.WithEnabled(enabled));
+        }
+
+        public void SetStarfieldDensity(float density)
+        {
+            SetStarfieldConfig(_starfieldConfig.WithDensity(density));
+        }
+
+        public void SetStarfieldSpeed(float speed)
+        {
+            SetStarfieldConfig(_starfieldConfig.WithSpeed(speed));
+        }
+
+        public void SetStarfieldBrightness(float brightness)
+        {
+            SetStarfieldConfig(_starfieldConfig.WithBrightness(brightness));
+        }
+
+        public void ShowOptionsOverlay()
+        {
+            if (_optionsOverlay != null)
+            {
+                _optionsOverlay.SetActive(true);
+            }
+        }
+
+        public void HideOptionsOverlay()
+        {
+            if (_optionsOverlay != null)
+            {
+                _optionsOverlay.SetActive(false);
+            }
+        }
+
+        public bool IsOptionsOverlayVisible => _optionsOverlay != null && _optionsOverlay.activeSelf;
+
+        private void ApplyStarfieldConfig()
+        {
+            if (_starfieldConfig == null) return;
+
+            if (backgroundStars != null)
+            {
+                backgroundStars.SetActive(_starfieldConfig.Enabled);
+            }
+
+            if (_starfieldMaterial != null)
+            {
+                _starfieldMaterial.SetFloat("_StarDensity", _starfieldConfig.Density);
+                _starfieldMaterial.SetFloat("_StarSpeed", _starfieldConfig.Speed);
+                _starfieldMaterial.SetFloat("_StarBrightness", _starfieldConfig.Brightness);
+            }
+        }
+
         private IEnumerator BeginSession()
         {
             _inputLocked = true;
@@ -1384,7 +1455,9 @@ namespace Decantra.Presentation.Controller
         private void UpdateStarfieldState(int levelIndex, GeneratorArchetype archetype)
         {
             if (backgroundStars == null) return;
-            bool enabled = ShouldEnableStars(levelIndex, archetype);
+            // User's starfield toggle overrides per-level archetype logic
+            bool userEnabled = _starfieldConfig != null && _starfieldConfig.Enabled;
+            bool enabled = userEnabled && ShouldEnableStars(levelIndex, archetype);
             if (backgroundStars.activeSelf != enabled)
             {
                 backgroundStars.SetActive(enabled);

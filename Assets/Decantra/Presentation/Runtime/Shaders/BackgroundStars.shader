@@ -4,6 +4,9 @@ Shader "Decantra/BackgroundStars"
     {
         _MainTex ("Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
+        _StarDensity ("Star Density", Range(0.01, 1.0)) = 0.35
+        _StarSpeed ("Star Speed", Range(0.01, 1.0)) = 0.40
+        _StarBrightness ("Star Brightness", Range(0.05, 1.0)) = 0.50
     }
     SubShader
     {
@@ -44,6 +47,9 @@ Shader "Decantra/BackgroundStars"
             sampler2D _MainTex;
             fixed4 _Color;
             float _DecantraStarTime;
+            float _StarDensity;
+            float _StarSpeed;
+            float _StarBrightness;
 
             v2f vert(appdata_t v)
             {
@@ -96,15 +102,22 @@ Shader "Decantra/BackgroundStars"
             {
                 float2 uv = i.uv;
 
-                // Density reduced by >=50% and speed reduced to ~30% of prior values (calmer motion).
-                float star1 = StarLayer(uv, float2(90.0, 160.0), 0.12, 0.07);
-                float star2 = StarLayer(uv, float2(120.0, 210.0), 0.21, 0.06);
-                float star3 = StarLayer(uv, float2(160.0, 280.0), 0.30, 0.05);
+                // Map normalized uniforms to per-layer shader parameters.
+                // Density uniform [0.01..1.0] scales base densities [0.07, 0.06, 0.05] around default 0.35.
+                // Speed uniform [0.01..1.0] scales base speeds [0.12, 0.21, 0.30] around default 0.40.
+                // Brightness uniform [0.05..1.0] scales the final intensity multiplier around default 0.50 → 1.6x.
+                float densityScale = _StarDensity / 0.35;
+                float speedScale = _StarSpeed / 0.40;
+                float brightnessMultiplier = _StarBrightness / 0.50 * 1.6;
+
+                float star1 = StarLayer(uv, float2(90.0, 160.0), 0.12 * speedScale, 0.07 * densityScale);
+                float star2 = StarLayer(uv, float2(120.0, 210.0), 0.21 * speedScale, 0.06 * densityScale);
+                float star3 = StarLayer(uv, float2(160.0, 280.0), 0.30 * speedScale, 0.05 * densityScale);
 
                 float intensity = saturate(star1 + star2 + star3);
 
-                // Mild visibility lift after density reduction (keeps stars calm but visible).
-                intensity = saturate(intensity * 1.6);
+                // Apply configurable brightness.
+                intensity = saturate(intensity * brightnessMultiplier);
 
                 return fixed4(intensity, intensity, intensity, intensity) * i.color;
             }
