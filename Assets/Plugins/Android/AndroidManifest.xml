@@ -14,7 +14,6 @@
             android:name="com.unity3d.player.UnityPlayerGameActivity"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:exported="true"
-            android:screenOrientation="portrait"
             android:resizeableActivity="false"
             android:launchMode="singleTask"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode">

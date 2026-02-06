@@ -85,7 +85,6 @@ namespace Decantra.Presentation
         [Preserve]
         public static void EnsureScene()
         {
-            ForcePortraitOrientation();
             var cameras = EnsureRenderCameras();
             var existingController = Object.FindFirstObjectByType<GameController>();
             if (existingController != null && HasRequiredWiring(existingController))
@@ -282,13 +281,6 @@ namespace Decantra.Presentation
                 Game = game,
                 UI = ui
             };
-        }
-
-        private static void ForcePortraitOrientation()
-        {
-            // Explicitly lock to portrait at runtime to avoid upside-down rendering
-            // when auto-rotation is disabled but the device rotation state is preserved.
-            Screen.orientation = ScreenOrientation.Portrait;
         }
 
         private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
