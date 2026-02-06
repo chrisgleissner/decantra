@@ -888,15 +888,15 @@ namespace Decantra.App.Editor
                     return null;
                 }
 
-                string cmdCode = GetCommandLineArg("-versionCode");
-                if (TryParsePositiveInt(cmdCode, out int cmdCodeInt) && cmdCodeInt != ciVersionCode.Value)
+                string ciCmdCode = GetCommandLineArg("-versionCode");
+                if (TryParsePositiveInt(ciCmdCode, out int ciCmdCodeInt) && ciCmdCodeInt != ciVersionCode.Value)
                 {
-                    FailBuild($"AndroidBuild: -versionCode ({cmdCodeInt}) does not match CI-derived version code ({ciVersionCode.Value}).");
+                    FailBuild($"AndroidBuild: -versionCode ({ciCmdCodeInt}) does not match CI-derived version code ({ciVersionCode.Value}).");
                     return null;
                 }
 
-                string envVersionCode = FirstNonEmptyEnv("VERSION_CODE", "DECANTRA_VERSION_CODE");
-                if (TryParsePositiveInt(envVersionCode, out int envCodeInt) && envCodeInt != ciVersionCode.Value)
+                string ciEnvVersionCode = FirstNonEmptyEnv("VERSION_CODE", "DECANTRA_VERSION_CODE");
+                if (TryParsePositiveInt(ciEnvVersionCode, out int envCodeInt) && envCodeInt != ciVersionCode.Value)
                 {
                     FailBuild($"AndroidBuild: VERSION_CODE env ({envCodeInt}) does not match CI-derived version code ({ciVersionCode.Value}).");
                     return null;
