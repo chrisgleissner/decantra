@@ -18,6 +18,7 @@ Decantra is a bottle-sorting puzzle game for Android built in Unity.
 - Move budgets that reward efficient play.
 - Varied bottle sizes and anchored sink bottles for added challenge.
 - Smooth, mobile-first controls designed for short sessions.
+- Configurable starfield effect 
 
 ## Screenshots
 
