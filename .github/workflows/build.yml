@@ -297,9 +297,13 @@ jobs:
           targetPlatform: Android
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
           versioning: None
-          customParameters: -buildPath Builds/Android/Decantra-release.apk
+          customParameters: -buildPath Builds/Android/Decantra-release.apk -versionName ${{ env.VERSION_NAME }} -versionCode ${{ env.VERSION_CODE }}
           androidExportType: androidPackage
           androidVersionCode: ${{ env.VERSION_CODE }}
+          androidKeystoreName: ${{ env.KEYSTORE_STORE_FILE }}
+          androidKeystorePass: ${{ env.KEYSTORE_STORE_PASSWORD }}
+          androidKeyaliasName: ${{ env.KEYSTORE_KEY_ALIAS }}
+          androidKeyaliasPass: ${{ env.KEYSTORE_KEY_PASSWORD }}
           buildsPath: Builds/Android
 
       - name: Build Release AAB
@@ -312,9 +316,13 @@ jobs:
           targetPlatform: Android
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
           versioning: None
-          customParameters: -buildPath Builds/Android/Decantra-release.aab
+          customParameters: -buildPath Builds/Android/Decantra-release.aab -versionName ${{ env.VERSION_NAME }} -versionCode ${{ env.VERSION_CODE }}
           androidExportType: androidAppBundle
           androidVersionCode: ${{ env.VERSION_CODE }}
+          androidKeystoreName: ${{ env.KEYSTORE_STORE_FILE }}
+          androidKeystorePass: ${{ env.KEYSTORE_STORE_PASSWORD }}
+          androidKeyaliasName: ${{ env.KEYSTORE_KEY_ALIAS }}
+          androidKeyaliasPass: ${{ env.KEYSTORE_KEY_PASSWORD }}
           buildsPath: Builds/Android
 
       - name: Build Debug APK

@@ -1,50 +1,56 @@
-# PLANS - Scoring, Interstitial Layout, Orientation Fix, Starfield Tuning
+# PLANS - 0.1.0 Android Release CI Recovery
 
 ## Scope
-Implement final scoring + stars, interstitial centering fix, Android portrait stability fix, and calmer starfield tuning. Deterministic logic only, no new mechanics or visual styles.
+Diagnose and fix the tag-triggered CI failure for Decantra 0.1.0. Iterate release candidate tags until a fully green post-tag workflow is achieved.
 
-## Constraints & References
-- Determinism required for all scoring and visual logic.
-- Stars are badge-only; they must not drive score.
-- CleanSolve = no undo, no restart, no hints (per attempt).
-- Portrait orientation enforced; auto-rotation remains disabled.
-- Use internal difficulty D in [0..100] for scoring.
-- All numeric constants must be justified in code comments.
+## Root Cause (Confirmed)
+- **Failing run**: https://github.com/chrisgleissner/decantra/actions/runs/21732854464 (Run #201)
+- **Failing job**: Build Android APK/AAB
+- **Failing step**: Build Release APK (step #10, 5m 55s, conclusion: failure)
+- **Error**: `AndroidBuild: Release signing required but keystore env vars are missing. Expected KEYSTORE_STORE_FILE, KEYSTORE_STORE_PASSWORD, KEYSTORE_KEY_ALIAS.`
+- **Secondary symptom**: Version resolved as `0.9.0` (project default) instead of CI-computed `0.1.0`.
+- **Root cause**: `game-ci/unity-builder@v4` runs Unity inside a Docker container. Environment variables set via `$GITHUB_ENV` (KEYSTORE_STORE_FILE, VERSION_NAME, VERSION_CODE, etc.) are not forwarded into the container. The C# build method reads `Environment.GetEnvironmentVariable()` which returns null inside the container.
 
-## Execution Plan (Authoritative)
+## Fix Applied (0.1.0-RC1)
 
-### Step 1 - Implement final scoring + stars + tests
-- [x] Update `ScoreCalculator` + `ScoreSession` to the new formulas (Base/Perf/Clean/Total).
-- [x] Update `GameController` to supply M_opt, M_max, D, CleanSolve and compute stars via new thresholds.
-- [x] Update tests in EditMode for scoring, total accumulation, and star thresholds.
-- [x] Run full test suite (`tools/test.sh`).
+### Workflow (build.yml)
+- [x] Add `androidKeystoreName`, `androidKeystorePass`, `androidKeyaliasName`, `androidKeyaliasPass` inputs to Build Release APK and Build Release AAB steps (uses game-ci built-in signing mechanism which configures PlayerSettings inside the container).
+- [x] Pass `-versionName` and `-versionCode` via `customParameters` to both build steps (command-line args are reliably forwarded to Unity).
 
-### Step 2 - Fix interstitial vertical centering + test
-- [x] Recenter stars + score as a group within the bright rectangle; compute upward shift from layout metrics.
-- [x] Add/adjust a PlayMode test that asserts group centering + upward shift.
-- [x] Run full test suite (`tools/test.sh`).
+### C# (AndroidBuild.cs)
+- [x] Add early-return in `ConfigureAndroidSigningFromEnv()` to detect signing pre-configured by game-ci (checks `PlayerSettings.Android.useCustomKeystore` and keystore file existence).
+- [x] Add `GetCommandLineArg()` helper for parsing Unity command-line arguments.
+- [x] Add command-line arg parsing (`-versionName`, `-versionCode`) at top of `ResolveVersionName()` and `ResolveVersionCode()`.
 
-### Step 3 - Enforce portrait orientation early + verify
-- [x] Force `Screen.orientation = Portrait` at scene init (early).
-- [x] Record PlayerSettings orientation state in this plan for verification.
-- [x] Run full test suite (`tools/test.sh`).
+## Execution Log
 
-### Step 4 - Calmer starfield tuning + verify
-- [x] Reduce star density (>=50%), reduce speed to ~30%, add brightness levels (dark/medium/white) without changing size logic.
-- [x] Confirm starfield shader changes are deterministic and performance-safe.
-- [x] Run full test suite (`tools/test.sh`).
+### Step 1 - Inspect failing CI run
+- [x] Obtained failing workflow run URL and logs for tag `0.1.0`.
+- [x] Confirmed failure in Build Release APK step (step #10) with keystore env vars missing.
+- [x] Confirmed version mismatch (0.9.0 vs 0.1.0) from same root cause.
 
-### Step 5 - Release build + screenshots
-- [x] Build release APK.
-- [x] Capture fresh Play Store screenshots from release build.
-- [x] Archive screenshot paths and build outputs in this plan.
+### Step 2 - Minimal fix
+- [x] Applied workflow changes to pass signing config and version via game-ci inputs and customParameters.
+- [x] Applied C# changes for pre-configured signing detection and command-line version parsing.
 
-## Verification Notes (Fill As You Go)
-- PlayerSettings (ProjectSettings.asset):
-  - defaultScreenOrientation: 1
-  - allowedAutorotateToPortrait: 1
-  - allowedAutorotateToPortraitUpsideDown: 0
-  - allowedAutorotateToLandscapeLeft/Right: 0 / 0
-- Release build output:
-- Release build output: Builds/Android/Decantra.apk
-- Screenshot output: doc/play-store-assets/screenshots/phone
+### Step 3 - Commit and tag RC
+- [ ] Create atomic commit referencing the failing CI step.
+- [ ] Create 0.1.0-RC1 tag and push.
+
+### Step 4 - Observe post-tag CI
+- [ ] Verify all four stages succeed: license setup, tests, Android build, GitHub Release.
+- [ ] If any stage fails, loop with new evidence.
+
+### Step 5 - Final tag
+- [ ] Once RC tag is fully green, retag `0.1.0` and push.
+- [ ] Confirm GitHub Release exists with APK/AAB artifacts.
+
+## Evidence Log
+- Failing run URL: https://github.com/chrisgleissner/decantra/actions/runs/21732854464
+- Failing job/step: Build Android APK/AAB / Build Release APK (step #10)
+- Error output: `AndroidBuild: Release signing required but keystore env vars are missing.`
+- Fix summary: Use game-ci built-in androidKeystore* inputs + pass version via customParameters; C# detects pre-configured signing and parses CLI args for version
+- Commit: (pending)
+- RC tag(s): (pending)
+- Final tag: (pending)
+- Release URL: (pending)

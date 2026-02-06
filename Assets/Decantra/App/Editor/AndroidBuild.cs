@@ -305,6 +305,39 @@ namespace Decantra.App.Editor
 
         private static KeystoreConfig ConfigureAndroidSigningFromEnv(bool requireKeystore)
         {
+            // Check if signing was already configured by the CI runner (e.g., game-ci/unity-builder
+            // sets PlayerSettings via its androidKeystoreName/Pass/Alias inputs before invoking the
+            // custom build method). Env vars from GITHUB_ENV are not forwarded into the Docker
+            // container, so the game-ci inputs are the reliable mechanism for CI signing.
+            if (PlayerSettings.Android.useCustomKeystore
+                && !string.IsNullOrWhiteSpace(PlayerSettings.Android.keystoreName)
+                && !string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasName)
+                && !string.IsNullOrWhiteSpace(PlayerSettings.Android.keystorePass))
+            {
+                string existingKeystorePath = ResolveKeystorePath(PlayerSettings.Android.keystoreName);
+                if (File.Exists(existingKeystorePath))
+                {
+                    string resolvedKeyPass = !string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasPass)
+                        ? PlayerSettings.Android.keyaliasPass
+                        : PlayerSettings.Android.keystorePass;
+
+                    Debug.Log("========================================");
+                    Debug.Log("ANDROID SIGNING PRE-CONFIGURED BY CI");
+                    Debug.Log("========================================");
+                    Debug.Log($"  Custom keystore enabled: {PlayerSettings.Android.useCustomKeystore}");
+                    Debug.Log($"  Keystore path: {existingKeystorePath}");
+                    Debug.Log($"  Key alias: {PlayerSettings.Android.keyaliasName}");
+                    Debug.Log("========================================");
+
+                    return new KeystoreConfig(
+                        existingKeystorePath,
+                        PlayerSettings.Android.keystorePass,
+                        PlayerSettings.Android.keyaliasName,
+                        resolvedKeyPass
+                    );
+                }
+            }
+
             string keystorePathRaw = Environment.GetEnvironmentVariable("KEYSTORE_STORE_FILE");
             string keystorePass = Environment.GetEnvironmentVariable("KEYSTORE_STORE_PASSWORD");
             string keyAlias = Environment.GetEnvironmentVariable("KEYSTORE_KEY_ALIAS");
@@ -811,6 +844,13 @@ namespace Decantra.App.Editor
 
         private static string ResolveVersionName()
         {
+            // Command-line args (passed via customParameters in CI, reliable in Docker containers)
+            string cmdVersion = GetCommandLineArg("-versionName");
+            if (!string.IsNullOrWhiteSpace(cmdVersion))
+            {
+                return cmdVersion;
+            }
+
             string envVersion = FirstNonEmptyEnv("VERSION_NAME", "DECANTRA_VERSION_NAME", "VITE_APP_VERSION");
             if (!string.IsNullOrWhiteSpace(envVersion))
             {
@@ -836,6 +876,13 @@ namespace Decantra.App.Editor
 
         private static int? ResolveVersionCode()
         {
+            // Command-line args (passed via customParameters in CI, reliable in Docker containers)
+            string cmdCode = GetCommandLineArg("-versionCode");
+            if (TryParsePositiveInt(cmdCode, out int cmdCodeInt))
+            {
+                return ClampVersionCode(cmdCodeInt);
+            }
+
             string envVersionCode = FirstNonEmptyEnv("VERSION_CODE", "DECANTRA_VERSION_CODE");
             if (TryParsePositiveInt(envVersionCode, out int code))
             {
@@ -889,6 +936,20 @@ namespace Decantra.App.Editor
                 if (!string.IsNullOrWhiteSpace(value))
                 {
                     return value.Trim();
+                }
+            }
+
+            return null;
+        }
+
+        private static string GetCommandLineArg(string argName)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], argName, StringComparison.Ordinal))
+                {
+                    return args[i + 1];
                 }
             }
 
