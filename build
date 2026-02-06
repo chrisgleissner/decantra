@@ -45,7 +45,8 @@ Usage: ./build [OPTIONS]
 
 Options:
   --install            Install APK to first connected Android device (via adb)
-  --reinstall          Uninstall existing app before installing
+  --install-only       Install existing APK (skip tests/build)
+  --reinstall          Clean install: uninstall then install (implies --install)
   --device <id>        Specific device ID for adb (optional)
   --adb-port <port>    ADB server port for Decantra (default: 5039)
   --serial <id>        Device serial to target (env: DECANTRA_ANDROID_SERIAL)
@@ -67,7 +68,9 @@ Examples:
   ./build --aab                   Run tests and build release AAB (Play Store)
   ./build --skip-tests            Build release APK without running tests
   ./build --skip-build --install  Install existing APK to device
-  ./build --install --reinstall   Uninstall and reinstall the APK
+  ./build --install-only          Install existing APK to device
+  ./build --reinstall             Clean install (uninstall then install)
+  ./build --reinstall --skip-build  Clean install existing APK (skip tests/build)
   ./build --install --device <id> Build and install to a specific device
   ./build --screenshots           Build + capture Play Store screenshots
   ./build --screenshots-only      Capture screenshots from an existing APK
@@ -538,6 +541,12 @@ while [[ $# -gt 0 ]]; do
       RUN_INSTALL=true
       shift
       ;;
+    --install-only)
+      RUN_INSTALL=true
+      RUN_TESTS=false
+      RUN_BUILD=false
+      shift
+      ;;
     --device)
       DEVICE_ID="${2:-}"
       shift 2
@@ -565,6 +574,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --reinstall)
       AUTO_REINSTALL=true
+      RUN_INSTALL=true
       shift
       ;;
     --debug)
@@ -615,6 +625,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${AUTO_REINSTALL}" == "true" ]]; then
+  RUN_INSTALL=true
+fi
 
 if [[ "${RUN_TESTS}" == "true" || "${RUN_BUILD}" == "true" ]]; then
   ensure_command timeout coreutils

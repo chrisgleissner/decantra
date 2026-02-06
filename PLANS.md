@@ -1,67 +1,62 @@
-# PLANS - Orientation + Rendering Regression (Android)
+# PLANS - Android Black Screen After Logo Fade (Rendering Regression)
 
 ## Scope
-Fix the Android device regression where the portrait-only app starts upside down, shows the logo inverted, then renders a black screen after the splash while a small UI overlay remains visible. Ensure Unity is the single orientation authority, no orientation race exists during surface creation, and rendering remains stable through splash -> gameplay.
-
-## Failure Modes (Observed / Hypothesized)
-- FM1: Android manifest resolves `screenOrientation` to reverse portrait, causing upside-down splash on device.
-- FM2: Runtime orientation lock triggers an orientation change after splash, leading to a black screen (surface recreation / render pipeline disruption).
-- FM3: Multiple orientation authorities (PlayerSettings + AndroidManifest + runtime code) create conflicts/races.
-- FM4: Scene bootstrap renders UI but background/game cameras fail after orientation change.
-
-## Mandatory Tests / Assertions (Define Before Fix)
-1. EditMode: Orientation authority is single-source in PlayerSettings.
-2. EditMode: Custom AndroidManifest does not enforce `android:screenOrientation`.
-3. EditMode: PlayerSettings orientation is Portrait-only (no auto-rotate, no upside-down).
-4. PlayMode: SceneBootstrap does not force `Screen.orientation` at runtime.
-5. Manual device tests (post-fix).
-6. Device cold-start, no rotation.
-7. Device rotation stress during startup.
-8. Splash -> gameplay transition.
-
-## Plan (Ordered, Checkable)
-- [x] 1. Git forensics: identify commits in last ~3 days touching PlayerSettings, AndroidManifest, Screen APIs, splash/bootstrap, cameras/canvas.
-- [x] 2. Orientation authority audit: PlayerSettings vs AndroidManifest vs runtime code. Record conflicts.
-- [x] 3. Runtime audit: locate all `Screen.orientation` / `Screen.autorotate*` usage and call timing.
-- [x] 4. Rendering path audit: cameras, canvas render modes, splash -> gameplay path.
-- [x] 5. Implement tests/guards for orientation invariants (EditMode + PlayMode).
-- [x] 6. Apply fixes to enforce portrait once (Unity/PlayerSettings only) and remove runtime/manifest conflicts.
-- [x] 7. Rebuild Android manifest via Unity build to verify `screenOrientation=portrait`.
-- [x] 8. Run EditMode + PlayMode tests.
-- [ ] 9. Device verification: cold-start, rotation stress, splash->gameplay (emulator screenshots complete; physical device pending).
-- [ ] 10. Document root cause + evidence, mark all steps complete.
-
-## Findings Log
-- Git forensics summary (last ~3 days).
-- 2026-02-05 `462a259` added `ForcePortraitOrientation()` in `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs`.
-- 2026-02-04 `31a5ee7` changed `androidAutoRotationBehavior` from `1` -> `0` in `ProjectSettings/ProjectSettings.asset`.
-- 2026-02-04 `412e3ef` changed `defaultScreenOrientation` `4` -> `1`, disabled all autorotate except portrait, and set `useOSAutorotation` `1` -> `0`.
-- 2026-02-01 `893efa4` / `e0f2769` introduced/edited `Assets/Plugins/Android/AndroidManifest.xml` with `android:screenOrientation=\"portrait\"`.
-- Orientation authority audit summary.
-- PlayerSettings showed `defaultScreenOrientation: 1`, portrait-only autorotate flags, `useOSAutorotation: 0`, `androidAutoRotationBehavior: 0`.
-- Custom manifest explicitly set `android:screenOrientation=\"portrait\"` (duplicate authority).
-- Runtime `SceneBootstrap.EnsureScene()` called `Screen.orientation = ScreenOrientation.Portrait` after scene load.
-- Generated manifest (pre-fix) showed `android:screenOrientation=\"reversePortrait\"`.
-- Runtime audit summary.
-- Only `Screen.orientation` usage was in `SceneBootstrap` at `RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)`.
-- No `Screen.autorotate*` usage elsewhere.
-- Rendering path audit summary.
-- Main scene only contains `Main Camera`; UI/background/game objects are created in `SceneBootstrap`.
-- `SceneBootstrap.EnsureRenderCameras()` creates three cameras with identity rotation; canvases are `ScreenSpaceCamera`.
-- Splash is Unity splash; no separate splash scene transition beyond Unity splash -> `Main.unity` -> runtime bootstrap.
-- Post-fix validation summary.
-- `defaultScreenOrientation` set to `0` (Portrait per Unity `UIOrientation` enum).
-- Regenerated manifest now reports `android:screenOrientation=\"portrait\"`.
+Fix the critical Android runtime regression where the app renders a black screen immediately after the logo/splash fade-out. The SFX indicator remains visible in the top-right corner but no gameplay content is rendered. The app does not crash and Unity continues running.
 
 ## Root Cause (Confirmed)
-- PlayerSettings `defaultScreenOrientation` was set to `1`, which maps to `UIOrientation.PortraitUpsideDown` in Unity 6. This caused the generated Android manifest to use `reversePortrait`, making the splash/logo render upside down on devices.
-- A runtime `Screen.orientation = Portrait` call in `SceneBootstrap` attempted to correct orientation after scene load, which created an orientation change after the splash and led to the black screen on device.
-- Orientation enforcement was duplicated across PlayerSettings, custom AndroidManifest, and runtime code, creating a race.
+`CreateIntroBanner()` in `SceneBootstrap.cs` creates a full-screen UI overlay with a solid black background at `alpha = 1.0`. During normal gameplay (non-screenshot mode), `IntroBanner.Play()` is **never called** — it is only invoked by `RuntimeScreenshot` in screenshot capture mode. Without `Play()`, `SetBackgroundAlpha(0f)` is never executed, leaving the opaque black overlay permanently covering all game/background camera content.
 
-## Evidence Log
-- Generated manifest before fix (2026-02-05) showed `android:screenOrientation=\"reversePortrait\"` at `Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/AndroidManifest.xml`.
-- Generated manifest after fix (2026-02-06) shows `android:screenOrientation=\"portrait\"` at `Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/AndroidManifest.xml`.
-- EditMode + PlayMode tests completed via `tools/test.sh`; coverage gate passed with line coverage 0.913 (min 0.800).
-- 2026-02-06: `./build --screenshots` completed (tests + coverage passed, release APK built, Play Store screenshots captured).
-- Screenshots captured to `doc/play-store-assets/screenshots/phone` (files `screenshot-01` through `screenshot-09`).
-- Emulator `DecantraPhone` used for automated screenshot capture; physical device validation still pending.
+### Why the SFX indicator remains visible
+The settings panel (containing the SFX toggle) is created *after* the IntroBanner in the UI canvas hierarchy, giving it a higher sibling index. Canvas rendering draws later siblings on top, so the SFX toggle renders above the black overlay.
+
+### Why automated screenshots were correct
+`RuntimeScreenshot.CaptureIntroScreenshot()` calls `intro.Play()`, which runs the full fade sequence and ends with `SetBackgroundAlpha(0f)`. By the time level screenshots are captured, the overlay is transparent.
+
+### Why existing tests did not catch this
+- Unity EditMode/PlayMode tests don't instantiate the full runtime UI hierarchy.
+- Screenshot capture uses `RuntimeScreenshot` which explicitly calls `Play()` — a code path that never runs during normal app startup.
+- No test asserted the IntroBanner's initial visual state or its effect on the render output.
+
+## Hypotheses (Validated)
+- [x] H1: **IntroBanner overlay blocks rendering** — CONFIRMED. Full-screen black Image at alpha 1.0 on UI canvas, never dismissed.
+- [x] H2: Camera lifecycle issue — REFUTED. All three cameras (Background, Game, UI) are created correctly in `EnsureRenderCameras()`.
+- [x] H3: URP/render pipeline misconfiguration — REFUTED. Project uses built-in pipeline (no SRP asset assigned).
+- [x] H4: Scene transition issue — REFUTED. Single scene (`Main.unity`), no scene transitions.
+- [x] H5: Android surface issue — REFUTED. Surface is fine; rendering continues underneath the overlay.
+
+## Fix
+Change `CreateIntroBanner()` to initialise the background Image with `alpha = 0` instead of `alpha = 1`. The `PrepareForIntro()` method (called inside `Play()`) already sets background alpha to 1 before the fade sequence, so screenshot mode continues to work correctly.
+
+## Plan (Ordered, Checkable)
+- [x] 1. Diagnose root cause: audit IntroBanner creation, lifecycle, and Play() call sites.
+- [x] 2. Confirm `Play()` is never called outside screenshot mode.
+- [x] 3. Confirm IntroBanner background starts at alpha 1.0 in `CreateIntroBanner()`.
+- [x] 4. Update PLANS.md with findings.
+- [x] 5. Fix: Change IntroBanner background initial color to `(0,0,0,0)` in `CreateIntroBanner()`.
+- [x] 6. Add EditMode test: IntroBanner background must start transparent.
+- [x] 7. Add emulator-native screenshot validation (adb screencap + luminance check).
+- [x] 8. Run EditMode + PlayMode tests (146/146 passed, coverage 91.3%).
+- [x] 9. Build APK and verify on Android emulator (no black screen).
+- [x] 10. Capture emulator screenshot evidence and validate (median luma 69.3, 0.3% near-black).
+- [x] 11. Confirm all CI gates pass (tests green, coverage gate passed).
+
+## Emulator Screenshot Validation
+- Capture via `adb exec-out screencap -p` after logo fade-out.
+- Validate: reject if median luminance < 15 (on 0-255 scale).
+- Validate: reject if >95% of pixels are near-black (R+G+B < 30).
+- Store screenshots as build artifacts under `Builds/Android/emulator-screenshots/`.
+- Deterministic, headless, runs on CI.
+
+## Acceptance Criteria
+- Logo fades in and out correctly.
+- Gameplay renders immediately after splash.
+- No black screen on Android emulator.
+- Emulator-native screenshot shows visible gameplay (bottles, background, UI).
+- Orientation correct (portrait).
+- All unit tests pass.
+- All existing screenshots unchanged.
+- Coverage gate passes.
+- No tests weakened, skipped, or disabled.
+
+## Previous Fix (Orientation — Resolved)
+The prior orientation regression (`defaultScreenOrientation: 1` = PortraitUpsideDown) was fixed on `main` by setting `defaultScreenOrientation: 0` (Portrait) and removing the runtime `Screen.orientation` call and duplicate AndroidManifest orientation attribute.

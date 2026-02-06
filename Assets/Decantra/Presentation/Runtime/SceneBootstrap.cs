@@ -1259,7 +1259,7 @@ namespace Decantra.Presentation
             backgroundRect.offsetMin = Vector2.zero;
             backgroundRect.offsetMax = Vector2.zero;
             var backgroundImage = backgroundGo.AddComponent<Image>();
-            backgroundImage.color = new Color(0f, 0f, 0f, 1f);
+            backgroundImage.color = new Color(0f, 0f, 0f, 0f); // Start transparent; PrepareForIntro() sets alpha=1 when Play() is called
             backgroundImage.raycastTarget = false;
             backgroundGo.transform.SetAsFirstSibling();
 
