@@ -157,11 +157,11 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void ToString_ContainsAllValues()
         {
-            var config = new StarfieldConfig(true, 0.5f, 0.4f, 0.6f);
+            var config = new StarfieldConfig(true, 0.20f, 0.25f, 0.60f);
             string s = config.ToString();
             Assert.IsTrue(s.Contains("Enabled=True"));
-            Assert.IsTrue(s.Contains("Density=0.50"));
-            Assert.IsTrue(s.Contains("Speed=0.40"));
+            Assert.IsTrue(s.Contains("Density=0.20"));
+            Assert.IsTrue(s.Contains("Speed=0.25"));
             Assert.IsTrue(s.Contains("Brightness=0.60"));
         }
 
