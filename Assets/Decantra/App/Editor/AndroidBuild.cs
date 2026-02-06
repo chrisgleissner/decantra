@@ -317,7 +317,7 @@ namespace Decantra.App.Editor
                 string existingKeystorePath = ResolveKeystorePath(PlayerSettings.Android.keystoreName);
                 if (File.Exists(existingKeystorePath))
                 {
-                    string resolvedKeyPass = !string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasPass)
+                    string preConfiguredKeyPass = !string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasPass)
                         ? PlayerSettings.Android.keyaliasPass
                         : PlayerSettings.Android.keystorePass;
 
@@ -333,7 +333,7 @@ namespace Decantra.App.Editor
                         existingKeystorePath,
                         PlayerSettings.Android.keystorePass,
                         PlayerSettings.Android.keyaliasName,
-                        resolvedKeyPass
+                        preConfiguredKeyPass
                     );
                 }
             }
