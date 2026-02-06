@@ -392,6 +392,13 @@ jobs:
           test -r "Builds/Android/decantra-${version}.aab"
           test -s "Builds/Android/decantra-${version}.aab"
 
+      - name: Install aapt for APK inspection
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends aapt
+          aapt version
+
       - name: Verify AD_ID is absent from release outputs
         if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}
         run: |
