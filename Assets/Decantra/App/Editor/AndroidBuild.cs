@@ -338,10 +338,13 @@ namespace Decantra.App.Editor
                 }
             }
 
-            string keystorePathRaw = Environment.GetEnvironmentVariable("KEYSTORE_STORE_FILE");
-            string keystorePass = Environment.GetEnvironmentVariable("KEYSTORE_STORE_PASSWORD");
-            string keyAlias = Environment.GetEnvironmentVariable("KEYSTORE_KEY_ALIAS");
-            string keyPass = Environment.GetEnvironmentVariable("KEYSTORE_KEY_PASSWORD");
+            // Check both our custom env var names and game-ci's ANDROID_KEYSTORE_* names
+            // (game-ci forwards its androidKeystoreName/Pass/Alias inputs as ANDROID_KEYSTORE_*
+            //  env vars inside the Docker container)
+            string keystorePathRaw = FirstNonEmptyEnv("KEYSTORE_STORE_FILE", "ANDROID_KEYSTORE_NAME");
+            string keystorePass = FirstNonEmptyEnv("KEYSTORE_STORE_PASSWORD", "ANDROID_KEYSTORE_PASS");
+            string keyAlias = FirstNonEmptyEnv("KEYSTORE_KEY_ALIAS", "ANDROID_KEYALIAS_NAME");
+            string keyPass = FirstNonEmptyEnv("KEYSTORE_KEY_PASSWORD", "ANDROID_KEYALIAS_PASS");
 
             if (string.IsNullOrWhiteSpace(keystorePathRaw)
                 || string.IsNullOrWhiteSpace(keystorePass)
