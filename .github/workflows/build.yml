@@ -156,6 +156,17 @@ jobs:
           echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
           echo "::notice::Android build started at $(date -Iseconds)"
 
+      - name: Free disk space
+        run: |
+          echo "::group::Disk usage before cleanup"
+          df -h /
+          echo "::endgroup::"
+          sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/graalvm /usr/local/share/powershell /usr/local/share/chromium /usr/local/lib/node_modules || true
+          sudo apt-get clean || true
+          echo "::group::Disk usage after cleanup"
+          df -h /
+          echo "::endgroup::"
+
       - uses: actions/checkout@v4
         with:
           lfs: true
