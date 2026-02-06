@@ -266,19 +266,28 @@ jobs:
             version_name="0.0.0"
           fi
 
-          version_code="${VERSION_CODE:-}"
-          if [[ -z "${version_code}" ]]; then
-            if [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
-              run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
-              version_code="$((1000 + GITHUB_RUN_NUMBER * 10 + run_attempt - 1))"
-            else
-              commit_count="$(git rev-list --count HEAD 2>/dev/null || true)"
-              if [[ -n "${commit_count}" ]]; then
-                version_code="$((1000 + commit_count))"
-              else
-                version_code="1000"
-              fi
-            fi
+          if [[ -z "${GITHUB_RUN_NUMBER:-}" ]]; then
+            echo "GITHUB_RUN_NUMBER is required to compute a monotonic CI version code." >&2
+            exit 1
+          fi
+
+          run_number="${GITHUB_RUN_NUMBER}"
+          run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
+
+          if ! [[ "${run_number}" =~ ^[0-9]+$ ]]; then
+            echo "GITHUB_RUN_NUMBER must be numeric, got '${run_number}'." >&2
+            exit 1
+          fi
+
+          if ! [[ "${run_attempt}" =~ ^[0-9]+$ ]]; then
+            echo "GITHUB_RUN_ATTEMPT must be numeric, got '${run_attempt}'." >&2
+            exit 1
+          fi
+
+          version_code="$((1000 + run_number * 10 + run_attempt - 1))"
+          if (( version_code < 1 || version_code > 2147483647 )); then
+            echo "Resolved VERSION_CODE ${version_code} is out of Android int range." >&2
+            exit 1
           fi
 
           require_keystore=false
@@ -288,7 +297,7 @@ jobs:
 
           echo "VERSION_NAME=${version_name}" >> "$GITHUB_ENV"
           echo "VERSION_CODE=${version_code}" >> "$GITHUB_ENV"
-          echo "Resolved VERSION_NAME=${version_name}, VERSION_CODE=${version_code}, REQUIRE_KEYSTORE=${require_keystore}"
+          echo "Resolved VERSION_NAME=${version_name}, VERSION_CODE=${version_code} (source=github_run_number), REQUIRE_KEYSTORE=${require_keystore}"
 
       - name: Require release keystore for signing
         if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}

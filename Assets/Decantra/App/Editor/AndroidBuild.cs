@@ -879,6 +879,32 @@ namespace Decantra.App.Editor
 
         private static int? ResolveVersionCode()
         {
+            if (IsGitHubActionsEnvironment())
+            {
+                int? ciVersionCode = ResolveGitHubActionsVersionCode();
+                if (!ciVersionCode.HasValue)
+                {
+                    FailBuild("AndroidBuild: GitHub Actions detected but VERSION_CODE could not be derived from GITHUB_RUN_NUMBER/GITHUB_RUN_ATTEMPT.");
+                    return null;
+                }
+
+                string cmdCode = GetCommandLineArg("-versionCode");
+                if (TryParsePositiveInt(cmdCode, out int cmdCodeInt) && cmdCodeInt != ciVersionCode.Value)
+                {
+                    FailBuild($"AndroidBuild: -versionCode ({cmdCodeInt}) does not match CI-derived version code ({ciVersionCode.Value}).");
+                    return null;
+                }
+
+                string envVersionCode = FirstNonEmptyEnv("VERSION_CODE", "DECANTRA_VERSION_CODE");
+                if (TryParsePositiveInt(envVersionCode, out int envCodeInt) && envCodeInt != ciVersionCode.Value)
+                {
+                    FailBuild($"AndroidBuild: VERSION_CODE env ({envCodeInt}) does not match CI-derived version code ({ciVersionCode.Value}).");
+                    return null;
+                }
+
+                return ciVersionCode.Value;
+            }
+
             // Command-line args (passed via customParameters in CI, reliable in Docker containers)
             string cmdCode = GetCommandLineArg("-versionCode");
             if (TryParsePositiveInt(cmdCode, out int cmdCodeInt))
@@ -914,6 +940,34 @@ namespace Decantra.App.Editor
 
             int existing = PlayerSettings.Android.bundleVersionCode;
             return existing > 0 ? existing : 1;
+        }
+
+        private static int? ResolveGitHubActionsVersionCode()
+        {
+            string runNumberRaw = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
+            if (!TryParsePositiveLong(runNumberRaw, out long runNumber))
+            {
+                return null;
+            }
+
+            long runAttempt = 1;
+            string runAttemptRaw = Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT");
+            if (TryParsePositiveLong(runAttemptRaw, out long attempt))
+            {
+                runAttempt = attempt;
+            }
+
+            long computed = 1000L + runNumber * 10L + Math.Max(0L, runAttempt - 1L);
+            return ClampVersionCode(computed);
+        }
+
+        private static bool IsGitHubActionsEnvironment()
+        {
+            return string.Equals(
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
+                "true",
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
         private static int ClampVersionCode(long value)
@@ -969,6 +1023,18 @@ namespace Decantra.App.Editor
 
             string trimmed = value.Trim();
             return int.TryParse(trimmed, out result) && result > 0;
+        }
+
+        private static bool TryParsePositiveLong(string value, out long result)
+        {
+            result = 0;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string trimmed = value.Trim();
+            return long.TryParse(trimmed, out result) && result > 0;
         }
 
         private static string TryRunGit(string command, params string[] args)

@@ -88,7 +88,7 @@ Follow [doc/play-store-listing.md](doc/play-store-listing.md) for exact listing 
 ## 8) Release
 
 - [ ] Upload **AAB** to Production (preferred) or to a staged rollout.
-- [ ] Ensure versionCode increments and versionName updated.
+- [ ] Ensure versionName is updated; CI auto-derives a monotonic Android versionCode from `GITHUB_RUN_NUMBER`/`GITHUB_RUN_ATTEMPT`.
 - [ ] Review and submit for review.
 
 ## 9) CI release flow
