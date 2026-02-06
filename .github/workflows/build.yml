@@ -392,6 +392,33 @@ jobs:
           test -r "Builds/Android/decantra-${version}.aab"
           test -s "Builds/Android/decantra-${version}.aab"
 
+      - name: Verify AD_ID is absent from release outputs
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true') }}
+        run: |
+          version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
+          apk_path="Builds/Android/decantra-${version}.apk"
+          bundle_manifest="Library/Bee/Android/Prj/IL2CPP/Gradle/launcher/build/intermediates/bundle_manifest/release/processApplicationManifestReleaseForBundle/AndroidManifest.xml"
+
+          echo "::group::APK permissions"
+          apk_permissions="$(aapt dump permissions "${apk_path}")"
+          echo "${apk_permissions}"
+          echo "::endgroup::"
+
+          if echo "${apk_permissions}" | rg -q "com.google.android.gms.permission.AD_ID"; then
+            echo "Release APK still declares AD_ID permission." >&2
+            exit 1
+          fi
+
+          if [[ ! -f "${bundle_manifest}" ]]; then
+            echo "Expected bundle manifest not found at ${bundle_manifest}" >&2
+            exit 1
+          fi
+
+          if rg -q "com.google.android.gms.permission.AD_ID" "${bundle_manifest}"; then
+            echo "Release AAB manifest still declares AD_ID permission." >&2
+            exit 1
+          fi
+
       - name: Report build timing
         if: always()
         run: |
