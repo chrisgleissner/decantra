@@ -47,6 +47,7 @@ Options:
   --install            Install APK to first connected Android device (via adb)
   --install-only       Install existing APK (skip tests/build)
   --reinstall          Clean install: uninstall then install (implies --install)
+  --reinstall-only     Clean install existing APK (skip tests/build)
   --device <id>        Specific device ID for adb (optional)
   --adb-port <port>    ADB server port for Decantra (default: 5039)
   --serial <id>        Device serial to target (env: DECANTRA_ANDROID_SERIAL)
@@ -71,6 +72,7 @@ Examples:
   ./build --install-only          Install existing APK to device
   ./build --reinstall             Clean install (uninstall then install)
   ./build --reinstall --skip-build  Clean install existing APK (skip tests/build)
+  ./build --reinstall-only        Clean install existing APK (skip tests/build)
   ./build --install --device <id> Build and install to a specific device
   ./build --screenshots           Build + capture Play Store screenshots
   ./build --screenshots-only      Capture screenshots from an existing APK
@@ -542,6 +544,13 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --install-only)
+      RUN_INSTALL=true
+      RUN_TESTS=false
+      RUN_BUILD=false
+      shift
+      ;;
+    --reinstall-only)
+      AUTO_REINSTALL=true
       RUN_INSTALL=true
       RUN_TESTS=false
       RUN_BUILD=false
