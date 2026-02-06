@@ -404,7 +404,10 @@ jobs:
         run: |
           version="${VERSION_NAME:-${{ steps.build_release.outputs.buildVersion }}}"
           apk_path="Builds/Android/decantra-${version}.apk"
-          bundle_manifest="Library/Bee/Android/Prj/IL2CPP/Gradle/launcher/build/intermediates/bundle_manifest/release/processApplicationManifestReleaseForBundle/AndroidManifest.xml"
+          bundle_path="Builds/Android/decantra-${version}.aab"
+          bundletool_version="1.15.6"
+          bundletool_jar="/tmp/bundletool-all-${bundletool_version}.jar"
+          bundletool_url="https://github.com/google/bundletool/releases/download/${bundletool_version}/bundletool-all-${bundletool_version}.jar"
 
           echo "::group::APK permissions"
           apk_permissions="$(aapt dump permissions "${apk_path}")"
@@ -416,15 +419,44 @@ jobs:
             exit 1
           fi
 
-          if [[ ! -f "${bundle_manifest}" ]]; then
-            echo "Expected bundle manifest not found at ${bundle_manifest}" >&2
+          if [[ ! -r "${bundle_path}" ]]; then
+            echo "Release AAB not found at ${bundle_path}" >&2
             exit 1
           fi
 
-          if rg -q "com.google.android.gms.permission.AD_ID" "${bundle_manifest}"; then
+          echo "::group::AAB manifest"
+          curl -sSL -o "${bundletool_jar}" "${bundletool_url}"
+          bundle_manifest="$(java -jar "${bundletool_jar}" dump manifest --bundle "${bundle_path}")"
+          echo "${bundle_manifest}"
+          echo "::endgroup::"
+
+          if echo "${bundle_manifest}" | rg -q "com.google.android.gms.permission.AD_ID"; then
             echo "Release AAB manifest still declares AD_ID permission." >&2
             exit 1
           fi
+
+      - name: Collect manifest merge diagnostics
+        if: ${{ always() }}
+        run: |
+          diagnostics_dir="Builds/Android/manifest-merge"
+          mkdir -p "${diagnostics_dir}"
+
+          find "Library" -type f \( \
+            -name "manifest-merger-*-report.txt" -o \
+            -name "manifest-merger-*-merged-manifest.xml" -o \
+            -path "*/merged_manifests/*/AndroidManifest.xml" \
+          \) -print -exec cp -f "{}" "${diagnostics_dir}/" \; || true
+
+          if [[ -z "$(ls -A "${diagnostics_dir}" 2>/dev/null)" ]]; then
+            echo "No manifest merge diagnostics found."
+          fi
+
+      - name: Upload manifest merge diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-Android-Manifest-Merge
+          path: Builds/Android/manifest-merge
 
       - name: Report build timing
         if: always()
