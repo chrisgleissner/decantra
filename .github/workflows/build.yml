@@ -44,8 +44,14 @@ jobs:
         id: check
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          echo "is_unity_license_set=${{ env.UNITY_LICENSE != '' }}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${UNITY_LICENSE}" && -n "${UNITY_EMAIL}" && -n "${UNITY_PASSWORD}" ]]; then
+            echo "is_unity_license_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_unity_license_set=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # ============================================================================
   # TIER 1: Tests
@@ -84,6 +90,13 @@ jobs:
           unityVersion: ${{ env.UNITY_VERSION }}
           testMode: editmode
           customParameters: -enableCodeCoverage
+
+      - name: Upload code coverage artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-Coverage
+          path: Coverage/**
 
   # ============================================================================
   # TIER 2: Android build
@@ -153,9 +166,47 @@ jobs:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: Android
-          buildMethod: Decantra.App.Editor.AndroidBuild.BuildRelease
+          buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
           versioning: None
           customParameters: >
+            -buildPath Builds/Android/Decantra-release.apk
+            -versionName ${{ env.VERSION_NAME }}
+            -versionCode ${{ env.VERSION_CODE }}
+          androidKeystoreName: decantra-release.keystore
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+
+      - name: Build Android (release AAB)
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
+          versioning: None
+          customParameters: >
+            -buildPath Builds/Android/Decantra-release.aab
+            -versionName ${{ env.VERSION_NAME }}
+            -versionCode ${{ env.VERSION_CODE }}
+          androidKeystoreName: decantra-release.keystore
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+
+      - name: Build Android (debug APK)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true' }}
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: Decantra.App.Editor.AndroidBuild.BuildDebugApk
+          versioning: None
+          customParameters: >
+            -buildPath Builds/Android/Decantra-debug.apk
             -versionName ${{ env.VERSION_NAME }}
             -versionCode ${{ env.VERSION_CODE }}
 
