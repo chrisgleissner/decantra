@@ -1,43 +1,31 @@
-# PLANS — Android Permission Audit for Decantra
+# PLANS — CI Enforcement and RC Automation
 
-## 1. Role
-- [x] Confirm scope aligns with offline-only Android game and Play Store policy audit expectations.
-- [x] Identify all required tools available in environment for AAB/manifest inspection.
+## 1. G1 Codecov Enforcement
+- [x] Update test job to verify coverage artifacts exist and fail clearly if missing.
+- [x] Exclude Assets/Decantra/Tests from Codecov submission.
+- [x] Add explicit retry with backoff around Codecov upload using codecov/codecov-action@v5.
+- [x] Make Codecov upload mandatory and fail the job if all attempts fail.
+- [x] Ensure build-android only runs after confirmed Codecov success (test job fails otherwise).
 
-## 2. Non-Negotiable Process
-- [x] Replace prior plan with this audit plan and keep it updated through execution.
-- [x] Represent each meaningful step as a checkbox and only check off after verification.
+## 2. G2 Google Play Upload Enforcement
+- [ ] Hard-set Play package name to uk.gleissner.decantra.
+- [ ] Fail release job if PLAY_SERVICE_ACCOUNT_JSON is missing or empty.
+- [ ] Make Play upload mandatory with explicit retry + backoff and validation.
+- [ ] Reorder steps so GitHub Release publishes only after Play upload success.
+- [ ] Make track and status explicit and deterministic (internal, draft).
 
-## 3. Inputs You Must Analyze (Mandatory)
-### 3.A Repository sources
-- [x] Collect all AndroidManifest.xml sources (main + flavors/buildTypes/plugins).
-- [x] Collect Gradle build files and dependency declarations (including version catalogs).
-- [x] Collect Unity/Android plugin manifests and any embedded Android library manifests.
-- [x] Identify native libraries and Unity plugins likely to inject permissions.
+## 3. G3 RC Tagging and Validation
+- [ ] Add workflow_dispatch inputs and job to create next RC tag safely using git + gh.
+- [ ] Ensure tag triggers include *.*.* and *.*.*-rc*.
+- [ ] Add gh-based gate on final tags that requires a successful RC run.
+- [ ] Keep RC behavior non-production while still uploading to Play internal track.
 
-### 3.B Release artifact (source of truth)
-- [x] Locate the AAB file containing "0.9.1" in the repository.
-- [x] Extract and inspect base manifest and any feature/config splits in the AAB.
+## 4. G4 Autonomous git + gh Operations
+- [x] Create working branch, apply edits, commit with clear message, and push via git.
+- [x] Use gh to validate auth status and query workflow runs.
+- [x] Create and push an RC tag via git and observe the run via gh.
 
-## 4. AAB Inspection Requirements (Strict)
-- [x] Extract base/manifest/AndroidManifest.xml from the AAB.
-- [x] Inspect all module/split manifests for permissions/features/queries.
-- [x] Produce canonical lists of uses-permission, uses-permission-sdk-23, uses-feature, queries, and sensitive components.
-- [x] Verify absence/presence of AD_ID, INTERNET, ACCESS_NETWORK_STATE, and other high-scrutiny items.
-- [x] Cross-check AAB permissions against merged manifest output; if not available, generate merged manifest.
-
-## 5. Dependency and SDK Audit (Mandatory)
-- [x] Generate release dependency tree and enumerate SDKs associated with ads/analytics/crash reporting.
-- [x] Trace permission sources to Unity defaults, plugins, and transitive dependencies.
-
-## 6. Analysis Requirements
-- [x] For each AAB permission, document source, necessity classification, and Play approval risk.
-- [x] Flag high-scrutiny items and package visibility queries for special review.
-
-## 7. Remediation Requirements
-- [x] For each non-required permission, propose concrete removal steps and risk assessment.
-- [x] Provide quick validation steps for any risky change.
-
-## 8. Output Format (Strict)
-- [x] Prepare executive summary, canonical table, discrepancy report, removal candidates, remediation plan, and final verdict.
-
+## 5. G5 Deterministic, Self-Enforcing CI
+- [ ] Remove skip logic and continue-on-error from mandatory steps.
+- [ ] Add clear logs for retries and backoff timings.
+- [ ] Verify CI green for RC run and enforce final-tag gate failure when RC missing.
