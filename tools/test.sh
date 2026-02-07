@@ -93,7 +93,7 @@ run_with_log "EditMode tests" "${EDITMODE_LOG_PATH}" "${UNITY_PATH}" \
   -debugCodeOptimization \
   -enableCodeCoverage \
   -coverageResultsPath "${PROJECT_PATH}/Coverage" \
-  -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;-Decantra.Domain.Tests;-Decantra.PlayMode.Tests;dontClear" \
+  -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear" \
   -logFile "${EDITMODE_LOG_PATH}"
 
 run_with_log "Coverage report" "${REPORT_LOG_PATH}" "${UNITY_PATH}" \
@@ -104,7 +104,7 @@ run_with_log "Coverage report" "${REPORT_LOG_PATH}" "${UNITY_PATH}" \
   -projectPath "${PROJECT_PATH}" \
   -enableCodeCoverage \
   -coverageResultsPath "${PROJECT_PATH}/Coverage" \
-  -coverageOptions "generateHtmlReport;generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;-Decantra.Domain.Tests;-Decantra.PlayMode.Tests" \
+  -coverageOptions "generateHtmlReport;generateAdditionalMetrics;assemblyFilters:+Decantra.Domain" \
   -logFile "${REPORT_LOG_PATH}" \
   -quit
 

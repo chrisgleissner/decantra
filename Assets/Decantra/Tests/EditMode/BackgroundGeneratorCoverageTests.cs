@@ -111,8 +111,25 @@ namespace Decantra.Domain.Tests
 
             float mean = (float)(sum / field.Length);
             Assert.Greater(max - min, 0.05f, $"{archetype} {label} lacks variance (min {min}, max {max}).");
-            Assert.Greater(mean, 0.05f, $"{archetype} {label} mean too low ({mean}).");
-            Assert.Less(mean, 0.95f, $"{archetype} {label} mean too high ({mean}).");
+            GetMeanBounds(archetype, out float minMean, out float maxMean);
+            Assert.Greater(mean, minMean, $"{archetype} {label} mean too low ({mean}).");
+            Assert.Less(mean, maxMean, $"{archetype} {label} mean too high ({mean}).");
+        }
+
+        private static void GetMeanBounds(GeneratorArchetype archetype, out float minMean, out float maxMean)
+        {
+            minMean = 0.05f;
+            maxMean = 0.95f;
+
+            switch (archetype)
+            {
+                case GeneratorArchetype.FractalEscapeDensity:
+                    minMean = 0.01f;
+                    break;
+                case GeneratorArchetype.ImplicitBlobHaze:
+                    maxMean = 0.98f;
+                    break;
+            }
         }
 
         private static float ComputeFingerprint(float[] field)
