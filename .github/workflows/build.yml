@@ -5,7 +5,7 @@ on:
     types: [published]
   push:
     branches: ["main"]
-    tags: ["v*", "*.*.*"]
+    tags: ["v*", "*.*.*", "*.*.*-rc*"]
   pull_request:
     paths-ignore:
       - "**.md"
@@ -25,6 +25,16 @@ on:
         required: false
         default: "false"
         type: boolean
+      create_rc_tag:
+        description: "Create and push next RC tag"
+        required: false
+        default: "false"
+        type: boolean
+      rc_base_version:
+        description: "Base version for RC tag (X.Y.Z). If empty, uses latest final tag."
+        required: false
+        default: ""
+        type: string
 
 # Cancel in-progress runs for same branch/PR to prevent wasted compute
 concurrency:
@@ -35,6 +45,66 @@ env:
   UNITY_VERSION: "6000.3.5f2"
 
 jobs:
+  create-rc-tag:
+    name: Create RC tag
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_rc_tag == 'true'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push next RC tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh auth status
+
+          git fetch --tags --force --prune --prune-tags
+
+          base_version="${{ github.event.inputs.rc_base_version }}"
+          if [[ -z "$base_version" ]]; then
+            base_version="$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          fi
+
+          if [[ -z "$base_version" ]]; then
+            echo "Unable to determine base version for RC tag." >&2
+            exit 1
+          fi
+
+          if ! [[ "$base_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Base version must be X.Y.Z, got '${base_version}'." >&2
+            exit 1
+          fi
+
+          max_rc=0
+          for tag in $(git tag --list "${base_version}-rc*"); do
+            rc_number="${tag##*-rc}"
+            if [[ "$rc_number" =~ ^[0-9]+$ ]] && (( rc_number > max_rc )); then
+              max_rc="$rc_number"
+            fi
+          done
+
+          next_rc=$((max_rc + 1))
+          next_tag="${base_version}-rc${next_rc}"
+
+          if git rev-parse -q --verify "refs/tags/${next_tag}" >/dev/null; then
+            echo "Tag ${next_tag} already exists." >&2
+            exit 1
+          fi
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${next_tag}" >/dev/null 2>&1; then
+            echo "Remote tag ${next_tag} already exists." >&2
+            exit 1
+          fi
+
+          git tag -a "${next_tag}" -m "Release candidate ${next_tag}"
+          git push origin "refs/tags/${next_tag}"
+          echo "Created and pushed ${next_tag}"
+
   check-license:
     name: Check Unity license secrets
     runs-on: ubuntu-latest
@@ -111,16 +181,83 @@ jobs:
           testMode: playmode
           artifactsPath: TestResults
 
-      - name: Upload coverage to Codecov
-        if: hashFiles('Coverage/decantra-opencov/Recording/*.xml') != ''
+      - name: Verify coverage artifacts
+        run: |
+          shopt -s nullglob
+          coverage_files=(Coverage/decantra-opencov/Recording/*.xml)
+          if (( ${#coverage_files[@]} == 0 )); then
+            echo "Coverage files missing under Coverage/decantra-opencov/Recording." >&2
+            exit 1
+          fi
+          ls -lah "${coverage_files[@]}"
+
+      - name: Upload coverage to Codecov (attempt 1)
+        id: codecov_attempt_1
+        continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
           files: Coverage/decantra-opencov/Recording/*.xml
           flags: unity
           name: unity-coverage
-          fail_ci_if_error: false
+          fail_ci_if_error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Backoff before Codecov retry 2
+        if: steps.codecov_attempt_1.outcome != 'success'
+        run: |
+          echo "::warning::Codecov attempt 1 failed; retrying in 10s."
+          sleep 10
+
+      - name: Upload coverage to Codecov (attempt 2)
+        id: codecov_attempt_2
+        if: steps.codecov_attempt_1.outcome != 'success'
+        continue-on-error: true
+        uses: codecov/codecov-action@v5
+        with:
+          files: Coverage/decantra-opencov/Recording/*.xml
+          flags: unity
+          name: unity-coverage
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Backoff before Codecov retry 3
+        if: steps.codecov_attempt_1.outcome != 'success' && steps.codecov_attempt_2.outcome != 'success'
+        run: |
+          echo "::warning::Codecov attempt 2 failed; retrying in 20s."
+          sleep 20
+
+      - name: Upload coverage to Codecov (attempt 3)
+        id: codecov_attempt_3
+        if: steps.codecov_attempt_1.outcome != 'success' && steps.codecov_attempt_2.outcome != 'success'
+        continue-on-error: true
+        uses: codecov/codecov-action@v5
+        with:
+          files: Coverage/decantra-opencov/Recording/*.xml
+          flags: unity
+          name: unity-coverage
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Validate Codecov upload
+        if: always()
+        run: |
+          if [[ "${{ steps.codecov_attempt_1.outcome }}" == "success" ]]; then
+            echo "::notice::Codecov upload succeeded on attempt 1."
+            exit 0
+          fi
+          if [[ "${{ steps.codecov_attempt_2.outcome }}" == "success" ]]; then
+            echo "::notice::Codecov upload succeeded on attempt 2."
+            exit 0
+          fi
+          if [[ "${{ steps.codecov_attempt_3.outcome }}" == "success" ]]; then
+            echo "::notice::Codecov upload succeeded on attempt 3."
+            exit 0
+          fi
+          echo "Codecov upload failed after 3 attempts." >&2
+          exit 1
 
       - name: Report timing
         if: always()
@@ -144,7 +281,7 @@ jobs:
       (
         github.event_name == 'push' ||
         github.event_name == 'release' ||
-        (github.event_name == 'workflow_dispatch' && github.event.inputs.run_android_build == 'true')
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.run_android_build == 'true' && github.event.inputs.create_rc_tag != 'true')
       )
     env:
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -488,6 +625,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
+    env:
+      PLAY_PACKAGE_NAME: uk.gleissner.decantra
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -499,33 +638,51 @@ jobs:
           name: Decantra-Android-Release-AAB
           path: release-artifacts
 
-      - name: Resolve Play Console availability
-        env:
-          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          PLAY_PACKAGE_NAME: ${{ secrets.PLAY_PACKAGE_NAME }}
+      - name: Resolve tag context
         run: |
-          if [[ -n "$PLAY_SERVICE_ACCOUNT_JSON" && -n "$PLAY_PACKAGE_NAME" ]]; then
-            echo "HAS_PLAY_SERVICE=true" >> "$GITHUB_ENV"
-            echo "PLAY_PACKAGE_NAME=$PLAY_PACKAGE_NAME" >> "$GITHUB_ENV"
+          ref_name="${GITHUB_REF_NAME}"
+          if [[ "${ref_name}" == *"-rc"* ]]; then
+            base_version="${ref_name%-rc*}"
+            echo "IS_RC_TAG=true" >> "$GITHUB_ENV"
+            echo "BASE_VERSION=${base_version}" >> "$GITHUB_ENV"
           else
-            echo "HAS_PLAY_SERVICE=false" >> "$GITHUB_ENV"
-            if [[ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
-              echo "Play Console credentials missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
-            fi
-            if [[ -z "$PLAY_PACKAGE_NAME" ]]; then
-              echo "Play package name missing; skipping Google Play upload." >> "$GITHUB_STEP_SUMMARY"
-            fi
+            echo "IS_RC_TAG=false" >> "$GITHUB_ENV"
+            echo "BASE_VERSION=${ref_name}" >> "$GITHUB_ENV"
           fi
 
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release-artifacts/decantra-*.apk
-            release-artifacts/decantra-*.aab
+      - name: Require successful RC run for final tag
+        if: env.IS_RC_TAG != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh auth status
 
-      - name: Upload AAB to Google Play (internal)
-        if: env.HAS_PLAY_SERVICE == 'true'
+          base_version="${BASE_VERSION}"
+          workflow_name="build.yml"
+          runs_json="$(gh run list --workflow "${workflow_name}" --limit 200 --json headBranch,conclusion,status,event)"
+
+          matches="$(echo "${runs_json}" | jq -r --arg base "${base_version}" '.[] | select(.headBranch | startswith($base + "-rc")) | select(.conclusion == "success") | .headBranch' | sort -u)"
+
+          if [[ -z "${matches}" ]]; then
+            echo "No successful RC workflow runs found for ${base_version}-rcN tags." >&2
+            exit 1
+          fi
+
+          echo "Successful RC runs found:"
+          echo "${matches}"
+
+      - name: Require Play service account secret
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [[ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "PLAY_SERVICE_ACCOUNT_JSON is missing or empty." >&2
+            exit 1
+          fi
+
+      - name: Upload AAB to Google Play (attempt 1)
+        id: play_upload_1
         continue-on-error: true
         uses: r0adkll/upload-google-play@v1
         with:
@@ -534,3 +691,65 @@ jobs:
           releaseFiles: release-artifacts/decantra-*.aab
           track: internal
           status: draft
+
+      - name: Backoff before Play upload retry 2
+        if: steps.play_upload_1.outcome != 'success'
+        run: |
+          echo "::warning::Play upload attempt 1 failed; retrying in 20s."
+          sleep 20
+
+      - name: Upload AAB to Google Play (attempt 2)
+        id: play_upload_2
+        if: steps.play_upload_1.outcome != 'success'
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PLAY_PACKAGE_NAME }}
+          releaseFiles: release-artifacts/decantra-*.aab
+          track: internal
+          status: draft
+
+      - name: Backoff before Play upload retry 3
+        if: steps.play_upload_1.outcome != 'success' && steps.play_upload_2.outcome != 'success'
+        run: |
+          echo "::warning::Play upload attempt 2 failed; retrying in 40s."
+          sleep 40
+
+      - name: Upload AAB to Google Play (attempt 3)
+        id: play_upload_3
+        if: steps.play_upload_1.outcome != 'success' && steps.play_upload_2.outcome != 'success'
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PLAY_PACKAGE_NAME }}
+          releaseFiles: release-artifacts/decantra-*.aab
+          track: internal
+          status: draft
+
+      - name: Validate Play upload
+        if: always()
+        run: |
+          if [[ "${{ steps.play_upload_1.outcome }}" == "success" ]]; then
+            echo "::notice::Google Play upload succeeded on attempt 1."
+            exit 0
+          fi
+          if [[ "${{ steps.play_upload_2.outcome }}" == "success" ]]; then
+            echo "::notice::Google Play upload succeeded on attempt 2."
+            exit 0
+          fi
+          if [[ "${{ steps.play_upload_3.outcome }}" == "success" ]]; then
+            echo "::notice::Google Play upload succeeded on attempt 3."
+            exit 0
+          fi
+          echo "Google Play upload failed after 3 attempts." >&2
+          exit 1
+
+      - name: Publish release
+        if: env.IS_RC_TAG != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/decantra-*.apk
+            release-artifacts/decantra-*.aab
