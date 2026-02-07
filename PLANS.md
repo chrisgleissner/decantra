@@ -1,3 +1,19 @@
+# PLANS — CI Recovery (2026-02-07)
+
+## PHASE 1: Android signing failure
+- [ ] Root cause: Unity release build runs without keystore env vars inside the unity-builder container, so AndroidBuild fails release signing.
+	Fix: Pass prepared keystore values into unity-builder inputs and explicit step env, using outputs from the keystore prep step.
+	Verify: CI Build Decantra job completes Build Android APK/AAB and logs show signing configured without missing env vars.
+
+- [ ] Root cause: Keystore prep step only writes to GITHUB_ENV, which may not propagate into the container.
+	Fix: Emit keystore values as step outputs and consume them directly in unity-builder inputs and step env.
+	Verify: `gh run view` for the push shows release build succeeded and APK/AAB artifacts uploaded.
+
+## PHASE 2: End-to-end CI confirmation
+- [ ] Root cause: CI status not confirmed after changes.
+	Fix: Push workflow update and confirm green pipeline via `gh run list` + `gh run view`.
+	Verify: Build Decantra workflow shows success for test and build jobs on main.
+
 # PLANS — Coverage Correctness + Deterministic Generator Tests
 
 ## PHASE 1: codecov.io Coverage Correctness

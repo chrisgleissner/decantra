@@ -135,6 +135,7 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare keystore (optional)
+        id: keystore
         env:
           KEYSTORE_STORE_FILE: ${{ secrets.KEYSTORE_STORE_FILE || secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASS }}
@@ -171,6 +172,11 @@ jobs:
           fi
 
           echo "HAS_KEYSTORE=$HAS_KEYSTORE" >> "$GITHUB_ENV"
+          echo "has_keystore=$HAS_KEYSTORE" >> "$GITHUB_OUTPUT"
+          echo "keystore_store_file=$KEYSTORE_STORE_FILE" >> "$GITHUB_OUTPUT"
+          echo "keystore_store_password=$KEYSTORE_STORE_PASSWORD" >> "$GITHUB_OUTPUT"
+          echo "keystore_key_alias=$KEYSTORE_KEY_ALIAS" >> "$GITHUB_OUTPUT"
+          echo "keystore_key_password=$KEYSTORE_KEY_PASSWORD" >> "$GITHUB_OUTPUT"
 
       # ------------------------------------------------------------
       # Resolve Android versioning
@@ -211,6 +217,11 @@ jobs:
       # ------------------------------------------------------------
       - name: Build Android (release)
         uses: game-ci/unity-builder@v4
+        env:
+          KEYSTORE_STORE_FILE: ${{ steps.keystore.outputs.keystore_store_file }}
+          KEYSTORE_STORE_PASSWORD: ${{ steps.keystore.outputs.keystore_store_password }}
+          KEYSTORE_KEY_ALIAS: ${{ steps.keystore.outputs.keystore_key_alias }}
+          KEYSTORE_KEY_PASSWORD: ${{ steps.keystore.outputs.keystore_key_password }}
         with:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
@@ -221,14 +232,18 @@ jobs:
             -buildPath Builds/Android/Decantra-release.apk
             -versionName ${{ env.VERSION_NAME }}
             -versionCode ${{ env.VERSION_CODE }}
-          androidKeystoreName: decantra-release.keystore
-          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
-          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
-          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          androidKeystoreName: ${{ steps.keystore.outputs.keystore_store_file }}
+          androidKeystorePass: ${{ steps.keystore.outputs.keystore_store_password }}
+          androidKeyaliasName: ${{ steps.keystore.outputs.keystore_key_alias }}
+          androidKeyaliasPass: ${{ steps.keystore.outputs.keystore_key_password }}
 
       - name: Build Android (release AAB)
         uses: game-ci/unity-builder@v4
+        env:
+          KEYSTORE_STORE_FILE: ${{ steps.keystore.outputs.keystore_store_file }}
+          KEYSTORE_STORE_PASSWORD: ${{ steps.keystore.outputs.keystore_store_password }}
+          KEYSTORE_KEY_ALIAS: ${{ steps.keystore.outputs.keystore_key_alias }}
+          KEYSTORE_KEY_PASSWORD: ${{ steps.keystore.outputs.keystore_key_password }}
         with:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
@@ -239,11 +254,10 @@ jobs:
             -buildPath Builds/Android/Decantra-release.aab
             -versionName ${{ env.VERSION_NAME }}
             -versionCode ${{ env.VERSION_CODE }}
-          androidKeystoreName: decantra-release.keystore
-          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
-          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
-          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          androidKeystoreName: ${{ steps.keystore.outputs.keystore_store_file }}
+          androidKeystorePass: ${{ steps.keystore.outputs.keystore_store_password }}
+          androidKeyaliasName: ${{ steps.keystore.outputs.keystore_key_alias }}
+          androidKeyaliasPass: ${{ steps.keystore.outputs.keystore_key_password }}
 
       - name: Build Android (debug APK)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_debug_apk == 'true' }}
