@@ -171,7 +171,7 @@ jobs:
           unityVersion: ${{ env.UNITY_VERSION }}
           testMode: editmode
           artifactsPath: TestResults
-          customParameters: -enableCodeCoverage -coverageResultsPath Coverage -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear"
+          customParameters: -enableCodeCoverage -coverageResultsPath Coverage -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;-Decantra.Domain.Tests;-Decantra.PlayMode.Tests;dontClear"
 
       - name: Run PlayMode tests
         uses: game-ci/unity-test-runner@v4
