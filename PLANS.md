@@ -73,6 +73,9 @@ Notes:
 - [x] Run coverage locally and inspect report artifacts for test exclusion.
 - [x] Confirm Domain coverage increases and all listed generators show coverage.
 - [x] Run one full local build after coverage improvements.
-- [ ] Push changes once after local build success.
-- [ ] Verify CI and Codecov are green with corrected coverage.
-- [ ] Record before/after coverage deltas and any justified gaps here.
+- [x] Push changes once after local build success.
+- [x] Verify CI and Codecov are green with corrected coverage.
+- [x] Record before/after coverage deltas and any justified gaps here.
+Notes:
+- CI PlayMode crash traced to coverage state; workflow now runs PlayMode before EditMode coverage.
+- Coverage before change was not comparable due to mixed test/prod assemblies; after change Domain line coverage is 91.8% (Coverage/Report/Summary.xml).
