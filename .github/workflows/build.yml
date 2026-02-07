@@ -88,7 +88,10 @@ jobs:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
           testMode: editmode
-          customParameters: -enableCodeCoverage
+          customParameters: >
+            -enableCodeCoverage
+            -coverageResultsPath Coverage
+            -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear"
 
       - name: Upload code coverage artifacts
         if: ${{ always() }}

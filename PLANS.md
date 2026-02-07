@@ -9,6 +9,11 @@
 	Fix: Emit keystore values as step outputs and consume them directly in unity-builder inputs and step env.
 	Verify: `gh run view` for the push shows release build succeeded and APK/AAB artifacts uploaded.
 
+## PHASE 1B: Coverage artifact emission
+- [ ] Root cause: EditMode tests do not write coverage to Coverage/**, so artifact upload warns about missing files.
+	Fix: Add explicit coverage output path and options to EditMode test runner parameters.
+	Verify: CI test job uploads Decantra-Coverage artifacts without path warnings.
+
 ## PHASE 2: End-to-end CI confirmation
 - [ ] Root cause: CI status not confirmed after changes.
 	Fix: Push workflow update and confirm green pipeline via `gh run list` + `gh run view`.
