@@ -1,8 +1,12 @@
 # Decantra
 
-<img src="./doc/img/logo.png" alt="Decantra Logo" width="200"/>
+[![Build](https://github.com/chrisgleissner/decantra/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chrisgleissner/decantra/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/chrisgleissner/decantra/graph/badge.svg)](https://codecov.io/gh/chrisgleissner/decantra)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 
-Decantra is a bottle-sorting puzzle game for Android built in Unity.
+Bottle-sorting puzzle game for Android built in Unity.
+
+<img src="./doc/img/logo.png" alt="Decantra Logo" width="200"/>
 
 ## How to Play
 
