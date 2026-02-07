@@ -2,6 +2,7 @@
 
 ## 1. G1 Codecov Enforcement
 - [ ] Update test job to verify coverage artifacts exist and fail clearly if missing.
+- [ ] Exclude Assets/Decantra/Tests from Codecov submission.
 - [ ] Add explicit retry with backoff around Codecov upload using codecov/codecov-action@v5.
 - [ ] Make Codecov upload mandatory and fail the job if all attempts fail.
 - [ ] Ensure build-android only runs after confirmed Codecov success (test job fails otherwise).
