@@ -184,9 +184,9 @@ jobs:
       - name: Verify coverage artifacts
         run: |
           shopt -s nullglob
-          coverage_files=(Coverage/decantra-opencov/Recording/*.xml)
+          coverage_files=(Coverage/decantra-opencov/**/*.xml)
           if (( ${#coverage_files[@]} == 0 )); then
-            echo "Coverage files missing under Coverage/decantra-opencov/Recording." >&2
+            echo "Coverage files missing under Coverage/decantra-opencov." >&2
             exit 1
           fi
           ls -lah "${coverage_files[@]}"
@@ -196,7 +196,7 @@ jobs:
         continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
-          files: Coverage/decantra-opencov/Recording/*.xml
+          files: Coverage/decantra-opencov/**/*.xml
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
@@ -215,7 +215,7 @@ jobs:
         continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
-          files: Coverage/decantra-opencov/Recording/*.xml
+          files: Coverage/decantra-opencov/**/*.xml
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
@@ -234,7 +234,7 @@ jobs:
         continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
-          files: Coverage/decantra-opencov/Recording/*.xml
+          files: Coverage/decantra-opencov/**/*.xml
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
