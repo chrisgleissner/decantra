@@ -183,20 +183,29 @@ jobs:
 
       - name: Verify coverage artifacts
         run: |
-          shopt -s nullglob
-          coverage_files=(Coverage/decantra-opencov/**/*.xml)
-          if (( ${#coverage_files[@]} == 0 )); then
-            echo "Coverage files missing under Coverage/decantra-opencov." >&2
+          set -euo pipefail
+          coverage_candidates="$(find Coverage -type f -name '*.xml' 2>/dev/null || true)"
+          if [[ -z "${coverage_candidates}" ]]; then
+            coverage_candidates="$(find . -path './Library' -prune -o -path './.git' -prune -o -type f -name '*CoverageResults*.xml' -print 2>/dev/null || true)"
+          fi
+
+          if [[ -z "${coverage_candidates}" ]]; then
+            echo "Coverage files missing. Ensure Unity code coverage output is enabled." >&2
             exit 1
           fi
-          ls -lah "${coverage_files[@]}"
+
+          echo "Detected coverage files:"
+          echo "${coverage_candidates}"
+
+          coverage_files_csv="$(echo "${coverage_candidates}" | paste -sd ',' -)"
+          echo "CODECOV_FILES=${coverage_files_csv}" >> "$GITHUB_ENV"
 
       - name: Upload coverage to Codecov (attempt 1)
         id: codecov_attempt_1
         continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
-          files: Coverage/decantra-opencov/**/*.xml
+          files: ${{ env.CODECOV_FILES }}
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
@@ -215,7 +224,7 @@ jobs:
         continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
-          files: Coverage/decantra-opencov/**/*.xml
+          files: ${{ env.CODECOV_FILES }}
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
@@ -234,7 +243,7 @@ jobs:
         continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
-          files: Coverage/decantra-opencov/**/*.xml
+          files: ${{ env.CODECOV_FILES }}
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
