@@ -206,11 +206,13 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ${{ env.CODECOV_FILES }}
+          exclude: Assets/Decantra/Tests/**
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_EXCLUDES: Assets/Decantra/Tests/**
 
       - name: Backoff before Codecov retry 2
         if: steps.codecov_attempt_1.outcome != 'success'
@@ -225,11 +227,13 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ${{ env.CODECOV_FILES }}
+          exclude: Assets/Decantra/Tests/**
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_EXCLUDES: Assets/Decantra/Tests/**
 
       - name: Backoff before Codecov retry 3
         if: steps.codecov_attempt_1.outcome != 'success' && steps.codecov_attempt_2.outcome != 'success'
@@ -244,11 +248,13 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ${{ env.CODECOV_FILES }}
+          exclude: Assets/Decantra/Tests/**
           flags: unity
           name: unity-coverage
           fail_ci_if_error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_EXCLUDES: Assets/Decantra/Tests/**
 
       - name: Validate Codecov upload
         if: always()
