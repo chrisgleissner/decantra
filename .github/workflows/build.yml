@@ -164,6 +164,14 @@ jobs:
             echo "::warning::Unity Library cache MISS - expect longer build time"
           fi
 
+      - name: Run PlayMode tests
+        uses: game-ci/unity-test-runner@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: playmode
+          artifactsPath: TestResults
+
       - name: Run EditMode tests
         uses: game-ci/unity-test-runner@v4
         with:
@@ -172,14 +180,6 @@ jobs:
           testMode: editmode
           artifactsPath: TestResults
           customParameters: -enableCodeCoverage -coverageResultsPath Coverage -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear"
-
-      - name: Run PlayMode tests
-        uses: game-ci/unity-test-runner@v4
-        with:
-          projectPath: .
-          unityVersion: ${{ env.UNITY_VERSION }}
-          testMode: playmode
-          artifactsPath: TestResults
 
       - name: Verify coverage artifacts
         run: |
