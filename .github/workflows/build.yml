@@ -134,6 +134,44 @@ jobs:
           lfs: true
           fetch-depth: 0
 
+      - name: Prepare keystore (optional)
+        env:
+          KEYSTORE_STORE_FILE: ${{ secrets.KEYSTORE_STORE_FILE || secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASS }}
+          KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS || secrets.ANDROID_KEYALIAS_NAME }}
+          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD || secrets.ANDROID_KEYALIAS_PASS }}
+        run: |
+          HAS_KEYSTORE=false
+          if [[ -n "$KEYSTORE_STORE_FILE" ]]; then
+            if [[ -f "$KEYSTORE_STORE_FILE" ]]; then
+              echo "Using keystore at $KEYSTORE_STORE_FILE"
+            else
+              mkdir -p "$GITHUB_WORKSPACE/.ci"
+              decode_target_rel=".ci/decantra-release.keystore"
+              decode_target_abs="$GITHUB_WORKSPACE/$decode_target_rel"
+              printf '%s' "$KEYSTORE_STORE_FILE" | base64 -d > "$decode_target_abs" 2>/dev/null || true
+              if [[ -s "$decode_target_abs" ]]; then
+                KEYSTORE_STORE_FILE="$decode_target_rel"
+                echo "Decoded keystore secret to $KEYSTORE_STORE_FILE"
+              else
+                echo "Keystore secret present but could not decode to file; skipping custom keystore."
+                KEYSTORE_STORE_FILE=""
+              fi
+            fi
+          fi
+
+          if [[ -n "$KEYSTORE_STORE_FILE" && -f "$KEYSTORE_STORE_FILE" && -n "$KEYSTORE_STORE_PASSWORD" && -n "$KEYSTORE_KEY_ALIAS" ]]; then
+            HAS_KEYSTORE=true
+            echo "KEYSTORE_STORE_FILE=$KEYSTORE_STORE_FILE" >> "$GITHUB_ENV"
+            echo "KEYSTORE_STORE_PASSWORD=$KEYSTORE_STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEYSTORE_KEY_PASSWORD=$KEYSTORE_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEYSTORE_KEY_ALIAS=$KEYSTORE_KEY_ALIAS" >> "$GITHUB_ENV"
+          else
+            echo "Keystore secrets missing or incomplete; proceeding without custom signing."
+          fi
+
+          echo "HAS_KEYSTORE=$HAS_KEYSTORE" >> "$GITHUB_ENV"
+
       # ------------------------------------------------------------
       # Resolve Android versioning
       # ------------------------------------------------------------
@@ -173,6 +211,11 @@ jobs:
       # ------------------------------------------------------------
       - name: Build Android (release)
         uses: game-ci/unity-builder@v4
+        env:
+          KEYSTORE_STORE_FILE: ${{ env.KEYSTORE_STORE_FILE }}
+          KEYSTORE_STORE_PASSWORD: ${{ env.KEYSTORE_STORE_PASSWORD }}
+          KEYSTORE_KEY_ALIAS: ${{ env.KEYSTORE_KEY_ALIAS }}
+          KEYSTORE_KEY_PASSWORD: ${{ env.KEYSTORE_KEY_PASSWORD }}
         with:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
@@ -191,6 +234,11 @@ jobs:
 
       - name: Build Android (release AAB)
         uses: game-ci/unity-builder@v4
+        env:
+          KEYSTORE_STORE_FILE: ${{ env.KEYSTORE_STORE_FILE }}
+          KEYSTORE_STORE_PASSWORD: ${{ env.KEYSTORE_STORE_PASSWORD }}
+          KEYSTORE_KEY_ALIAS: ${{ env.KEYSTORE_KEY_ALIAS }}
+          KEYSTORE_KEY_PASSWORD: ${{ env.KEYSTORE_KEY_PASSWORD }}
         with:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
