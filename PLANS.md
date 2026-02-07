@@ -21,9 +21,9 @@
 - [ ] Keep RC behavior non-production while still uploading to Play internal track.
 
 ## 4. G4 Autonomous git + gh Operations
-- [ ] Create working branch, apply edits, commit with clear message, and push via git.
-- [ ] Use gh to validate auth status and query workflow runs.
-- [ ] Create and push an RC tag via git and observe the run via gh.
+- [x] Create working branch, apply edits, commit with clear message, and push via git.
+- [x] Use gh to validate auth status and query workflow runs.
+- [x] Create and push an RC tag via git and observe the run via gh.
 
 ## 5. G5 Deterministic, Self-Enforcing CI
 - [ ] Remove skip logic and continue-on-error from mandatory steps.
