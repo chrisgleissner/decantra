@@ -16,6 +16,7 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
+        private const int ReferenceCapacity = 10;
         [SerializeField] private RectTransform slotRoot;
         [SerializeField] private List<Image> slots = new List<Image>();
         [SerializeField] private ColorPalette palette;
@@ -213,20 +214,9 @@ namespace Decantra.Presentation.View
 
         private void ApplyCapacityScale(int capacity)
         {
-            float scaleY = 1f;
-            float scaleX = 1f;
-            if (capacity <= 3)
-            {
-                scaleY = 0.88f;
-                scaleX = 0.95f;
-            }
-            else if (capacity >= 5)
-            {
-                scaleY = 1.06f;
-                scaleX = 1.02f;
-            }
-
-            transform.localScale = new Vector3(baseScale.x * scaleX, baseScale.y * scaleY, baseScale.z);
+            float clampedCapacity = Mathf.Max(1f, capacity);
+            float scaleY = clampedCapacity / ReferenceCapacity;
+            transform.localScale = new Vector3(baseScale.x, baseScale.y * scaleY, baseScale.z);
         }
 
         private void ApplySinkStyle(Bottle bottle)

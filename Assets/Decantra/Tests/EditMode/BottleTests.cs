@@ -95,5 +95,50 @@ namespace Decantra.Tests.EditMode
             var mixed = new Bottle(new ColorId?[] { ColorId.Green, ColorId.Blue, ColorId.Green, ColorId.Green });
             Assert.IsFalse(mixed.IsSolvedBottle());
         }
+
+        [Test]
+        public void PourInto_ExactFitAcrossCapacities()
+        {
+            var source = new Bottle(new ColorId?[]
+            {
+                ColorId.Red, ColorId.Red, ColorId.Red, null, null, null, null, null
+            });
+            var target = new Bottle(new ColorId?[]
+            {
+                ColorId.Red, ColorId.Red, ColorId.Red, null, null, null
+            });
+
+            int amount = source.MaxPourAmountInto(target);
+            Assert.AreEqual(3, amount);
+
+            source.PourInto(target, amount);
+
+            Assert.AreEqual(0, source.Count);
+            Assert.AreEqual(6, target.Count);
+            Assert.IsTrue(target.IsFull);
+        }
+
+        [Test]
+        public void PourInto_RespectsFreeSpaceAcrossCapacities()
+        {
+            var source = new Bottle(new ColorId?[]
+            {
+                ColorId.Blue, ColorId.Blue, ColorId.Blue, ColorId.Blue, ColorId.Blue,
+                null, null, null, null, null
+            });
+            var target = new Bottle(new ColorId?[]
+            {
+                ColorId.Blue, ColorId.Blue, null, null
+            });
+
+            int amount = source.MaxPourAmountInto(target);
+            Assert.AreEqual(2, amount);
+
+            source.PourInto(target, amount);
+
+            Assert.AreEqual(3, source.Count);
+            Assert.AreEqual(4, target.Count);
+            Assert.IsTrue(target.IsFull);
+        }
     }
 }

@@ -63,6 +63,13 @@ The APK will be produced at:
 - Presentation layer (Unity): `Assets/Decantra/Presentation`
 - Tests: `Assets/Decantra/Tests`
 
+## Bottle Volume Model
+
+- Slots are the only volume unit; bottle capacity equals slot count.
+- Bottle height scales linearly with capacity, using a shared reference capacity.
+- Liquid height is $\frac{\text{occupied slots}}{\text{capacity}}$ of the bottle height.
+- Identical occupied slot counts yield identical absolute liquid heights across capacities, which keeps pours visually predictable.
+
 ## Notes
 
 - To run the game directly in the Unity Editor, use the menu item `Decantra/Setup Scene`.

@@ -44,6 +44,7 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
 ## Testing + gatekeepers
 
 - Run EditMode + PlayMode tests via Unity Test Runner.
+- Local Unity path: /usr/local/bin/unity (verify with `which unity` if needed).
 - Coverage target: ≥80% for domain logic (Code Coverage package).
 - PR gate: tests green + coverage target met + maintainer review.
 
