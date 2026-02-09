@@ -1,3 +1,21 @@
+# PLANS — Bottle Volume Visual Consistency (2026-02-09)
+
+## PHASE 1: Visual model alignment
+- [x] Define a single linear height mapping using slot capacity as the only input.
+- [x] Remove any per-capacity width scaling to enforce uniform bottle width.
+- [x] Ensure liquid height derives from occupied slots and scaled bottle height only.
+
+## PHASE 2: Automated tests
+- [x] Add PlayMode tests validating bottle height ratios for 4/6/8/10-slot bottles.
+- [x] Add PlayMode tests validating liquid height matches slot counts across capacities.
+- [x] Add EditMode tests validating exact-fit pours across mixed capacities.
+
+## PHASE 3: Documentation
+- [x] Document the slot-canonical volume model and linear height rules in the developer guide.
+
+## PHASE 4: Verification
+- [ ] Run/confirm test coverage for new tests and verify no visual regressions are introduced. (Blocked: Unity executable not found in this environment.)
+
 # PLANS — CI Recovery (2026-02-07)
 
 ## PHASE 1: Android signing failure
