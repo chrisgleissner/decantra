@@ -243,12 +243,18 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
+            // Sink marker color: halfway between black and the bottle outline color
+            Color sinkMarkerColor = outline != null
+                ? Color.Lerp(Color.black, outlineDefaultColor, 0.5f)
+                : new Color(0.33f, 0.38f, 0.44f, 0.9f);
+            sinkMarkerColor.a = 0.9f;
+
             if (bottle.IsSink)
             {
                 if (basePlate != null)
                 {
                     basePlate.gameObject.SetActive(true);
-                    basePlate.color = new Color(0.12f, 0.12f, 0.16f, 0.95f);
+                    basePlate.color = sinkMarkerColor;
                 }
 
                 if (body != null)
@@ -266,9 +272,8 @@ namespace Decantra.Presentation.View
                 if (anchorCollar != null)
                 {
                     anchorCollar.gameObject.SetActive(true);
-                    // Reduce collar height by 50% so it doesn't obscure liquid at bottle base
-                    var collarRect = anchorCollar.rectTransform;
-                    collarRect.sizeDelta = new Vector2(collarRect.sizeDelta.x, 28f);
+                    anchorCollar.color = sinkMarkerColor;
+                    UpdateCollarLayout(bottle.Capacity);
                 }
 
                 if (normalShadow != null)
@@ -307,6 +312,43 @@ namespace Decantra.Presentation.View
             }
 
             UpdateBaseLayout();
+        }
+
+        /// <summary>
+        /// Positions the anchorCollar (marker band) so that it is vertically centered
+        /// within the first slot of liquid. When 1 unit of liquid is poured in, the
+        /// liquid above and below the band will have equal height.
+        /// Re-parents the collar into slotRoot so it aligns with liquid coordinates.
+        /// </summary>
+        private void UpdateCollarLayout(int capacity)
+        {
+            if (anchorCollar == null || slotRoot == null) return;
+
+            // Re-parent into slotRoot if not already there, so coordinates match liquid
+            if (anchorCollar.rectTransform.parent != slotRoot)
+            {
+                anchorCollar.rectTransform.SetParent(slotRoot, false);
+            }
+
+            float height = slotRoot.rect.height;
+            if (height <= 0f) height = 300f;
+            float width = slotRoot.rect.width;
+            if (width <= 0f) width = 112f;
+
+            // Height of 1 slot in local space
+            float oneSlotHeight = capacity > 0 ? height / capacity : height;
+
+            // Collar height is ~40% of one slot so liquid is visible above and below
+            float collarHeight = oneSlotHeight * 0.4f;
+            // Center the collar vertically within the first slot
+            float collarCenterY = oneSlotHeight * 0.5f;
+
+            var collarRect = anchorCollar.rectTransform;
+            collarRect.anchorMin = new Vector2(0.5f, 0f);
+            collarRect.anchorMax = new Vector2(0.5f, 0f);
+            collarRect.pivot = new Vector2(0.5f, 0.5f);
+            collarRect.sizeDelta = new Vector2(width, collarHeight);
+            collarRect.anchoredPosition = new Vector2(0f, collarCenterY);
         }
 
         /// <summary>
