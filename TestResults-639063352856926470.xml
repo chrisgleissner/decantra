@@ -1,0 +1,1391 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="205" result="Passed" total="205" passed="205" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:48:05Z" duration="95.0203485">
+  <test-suite type="TestSuite" id="1000" name="Decantra" fullname="Decantra" runstate="Runnable" testcasecount="205" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:48:05Z" duration="95.020349" total="205" passed="205" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1003" name="Decantra.App.Editor.dll" fullname="/home/chris/dev/decantra/Library/ScriptAssemblies/Decantra.App.Editor.dll" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.041221" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="1232216" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1004" name="Decantra" fullname="Decantra" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.040692" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1005" name="App" fullname="Decantra.App" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.040417" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1006" name="Editor" fullname="Decantra.App.Editor" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.040151" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestSuite" id="1007" name="Tests" fullname="Decantra.App.Editor.Tests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.039911" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="TestFixture" id="1001" name="SplashValidation" fullname="Decantra.App.Editor.Tests.SplashValidation" classname="Decantra.App.Editor.Tests.SplashValidation" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.038708" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1002" name="SplashLogo_IsCorrectlyConfigured" fullname="Decantra.App.Editor.Tests.SplashValidation.SplashLogo_IsCorrectlyConfigured" methodname="SplashLogo_IsCorrectlyConfigured" classname="Decantra.App.Editor.Tests.SplashValidation" runstate="Runnable" seed="1686004308" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.024144" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+    <test-suite type="Assembly" id="1246" name="Decantra.Domain.Tests.dll" fullname="/home/chris/dev/decantra/Library/ScriptAssemblies/Decantra.Domain.Tests.dll" runstate="Runnable" testcasecount="204" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:48:05Z" duration="94.968777" total="204" passed="204" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="1232216" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1247" name="Decantra" fullname="Decantra" runstate="Runnable" testcasecount="204" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:48:05Z" duration="94.966485" total="204" passed="204" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1250" name="Domain" fullname="Decantra.Domain" runstate="Runnable" testcasecount="48" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:47:14Z" duration="44.001962" total="48" passed="48" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1251" name="Tests" fullname="Decantra.Domain.Tests" runstate="Runnable" testcasecount="48" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:47:14Z" duration="44.001180" total="48" passed="48" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1192" name="BackgroundGeneratorCoverageTests" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" testcasecount="26" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:47:14Z" duration="43.790113" total="26" passed="26" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-suite type="ParameterizedMethod" id="1206" name="Generators_AreDeterministic_ForDefaultAndMacro" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:47:01Z" duration="31.189863" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1193" name="Generators_AreDeterministic_ForDefaultAndMacro(BotanicalIFS)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(BotanicalIFS)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1654802674" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.096234" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1194" name="Generators_AreDeterministic_ForDefaultAndMacro(BranchingTree)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(BranchingTree)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1592598439" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:30Z" duration="0.151612" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1195" name="Generators_AreDeterministic_ForDefaultAndMacro(CanopyDapple)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(CanopyDapple)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="550826588" result="Passed" start-time="2026-02-10 15:46:30Z" end-time="2026-02-10 15:46:31Z" duration="0.267995" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1196" name="Generators_AreDeterministic_ForDefaultAndMacro(ConcentricRipples)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(ConcentricRipples)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="862610258" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:31Z" duration="0.069667" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1197" name="Generators_AreDeterministic_ForDefaultAndMacro(CrystallineFrost)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(CrystallineFrost)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1502337271" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:31Z" duration="0.175749" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1198" name="Generators_AreDeterministic_ForDefaultAndMacro(FloralMandala)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(FloralMandala)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="426957954" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:31Z" duration="0.161837" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1199" name="Generators_AreDeterministic_ForDefaultAndMacro(FractalEscapeDensity)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(FractalEscapeDensity)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="527193092" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:31Z" duration="0.088460" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1200" name="Generators_AreDeterministic_ForDefaultAndMacro(ImplicitBlobHaze)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(ImplicitBlobHaze)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1747678287" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:31Z" duration="0.184319" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1201" name="Generators_AreDeterministic_ForDefaultAndMacro(MarbledFlow)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(MarbledFlow)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="2048181018" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:31Z" duration="0.102560" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1202" name="Generators_AreDeterministic_ForDefaultAndMacro(NebulaGlow)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(NebulaGlow)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1230576850" result="Passed" start-time="2026-02-10 15:46:31Z" end-time="2026-02-10 15:46:32Z" duration="0.101455" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1203" name="Generators_AreDeterministic_ForDefaultAndMacro(OrganicCells)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(OrganicCells)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="528848431" result="Passed" start-time="2026-02-10 15:46:32Z" end-time="2026-02-10 15:46:32Z" duration="0.100095" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1204" name="Generators_AreDeterministic_ForDefaultAndMacro(RootNetwork)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(RootNetwork)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="46976994" result="Passed" start-time="2026-02-10 15:46:32Z" end-time="2026-02-10 15:47:01Z" duration="29.612278" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1205" name="Generators_AreDeterministic_ForDefaultAndMacro(VineTendrils)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_AreDeterministic_ForDefaultAndMacro(VineTendrils)" methodname="Generators_AreDeterministic_ForDefaultAndMacro" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="422294629" result="Passed" start-time="2026-02-10 15:47:01Z" end-time="2026-02-10 15:47:01Z" duration="0.073523" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-suite type="ParameterizedMethod" id="1220" name="Generators_VaryAcrossSeeds" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-02-10 15:47:01Z" end-time="2026-02-10 15:47:14Z" duration="12.598577" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1207" name="Generators_VaryAcrossSeeds(BotanicalIFS)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(BotanicalIFS)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1803953526" result="Passed" start-time="2026-02-10 15:47:01Z" end-time="2026-02-10 15:47:01Z" duration="0.043283" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1208" name="Generators_VaryAcrossSeeds(BranchingTree)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(BranchingTree)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="349832810" result="Passed" start-time="2026-02-10 15:47:01Z" end-time="2026-02-10 15:47:01Z" duration="0.091066" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1209" name="Generators_VaryAcrossSeeds(CanopyDapple)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(CanopyDapple)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="781363283" result="Passed" start-time="2026-02-10 15:47:01Z" end-time="2026-02-10 15:47:02Z" duration="0.109850" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1210" name="Generators_VaryAcrossSeeds(ConcentricRipples)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(ConcentricRipples)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1293645443" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.033495" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1211" name="Generators_VaryAcrossSeeds(CrystallineFrost)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(CrystallineFrost)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1050816139" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.040290" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1212" name="Generators_VaryAcrossSeeds(FloralMandala)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(FloralMandala)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="735475187" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.058870" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1213" name="Generators_VaryAcrossSeeds(FractalEscapeDensity)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(FractalEscapeDensity)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1633838376" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.072053" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1214" name="Generators_VaryAcrossSeeds(ImplicitBlobHaze)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(ImplicitBlobHaze)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1648582423" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.085727" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1215" name="Generators_VaryAcrossSeeds(MarbledFlow)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(MarbledFlow)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1320432698" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.087494" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1216" name="Generators_VaryAcrossSeeds(NebulaGlow)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(NebulaGlow)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="2102938169" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.087822" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1217" name="Generators_VaryAcrossSeeds(OrganicCells)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(OrganicCells)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="2128095520" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:02Z" duration="0.089626" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1218" name="Generators_VaryAcrossSeeds(RootNetwork)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(RootNetwork)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1670244002" result="Passed" start-time="2026-02-10 15:47:02Z" end-time="2026-02-10 15:47:14Z" duration="11.751752" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1219" name="Generators_VaryAcrossSeeds(VineTendrils)" fullname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests.Generators_VaryAcrossSeeds(VineTendrils)" methodname="Generators_VaryAcrossSeeds" classname="Decantra.Domain.Tests.BackgroundGeneratorCoverageTests" runstate="Runnable" seed="1216176789" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.041290" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+            </test-suite>
+            <test-suite type="TestFixture" id="1221" name="BackgroundGeneratorRegistryCoverageTests" fullname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" classname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.008123" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1224" name="Registry_ImplementedArchetypesMatchAllowedList" fullname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests.Registry_ImplementedArchetypesMatchAllowedList" methodname="Registry_ImplementedArchetypesMatchAllowedList" classname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" runstate="Runnable" seed="699546259" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.002784" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1223" name="Registry_IncludesRegisteredButNonAllowedArchetypes" fullname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests.Registry_IncludesRegisteredButNonAllowedArchetypes" methodname="Registry_IncludesRegisteredButNonAllowedArchetypes" classname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" runstate="Runnable" seed="131143068" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000232" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1225" name="Registry_IsImplementedReflectsKnownAndUnknownArchetypes" fullname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests.Registry_IsImplementedReflectsKnownAndUnknownArchetypes" methodname="Registry_IsImplementedReflectsKnownAndUnknownArchetypes" classname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" runstate="Runnable" seed="712844139" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000259" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1222" name="Registry_ReturnsGeneratorsForAllAllowedArchetypes" fullname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests.Registry_ReturnsGeneratorsForAllAllowedArchetypes" methodname="Registry_ReturnsGeneratorsForAllAllowedArchetypes" classname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" runstate="Runnable" seed="802386936" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.001461" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1226" name="Registry_ThrowsForUnknownArchetype" fullname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests.Registry_ThrowsForUnknownArchetype" methodname="Registry_ThrowsForUnknownArchetype" classname="Decantra.Domain.Tests.BackgroundGeneratorRegistryCoverageTests" runstate="Runnable" seed="925758373" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.001589" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1227" name="BackgroundGeneratorTests" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.197034" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1231" name="AllGenerators_AreDeterministic" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.AllGenerators_AreDeterministic" methodname="AllGenerators_AreDeterministic" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="1965357430" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.089597" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1236" name="AllowedArchetypes_MatchBackgroundSampleFilenames" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.AllowedArchetypes_MatchBackgroundSampleFilenames" methodname="AllowedArchetypes_MatchBackgroundSampleFilenames" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="511354619" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.002958" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1230" name="AtmosphericWash_GeneratesValidField" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.AtmosphericWash_GeneratesValidField" methodname="AtmosphericWash_GeneratesValidField" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="1319236449" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.025924" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1229" name="CurlFlowAdvection_GeneratesValidField" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.CurlFlowAdvection_GeneratesValidField" methodname="CurlFlowAdvection_GeneratesValidField" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="1289729925" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.028055" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1228" name="DomainWarpedClouds_GeneratesValidField" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.DomainWarpedClouds_GeneratesValidField" methodname="DomainWarpedClouds_GeneratesValidField" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="1045485043" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.024767" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1237" name="Generators_ProduceNoCenterBias" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.Generators_ProduceNoCenterBias" methodname="Generators_ProduceNoCenterBias" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="125849435" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.022245" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1235" name="Registry_AdjacentLevelsAreDifferentInFirstCycle" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.Registry_AdjacentLevelsAreDifferentInFirstCycle" methodname="Registry_AdjacentLevelsAreDifferentInFirstCycle" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="764543273" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000502" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1234" name="Registry_LevelProgressionMatchesAllowedOrder" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.Registry_LevelProgressionMatchesAllowedOrder" methodname="Registry_LevelProgressionMatchesAllowedOrder" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="2047078906" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000397" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1232" name="Registry_ReturnsCorrectGenerators" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.Registry_ReturnsCorrectGenerators" methodname="Registry_ReturnsCorrectGenerators" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="785076668" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000161" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1233" name="Registry_SelectsEarlyLevelsAsDomainWarpedClouds" fullname="Decantra.Domain.Tests.BackgroundGeneratorTests.Registry_SelectsEarlyLevelsAsDomainWarpedClouds" methodname="Registry_SelectsEarlyLevelsAsDomainWarpedClouds" classname="Decantra.Domain.Tests.BackgroundGeneratorTests" runstate="Runnable" seed="1466861198" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000220" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1238" name="DeterministicRngTests" fullname="Decantra.Domain.Tests.DeterministicRngTests" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.004624" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1245" name="FBm_IsDeterministicAndBounded" fullname="Decantra.Domain.Tests.DeterministicRngTests.FBm_IsDeterministicAndBounded" methodname="FBm_IsDeterministicAndBounded" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="507457758" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000276" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1244" name="GradientNoise2D_IsDeterministicAndBounded" fullname="Decantra.Domain.Tests.DeterministicRngTests.GradientNoise2D_IsDeterministicAndBounded" methodname="GradientNoise2D_IsDeterministicAndBounded" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="636804141" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000144" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1242" name="NextFloat_SequenceIsReproducible" fullname="Decantra.Domain.Tests.DeterministicRngTests.NextFloat_SequenceIsReproducible" methodname="NextFloat_SequenceIsReproducible" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="480781389" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000624" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1240" name="NextFloat_StaysWithinUnitRange" fullname="Decantra.Domain.Tests.DeterministicRngTests.NextFloat_StaysWithinUnitRange" methodname="NextFloat_StaysWithinUnitRange" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="1620832366" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000953" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1239" name="NextInt_ReturnsMinWhenMaxNotGreater" fullname="Decantra.Domain.Tests.DeterministicRngTests.NextInt_ReturnsMinWhenMaxNotGreater" methodname="NextInt_ReturnsMinWhenMaxNotGreater" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="644738357" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000143" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1241" name="NextSignedFloat_RespectsMagnitude" fullname="Decantra.Domain.Tests.DeterministicRngTests.NextSignedFloat_RespectsMagnitude" methodname="NextSignedFloat_RespectsMagnitude" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="1522758032" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000595" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1243" name="Noise2D_IsDeterministicAndBounded" fullname="Decantra.Domain.Tests.DeterministicRngTests.Noise2D_IsDeterministicAndBounded" methodname="Noise2D_IsDeterministicAndBounded" classname="Decantra.Domain.Tests.DeterministicRngTests" runstate="Runnable" seed="117147042" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000345" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+        <test-suite type="TestSuite" id="1248" name="Tests" fullname="Decantra.Tests" runstate="Runnable" testcasecount="156" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:48:05Z" duration="50.962373" total="156" passed="156" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1249" name="EditMode" fullname="Decantra.Tests.EditMode" runstate="Runnable" testcasecount="156" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:48:05Z" duration="50.960129" total="156" passed="156" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1008" name="BackgroundRulesTests" fullname="Decantra.Tests.EditMode.BackgroundRulesTests" classname="Decantra.Tests.EditMode.BackgroundRulesTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.005991" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1011" name="LevelVariant_IsDeterministicForSameLevel" fullname="Decantra.Tests.EditMode.BackgroundRulesTests.LevelVariant_IsDeterministicForSameLevel" methodname="LevelVariant_IsDeterministicForSameLevel" classname="Decantra.Tests.EditMode.BackgroundRulesTests" runstate="Runnable" seed="649391514" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.001977" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1012" name="LevelVariant_VariesWithinZone" fullname="Decantra.Tests.EditMode.BackgroundRulesTests.LevelVariant_VariesWithinZone" methodname="LevelVariant_VariesWithinZone" classname="Decantra.Tests.EditMode.BackgroundRulesTests" runstate="Runnable" seed="1105278476" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000837" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1010" name="ZoneIndex_ConsecutiveGroupsMatchSpecification" fullname="Decantra.Tests.EditMode.BackgroundRulesTests.ZoneIndex_ConsecutiveGroupsMatchSpecification" methodname="ZoneIndex_ConsecutiveGroupsMatchSpecification" classname="Decantra.Tests.EditMode.BackgroundRulesTests" runstate="Runnable" seed="229896622" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.002048" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1009" name="ZoneIndex_ReturnsCorrectBoundaries" fullname="Decantra.Tests.EditMode.BackgroundRulesTests.ZoneIndex_ReturnsCorrectBoundaries" methodname="ZoneIndex_ReturnsCorrectBoundaries" classname="Decantra.Tests.EditMode.BackgroundRulesTests" runstate="Runnable" seed="797327202" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000147" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1013" name="BottleTests" fullname="Decantra.Tests.EditMode.BottleTests" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" testcasecount="7" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.004024" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1014" name="EmptyBottle_HasNoTopColor" fullname="Decantra.Tests.EditMode.BottleTests.EmptyBottle_HasNoTopColor" methodname="EmptyBottle_HasNoTopColor" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="808767776" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000514" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1016" name="FullSinkBottle_CannotPourOut" fullname="Decantra.Tests.EditMode.BottleTests.FullSinkBottle_CannotPourOut" methodname="FullSinkBottle_CannotPourOut" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="1328586050" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000474" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1020" name="IsSolvedBottle_TrueOnlyWhenFullSameColor" fullname="Decantra.Tests.EditMode.BottleTests.IsSolvedBottle_TrueOnlyWhenFullSameColor" methodname="IsSolvedBottle_TrueOnlyWhenFullSameColor" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="1230400286" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000387" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1015" name="MaxPourAmount_RespectsTargetFreeSpace" fullname="Decantra.Tests.EditMode.BottleTests.MaxPourAmount_RespectsTargetFreeSpace" methodname="MaxPourAmount_RespectsTargetFreeSpace" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="1855960556" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000369" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1018" name="PourInto_AllowsMatchingTopOrEmpty" fullname="Decantra.Tests.EditMode.BottleTests.PourInto_AllowsMatchingTopOrEmpty" methodname="PourInto_AllowsMatchingTopOrEmpty" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="1607997194" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000215" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1019" name="PourInto_PoursMaxContiguous" fullname="Decantra.Tests.EditMode.BottleTests.PourInto_PoursMaxContiguous" methodname="PourInto_PoursMaxContiguous" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="295181963" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000468" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1017" name="SinkBottle_AllowsPourWhenNotFull" fullname="Decantra.Tests.EditMode.BottleTests.SinkBottle_AllowsPourWhenNotFull" methodname="SinkBottle_AllowsPourWhenNotFull" classname="Decantra.Tests.EditMode.BottleTests" runstate="Runnable" seed="733186454" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000214" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1021" name="DifficultyEngineTests" fullname="Decantra.Tests.EditMode.DifficultyEngineTests" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" testcasecount="17" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.007400" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1038" name="BackgroundTheme_IsDeterministicByBand" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BackgroundTheme_IsDeterministicByBand" methodname="BackgroundTheme_IsDeterministicByBand" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1492575886" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000715" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1032" name="BandSelection_UsesDefinedBoundaries" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.002456" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1022" name="BandSelection_UsesDefinedBoundaries(1,A)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(1,A)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="902320331" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000249" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1023" name="BandSelection_UsesDefinedBoundaries(10,A)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(10,A)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="939597404" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000107" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1024" name="BandSelection_UsesDefinedBoundaries(11,B)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(11,B)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="165525312" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000097" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1025" name="BandSelection_UsesDefinedBoundaries(25,B)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(25,B)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1519964398" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000085" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1026" name="BandSelection_UsesDefinedBoundaries(26,C)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(26,C)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1940722853" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000092" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1027" name="BandSelection_UsesDefinedBoundaries(50,C)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(50,C)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="363162433" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000095" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1028" name="BandSelection_UsesDefinedBoundaries(51,D)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(51,D)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1051857905" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000090" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1029" name="BandSelection_UsesDefinedBoundaries(75,D)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(75,D)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1408545462" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000095" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1030" name="BandSelection_UsesDefinedBoundaries(76,E)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(76,E)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="334905093" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000091" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+                <test-case id="1031" name="BandSelection_UsesDefinedBoundaries(120,E)" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.BandSelection_UsesDefinedBoundaries(120,E)" methodname="BandSelection_UsesDefinedBoundaries" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1443009890" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000091" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                </test-case>
+              </test-suite>
+              <test-case id="1039" name="DifficultyInvariant_UsesLinearTo200ThenClamp" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.DifficultyInvariant_UsesLinearTo200ThenClamp" methodname="DifficultyInvariant_UsesLinearTo200ThenClamp" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1948584192" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000656" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1035" name="DifficultyRating_IsMonotonic" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.DifficultyRating_IsMonotonic" methodname="DifficultyRating_IsMonotonic" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="1753356253" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000631" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1034" name="Level20To25_MeetsStructuralTargets" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.Level20To25_MeetsStructuralTargets" methodname="Level20To25_MeetsStructuralTargets" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="85748340" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000249" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1036" name="MoveAllowance_SurplusTightensByBand" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.MoveAllowance_SurplusTightensByBand" methodname="MoveAllowance_SurplusTightensByBand" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="671519215" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000421" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1037" name="MoveAllowance_UsesSlackFactorEndpoints" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.MoveAllowance_UsesSlackFactorEndpoints" methodname="MoveAllowance_UsesSlackFactorEndpoints" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="873098070" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000176" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1033" name="ProfileCounts_ProgressMonotonically" fullname="Decantra.Tests.EditMode.DifficultyEngineTests.ProfileCounts_ProgressMonotonically" methodname="ProfileCounts_ProgressMonotonically" classname="Decantra.Tests.EditMode.DifficultyEngineTests" runstate="Runnable" seed="262811689" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000347" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1040" name="DifficultyIntegrityTests" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.012079" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1049" name="ComplexityScorer_DifferentMetrics_ProduceDifferentScores" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.ComplexityScorer_DifferentMetrics_ProduceDifferentScores" methodname="ComplexityScorer_DifferentMetrics_ProduceDifferentScores" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="948636372" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000924" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1041" name="ComplexityScorer_RawComplexity_NoLevelNumberDependency" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.ComplexityScorer_RawComplexity_NoLevelNumberDependency" methodname="ComplexityScorer_RawComplexity_NoLevelNumberDependency" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="1929619567" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000168" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1042" name="ComplexityScorer_RawComplexity_PreservesVariance" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.ComplexityScorer_RawComplexity_PreservesVariance" methodname="ComplexityScorer_RawComplexity_PreservesVariance" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="1724582850" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000546" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1044" name="ComplexityScorer_ValidateIndependence_DetectsCheating" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.ComplexityScorer_ValidateIndependence_DetectsCheating" methodname="ComplexityScorer_ValidateIndependence_DetectsCheating" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="1136914146" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000339" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1043" name="ComplexityScorer_ValidateVariance_DetectsSaturation" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.ComplexityScorer_ValidateVariance_DetectsSaturation" methodname="ComplexityScorer_ValidateVariance_DetectsSaturation" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="1735492110" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000303" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1045" name="MonotonicMapper_MapToDifficulty_EnforcesMonotonicity" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.MonotonicMapper_MapToDifficulty_EnforcesMonotonicity" methodname="MonotonicMapper_MapToDifficulty_EnforcesMonotonicity" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="380493607" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.003271" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1046" name="MonotonicMapper_MapToDifficulty_SpansFullRange" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.MonotonicMapper_MapToDifficulty_SpansFullRange" methodname="MonotonicMapper_MapToDifficulty_SpansFullRange" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="1270453833" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000965" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1048" name="MonotonicMapper_ValidateLinearity_DetectsPlateaus" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.MonotonicMapper_ValidateLinearity_DetectsPlateaus" methodname="MonotonicMapper_ValidateLinearity_DetectsPlateaus" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="2052217143" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.003152" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1047" name="MonotonicMapper_ValidateMonotonicity_DetectsViolations" fullname="Decantra.Tests.EditMode.DifficultyIntegrityTests.MonotonicMapper_ValidateMonotonicity_DetectsViolations" methodname="MonotonicMapper_ValidateMonotonicity_DetectsViolations" classname="Decantra.Tests.EditMode.DifficultyIntegrityTests" runstate="Runnable" seed="593061275" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:14Z" duration="0.000684" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1050" name="GenerationSolvabilityTests" fullname="Decantra.Tests.EditMode.GenerationSolvabilityTests" classname="Decantra.Tests.EditMode.GenerationSolvabilityTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:21Z" duration="7.061605" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1053" name="GeneratedLevels_AreDeterministic" fullname="Decantra.Tests.EditMode.GenerationSolvabilityTests.GeneratedLevels_AreDeterministic" methodname="GeneratedLevels_AreDeterministic" classname="Decantra.Tests.EditMode.GenerationSolvabilityTests" runstate="Runnable" seed="2089746562" result="Passed" start-time="2026-02-10 15:47:14Z" end-time="2026-02-10 15:47:16Z" duration="1.711727" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1051" name="GeneratedLevels_AreSolvableAndOptimal" fullname="Decantra.Tests.EditMode.GenerationSolvabilityTests.GeneratedLevels_AreSolvableAndOptimal" methodname="GeneratedLevels_AreSolvableAndOptimal" classname="Decantra.Tests.EditMode.GenerationSolvabilityTests" runstate="Runnable" seed="1259931491" result="Passed" start-time="2026-02-10 15:47:16Z" end-time="2026-02-10 15:47:21Z" duration="4.813230" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1054" name="GeneratedLevels_FirstLevelIsFast" fullname="Decantra.Tests.EditMode.GenerationSolvabilityTests.GeneratedLevels_FirstLevelIsFast" methodname="GeneratedLevels_FirstLevelIsFast" classname="Decantra.Tests.EditMode.GenerationSolvabilityTests" runstate="Runnable" seed="89491034" result="Passed" start-time="2026-02-10 15:47:21Z" end-time="2026-02-10 15:47:21Z" duration="0.048543" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1052" name="GeneratedLevels_HaveValidMetrics" fullname="Decantra.Tests.EditMode.GenerationSolvabilityTests.GeneratedLevels_HaveValidMetrics" methodname="GeneratedLevels_HaveValidMetrics" classname="Decantra.Tests.EditMode.GenerationSolvabilityTests" runstate="Runnable" seed="1036084000" result="Passed" start-time="2026-02-10 15:47:21Z" end-time="2026-02-10 15:47:21Z" duration="0.486495" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1055" name="GeneratorTests" fullname="Decantra.Tests.EditMode.GeneratorTests" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-02-10 15:47:21Z" end-time="2026-02-10 15:47:25Z" duration="4.226483" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1057" name="Generate_DoesNotStartWithCappedBottles" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_DoesNotStartWithCappedBottles" methodname="Generate_DoesNotStartWithCappedBottles" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="784608613" result="Passed" start-time="2026-02-10 15:47:21Z" end-time="2026-02-10 15:47:22Z" duration="0.953362" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1064" name="Generate_HasAtLeastOneLegalOpeningMove" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_HasAtLeastOneLegalOpeningMove" methodname="Generate_HasAtLeastOneLegalOpeningMove" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="686603272" result="Passed" start-time="2026-02-10 15:47:22Z" end-time="2026-02-10 15:47:22Z" duration="0.276336" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1062" name="Generate_IncludesSinkBottle_WhenProfileAllows" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_IncludesSinkBottle_WhenProfileAllows" methodname="Generate_IncludesSinkBottle_WhenProfileAllows" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="12053002" result="Passed" start-time="2026-02-10 15:47:22Z" end-time="2026-02-10 15:47:23Z" duration="0.342524" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1060" name="Generate_IntroducesLargeCapacity_ByLevel18" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_IntroducesLargeCapacity_ByLevel18" methodname="Generate_IntroducesLargeCapacity_ByLevel18" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="2071813278" result="Passed" start-time="2026-02-10 15:47:23Z" end-time="2026-02-10 15:47:23Z" duration="0.379115" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1056" name="Generate_IsDeterministicBySeed" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_IsDeterministicBySeed" methodname="Generate_IsDeterministicBySeed" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="1456324318" result="Passed" start-time="2026-02-10 15:47:23Z" end-time="2026-02-10 15:47:23Z" duration="0.074192" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1058" name="Generate_ProvidesOptimalMovesAndAllowedMoves" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_ProvidesOptimalMovesAndAllowedMoves" methodname="Generate_ProvidesOptimalMovesAndAllowedMoves" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="1390213671" result="Passed" start-time="2026-02-10 15:47:23Z" end-time="2026-02-10 15:47:25Z" duration="1.464554" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1061" name="Generate_RespectsEmptyCountAndReducedSlack" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_RespectsEmptyCountAndReducedSlack" methodname="Generate_RespectsEmptyCountAndReducedSlack" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="395692894" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.366291" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1063" name="Generate_SinkBottleStartsMonochromeOrEmpty" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_SinkBottleStartsMonochromeOrEmpty" methodname="Generate_SinkBottleStartsMonochromeOrEmpty" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="1281763756" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.362251" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1059" name="Generate_UsesVariableCapacities_ByLevel12" fullname="Decantra.Tests.EditMode.GeneratorTests.Generate_UsesVariableCapacities_ByLevel12" methodname="Generate_UsesVariableCapacities_ByLevel12" classname="Decantra.Tests.EditMode.GeneratorTests" runstate="Runnable" seed="144106262" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.005298" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1065" name="InteractionRulesTests" fullname="Decantra.Tests.EditMode.InteractionRulesTests" classname="Decantra.Tests.EditMode.InteractionRulesTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.001548" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1067" name="NormalBottle_CanBeDraggedAndUsedAsSource" fullname="Decantra.Tests.EditMode.InteractionRulesTests.NormalBottle_CanBeDraggedAndUsedAsSource" methodname="NormalBottle_CanBeDraggedAndUsedAsSource" classname="Decantra.Tests.EditMode.InteractionRulesTests" runstate="Runnable" seed="113120653" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000262" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1066" name="SinkBottle_CannotBeDraggedOrUsedAsSource" fullname="Decantra.Tests.EditMode.InteractionRulesTests.SinkBottle_CannotBeDraggedOrUsedAsSource" methodname="SinkBottle_CannotBeDraggedOrUsedAsSource" classname="Decantra.Tests.EditMode.InteractionRulesTests" runstate="Runnable" seed="742319912" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000161" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1068" name="IntroBannerRegressionTests" fullname="Decantra.Tests.EditMode.IntroBannerRegressionTests" classname="Decantra.Tests.EditMode.IntroBannerRegressionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.002034" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1069" name="IntroBanner_BackgroundImage_StartsTransparent" fullname="Decantra.Tests.EditMode.IntroBannerRegressionTests.IntroBanner_BackgroundImage_StartsTransparent" methodname="IntroBanner_BackgroundImage_StartsTransparent" classname="Decantra.Tests.EditMode.IntroBannerRegressionTests" runstate="Runnable" seed="1700459167" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000716" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1071" name="IntroBanner_Play_EndsTransparent" fullname="Decantra.Tests.EditMode.IntroBannerRegressionTests.IntroBanner_Play_EndsTransparent" methodname="IntroBanner_Play_EndsTransparent" classname="Decantra.Tests.EditMode.IntroBannerRegressionTests" runstate="Runnable" seed="1163370173" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000287" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1070" name="IntroBanner_PrepareForIntro_SetsBackgroundOpaque" fullname="Decantra.Tests.EditMode.IntroBannerRegressionTests.IntroBanner_PrepareForIntro_SetsBackgroundOpaque" methodname="IntroBanner_PrepareForIntro_SetsBackgroundOpaque" classname="Decantra.Tests.EditMode.IntroBannerRegressionTests" runstate="Runnable" seed="392865753" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000262" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1072" name="Level10RegressionTests" fullname="Decantra.Tests.EditMode.Level10RegressionTests" classname="Decantra.Tests.EditMode.Level10RegressionTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.006018" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1073" name="Level10_HasLegalOpeningMove_And_IsSolvable" fullname="Decantra.Tests.EditMode.Level10RegressionTests.Level10_HasLegalOpeningMove_And_IsSolvable" methodname="Level10_HasLegalOpeningMove_And_IsSolvable" classname="Decantra.Tests.EditMode.Level10RegressionTests" runstate="Runnable" seed="1308703780" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.005508" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1074" name="LevelCompletionTests" fullname="Decantra.Tests.EditMode.LevelCompletionTests" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" testcasecount="16" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.005542" total="16" passed="16" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1087" name="IsWin_AsymmetricCapacitiesAllowOnlyPartialPour_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_AsymmetricCapacitiesAllowOnlyPartialPour_ReturnsTrue" methodname="IsWin_AsymmetricCapacitiesAllowOnlyPartialPour_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="671619019" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000424" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1084" name="IsWin_CannotMergeBecauseSinkCannotBeSource_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_CannotMergeBecauseSinkCannotBeSource_ReturnsTrue" methodname="IsWin_CannotMergeBecauseSinkCannotBeSource_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="1169511705" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000222" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1078" name="IsWin_ConsolidationNotPossible_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_ConsolidationNotPossible_ReturnsTrue" methodname="IsWin_ConsolidationNotPossible_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="110062662" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000215" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1077" name="IsWin_ConsolidationPossible_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_ConsolidationPossible_ReturnsFalse" methodname="IsWin_ConsolidationPossible_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="1648582339" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000164" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1086" name="IsWin_DifferentCapacitiesPreventsMerge_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_DifferentCapacitiesPreventsMerge_ReturnsTrue" methodname="IsWin_DifferentCapacitiesPreventsMerge_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="1444998698" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000224" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1088" name="IsWin_EmptyBottlesIgnored_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_EmptyBottlesIgnored_ReturnsTrue" methodname="IsWin_EmptyBottlesIgnored_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="2123463557" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000183" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1075" name="IsWin_Level18Scenario_PartialMonochrome_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_Level18Scenario_PartialMonochrome_ReturnsTrue" methodname="IsWin_Level18Scenario_PartialMonochrome_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="602872349" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000135" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1076" name="IsWin_MixedBottle_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_MixedBottle_ReturnsFalse" methodname="IsWin_MixedBottle_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="391441070" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000147" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1081" name="IsWin_MultipleColorsInBottle_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_MultipleColorsInBottle_ReturnsFalse" methodname="IsWin_MultipleColorsInBottle_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="899027730" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000164" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1089" name="IsWin_MultipleColorsSeparated_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_MultipleColorsSeparated_ReturnsTrue" methodname="IsWin_MultipleColorsSeparated_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="831941791" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000272" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1080" name="IsWin_PourIntoSinkPossible_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_PourIntoSinkPossible_ReturnsFalse" methodname="IsWin_PourIntoSinkPossible_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="1974536472" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000164" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1090" name="IsWin_SameColorDifferentBottlesDifferentCapacities_CanMerge_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_SameColorDifferentBottlesDifferentCapacities_CanMerge_ReturnsFalse" methodname="IsWin_SameColorDifferentBottlesDifferentCapacities_CanMerge_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="925629566" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000186" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1079" name="IsWin_SinkRestrictions_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_SinkRestrictions_ReturnsTrue" methodname="IsWin_SinkRestrictions_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="844285829" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000147" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1085" name="IsWin_ThreeBottlesSameColorPartiallyMergeable_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_ThreeBottlesSameColorPartiallyMergeable_ReturnsFalse" methodname="IsWin_ThreeBottlesSameColorPartiallyMergeable_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="361957919" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000181" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1082" name="IsWin_TwoBottlesSameColorCanMerge_ReturnsFalse" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_TwoBottlesSameColorCanMerge_ReturnsFalse" methodname="IsWin_TwoBottlesSameColorCanMerge_ReturnsFalse" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="297396323" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000176" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1083" name="IsWin_TwoBottlesSameColorCannotMergeDueToCapacity_ReturnsTrue" fullname="Decantra.Tests.EditMode.LevelCompletionTests.IsWin_TwoBottlesSameColorCannotMergeDueToCapacity_ReturnsTrue" methodname="IsWin_TwoBottlesSameColorCannotMergeDueToCapacity_ReturnsTrue" classname="Decantra.Tests.EditMode.LevelCompletionTests" runstate="Runnable" seed="1461413315" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000202" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1091" name="LevelIntegrityTests" fullname="Decantra.Tests.EditMode.LevelIntegrityTests" classname="Decantra.Tests.EditMode.LevelIntegrityTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.001290" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1092" name="CapacityCompatibility_DetectsMissingTargetBottle" fullname="Decantra.Tests.EditMode.LevelIntegrityTests.CapacityCompatibility_DetectsMissingTargetBottle" methodname="CapacityCompatibility_DetectsMissingTargetBottle" classname="Decantra.Tests.EditMode.LevelIntegrityTests" runstate="Runnable" seed="1759215703" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000229" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1094" name="NonFullSinkWithMixedColors_IsInvalid" fullname="Decantra.Tests.EditMode.LevelIntegrityTests.NonFullSinkWithMixedColors_IsInvalid" methodname="NonFullSinkWithMixedColors_IsInvalid" classname="Decantra.Tests.EditMode.LevelIntegrityTests" runstate="Runnable" seed="600322495" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000166" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1093" name="SealedSinkWithMixedColors_IsInvalid" fullname="Decantra.Tests.EditMode.LevelIntegrityTests.SealedSinkWithMixedColors_IsInvalid" methodname="SealedSinkWithMixedColors_IsInvalid" classname="Decantra.Tests.EditMode.LevelIntegrityTests" runstate="Runnable" seed="700642807" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000181" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1095" name="LevelLanguageTests" fullname="Decantra.Tests.EditMode.LevelLanguageTests" classname="Decantra.Tests.EditMode.LevelLanguageTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.008365" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1098" name="Parse_Rejects_InvalidDocuments" fullname="Decantra.Tests.EditMode.LevelLanguageTests.Parse_Rejects_InvalidDocuments" methodname="Parse_Rejects_InvalidDocuments" classname="Decantra.Tests.EditMode.LevelLanguageTests" runstate="Runnable" seed="1385079340" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.004781" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1097" name="Parse_RoundTrips_ValidDocument" fullname="Decantra.Tests.EditMode.LevelLanguageTests.Parse_RoundTrips_ValidDocument" methodname="Parse_RoundTrips_ValidDocument" classname="Decantra.Tests.EditMode.LevelLanguageTests" runstate="Runnable" seed="1871667255" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000421" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1096" name="Serialize_ProducesCanonicalJson" fullname="Decantra.Tests.EditMode.LevelLanguageTests.Serialize_ProducesCanonicalJson" methodname="Serialize_ProducesCanonicalJson" classname="Decantra.Tests.EditMode.LevelLanguageTests" runstate="Runnable" seed="1716669859" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.002384" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1099" name="LevelMetricsTests" fullname="Decantra.Tests.EditMode.LevelMetricsTests" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.004161" total="8" passed="8" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1100" name="LevelMetrics_Construction_SetsAllProperties" fullname="Decantra.Tests.EditMode.LevelMetricsTests.LevelMetrics_Construction_SetsAllProperties" methodname="LevelMetrics_Construction_SetsAllProperties" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="656224180" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000311" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1101" name="LevelMetrics_Empty_ReturnsDefaultValues" fullname="Decantra.Tests.EditMode.LevelMetricsTests.LevelMetrics_Empty_ReturnsDefaultValues" methodname="LevelMetrics_Empty_ReturnsDefaultValues" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="1663176998" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000250" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1102" name="PathMetrics_ComputePathMetrics_KnownPuzzle" fullname="Decantra.Tests.EditMode.LevelMetricsTests.PathMetrics_ComputePathMetrics_KnownPuzzle" methodname="PathMetrics_ComputePathMetrics_KnownPuzzle" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="879592118" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000516" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1103" name="PathMetrics_ForcedMoveRatio_AllForcedMoves" fullname="Decantra.Tests.EditMode.LevelMetricsTests.PathMetrics_ForcedMoveRatio_AllForcedMoves" methodname="PathMetrics_ForcedMoveRatio_AllForcedMoves" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="794883040" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000301" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1106" name="SolutionMultiplicity_EstimateSolutionMultiplicity_SimplePuzzle" fullname="Decantra.Tests.EditMode.LevelMetricsTests.SolutionMultiplicity_EstimateSolutionMultiplicity_SimplePuzzle" methodname="SolutionMultiplicity_EstimateSolutionMultiplicity_SimplePuzzle" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="1276508301" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000372" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1104" name="StructuralMetrics_ComputeStructuralMetrics_MixedBottles" fullname="Decantra.Tests.EditMode.LevelMetricsTests.StructuralMetrics_ComputeStructuralMetrics_MixedBottles" methodname="StructuralMetrics_ComputeStructuralMetrics_MixedBottles" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="1806891614" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000332" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1105" name="StructuralMetrics_ComputeStructuralMetrics_SingleColorBottles" fullname="Decantra.Tests.EditMode.LevelMetricsTests.StructuralMetrics_ComputeStructuralMetrics_SingleColorBottles" methodname="StructuralMetrics_ComputeStructuralMetrics_SingleColorBottles" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="155055822" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000303" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1107" name="TrapScore_ComputeTrapScore_WithNonOptimalMoves" fullname="Decantra.Tests.EditMode.LevelMetricsTests.TrapScore_ComputeTrapScore_WithNonOptimalMoves" methodname="TrapScore_ComputeTrapScore_WithNonOptimalMoves" classname="Decantra.Tests.EditMode.LevelMetricsTests" runstate="Runnable" seed="603015751" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:25Z" duration="0.000366" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1108" name="LevelProgressionTests" fullname="Decantra.Tests.EditMode.LevelProgressionTests" classname="Decantra.Tests.EditMode.LevelProgressionTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:26Z" duration="0.148213" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1109" name="Levels_1_To_15_Are_Solvable" fullname="Decantra.Tests.EditMode.LevelProgressionTests.Levels_1_To_15_Are_Solvable" methodname="Levels_1_To_15_Are_Solvable" classname="Decantra.Tests.EditMode.LevelProgressionTests" runstate="Runnable" seed="1097921789" result="Passed" start-time="2026-02-10 15:47:25Z" end-time="2026-02-10 15:47:26Z" duration="0.147663" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1110" name="LevelSolvabilityRegressionTests" fullname="Decantra.Tests.EditMode.LevelSolvabilityRegressionTests" classname="Decantra.Tests.EditMode.LevelSolvabilityRegressionTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:47:26Z" end-time="2026-02-10 15:47:56Z" duration="30.394994" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1111" name="Levels_1_To_200_AreSolvable" fullname="Decantra.Tests.EditMode.LevelSolvabilityRegressionTests.Levels_1_To_200_AreSolvable" methodname="Levels_1_To_200_AreSolvable" classname="Decantra.Tests.EditMode.LevelSolvabilityRegressionTests" runstate="Runnable" seed="1267355660" result="Passed" start-time="2026-02-10 15:47:26Z" end-time="2026-02-10 15:47:56Z" duration="30.394173" asserts="0">
+                <properties>
+                  <property name="Timeout" value="300000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1112" name="LevelStateTests" fullname="Decantra.Tests.EditMode.LevelStateTests" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.003296" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1118" name="IsWin_AllowsEmptyBottlesWithVariableCapacities" fullname="Decantra.Tests.EditMode.LevelStateTests.IsWin_AllowsEmptyBottlesWithVariableCapacities" methodname="IsWin_AllowsEmptyBottlesWithVariableCapacities" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" seed="132890773" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000282" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1117" name="IsWin_PassesWithPartiallyFilledUniformBottle_IfIrreducible" fullname="Decantra.Tests.EditMode.LevelStateTests.IsWin_PassesWithPartiallyFilledUniformBottle_IfIrreducible" methodname="IsWin_PassesWithPartiallyFilledUniformBottle_IfIrreducible" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" seed="1383596310" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000261" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1116" name="IsWin_RequiresSixSolvedAndThreeEmpty" fullname="Decantra.Tests.EditMode.LevelStateTests.IsWin_RequiresSixSolvedAndThreeEmpty" methodname="IsWin_RequiresSixSolvedAndThreeEmpty" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" seed="947661552" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000284" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1115" name="TryApplyMove_InvalidMoveRejected" fullname="Decantra.Tests.EditMode.LevelStateTests.TryApplyMove_InvalidMoveRejected" methodname="TryApplyMove_InvalidMoveRejected" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" seed="1455287443" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000192" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1114" name="TryApplyMove_SinkBottleCannotBeSource" fullname="Decantra.Tests.EditMode.LevelStateTests.TryApplyMove_SinkBottleCannotBeSource" methodname="TryApplyMove_SinkBottleCannotBeSource" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" seed="269953442" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000173" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1113" name="TryApplyMove_ValidMoveIncrementsMoves" fullname="Decantra.Tests.EditMode.LevelStateTests.TryApplyMove_ValidMoveIncrementsMoves" methodname="TryApplyMove_ValidMoveIncrementsMoves" classname="Decantra.Tests.EditMode.LevelStateTests" runstate="Runnable" seed="1688927886" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000216" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1119" name="MoveRulesInvariantTests" fullname="Decantra.Tests.EditMode.MoveRulesInvariantTests" classname="Decantra.Tests.EditMode.MoveRulesInvariantTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.001374" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1120" name="NonSink_PourAllowed_WhenSpaceAndColorMatches" fullname="Decantra.Tests.EditMode.MoveRulesInvariantTests.NonSink_PourAllowed_WhenSpaceAndColorMatches" methodname="NonSink_PourAllowed_WhenSpaceAndColorMatches" classname="Decantra.Tests.EditMode.MoveRulesInvariantTests" runstate="Runnable" seed="160425895" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000220" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1122" name="PourAmount_IsDeterministic_ForSameState" fullname="Decantra.Tests.EditMode.MoveRulesInvariantTests.PourAmount_IsDeterministic_ForSameState" methodname="PourAmount_IsDeterministic_ForSameState" classname="Decantra.Tests.EditMode.MoveRulesInvariantTests" runstate="Runnable" seed="1235768342" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000192" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1121" name="SinkBottle_CannotBeSource_ForMoveRules" fullname="Decantra.Tests.EditMode.MoveRulesInvariantTests.SinkBottle_CannotBeSource_ForMoveRules" methodname="SinkBottle_CannotBeSource_ForMoveRules" classname="Decantra.Tests.EditMode.MoveRulesInvariantTests" runstate="Runnable" seed="1672546883" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000178" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1123" name="OrientationAuthorityTests" fullname="Decantra.Tests.EditMode.OrientationAuthorityTests" classname="Decantra.Tests.EditMode.OrientationAuthorityTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.006964" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1126" name="AndroidManifest_DoesNotOverrideScreenOrientation" fullname="Decantra.Tests.EditMode.OrientationAuthorityTests.AndroidManifest_DoesNotOverrideScreenOrientation" methodname="AndroidManifest_DoesNotOverrideScreenOrientation" classname="Decantra.Tests.EditMode.OrientationAuthorityTests" runstate="Runnable" seed="1753576995" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000711" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1125" name="PlayerSettings_AndroidAutoRotationBehavior_IsExplicit" fullname="Decantra.Tests.EditMode.OrientationAuthorityTests.PlayerSettings_AndroidAutoRotationBehavior_IsExplicit" methodname="PlayerSettings_AndroidAutoRotationBehavior_IsExplicit" classname="Decantra.Tests.EditMode.OrientationAuthorityTests" runstate="Runnable" seed="1028090050" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000897" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1124" name="PlayerSettings_LockPortraitOnly" fullname="Decantra.Tests.EditMode.OrientationAuthorityTests.PlayerSettings_LockPortraitOnly" methodname="PlayerSettings_LockPortraitOnly" classname="Decantra.Tests.EditMode.OrientationAuthorityTests" runstate="Runnable" seed="2079887596" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.001216" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1127" name="Runtime_DoesNotForceScreenOrientation" fullname="Decantra.Tests.EditMode.OrientationAuthorityTests.Runtime_DoesNotForceScreenOrientation" methodname="Runtime_DoesNotForceScreenOrientation" classname="Decantra.Tests.EditMode.OrientationAuthorityTests" runstate="Runnable" seed="306806221" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.003161" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1128" name="PerformanceRecordTests" fullname="Decantra.Tests.EditMode.PerformanceRecordTests" classname="Decantra.Tests.EditMode.PerformanceRecordTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.001635" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1129" name="BestPerformance_DoesNotRegress" fullname="Decantra.Tests.EditMode.PerformanceRecordTests.BestPerformance_DoesNotRegress" methodname="BestPerformance_DoesNotRegress" classname="Decantra.Tests.EditMode.PerformanceRecordTests" runstate="Runnable" seed="981701772" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000723" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1130" name="BestPerformance_ImprovesOnBetterResult" fullname="Decantra.Tests.EditMode.PerformanceRecordTests.BestPerformance_ImprovesOnBetterResult" methodname="BestPerformance_ImprovesOnBetterResult" classname="Decantra.Tests.EditMode.PerformanceRecordTests" runstate="Runnable" seed="416652666" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000184" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1131" name="ProgressPersistenceTests" fullname="Decantra.Tests.EditMode.ProgressPersistenceTests" classname="Decantra.Tests.EditMode.ProgressPersistenceTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000947" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1133" name="ResumePolicy_NeverRegressesBelowOne" fullname="Decantra.Tests.EditMode.ProgressPersistenceTests.ResumePolicy_NeverRegressesBelowOne" methodname="ResumePolicy_NeverRegressesBelowOne" classname="Decantra.Tests.EditMode.ProgressPersistenceTests" runstate="Runnable" seed="75690320" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000192" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1132" name="ResumePolicy_UsesCurrentLevelWhenAvailable" fullname="Decantra.Tests.EditMode.ProgressPersistenceTests.ResumePolicy_UsesCurrentLevelWhenAvailable" methodname="ResumePolicy_UsesCurrentLevelWhenAvailable" classname="Decantra.Tests.EditMode.ProgressPersistenceTests" runstate="Runnable" seed="1118551386" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000116" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1134" name="QualityGateTests" fullname="Decantra.Tests.EditMode.QualityGateTests" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.004540" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1145" name="DifficultyObjective_Score_HigherForBetterMetrics" fullname="Decantra.Tests.EditMode.QualityGateTests.DifficultyObjective_Score_HigherForBetterMetrics" methodname="DifficultyObjective_Score_HigherForBetterMetrics" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="236622607" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000189" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1144" name="DifficultyObjective_Score_ReturnsValidRange" fullname="Decantra.Tests.EditMode.QualityGateTests.DifficultyObjective_Score_ReturnsValidRange" methodname="DifficultyObjective_Score_ReturnsValidRange" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="938057847" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000129" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1146" name="DifficultyObjective_TrapFocused_WeightsTrapScoreHigher" fullname="Decantra.Tests.EditMode.QualityGateTests.DifficultyObjective_TrapFocused_WeightsTrapScoreHigher" methodname="DifficultyObjective_TrapFocused_WeightsTrapScoreHigher" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="2062929841" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000179" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1147" name="LevelGenerationReport_Construction_SetsAllProperties" fullname="Decantra.Tests.EditMode.QualityGateTests.LevelGenerationReport_Construction_SetsAllProperties" methodname="LevelGenerationReport_Construction_SetsAllProperties" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="1411791514" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000460" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1136" name="QualityThresholds_BandProgression_GetsStricter" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_BandProgression_GetsStricter" methodname="QualityThresholds_BandProgression_GetsStricter" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="315945731" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000185" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1141" name="QualityThresholds_Fails_HighDecisionDepth" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Fails_HighDecisionDepth" methodname="QualityThresholds_Fails_HighDecisionDepth" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="700741275" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000166" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1142" name="QualityThresholds_Fails_HighEmptyBottleUsage" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Fails_HighEmptyBottleUsage" methodname="QualityThresholds_Fails_HighEmptyBottleUsage" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="1351073994" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000153" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1138" name="QualityThresholds_Fails_HighForcedMoveRatio" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Fails_HighForcedMoveRatio" methodname="QualityThresholds_Fails_HighForcedMoveRatio" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="1426353128" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000137" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1139" name="QualityThresholds_Fails_LowBranchingFactor" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Fails_LowBranchingFactor" methodname="QualityThresholds_Fails_LowBranchingFactor" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="2097930046" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000139" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1143" name="QualityThresholds_Fails_LowMixedBottles" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Fails_LowMixedBottles" methodname="QualityThresholds_Fails_LowMixedBottles" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="1915887269" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000153" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1140" name="QualityThresholds_Fails_LowTrapScore" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Fails_LowTrapScore" methodname="QualityThresholds_Fails_LowTrapScore" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="690195888" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000142" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1135" name="QualityThresholds_ForBand_ReturnsValidThresholds" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_ForBand_ReturnsValidThresholds" methodname="QualityThresholds_ForBand_ReturnsValidThresholds" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="130170255" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000415" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1137" name="QualityThresholds_Passes_GoodMetrics" fullname="Decantra.Tests.EditMode.QualityGateTests.QualityThresholds_Passes_GoodMetrics" methodname="QualityThresholds_Passes_GoodMetrics" classname="Decantra.Tests.EditMode.QualityGateTests" runstate="Runnable" seed="323374677" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000147" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1148" name="ReproductionSpec" fullname="Decantra.Tests.EditMode.ReproductionSpec" classname="Decantra.Tests.EditMode.ReproductionSpec" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.316208" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1149" name="VerifyBottleCountsAreWithinGridLimits" fullname="Decantra.Tests.EditMode.ReproductionSpec.VerifyBottleCountsAreWithinGridLimits" methodname="VerifyBottleCountsAreWithinGridLimits" classname="Decantra.Tests.EditMode.ReproductionSpec" runstate="Runnable" seed="352536211" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000535" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1150" name="VerifySolutionDoesNotUseSinks" fullname="Decantra.Tests.EditMode.ReproductionSpec.VerifySolutionDoesNotUseSinks" methodname="VerifySolutionDoesNotUseSinks" classname="Decantra.Tests.EditMode.ReproductionSpec" runstate="Runnable" seed="1770098496" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.314921" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Testing Level 18 for Sink leakage...
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1151" name="ScoreCalculatorTests" fullname="Decantra.Tests.EditMode.ScoreCalculatorTests" classname="Decantra.Tests.EditMode.ScoreCalculatorTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.002434" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1153" name="EfficiencyScore_DeterministicForSameInputs" fullname="Decantra.Tests.EditMode.ScoreCalculatorTests.EfficiencyScore_DeterministicForSameInputs" methodname="EfficiencyScore_DeterministicForSameInputs" classname="Decantra.Tests.EditMode.ScoreCalculatorTests" runstate="Runnable" seed="1818490938" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000362" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1152" name="EfficiencyScore_DropsWithInefficientPlay" fullname="Decantra.Tests.EditMode.ScoreCalculatorTests.EfficiencyScore_DropsWithInefficientPlay" methodname="EfficiencyScore_DropsWithInefficientPlay" classname="Decantra.Tests.EditMode.ScoreCalculatorTests" runstate="Runnable" seed="2075608101" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000097" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1156" name="Grade_TracksEfficiencyThresholds" fullname="Decantra.Tests.EditMode.ScoreCalculatorTests.Grade_TracksEfficiencyThresholds" methodname="Grade_TracksEfficiencyThresholds" classname="Decantra.Tests.EditMode.ScoreCalculatorTests" runstate="Runnable" seed="796303752" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000282" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1154" name="Stars_FollowSlackThresholds" fullname="Decantra.Tests.EditMode.ScoreCalculatorTests.Stars_FollowSlackThresholds" methodname="Stars_FollowSlackThresholds" classname="Decantra.Tests.EditMode.ScoreCalculatorTests" runstate="Runnable" seed="153273305" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000226" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1155" name="TotalScore_UsesDiminishingReturns" fullname="Decantra.Tests.EditMode.ScoreCalculatorTests.TotalScore_UsesDiminishingReturns" methodname="TotalScore_UsesDiminishingReturns" classname="Decantra.Tests.EditMode.ScoreCalculatorTests" runstate="Runnable" seed="965771545" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000140" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1157" name="ScoreSessionTests" fullname="Decantra.Tests.EditMode.ScoreSessionTests" classname="Decantra.Tests.EditMode.ScoreSessionTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.001526" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1158" name="Commit_AddsProvisionalOnlyOnSuccess_AndResetsOnFail" fullname="Decantra.Tests.EditMode.ScoreSessionTests.Commit_AddsProvisionalOnlyOnSuccess_AndResetsOnFail" methodname="Commit_AddsProvisionalOnlyOnSuccess_AndResetsOnFail" classname="Decantra.Tests.EditMode.ScoreSessionTests" runstate="Runnable" seed="751260539" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000419" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1159" name="ProvisionalScore_DeclinesWithInefficiency" fullname="Decantra.Tests.EditMode.ScoreSessionTests.ProvisionalScore_DeclinesWithInefficiency" methodname="ProvisionalScore_DeclinesWithInefficiency" classname="Decantra.Tests.EditMode.ScoreSessionTests" runstate="Runnable" seed="781963629" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000174" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1160" name="ResetAttempt_RollsBackTotalScore" fullname="Decantra.Tests.EditMode.ScoreSessionTests.ResetAttempt_RollsBackTotalScore" methodname="ResetAttempt_RollsBackTotalScore" classname="Decantra.Tests.EditMode.ScoreSessionTests" runstate="Runnable" seed="1877812422" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:47:56Z" duration="0.000221" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1161" name="SolvabilityFuzzTests" fullname="Decantra.Tests.EditMode.SolvabilityFuzzTests" classname="Decantra.Tests.EditMode.SolvabilityFuzzTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:48:05Z" duration="8.708593" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1162" name="GeneratedLevels_AreSolvable_AndMeetInvariants" fullname="Decantra.Tests.EditMode.SolvabilityFuzzTests.GeneratedLevels_AreSolvable_AndMeetInvariants" methodname="GeneratedLevels_AreSolvable_AndMeetInvariants" classname="Decantra.Tests.EditMode.SolvabilityFuzzTests" runstate="Runnable" seed="296238092" result="Passed" start-time="2026-02-10 15:47:56Z" end-time="2026-02-10 15:48:05Z" duration="8.707723" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1163" name="SolverTests" fullname="Decantra.Tests.EditMode.SolverTests" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.007296" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1165" name="Encode_DifferentStatesHaveDifferentKeys" fullname="Decantra.Tests.EditMode.SolverTests.Encode_DifferentStatesHaveDifferentKeys" methodname="Encode_DifferentStatesHaveDifferentKeys" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" seed="371165350" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000474" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1166" name="Encode_DistinguishesSinkBottles" fullname="Decantra.Tests.EditMode.SolverTests.Encode_DistinguishesSinkBottles" methodname="Encode_DistinguishesSinkBottles" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" seed="694215337" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.001204" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1168" name="Solve_IsDeterministicForSameState" fullname="Decantra.Tests.EditMode.SolverTests.Solve_IsDeterministicForSameState" methodname="Solve_IsDeterministicForSameState" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" seed="1659144953" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000704" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1167" name="Solve_KnownConfiguration_ReturnsMinimumMoves" fullname="Decantra.Tests.EditMode.SolverTests.Solve_KnownConfiguration_ReturnsMinimumMoves" methodname="Solve_KnownConfiguration_ReturnsMinimumMoves" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" seed="975532682" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000634" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1164" name="Solve_ReturnsZeroForSolvedState" fullname="Decantra.Tests.EditMode.SolverTests.Solve_ReturnsZeroForSolvedState" methodname="Solve_ReturnsZeroForSolvedState" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" seed="1601654073" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000488" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1169" name="SolveWithPath_ReturnsValidSolution" fullname="Decantra.Tests.EditMode.SolverTests.SolveWithPath_ReturnsValidSolution" methodname="SolveWithPath_ReturnsValidSolution" classname="Decantra.Tests.EditMode.SolverTests" runstate="Runnable" seed="619362451" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000931" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1170" name="StarfieldConfigTests" fullname="Decantra.Tests.EditMode.StarfieldConfigTests" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" testcasecount="21" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.010662" total="21" passed="21" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1179" name="AllValues_ClampedSimultaneously" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.AllValues_ClampedSimultaneously" methodname="AllValues_ClampedSimultaneously" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="245245734" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000496" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1178" name="Brightness_ClampedToMax_WhenAboveRange" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Brightness_ClampedToMax_WhenAboveRange" methodname="Brightness_ClampedToMax_WhenAboveRange" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="463560030" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000243" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1177" name="Brightness_ClampedToMin_WhenBelowRange" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Brightness_ClampedToMin_WhenBelowRange" methodname="Brightness_ClampedToMin_WhenBelowRange" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="1169657824" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000215" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1172" name="Default_EnabledIsTrue" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Default_EnabledIsTrue" methodname="Default_EnabledIsTrue" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="981617663" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000217" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1171" name="Default_HasExpectedValues" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Default_HasExpectedValues" methodname="Default_HasExpectedValues" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="2009171317" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000233" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1174" name="Density_ClampedToMax_WhenAboveRange" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Density_ClampedToMax_WhenAboveRange" methodname="Density_ClampedToMax_WhenAboveRange" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="203944185" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000175" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1173" name="Density_ClampedToMin_WhenBelowRange" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Density_ClampedToMin_WhenBelowRange" methodname="Density_ClampedToMin_WhenBelowRange" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="694976194" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000159" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1187" name="Equals_FalseForNull" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Equals_FalseForNull" methodname="Equals_FalseForNull" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="500030646" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000280" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1186" name="Equals_FalseWhenDensityDiffers" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Equals_FalseWhenDensityDiffers" methodname="Equals_FalseWhenDensityDiffers" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="1706978551" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000241" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1185" name="Equals_FalseWhenEnabledDiffers" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Equals_FalseWhenEnabledDiffers" methodname="Equals_FalseWhenEnabledDiffers" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="1037589861" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000182" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1184" name="Equals_TrueForIdenticalConfigs" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Equals_TrueForIdenticalConfigs" methodname="Equals_TrueForIdenticalConfigs" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="2005237909" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000399" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1190" name="ExactMaxValues_Accepted" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.ExactMaxValues_Accepted" methodname="ExactMaxValues_Accepted" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="41595782" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000245" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1189" name="ExactMinValues_Accepted" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.ExactMinValues_Accepted" methodname="ExactMinValues_Accepted" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="252847462" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000263" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1191" name="MidRangeValues_PreservedExactly" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.MidRangeValues_PreservedExactly" methodname="MidRangeValues_PreservedExactly" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="789563601" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000250" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1176" name="Speed_ClampedToMax_WhenAboveRange" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Speed_ClampedToMax_WhenAboveRange" methodname="Speed_ClampedToMax_WhenAboveRange" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="387414341" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000196" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1175" name="Speed_ClampedToMin_WhenBelowRange" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.Speed_ClampedToMin_WhenBelowRange" methodname="Speed_ClampedToMin_WhenBelowRange" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="1151268163" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000176" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1188" name="ToString_ContainsAllValues" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.ToString_ContainsAllValues" methodname="ToString_ContainsAllValues" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="25277646" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000389" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1183" name="WithBrightness_ClampsAndReturnsNewInstance" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.WithBrightness_ClampsAndReturnsNewInstance" methodname="WithBrightness_ClampsAndReturnsNewInstance" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="2085861279" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000264" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1181" name="WithDensity_ClampsAndReturnsNewInstance" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.WithDensity_ClampsAndReturnsNewInstance" methodname="WithDensity_ClampsAndReturnsNewInstance" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="1929056100" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000267" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1180" name="WithEnabled_ReturnsNewInstanceWithUpdatedValue" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.WithEnabled_ReturnsNewInstanceWithUpdatedValue" methodname="WithEnabled_ReturnsNewInstanceWithUpdatedValue" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="161272877" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000450" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1182" name="WithSpeed_ClampsAndReturnsNewInstance" fullname="Decantra.Tests.EditMode.StarfieldConfigTests.WithSpeed_ClampsAndReturnsNewInstance" methodname="WithSpeed_ClampsAndReturnsNewInstance" classname="Decantra.Tests.EditMode.StarfieldConfigTests" runstate="Runnable" seed="422931496" result="Passed" start-time="2026-02-10 15:48:05Z" end-time="2026-02-10 15:48:05Z" duration="0.000269" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: /home/chris/.config/unity3d/Gleissner/Decantra/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

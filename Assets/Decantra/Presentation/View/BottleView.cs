@@ -17,7 +17,7 @@ namespace Decantra.Presentation.View
     public sealed class BottleView : MonoBehaviour
     {
         private const float BaseHeightRatio = 0.07f;
-        private const float BaseWidthRatio = 1.0f;
+        private const float BaseWidthRatio = 2.0f;
 
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
         private const float RefOutlineHeight = 372f;
@@ -116,11 +116,12 @@ namespace Decantra.Presentation.View
                 reflectionStrip.raycastTarget = false;
 
                 var rect = reflectionStrip.rectTransform;
-                // Right-side reflection strip: ~12% width, ~72% height, centered ~20% inward from right
-                rect.anchorMin = new Vector2(0.74f, 0.12f);
-                rect.anchorMax = new Vector2(0.86f, 0.84f);
-                rect.offsetMin = Vector2.zero;
-                rect.offsetMax = Vector2.zero;
+                // Right-side reflection strip: center-anchored to match outline body scaling
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(24, 372);
+                rect.anchoredPosition = new Vector2(62, -6);
             }
 
             if (glassBack != null)
@@ -375,11 +376,8 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
-            // Sink marker color: 57.5% toward black from outline color (halfway + 15% darker)
-            Color sinkMarkerColor = outline != null
-                ? Color.Lerp(Color.black, outlineDefaultColor, 0.425f)
-                : new Color(0.28f, 0.32f, 0.37f, 0.9f);
-            sinkMarkerColor.a = 0.9f;
+            // Sink marker: pure black for maximum visual distinction
+            Color sinkMarkerColor = new Color(0f, 0f, 0f, 1f);
 
             if (bottle.IsSink)
             {
@@ -417,8 +415,7 @@ namespace Decantra.Presentation.View
             {
                 if (basePlate != null)
                 {
-                    basePlate.gameObject.SetActive(true);
-                    basePlate.color = baseDefaultColor;
+                    basePlate.gameObject.SetActive(false);
                 }
 
                 if (body != null)
@@ -437,9 +434,19 @@ namespace Decantra.Presentation.View
                     anchorCollar.gameObject.SetActive(false);
                 }
 
-                if (normalShadow != null)
+                // Subtle 3D shadow beneath the bottle base
+                if (normalShadow != null && outline != null)
                 {
-                    normalShadow.gameObject.SetActive(false);
+                    normalShadow.gameObject.SetActive(true);
+                    normalShadow.color = new Color(0f, 0f, 0f, 0.15f);
+                    var shadowRect = normalShadow.rectTransform;
+                    shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    shadowRect.pivot = new Vector2(0.5f, 0.5f);
+                    float outlineBottom = outline.rectTransform.anchoredPosition.y
+                                          - outline.rectTransform.sizeDelta.y * 0.5f;
+                    shadowRect.sizeDelta = new Vector2(130f, 20f);
+                    shadowRect.anchoredPosition = new Vector2(0f, outlineBottom);
                 }
             }
 

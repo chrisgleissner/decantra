@@ -885,11 +885,11 @@ namespace Decantra.Presentation
             shadow.color = new Color(0f, 0f, 0f, 0f);
             shadow.raycastTarget = false;
             var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0f);
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
             shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(140, 30);
-            shadowRect.anchoredPosition = new Vector2(0, -180);
+            shadowRect.sizeDelta = new Vector2(130, 20);
+            shadowRect.anchoredPosition = new Vector2(0, -192);
             shadowGo.SetActive(false);
 
             var glassBackGo = CreateUiChild(bottleGo.transform, "GlassBack");
@@ -963,10 +963,11 @@ namespace Decantra.Presentation
             reflectionStrip.color = new Color(0.96f, 0.98f, 1f, 0.16f);
             reflectionStrip.raycastTarget = false;
             var reflectionRect = reflectionStripGo.GetComponent<RectTransform>();
-            reflectionRect.anchorMin = new Vector2(0.74f, 0.12f);
-            reflectionRect.anchorMax = new Vector2(0.86f, 0.84f);
-            reflectionRect.offsetMin = Vector2.zero;
-            reflectionRect.offsetMax = Vector2.zero;
+            reflectionRect.anchorMin = new Vector2(0.5f, 0.5f);
+            reflectionRect.anchorMax = new Vector2(0.5f, 0.5f);
+            reflectionRect.pivot = new Vector2(0.5f, 0.5f);
+            reflectionRect.sizeDelta = new Vector2(24, 372);
+            reflectionRect.anchoredPosition = new Vector2(62, -6);
 
             var topReflectionGo = CreateUiChild(bottleGo.transform, "TopReflection");
             var topReflectionImage = topReflectionGo.AddComponent<Image>();

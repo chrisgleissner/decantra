@@ -1,0 +1,580 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="51" result="Skipped:Ignored" total="51" passed="49" failed="0" inconclusive="0" skipped="2" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:44Z" duration="9.1136407">
+  <test-suite type="TestSuite" id="1068" name="Decantra" fullname="Decantra" runstate="Runnable" testcasecount="51" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:44Z" duration="9.113641" total="51" passed="49" failed="0" inconclusive="0" skipped="2" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <reason>
+      <message><![CDATA[One or more child tests were ignored]]></message>
+    </reason>
+    <test-suite type="Assembly" id="1060" name="Decantra.PlayMode.Tests.dll" fullname="/home/chris/dev/decantra/Library/ScriptAssemblies/Decantra.PlayMode.Tests.dll" runstate="Runnable" testcasecount="51" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:44Z" duration="9.105099" total="51" passed="49" failed="0" inconclusive="0" skipped="2" asserts="0">
+      <properties>
+        <property name="_PID" value="1235076" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <reason>
+        <message><![CDATA[One or more child tests were ignored]]></message>
+      </reason>
+      <test-suite type="TestSuite" id="1061" name="Decantra" fullname="Decantra" runstate="Runnable" testcasecount="51" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:44Z" duration="9.103968" total="51" passed="49" failed="0" inconclusive="0" skipped="2" asserts="0">
+        <properties />
+        <reason>
+          <message><![CDATA[One or more child tests were ignored]]></message>
+        </reason>
+        <test-suite type="TestSuite" id="1064" name="PlayMode" fullname="Decantra.PlayMode" runstate="Runnable" testcasecount="23" result="Passed" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:38Z" duration="2.302620" total="23" passed="23" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1065" name="Tests" fullname="Decantra.PlayMode.Tests" runstate="Runnable" testcasecount="23" result="Passed" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:38Z" duration="2.301946" total="23" passed="23" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1033" name="BackgroundOrderingTests" fullname="Decantra.PlayMode.Tests.BackgroundOrderingTests" classname="Decantra.PlayMode.Tests.BackgroundOrderingTests" runstate="Runnable" testcasecount="1" result="Passed" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:36Z" duration="0.842398" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1034" name="ValidateBackgroundLayerOrdering" fullname="Decantra.PlayMode.Tests.BackgroundOrderingTests.ValidateBackgroundLayerOrdering" methodname="ValidateBackgroundLayerOrdering" classname="Decantra.PlayMode.Tests.BackgroundOrderingTests" runstate="Runnable" seed="1779122531" result="Passed" start-time="2026-02-10 15:48:35Z" end-time="2026-02-10 15:48:36Z" duration="0.829440" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[SceneBootstrap: building runtime UI
+AudioClip.SetData failed; AudioClip  contains no data
+AudioClip.SetData failed; AudioClip  contains no data
+Decantra Background level=15 seed=12345 palette=2 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.4
+Background Scale: (2.50, 2.50, 1.00)
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1035" name="BackgroundSanityTests" fullname="Decantra.PlayMode.Tests.BackgroundSanityTests" classname="Decantra.PlayMode.Tests.BackgroundSanityTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:48:36Z" end-time="2026-02-10 15:48:37Z" duration="1.128394" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1036" name="BackgroundComposite_Level1_HasVisibleStructure" fullname="Decantra.PlayMode.Tests.BackgroundSanityTests.BackgroundComposite_Level1_HasVisibleStructure" methodname="BackgroundComposite_Level1_HasVisibleStructure" classname="Decantra.PlayMode.Tests.BackgroundSanityTests" runstate="Runnable" seed="1442562466" result="Passed" start-time="2026-02-10 15:48:36Z" end-time="2026-02-10 15:48:36Z" duration="0.374049" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=1 archetype=DomainWarpedClouds ms=286.1
+Decantra Background level=1 seed=-1056969198 palette=2 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=311.7
+]]></output>
+              </test-case>
+              <test-case id="1037" name="BackgroundComposite_Level12_HasVisibleStructure" fullname="Decantra.PlayMode.Tests.BackgroundSanityTests.BackgroundComposite_Level12_HasVisibleStructure" methodname="BackgroundComposite_Level12_HasVisibleStructure" classname="Decantra.PlayMode.Tests.BackgroundSanityTests" runstate="Runnable" seed="566832451" result="Passed" start-time="2026-02-10 15:48:36Z" end-time="2026-02-10 15:48:37Z" duration="0.373061" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=12 archetype=DomainWarpedClouds ms=312.5
+Decantra Background level=12 seed=-1056969198 palette=0 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=312.6
+]]></output>
+              </test-case>
+              <test-case id="1038" name="BackgroundComposite_Level24_HasVisibleStructure" fullname="Decantra.PlayMode.Tests.BackgroundSanityTests.BackgroundComposite_Level24_HasVisibleStructure" methodname="BackgroundComposite_Level24_HasVisibleStructure" classname="Decantra.PlayMode.Tests.BackgroundSanityTests" runstate="Runnable" seed="2095338469" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.379712" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=24 archetype=DomainWarpedClouds ms=293.4
+Decantra Background level=24 seed=-1056969198 palette=2 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=319.9
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1039" name="BottleVisualMappingTests" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.007570" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1044" name="AnyBottle_FullCapacity_FillsEntireSlotRoot" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.AnyBottle_FullCapacity_FillsEntireSlotRoot" methodname="AnyBottle_FullCapacity_FillsEntireSlotRoot" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="1788004335" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.002828" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1043" name="BaselineLayoutLock_ReferenceTiersMatchTag094" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.BaselineLayoutLock_ReferenceTiersMatchTag094" methodname="BaselineLayoutLock_ReferenceTiersMatchTag094" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="603046766" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000275" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1040" name="CrossBottleInvariance_SameSlotCount_SamePixelHeight" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.CrossBottleInvariance_SameSlotCount_SamePixelHeight" methodname="CrossBottleInvariance_SameSlotCount_SamePixelHeight" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="1595778772" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000256" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1048" name="OldFormula_ProducesDifferentPixelHeights_ConfirmsBugExists" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.OldFormula_ProducesDifferentPixelHeights_ConfirmsBugExists" methodname="OldFormula_ProducesDifferentPixelHeights_ConfirmsBugExists" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="1964252869" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000128" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1042" name="PourInvariance_AllCapacityPairs_SamePixelHeight" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.PourInvariance_AllCapacityPairs_SamePixelHeight" methodname="PourInvariance_AllCapacityPairs_SamePixelHeight" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="666412031" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000506" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1041" name="PourInvariance_Cap3ToCap6_SamePixelHeight" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.PourInvariance_Cap3ToCap6_SamePixelHeight" methodname="PourInvariance_Cap3ToCap6_SamePixelHeight" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="951964049" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000156" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1045" name="ProportionalScaleY_ValuesCorrect" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.ProportionalScaleY_ValuesCorrect" methodname="ProportionalScaleY_ValuesCorrect" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="1390936062" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000233" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1046" name="UniformCapacity_MatchesOriginalFormula" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.UniformCapacity_MatchesOriginalFormula" methodname="UniformCapacity_MatchesOriginalFormula" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="688748728" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000167" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1047" name="ZeroSlots_ZeroHeight" fullname="Decantra.PlayMode.Tests.BottleVisualMappingTests.ZeroSlots_ZeroHeight" methodname="ZeroSlots_ZeroHeight" classname="Decantra.PlayMode.Tests.BottleVisualMappingTests" runstate="Runnable" seed="863081594" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.000090" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1049" name="StarfieldOptionsTests" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:38Z" duration="0.321720" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1059" name="FullConfigChange_AllValuesApplied" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.FullConfigChange_AllValuesApplied" methodname="FullConfigChange_AllValuesApplied" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="552824978" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.017891" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1051" name="HideOptionsOverlay_DeactivatesOverlay" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.HideOptionsOverlay_DeactivatesOverlay" methodname="HideOptionsOverlay_DeactivatesOverlay" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="595226277" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.028653" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1052" name="OverlayOpenClose_DoesNotAffectGameState" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.OverlayOpenClose_DoesNotAffectGameState" methodname="OverlayOpenClose_DoesNotAffectGameState" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="12158802" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.031096" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1057" name="SetStarfieldBrightness_UpdatesConfig" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.SetStarfieldBrightness_UpdatesConfig" methodname="SetStarfieldBrightness_UpdatesConfig" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="83042778" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.034754" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1055" name="SetStarfieldDensity_UpdatesConfig" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.SetStarfieldDensity_UpdatesConfig" methodname="SetStarfieldDensity_UpdatesConfig" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="1538273276" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.035892" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1053" name="SetStarfieldEnabled_False_DeactivatesStarsObject" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.SetStarfieldEnabled_False_DeactivatesStarsObject" methodname="SetStarfieldEnabled_False_DeactivatesStarsObject" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="1048880666" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.042510" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1054" name="SetStarfieldEnabled_True_ActivatesStarsObject" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.SetStarfieldEnabled_True_ActivatesStarsObject" methodname="SetStarfieldEnabled_True_ActivatesStarsObject" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="1094184197" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:37Z" duration="0.029023" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1056" name="SetStarfieldSpeed_UpdatesConfig" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.SetStarfieldSpeed_UpdatesConfig" methodname="SetStarfieldSpeed_UpdatesConfig" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="1677497267" result="Passed" start-time="2026-02-10 15:48:37Z" end-time="2026-02-10 15:48:38Z" duration="0.033111" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1058" name="SetStarfieldValues_ClampsOutOfRange" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.SetStarfieldValues_ClampsOutOfRange" methodname="SetStarfieldValues_ClampsOutOfRange" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="671991976" result="Passed" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:38Z" duration="0.033684" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1050" name="ShowOptionsOverlay_ActivatesOverlay" fullname="Decantra.PlayMode.Tests.StarfieldOptionsTests.ShowOptionsOverlay_ActivatesOverlay" methodname="ShowOptionsOverlay_ActivatesOverlay" classname="Decantra.PlayMode.Tests.StarfieldOptionsTests" runstate="Runnable" seed="1438269606" result="Passed" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:38Z" duration="0.031773" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+        <test-suite type="TestSuite" id="1062" name="Tests" fullname="Decantra.Tests" runstate="Runnable" testcasecount="28" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:44Z" duration="6.800418" total="28" passed="26" failed="0" inconclusive="0" skipped="2" asserts="0">
+          <properties />
+          <reason>
+            <message><![CDATA[One or more child tests were ignored]]></message>
+          </reason>
+          <test-suite type="TestSuite" id="1063" name="PlayMode" fullname="Decantra.Tests.PlayMode" runstate="Runnable" testcasecount="28" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:44Z" duration="6.799648" total="28" passed="26" failed="0" inconclusive="0" skipped="2" asserts="0">
+            <properties />
+            <reason>
+              <message><![CDATA[One or more child tests were ignored]]></message>
+            </reason>
+            <test-suite type="TestFixture" id="1001" name="GameControllerPlayModeTests" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" testcasecount="14" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:44Z" duration="6.573966" total="14" passed="13" failed="0" inconclusive="0" skipped="1" asserts="0">
+              <properties />
+              <reason>
+                <message><![CDATA[One or more child tests were ignored]]></message>
+              </reason>
+              <test-case id="1004" name="BackgroundVariation_ChangesWithLevel" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.BackgroundVariation_ChangesWithLevel" methodname="BackgroundVariation_ChangesWithLevel" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="2044464010" result="Passed" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:38Z" duration="0.354413" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=1 archetype=DomainWarpedClouds ms=281.2
+Decantra Background level=1 seed=12345 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=281.3
+Decantra Background level=15 seed=12345 palette=2 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+]]></output>
+              </test-case>
+              <test-case id="1005" name="BottleViews_ArePresent" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.BottleViews_ArePresent" methodname="BottleViews_ArePresent" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="766924093" result="Passed" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:38Z" duration="0.002599" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1003" name="CaptureGameplayScreenshot" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.CaptureGameplayScreenshot" methodname="CaptureGameplayScreenshot" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="647292889" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:38Z" duration="0.003829" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[Screenshot capture is not supported in batch mode.]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1008" name="Failure_DoesNotUnlockNextLevel" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.Failure_DoesNotUnlockNextLevel" methodname="Failure_DoesNotUnlockNextLevel" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="404555957" result="Passed" start-time="2026-02-10 15:48:38Z" end-time="2026-02-10 15:48:39Z" duration="1.099524" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra PourStart level=3 source=0 target=1 poured=1 color=Red
+Decantra ScoreUpdate level=3 movesUsed=1 optimal=1 provisional=145
+Decantra OrganicBackground level=3 archetype=DomainWarpedClouds ms=292.9
+Decantra Background level=3 seed=12345 palette=2 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=293.0
+Decantra LevelLoaded level=3 seed=12345
+]]></output>
+              </test-case>
+              <test-case id="1002" name="GameController_StartsAndRenders" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.GameController_StartsAndRenders" methodname="GameController_StartsAndRenders" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1880060261" result="Passed" start-time="2026-02-10 15:48:39Z" end-time="2026-02-10 15:48:39Z" duration="0.031115" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[AudioClip.SetData failed; AudioClip  contains no data
+]]></output>
+              </test-case>
+              <test-case id="1014" name="LevelCompleteBanner_CentersStarsAndScoreGroup" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.LevelCompleteBanner_CentersStarsAndScoreGroup" methodname="LevelCompleteBanner_CentersStarsAndScoreGroup" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1515778920" result="Passed" start-time="2026-02-10 15:48:39Z" end-time="2026-02-10 15:48:39Z" duration="0.063361" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1007" name="OutOfMoves_RestartsLevelWithSameState" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.OutOfMoves_RestartsLevelWithSameState" methodname="OutOfMoves_RestartsLevelWithSameState" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1753257582" result="Passed" start-time="2026-02-10 15:48:39Z" end-time="2026-02-10 15:48:41Z" duration="1.553202" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=1 archetype=DomainWarpedClouds ms=286.5
+Decantra Background level=1 seed=777 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=286.9
+Decantra PourStart level=1 source=1 target=0 poured=2 color=Red
+Decantra Celebration stars=4 intensity=0.75 duration=1.00
+Decantra ScoreUpdate level=1 movesUsed=1 optimal=6 provisional=31
+Decantra Background level=1 seed=777 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra LevelLoaded level=1 seed=777
+]]></output>
+              </test-case>
+              <test-case id="1006" name="OutOfMoves_ShowsFailureAndBlocksInput" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.OutOfMoves_ShowsFailureAndBlocksInput" methodname="OutOfMoves_ShowsFailureAndBlocksInput" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="2105349151" result="Passed" start-time="2026-02-10 15:48:41Z" end-time="2026-02-10 15:48:41Z" duration="0.698495" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=1 archetype=DomainWarpedClouds ms=277.3
+Decantra Background level=1 seed=123 palette=5 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=277.4
+Decantra PourStart level=1 source=1 target=0 poured=1 color=Red
+Decantra ScoreUpdate level=1 movesUsed=1 optimal=7 provisional=31
+]]></output>
+              </test-case>
+              <test-case id="1010" name="ResetButton_PreservesBackground" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.ResetButton_PreservesBackground" methodname="ResetButton_PreservesBackground" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="74420999" result="Passed" start-time="2026-02-10 15:48:41Z" end-time="2026-02-10 15:48:41Z" duration="0.017904" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra Background level=3 seed=12345 palette=3 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra Background level=3 seed=12345 palette=3 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra LevelLoaded level=3 seed=12345
+]]></output>
+              </test-case>
+              <test-case id="1009" name="ResetButton_RestoresInitialStateAndScore" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.ResetButton_RestoresInitialStateAndScore" methodname="ResetButton_RestoresInitialStateAndScore" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1636152509" result="Passed" start-time="2026-02-10 15:48:41Z" end-time="2026-02-10 15:48:42Z" duration="0.460488" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra Background level=1 seed=123 palette=5 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra PourStart level=1 source=1 target=0 poured=1 color=Red
+Decantra ScoreUpdate level=1 movesUsed=1 optimal=7 provisional=145
+Decantra Background level=1 seed=123 palette=5 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra LevelLoaded level=1 seed=123
+]]></output>
+              </test-case>
+              <test-case id="1012" name="RestartGame_ConfirmationResetsProgress" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.RestartGame_ConfirmationResetsProgress" methodname="RestartGame_ConfirmationResetsProgress" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="63316860" result="Passed" start-time="2026-02-10 15:48:42Z" end-time="2026-02-10 15:48:42Z" duration="0.325355" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=1 archetype=DomainWarpedClouds ms=280.0
+Decantra Background level=1 seed=740550945 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=280.1
+]]></output>
+              </test-case>
+              <test-case id="1013" name="ShareButton_RevealsAndExportsPayload" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.ShareButton_RevealsAndExportsPayload" methodname="ShareButton_RevealsAndExportsPayload" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1860033273" result="Passed" start-time="2026-02-10 15:48:42Z" end-time="2026-02-10 15:48:43Z" duration="0.448206" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra Background level=1 seed=123 palette=5 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra PourStart level=1 source=1 target=0 poured=1 color=Red
+Decantra ScoreUpdate level=1 movesUsed=1 optimal=7 provisional=145
+]]></output>
+              </test-case>
+              <test-case id="1011" name="SinkBottle_CannotStartDrag_ButNormalBottleCan" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.SinkBottle_CannotStartDrag_ButNormalBottleCan" methodname="SinkBottle_CannotStartDrag_ButNormalBottleCan" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1740187265" result="Passed" start-time="2026-02-10 15:48:43Z" end-time="2026-02-10 15:48:43Z" duration="0.659071" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra OrganicBackground level=24 archetype=DomainWarpedClouds ms=306.7
+Decantra Background level=24 seed=901 palette=5 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=306.8
+]]></output>
+              </test-case>
+              <test-case id="1015" name="Win_CommitsScoreAndAdvancesLevel" fullname="Decantra.Tests.PlayMode.GameControllerPlayModeTests.Win_CommitsScoreAndAdvancesLevel" methodname="Win_CommitsScoreAndAdvancesLevel" classname="Decantra.Tests.PlayMode.GameControllerPlayModeTests" runstate="Runnable" seed="1801947661" result="Passed" start-time="2026-02-10 15:48:43Z" end-time="2026-02-10 15:48:44Z" duration="0.852806" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[TransitionToLevel start level=2 seed=2063846850 precomputeReady=True
+Decantra OrganicBackground level=2 archetype=DomainWarpedClouds ms=342.2
+Decantra Background level=2 seed=2063846850 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=342.3
+Decantra Background level=2 seed=2063846850 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+Decantra LevelLoaded level=2 seed=2063846850
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1016" name="HudLayoutVerificationTests" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" testcasecount="10" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.218107" total="10" passed="10" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1025" name="Background_HasNoVignetteAlpha" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.Background_HasNoVignetteAlpha" methodname="Background_HasNoVignetteAlpha" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="1649603811" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.102045" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[SceneBootstrap: building runtime UI
+AudioClip.SetData failed; AudioClip  contains no data
+Decantra Background level=1 seed=12345 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.1
+]]></output>
+              </test-case>
+              <test-case id="1026" name="HudLayout_SerializesToDeterministicJson" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudLayout_SerializesToDeterministicJson" methodname="HudLayout_SerializesToDeterministicJson" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="1168872525" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.066849" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra Background level=1 seed=12345 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+HUD Layout Verification JSON:
+{
+  "hudTileCount": 5,
+  "tiles": [
+    {
+      "name": "HighScorePanel",
+      "layoutMinWidth": 458,
+      "layoutMinHeight": 140,
+      "layoutPreferredWidth": -1,
+      "imageCount": 3,
+      "hasShadow": true,
+      "hasGlassHighlight": true,
+      "hasValueText": true
+    },
+    {
+      "name": "LevelPanel",
+      "layoutMinWidth": 300,
+      "layoutMinHeight": 140,
+      "layoutPreferredWidth": -1,
+      "imageCount": 3,
+      "hasShadow": true,
+      "hasGlassHighlight": true,
+      "hasValueText": true
+    },
+    {
+      "name": "MaxLevelPanel",
+      "layoutMinWidth": 458,
+      "layoutMinHeight": 140,
+      "layoutPreferredWidth": -1,
+      "imageCount": 3,
+      "hasShadow": true,
+      "hasGlassHighlight": true,
+      "hasValueText": true
+    },
+    {
+      "name": "MovesPanel",
+      "layoutMinWidth": 300,
+      "layoutMinHeight": 140,
+      "layoutPreferredWidth": -1,
+      "imageCount": 3,
+      "hasShadow": true,
+      "hasGlassHighlight": true,
+      "hasValueText": true
+    },
+    {
+      "name": "ScorePanel",
+      "layoutMinWidth": 300,
+      "layoutMinHeight": 140,
+      "layoutPreferredWidth": -1,
+      "imageCount": 3,
+      "hasShadow": true,
+      "hasGlassHighlight": true,
+      "hasValueText": true
+    }
+  ]
+}
+
+]]></output>
+              </test-case>
+              <test-case id="1019" name="HudTiles_AllHaveConsistentLayoutElement" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_AllHaveConsistentLayoutElement" methodname="HudTiles_AllHaveConsistentLayoutElement" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="2041932938" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.004299" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1018" name="HudTiles_AllHaveIdenticalWidths" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_AllHaveIdenticalWidths" methodname="HudTiles_AllHaveIdenticalWidths" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="843996954" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.004474" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1022" name="HudTiles_AllHaveSameStructuralSignature" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_AllHaveSameStructuralSignature" methodname="HudTiles_AllHaveSameStructuralSignature" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="1746107996" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.003580" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1020" name="HudTiles_BottomNotNarrowerThanTop" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_BottomNotNarrowerThanTop" methodname="HudTiles_BottomNotNarrowerThanTop" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="1111451948" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.006165" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1021" name="HudTiles_EachHasExpectedImageCount" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_EachHasExpectedImageCount" methodname="HudTiles_EachHasExpectedImageCount" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="744081654" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.003537" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1017" name="HudTiles_ExactlyExpectedCountDetected" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_ExactlyExpectedCountDetected" methodname="HudTiles_ExactlyExpectedCountDetected" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="830468036" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.003712" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1023" name="HudTiles_TextFitsWithinBounds" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.HudTiles_TextFitsWithinBounds" methodname="HudTiles_TextFitsWithinBounds" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="1018580266" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.017689" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Decantra Background level=1 seed=12345 palette=4 archetype=DomainWarpedClouds base=RGBA(1.000, 1.000, 1.000, 1.000) applyMs=0.0
+]]></output>
+              </test-case>
+              <test-case id="1024" name="VignetteEffect_IsDisabled" fullname="Decantra.Tests.PlayMode.HudLayoutVerificationTests.VignetteEffect_IsDisabled" methodname="VignetteEffect_IsDisabled" classname="Decantra.Tests.PlayMode.HudLayoutVerificationTests" runstate="Runnable" seed="1396400576" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.002665" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1027" name="OrientationPlayModeTests" fullname="Decantra.Tests.PlayMode.OrientationPlayModeTests" classname="Decantra.Tests.PlayMode.OrientationPlayModeTests" runstate="Runnable" testcasecount="1" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.003768" total="1" passed="0" failed="0" inconclusive="0" skipped="1" asserts="0">
+              <properties />
+              <reason>
+                <message><![CDATA[One or more child tests were ignored]]></message>
+              </reason>
+              <test-case id="1028" name="SceneBootstrap_DoesNotForceScreenOrientation" fullname="Decantra.Tests.PlayMode.OrientationPlayModeTests.SceneBootstrap_DoesNotForceScreenOrientation" methodname="SceneBootstrap_DoesNotForceScreenOrientation" classname="Decantra.Tests.PlayMode.OrientationPlayModeTests" runstate="Runnable" seed="77358725" result="Skipped" label="Ignored" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.002362" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[Screen.orientation is not controllable in this environment.]]></message>
+                </reason>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1029" name="ProgressPersistenceTests" fullname="Decantra.Tests.PlayMode.ProgressPersistenceTests" classname="Decantra.Tests.PlayMode.ProgressPersistenceTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.002292" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1030" name="ProgressStore_PersistsAcrossLoads" fullname="Decantra.Tests.PlayMode.ProgressPersistenceTests.ProgressStore_PersistsAcrossLoads" methodname="ProgressStore_PersistsAcrossLoads" classname="Decantra.Tests.PlayMode.ProgressPersistenceTests" runstate="Runnable" seed="1349821891" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.000635" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1032" name="ResumePolicy_NeverRegressesBelowOne" fullname="Decantra.Tests.PlayMode.ProgressPersistenceTests.ResumePolicy_NeverRegressesBelowOne" methodname="ResumePolicy_NeverRegressesBelowOne" classname="Decantra.Tests.PlayMode.ProgressPersistenceTests" runstate="Runnable" seed="1592578792" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.000164" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1031" name="ResumePolicy_UsesCurrentLevelWhenAvailable" fullname="Decantra.Tests.PlayMode.ProgressPersistenceTests.ResumePolicy_UsesCurrentLevelWhenAvailable" methodname="ResumePolicy_UsesCurrentLevelWhenAvailable" classname="Decantra.Tests.PlayMode.ProgressPersistenceTests" runstate="Runnable" seed="816867490" result="Passed" start-time="2026-02-10 15:48:44Z" end-time="2026-02-10 15:48:44Z" duration="0.000122" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: /home/chris/.config/unity3d/Gleissner/Decantra/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
