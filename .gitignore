@@ -88,4 +88,4 @@ plans.md
 solver-solutions-debug.txt
 solutions-1-1000.txt
 release.keystore
-.env
+.envTestResults-*.xml

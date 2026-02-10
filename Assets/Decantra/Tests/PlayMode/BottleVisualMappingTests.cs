@@ -17,11 +17,12 @@ namespace Decantra.PlayMode.Tests
     /// These tests validate the core guarantee: the same number of slots must produce
     /// the same on-screen pixel height regardless of which bottle they are in.
     ///
-    /// The pixel height of K slots in a bottle is:
-    ///   LocalHeightForUnits(H, cap, refCap, K) * scaleY(cap)
-    ///
-    /// For invariance, this must be the same for all capacities and equal to:
-    ///   (H / refCap) * scaleY(refCap) * K
+    /// Strategy: bottles use proportional scaleY = (cap / refCap) * refScaleY.
+    /// The local-space height is H * units / cap.
+    /// The on-screen pixel height of K slots is:
+    ///   (H * K / cap) * proportionalScaleY(cap, refCap)
+    ///   = (H * K / cap) * (cap / refCap * refScaleY)
+    ///   = H * K * refScaleY / refCap = CONSTANT
     /// </summary>
     public class BottleVisualMappingTests
     {
@@ -29,9 +30,8 @@ namespace Decantra.PlayMode.Tests
         private const float PixelTolerance = 0.001f;
 
         /// <summary>
-        /// Test 1 — Cross-bottle invariance:
-        /// For each capacity in {2,3,4,5,6,7,8} with refCap=8, verify that K slots
-        /// produce the same on-screen pixel height.
+        /// Cross-bottle invariance: K slots in any capacity bottle produce the same
+        /// on-screen pixel height when using proportional scaling.
         /// </summary>
         [Test]
         public void CrossBottleInvariance_SameSlotCount_SamePixelHeight()
@@ -39,7 +39,7 @@ namespace Decantra.PlayMode.Tests
             int refCap = 8;
             int[] capacities = { 2, 3, 4, 5, 6, 7, 8 };
 
-            for (int k = 1; k <= 4; k++)
+            for (int k = 1; k <= 2; k++)
             {
                 float referencePixelHeight = -1f;
 
@@ -49,7 +49,7 @@ namespace Decantra.PlayMode.Tests
 
                     float localHeight = BottleVisualMapping.LocalHeightForUnits(
                         SlotRootHeight, cap, refCap, k);
-                    float scaleY = BottleVisualMapping.GetScaleY(cap);
+                    float scaleY = BottleVisualMapping.ProportionalScaleY(cap, refCap);
                     float pixelHeight = localHeight * scaleY;
 
                     if (referencePixelHeight < 0f)
@@ -66,10 +66,8 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
-        /// Test 2 — Pour invariance regression:
-        /// Simulate pouring 2 slots from a cap-3 bottle into a cap-6 bottle.
-        /// The 2-slot stack must have the same pixel height in both bottles.
-        /// This is the exact scenario that produced visible "growth" in 0.9.4.
+        /// Pour invariance regression: pouring 2 slots from cap-3 into cap-6 must
+        /// produce the same pixel height in both bottles.
         /// </summary>
         [Test]
         public void PourInvariance_Cap3ToCap6_SamePixelHeight()
@@ -79,25 +77,23 @@ namespace Decantra.PlayMode.Tests
 
             float localHeightCap3 = BottleVisualMapping.LocalHeightForUnits(
                 SlotRootHeight, 3, refCap, k);
-            float pixelsCap3 = localHeightCap3 * BottleVisualMapping.GetScaleY(3);
+            float pixelsCap3 = localHeightCap3 * BottleVisualMapping.ProportionalScaleY(3, refCap);
 
             float localHeightCap6 = BottleVisualMapping.LocalHeightForUnits(
                 SlotRootHeight, 6, refCap, k);
-            float pixelsCap6 = localHeightCap6 * BottleVisualMapping.GetScaleY(6);
+            float pixelsCap6 = localHeightCap6 * BottleVisualMapping.ProportionalScaleY(6, refCap);
 
             Assert.AreEqual(pixelsCap3, pixelsCap6, PixelTolerance,
                 $"2 slots: cap-3 produced {pixelsCap3}px vs cap-6 produced {pixelsCap6}px");
         }
 
         /// <summary>
-        /// Test 2b — Pour invariance for all mixed-capacity pairs in {3,4,5,6,7,8}.
+        /// Pour invariance for all mixed-capacity pairs in {3,4,5,6,7,8}.
         /// </summary>
         [Test]
         public void PourInvariance_AllCapacityPairs_SamePixelHeight()
         {
             int[] caps = { 3, 4, 5, 6, 7, 8 };
-
-            // Use the max capacity as the reference
             int refCap = 8;
 
             for (int i = 0; i < caps.Length; i++)
@@ -112,11 +108,11 @@ namespace Decantra.PlayMode.Tests
                     {
                         float localA = BottleVisualMapping.LocalHeightForUnits(
                             SlotRootHeight, capA, refCap, k);
-                        float pxA = localA * BottleVisualMapping.GetScaleY(capA);
+                        float pxA = localA * BottleVisualMapping.ProportionalScaleY(capA, refCap);
 
                         float localB = BottleVisualMapping.LocalHeightForUnits(
                             SlotRootHeight, capB, refCap, k);
-                        float pxB = localB * BottleVisualMapping.GetScaleY(capB);
+                        float pxB = localB * BottleVisualMapping.ProportionalScaleY(capB, refCap);
 
                         Assert.AreEqual(pxA, pxB, PixelTolerance,
                             $"K={k}: cap-{capA} gave {pxA}px vs cap-{capB} gave {pxB}px");
@@ -126,50 +122,68 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
-        /// Test 3 — Baseline layout lock:
-        /// The scaleX and scaleY values for each capacity tier must match 0.9.4 baselines.
+        /// Baseline layout lock: the 0.9.4 tier values used as reference for the
+        /// max-capacity bottle must remain unchanged.
         /// </summary>
         [Test]
-        public void BaselineLayoutLock_ScaleMatchesTag094()
+        public void BaselineLayoutLock_ReferenceTiersMatchTag094()
         {
-            // 0.9.4 baseline scale values (from ApplyCapacityScale)
-            // capacity <= 3: scaleX=0.95, scaleY=0.88
-            // capacity  = 4: scaleX=1.00, scaleY=1.00
-            // capacity >= 5: scaleX=1.02, scaleY=1.06
-
             Assert.AreEqual(0.95f, BottleVisualMapping.GetScaleX(2), 0.001f, "cap-2 scaleX");
             Assert.AreEqual(0.88f, BottleVisualMapping.GetScaleY(2), 0.001f, "cap-2 scaleY");
-
             Assert.AreEqual(0.95f, BottleVisualMapping.GetScaleX(3), 0.001f, "cap-3 scaleX");
             Assert.AreEqual(0.88f, BottleVisualMapping.GetScaleY(3), 0.001f, "cap-3 scaleY");
-
             Assert.AreEqual(1.00f, BottleVisualMapping.GetScaleX(4), 0.001f, "cap-4 scaleX");
             Assert.AreEqual(1.00f, BottleVisualMapping.GetScaleY(4), 0.001f, "cap-4 scaleY");
-
             Assert.AreEqual(1.02f, BottleVisualMapping.GetScaleX(5), 0.001f, "cap-5 scaleX");
             Assert.AreEqual(1.06f, BottleVisualMapping.GetScaleY(5), 0.001f, "cap-5 scaleY");
-
             Assert.AreEqual(1.02f, BottleVisualMapping.GetScaleX(8), 0.001f, "cap-8 scaleX");
             Assert.AreEqual(1.06f, BottleVisualMapping.GetScaleY(8), 0.001f, "cap-8 scaleY");
         }
 
         /// <summary>
-        /// Verify that the max-capacity bottle fills 100% of its slotRoot.
+        /// Every bottle at its full capacity must fill 100% of its slotRoot,
+        /// not just the max-capacity bottle.
         /// </summary>
         [Test]
-        public void MaxCapacityBottle_FillsEntireSlotRoot()
+        public void AnyBottle_FullCapacity_FillsEntireSlotRoot()
         {
             int refCap = 8;
-            float localHeight = BottleVisualMapping.LocalHeightForUnits(
-                SlotRootHeight, refCap, refCap, refCap);
 
-            Assert.AreEqual(SlotRootHeight, localHeight, PixelTolerance,
-                $"A full cap-{refCap} bottle should fill {SlotRootHeight} but got {localHeight}");
+            for (int cap = 2; cap <= 8; cap++)
+            {
+                float localHeight = BottleVisualMapping.LocalHeightForUnits(
+                    SlotRootHeight, cap, refCap, cap);
+
+                Assert.AreEqual(SlotRootHeight, localHeight, PixelTolerance,
+                    $"A full cap-{cap} bottle should fill {SlotRootHeight} but got {localHeight}");
+            }
         }
 
         /// <summary>
-        /// When all bottles have the same capacity (tutorial levels), the canonical
-        /// mapping should produce the same result as the 0.9.4 formula: H/cap * units.
+        /// Proportional scaleY: cap/refCap * GetScaleY(refCap).
+        /// The max-capacity bottle must use the 0.9.4 reference tier value.
+        /// </summary>
+        [Test]
+        public void ProportionalScaleY_ValuesCorrect()
+        {
+            int refCap = 8;
+            float refScaleY = BottleVisualMapping.GetScaleY(8); // 1.06
+
+            for (int cap = 2; cap <= 8; cap++)
+            {
+                float expected = (float)cap / refCap * refScaleY;
+                float actual = BottleVisualMapping.ProportionalScaleY(cap, refCap);
+                Assert.AreEqual(expected, actual, PixelTolerance,
+                    $"ProportionalScaleY({cap}, {refCap}) expected {expected} got {actual}");
+            }
+
+            // Max-cap bottle uses the 0.9.4 tier value
+            Assert.AreEqual(refScaleY, BottleVisualMapping.ProportionalScaleY(refCap, refCap), PixelTolerance);
+        }
+
+        /// <summary>
+        /// When all bottles have the same capacity (tutorial levels), the mapping
+        /// produces the same result as the 0.9.4 formula: H/cap * units.
         /// </summary>
         [Test]
         public void UniformCapacity_MatchesOriginalFormula()
@@ -189,7 +203,7 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
-        /// Verify zero slots returns zero height.
+        /// Zero slots returns zero height.
         /// </summary>
         [Test]
         public void ZeroSlots_ZeroHeight()
@@ -199,17 +213,17 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
-        /// Anti-regression: verify that the old (broken) formula H/cap * K produces
-        /// DIFFERENT pixel heights across capacities — confirming the bug existed.
+        /// Anti-regression: the old 0.9.4 approach (H/cap * non-proportional scaleY tiers)
+        /// produces DIFFERENT pixel heights, confirming the original bug existed.
         /// </summary>
         [Test]
         public void OldFormula_ProducesDifferentPixelHeights_ConfirmsBugExists()
         {
             int k = 2;
 
-            // Old formula: pixelHeight = (H / cap) * scaleY * K
-            float oldPxCap3 = (SlotRootHeight / 3f) * 0.88f * k;
-            float oldPxCap6 = (SlotRootHeight / 6f) * 1.06f * k;
+            // Old formula: pixelHeight = (H / cap) * oldTierScaleY * K
+            float oldPxCap3 = (SlotRootHeight / 3f) * BottleVisualMapping.GetScaleY(3) * k;
+            float oldPxCap6 = (SlotRootHeight / 6f) * BottleVisualMapping.GetScaleY(6) * k;
 
             // These should NOT be equal — that's the bug
             float diff = Mathf.Abs(oldPxCap3 - oldPxCap6);

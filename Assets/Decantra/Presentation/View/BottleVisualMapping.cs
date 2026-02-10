@@ -14,22 +14,19 @@ namespace Decantra.Presentation.View
     /// Provides a canonical slot-to-pixel mapping so that the same number of slots
     /// always renders at the same pixel height regardless of bottle capacity.
     ///
-    /// Root cause of the invariance bug: 0.9.4 computed liquid unit height as
-    /// (slotRoot.rect.height / capacity). Because bottles of different capacities
-    /// have non-proportional scaleY values, the on-screen pixel height per slot
-    /// varied by up to 3.3× across capacities.
+    /// Strategy: bottles use proportional scaleY = (capacity / refCapacity) * refScaleY.
+    /// This means the local-space unit height is simply H / capacity (same as 0.9.4),
+    /// while the on-screen pixel invariant is maintained by the proportional transform:
+    ///   pixelPerSlot = (H / cap) * (cap / refCap * refScaleY) * parent
+    ///                = H * refScaleY / refCap * parent = CONSTANT  ✓
     ///
-    /// Fix: compute a canonical local unit height that compensates for the bottle's
-    /// scaleY relative to the reference (max-capacity) bottle's scaleY, so that the
-    /// on-screen pixel height per slot is identical for all bottles.
-    ///
-    /// Rounding policy: Mathf.Round() on pixel values (banker's rounding). Max ±1px.
+    /// Every bottle fills 100% of its slotRoot at capacity.
     /// </summary>
     public static class BottleVisualMapping
     {
         /// <summary>
-        /// Returns the scaleY that BottleView.ApplyCapacityScale applies for a given capacity.
-        /// Must stay in sync with BottleView.ApplyCapacityScale.
+        /// Returns the 0.9.4 baseline scaleY tier for a given capacity.
+        /// Used as the reference value for the max-capacity bottle in proportional scaling.
         /// </summary>
         public static float GetScaleY(int capacity)
         {
@@ -39,7 +36,8 @@ namespace Decantra.Presentation.View
         }
 
         /// <summary>
-        /// Returns the scaleX that BottleView.ApplyCapacityScale applies for a given capacity.
+        /// Returns the 0.9.4 baseline scaleX tier for a given capacity.
+        /// Used as the reference value for the max-capacity bottle in proportional scaling.
         /// </summary>
         public static float GetScaleX(int capacity)
         {
@@ -49,42 +47,45 @@ namespace Decantra.Presentation.View
         }
 
         /// <summary>
-        /// Computes the local-space height for a given number of slots, such that the
-        /// on-screen pixel height is invariant across bottles of any capacity.
+        /// Returns the proportional scaleY for a bottle, so that a full bottle fills
+        /// its entire slotRoot and the pixel-per-slot is invariant across capacities.
+        /// The reference (max-capacity) bottle uses the 0.9.4 baseline tier value.
+        /// </summary>
+        public static float ProportionalScaleY(int capacity, int refCapacity)
+        {
+            if (refCapacity <= 0) return 1f;
+            float refScaleY = GetScaleY(refCapacity);
+            return (float)capacity / refCapacity * refScaleY;
+        }
+
+        /// <summary>
+        /// Returns the proportional scaleX for a bottle, maintaining the same aspect
+        /// ratio relationship as scaleY. The reference bottle uses its 0.9.4 baseline.
+        /// </summary>
+        public static float ProportionalScaleX(int capacity, int refCapacity)
+        {
+            if (refCapacity <= 0) return 1f;
+            float refScaleX = GetScaleX(refCapacity);
+            return (float)capacity / refCapacity * refScaleX;
+        }
+
+        /// <summary>
+        /// Computes the local-space height for a given number of slots.
+        /// With proportional bottle scaling, this is simply H * units / capacity.
+        /// The pixel invariant is maintained by the proportional transform scale.
         ///
-        /// The height of 1 slot in local-space is:
-        ///   localUnitHeight = (slotRootHeight / refCapacity) * (refScaleY / bottleScaleY)
-        ///
-        /// The on-screen pixel height of that slot is:
-        ///   localUnitHeight * bottleScaleY * parentScales
-        ///   = (slotRootHeight / refCapacity) * refScaleY * parentScales
-        ///   = CONSTANT across all bottles  ✓
+        /// Full bottle (units == capacity) always returns slotRootHeight, ensuring
+        /// every bottle looks completely full at capacity.
         /// </summary>
         /// <param name="slotRootHeight">slotRoot.rect.height (local-space, pre-scale)</param>
         /// <param name="capacity">This bottle's capacity</param>
-        /// <param name="refCapacity">Max capacity across all bottles in the current level</param>
+        /// <param name="refCapacity">Max capacity across all bottles in the current level (unused, kept for API stability)</param>
         /// <param name="units">Number of slots to convert to height</param>
         /// <returns>Local-space height for the given number of slots</returns>
         public static float LocalHeightForUnits(float slotRootHeight, int capacity, int refCapacity, float units)
         {
-            if (refCapacity <= 0 || slotRootHeight <= 0f) return 0f;
-
-            float bottleScaleY = GetScaleY(capacity);
-            float refScaleY = GetScaleY(refCapacity);
-
-            // Canonical local unit height, compensated for this bottle's scale
-            float localUnitHeight = (slotRootHeight / refCapacity) * (refScaleY / bottleScaleY);
-
-            return localUnitHeight * units;
-        }
-
-        /// <summary>
-        /// Computes the local-space Y offset for a segment that starts after unitsBefore
-        /// slots, using the canonical mapping.
-        /// </summary>
-        public static float LocalYForUnitsBefore(float slotRootHeight, int capacity, int refCapacity, float unitsBefore)
-        {
-            return LocalHeightForUnits(slotRootHeight, capacity, refCapacity, unitsBefore);
+            if (capacity <= 0 || slotRootHeight <= 0f) return 0f;
+            return slotRootHeight * units / capacity;
         }
     }
 }

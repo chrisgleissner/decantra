@@ -232,19 +232,8 @@ namespace Decantra.Presentation.View
 
         private void ApplyCapacityScale(int capacity)
         {
-            float scaleY = 1f;
-            float scaleX = 1f;
-            if (capacity <= 3)
-            {
-                scaleY = 0.88f;
-                scaleX = 0.95f;
-            }
-            else if (capacity >= 5)
-            {
-                scaleY = 1.06f;
-                scaleX = 1.02f;
-            }
-
+            float scaleY = BottleVisualMapping.ProportionalScaleY(capacity, _levelMaxCapacity);
+            float scaleX = BottleVisualMapping.ProportionalScaleX(capacity, _levelMaxCapacity);
             transform.localScale = new Vector3(baseScale.x * scaleX, baseScale.y * scaleY, baseScale.z);
         }
 
@@ -277,6 +266,9 @@ namespace Decantra.Presentation.View
                 if (anchorCollar != null)
                 {
                     anchorCollar.gameObject.SetActive(true);
+                    // Reduce collar height by 50% so it doesn't obscure liquid at bottle base
+                    var collarRect = anchorCollar.rectTransform;
+                    collarRect.sizeDelta = new Vector2(collarRect.sizeDelta.x, 28f);
                 }
 
                 if (normalShadow != null)
@@ -471,7 +463,7 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
-            float unitHeight = height / lastBottle.Capacity;
+            float unitHeight = height / lastBottle.Capacity; // unused but kept for API compat
             int topIndex = segmentUnits.Count - 1;
             int topUnits = Mathf.Max(0, segmentUnits[topIndex]);
             float removedUnits = Mathf.Clamp(amount * t, 0f, topUnits);
