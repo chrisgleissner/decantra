@@ -233,8 +233,8 @@ namespace Decantra.Presentation.View
         private void ApplyCapacityScale(int capacity)
         {
             float scaleY = BottleVisualMapping.ProportionalScaleY(capacity, _levelMaxCapacity);
-            float scaleX = BottleVisualMapping.ProportionalScaleX(capacity, _levelMaxCapacity);
-            transform.localScale = new Vector3(baseScale.x * scaleX, baseScale.y * scaleY, baseScale.z);
+            // All bottles have identical width — only height varies with capacity
+            transform.localScale = new Vector3(baseScale.x, baseScale.y * scaleY, baseScale.z);
         }
 
         private void ApplySinkStyle(Bottle bottle)
