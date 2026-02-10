@@ -377,7 +377,7 @@ namespace Decantra.Presentation.View
             isSink = bottle.IsSink;
 
             // Sink marker: pure black for maximum visual distinction
-            Color sinkMarkerColor = new Color(0f, 0f, 0f, 1f);
+            Color sinkMarkerColor = new Color(0f, 0f, 0f, 0.7f);
 
             if (bottle.IsSink)
             {
@@ -506,6 +506,10 @@ namespace Decantra.Presentation.View
             if (baseHeight <= 0f)
             {
                 baseHeight = outlineHeight * BaseHeightRatio;
+            }
+            else
+            {
+                baseHeight = Mathf.Max(baseHeight, outlineHeight * 0.03f);
             }
             float baseWidth = outlineWidth * BaseWidthRatio;
 

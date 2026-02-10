@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Decantra.Presentation.View
 {
@@ -21,6 +22,7 @@ namespace Decantra.Presentation.View
         [SerializeField] private RectTransform bottomHud;
         [SerializeField] private RectTransform bottleArea;
         [SerializeField] private RectTransform bottleGrid;
+        [SerializeField] private GridLayoutGroup bottleGridLayout;
         [SerializeField] private float topPadding = 24f;
         [SerializeField] private float bottomPadding = 24f;
 
@@ -28,6 +30,10 @@ namespace Decantra.Presentation.View
         private readonly Vector3[] _corners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
+        private bool _gridLayoutCached;
+        private Vector2 _baseGridSpacing;
+        private RectOffset _baseGridPadding;
+        private Vector2 _baseGridSize;
 
         public void Configure(RectTransform topHudRect, RectTransform secondaryHudRect, RectTransform brandLockupRect,
             RectTransform bottomHudRect, RectTransform bottleAreaRect, RectTransform bottleGridRect,
@@ -39,6 +45,7 @@ namespace Decantra.Presentation.View
             bottomHud = bottomHudRect;
             bottleArea = bottleAreaRect;
             bottleGrid = bottleGridRect;
+            bottleGridLayout = bottleGrid != null ? bottleGrid.GetComponent<GridLayoutGroup>() : null;
             topPadding = Mathf.Max(0f, topPaddingPx);
             bottomPadding = Mathf.Max(0f, bottomPaddingPx);
 
@@ -103,6 +110,8 @@ namespace Decantra.Presentation.View
                 return;
             }
 
+            EnsureGridLayoutCache();
+
             float topBottom = Mathf.Min(GetMinY(topHud), GetMinY(secondaryHud));
             if (brandLockup != null)
             {
@@ -129,13 +138,89 @@ namespace Decantra.Presentation.View
             float availableHeight = desiredTop - desiredBottom;
             float gridHeight = bottleGrid.rect.height;
             float scale = 1f;
-            if (availableHeight > 0f && gridHeight > 0f)
+
+            bool appliedEqualGaps = false;
+            if (bottleGridLayout != null && availableHeight > 0f)
             {
-                scale = Mathf.Min(1f, availableHeight / gridHeight);
+                int rows = ResolveGridRows();
+                float cellHeight = bottleGridLayout.cellSize.y;
+                if (rows > 0 && cellHeight > 0f)
+                {
+                    float idealGap = (availableHeight - (rows * cellHeight)) / (rows + 1f);
+                    if (idealGap > 0f)
+                    {
+                        int gapPx = Mathf.RoundToInt(idealGap);
+                        bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, idealGap);
+                        bottleGridLayout.padding = new RectOffset(
+                            _baseGridPadding.left,
+                            _baseGridPadding.right,
+                            gapPx,
+                            gapPx);
+                        bottleGrid.sizeDelta = new Vector2(
+                            bottleGrid.sizeDelta.x,
+                            rows * cellHeight + (rows - 1f) * idealGap + 2f * idealGap);
+                        gridHeight = bottleGrid.sizeDelta.y;
+                        appliedEqualGaps = true;
+                    }
+                }
+            }
+
+            if (!appliedEqualGaps)
+            {
+                RestoreGridLayoutDefaults();
+                if (availableHeight > 0f && gridHeight > 0f)
+                {
+                    scale = Mathf.Min(1f, availableHeight / gridHeight);
+                }
             }
 
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
+        }
+
+        private void EnsureGridLayoutCache()
+        {
+            if (bottleGridLayout == null && bottleGrid != null)
+            {
+                bottleGridLayout = bottleGrid.GetComponent<GridLayoutGroup>();
+            }
+
+            if (bottleGridLayout != null && !_gridLayoutCached)
+            {
+                _gridLayoutCached = true;
+                _baseGridSpacing = bottleGridLayout.spacing;
+                _baseGridPadding = new RectOffset(
+                    bottleGridLayout.padding.left,
+                    bottleGridLayout.padding.right,
+                    bottleGridLayout.padding.top,
+                    bottleGridLayout.padding.bottom);
+                _baseGridSize = bottleGrid.sizeDelta;
+            }
+        }
+
+        private void RestoreGridLayoutDefaults()
+        {
+            if (bottleGridLayout == null || !_gridLayoutCached) return;
+            bottleGridLayout.spacing = _baseGridSpacing;
+            bottleGridLayout.padding = new RectOffset(
+                _baseGridPadding.left,
+                _baseGridPadding.right,
+                _baseGridPadding.top,
+                _baseGridPadding.bottom);
+            bottleGrid.sizeDelta = _baseGridSize;
+        }
+
+        private int ResolveGridRows()
+        {
+            if (bottleGrid == null) return 3;
+            int columns = 3;
+            if (bottleGridLayout != null && bottleGridLayout.constraint == GridLayoutGroup.Constraint.FixedColumnCount)
+            {
+                columns = Mathf.Max(1, bottleGridLayout.constraintCount);
+            }
+            int childCount = bottleGrid.childCount;
+            if (childCount <= 0) return 3;
+            return Mathf.Max(1, Mathf.CeilToInt(childCount / (float)columns));
         }
 
         private float GetMinY(RectTransform rect)

@@ -8,7 +8,7 @@ set -euo pipefail
 # keystore via keytool, and rewrites .env with the new password.
 #
 # Usage:
-#   ./scripts/rotate-keystore-password.sh [keystore-path] [env-path]
+#   ./tools/keystore-rotate-password.sh [keystore-path] [env-path]
 #
 # Defaults:
 #   keystore-path = ./release.keystore
