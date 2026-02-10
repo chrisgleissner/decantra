@@ -1,6 +1,36 @@
+
+# PLANS — Bottle Layout + HUD Spacing Fixes (2026-02-10)
+
+## Status: CODE COMPLETE (VISUAL VERIFY PENDING)
+
+Goal: Fix sink base height, move top HUD cluster up by reset button height, and vertically center the 3x3 bottle grid between top HUD and bottom HUD without changing gameplay behavior.
+
+## Plan
+
+### 1) Layout baselines and measurements
+- Identify the main bottle body lower boundary thickness (sliced sprite bottom border) and use it to derive sink base height.
+- Derive reset button rendered height from its RectTransform (fallback to LayoutElement if needed).
+- Keep all top bottle element relative positioning unchanged.
+
+### 2) Implement layout changes
+- Update sink base plate height to 2x the body lower boundary thickness (outline sprite bottom border in local units).
+- Shift the entire top HUD cluster (logo + level/moves/score + reset/options) upward by the reset button height.
+- Keep grid centered by relying on HudSafeLayout's equal top/bottom padding and bottle area centering.
+
+### 3) Verification
+- Run EditMode + PlayMode tests + coverage via tools/test.sh. (Done)
+- Build + install Android APK and spot-check on at least two aspect ratios. (Pending)
+- Confirm no overlaps and equal vertical padding using temporary guides if needed (remove before final). (Pending)
+
+## Notes
+- CI cannot be run locally; will rely on local tests and CI after push.
+- Visual validation on device(s) still needed.
+
+---
+
 # PLANS — Consistent Liquid Volume Rendering (2026-02-10)
 
-## Status: COMPLETE ✓
+## Status: COMPLETE
 
 All tests pass (253 EditMode, 56 PlayMode). Installed on device and verified.
 

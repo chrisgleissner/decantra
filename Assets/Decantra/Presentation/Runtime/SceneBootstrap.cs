@@ -768,9 +768,10 @@ namespace Decantra.Presentation
 
             var resetButton = CreateResetButton(secondaryHud.transform);
             var optionsButton = CreateOptionsButton(secondaryHud.transform);
+            var resetButtonRect = resetButton != null ? resetButton.GetComponent<RectTransform>() : null;
             if (resetButton != null)
             {
-                SetPrivateField(brandLayout, "resetButtonRect", resetButton.GetComponent<RectTransform>());
+                SetPrivateField(brandLayout, "resetButtonRect", resetButtonRect);
                 brandLayout.ForceLayout();
             }
 
@@ -807,15 +808,21 @@ namespace Decantra.Presentation
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
             SetPrivateField<Text>(hudView, "titleText", null);
 
-            float movesHeight = movesPanel.GetComponent<RectTransform>().rect.height;
-            if (movesHeight <= 0f)
+            float ResolveRectHeight(RectTransform rect, float fallback)
             {
-                var movesLayout = movesPanel.GetComponent<LayoutElement>();
-                movesHeight = movesLayout != null ? movesLayout.minHeight : 140f;
+                if (rect == null) return fallback;
+                float height = rect.rect.height;
+                if (height > 0f) return height;
+                var layout = rect.GetComponent<LayoutElement>();
+                if (layout != null && layout.minHeight > 0f) return layout.minHeight;
+                return fallback;
             }
 
-            topShiftRect.offsetMin = new Vector2(0f, -movesHeight);
-            topShiftRect.offsetMax = new Vector2(0f, -movesHeight);
+            float movesHeight = ResolveRectHeight(movesPanel.GetComponent<RectTransform>(), 140f);
+            float resetHeight = ResolveRectHeight(resetButtonRect, 0f);
+
+            topShiftRect.offsetMin = new Vector2(0f, -movesHeight + resetHeight);
+            topShiftRect.offsetMax = new Vector2(0f, -movesHeight + resetHeight);
 
             layoutPadding = Mathf.Clamp(movesHeight * 0.18f, 18f, 32f);
 

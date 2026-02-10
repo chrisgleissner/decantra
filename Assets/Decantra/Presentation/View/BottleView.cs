@@ -502,7 +502,11 @@ namespace Decantra.Presentation.View
             float outlineWidth = outlineRect.rect.width;
             if (outlineHeight <= 0f || outlineWidth <= 0f) return;
 
-            float baseHeight = outlineHeight * BaseHeightRatio;
+            float baseHeight = ResolveSinkBaseHeight(outline);
+            if (baseHeight <= 0f)
+            {
+                baseHeight = outlineHeight * BaseHeightRatio;
+            }
             float baseWidth = outlineWidth * BaseWidthRatio;
 
             var baseRect = basePlate.rectTransform;
@@ -513,6 +517,19 @@ namespace Decantra.Presentation.View
 
             float outlineBottom = outlineRect.anchoredPosition.y - outlineHeight * outlineRect.pivot.y;
             baseRect.anchoredPosition = new Vector2(0f, outlineBottom);
+        }
+
+        private static float ResolveSinkBaseHeight(Image outlineImage)
+        {
+            if (outlineImage == null) return 0f;
+            var sprite = outlineImage.sprite;
+            if (sprite == null) return 0f;
+            float bottomBorderPx = sprite.border.y;
+            if (bottomBorderPx <= 0f) return 0f;
+            float ppu = sprite.pixelsPerUnit;
+            if (ppu <= 0f) return 0f;
+            // Base height is exactly 2x the bottom border thickness of the bottle body.
+            return 2f * (bottomBorderPx / ppu);
         }
 
         private void EnsureColorsInitialized()
