@@ -16,7 +16,7 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
-        private const float BaseHeightRatio = 0.3f;
+        private const float BaseHeightRatio = 0.42f;
         private const float BaseWidthRatio = 1.1f;
 
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
@@ -397,13 +397,6 @@ namespace Decantra.Presentation.View
                     var sinkOutline = Color.Lerp(outlineDefaultColor, Color.black, 0.2f);
                     outlineBaseColor = sinkOutline;
                     outline.color = sinkOutline;
-                }
-
-                if (anchorCollar != null)
-                {
-                    anchorCollar.gameObject.SetActive(true);
-                    anchorCollar.color = sinkMarkerColor;
-                    UpdateCollarLayout(bottle.Capacity);
                 }
 
                 if (normalShadow != null)
