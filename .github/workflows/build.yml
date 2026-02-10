@@ -4,7 +4,11 @@ on:
   release:
     types: [published]
   push:
-    branches: ["main"]
+    branches:
+      - "main"
+      - "feature/**"
+      - "fix/**"
+      - "hotfix/**"
   pull_request:
     paths-ignore:
       - "**.md"
@@ -17,12 +21,12 @@ on:
       run_android_build:
         description: "Run Android build"
         required: false
-        default: "true"
+        default: true
         type: boolean
       build_debug_apk:
         description: "Build Debug APK (slow, skip by default)"
         required: false
-        default: "false"
+        default: false
         type: boolean
 
 concurrency:

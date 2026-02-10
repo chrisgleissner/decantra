@@ -768,9 +768,10 @@ namespace Decantra.Presentation
 
             var resetButton = CreateResetButton(secondaryHud.transform);
             var optionsButton = CreateOptionsButton(secondaryHud.transform);
+            var resetButtonRect = resetButton != null ? resetButton.GetComponent<RectTransform>() : null;
             if (resetButton != null)
             {
-                SetPrivateField(brandLayout, "resetButtonRect", resetButton.GetComponent<RectTransform>());
+                SetPrivateField(brandLayout, "resetButtonRect", resetButtonRect);
                 brandLayout.ForceLayout();
             }
 
@@ -807,15 +808,21 @@ namespace Decantra.Presentation
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
             SetPrivateField<Text>(hudView, "titleText", null);
 
-            float movesHeight = movesPanel.GetComponent<RectTransform>().rect.height;
-            if (movesHeight <= 0f)
+            float ResolveRectHeight(RectTransform rect, float fallback)
             {
-                var movesLayout = movesPanel.GetComponent<LayoutElement>();
-                movesHeight = movesLayout != null ? movesLayout.minHeight : 140f;
+                if (rect == null) return fallback;
+                float height = rect.rect.height;
+                if (height > 0f) return height;
+                var layout = rect.GetComponent<LayoutElement>();
+                if (layout != null && layout.minHeight > 0f) return layout.minHeight;
+                return fallback;
             }
 
-            topShiftRect.offsetMin = new Vector2(0f, -movesHeight);
-            topShiftRect.offsetMax = new Vector2(0f, -movesHeight);
+            float movesHeight = ResolveRectHeight(movesPanel.GetComponent<RectTransform>(), 140f);
+            float resetHeight = ResolveRectHeight(resetButtonRect, 0f);
+
+            topShiftRect.offsetMin = new Vector2(0f, -movesHeight + resetHeight);
+            topShiftRect.offsetMax = new Vector2(0f, -movesHeight + resetHeight);
 
             layoutPadding = Mathf.Clamp(movesHeight * 0.18f, 18f, 32f);
 
@@ -885,11 +892,11 @@ namespace Decantra.Presentation
             shadow.color = new Color(0f, 0f, 0f, 0f);
             shadow.raycastTarget = false;
             var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0f);
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
             shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(140, 30);
-            shadowRect.anchoredPosition = new Vector2(0, -180);
+            shadowRect.sizeDelta = new Vector2(130, 20);
+            shadowRect.anchoredPosition = new Vector2(0, -192);
             shadowGo.SetActive(false);
 
             var glassBackGo = CreateUiChild(bottleGo.transform, "GlassBack");
@@ -963,10 +970,11 @@ namespace Decantra.Presentation
             reflectionStrip.color = new Color(0.96f, 0.98f, 1f, 0.16f);
             reflectionStrip.raycastTarget = false;
             var reflectionRect = reflectionStripGo.GetComponent<RectTransform>();
-            reflectionRect.anchorMin = new Vector2(0.74f, 0.12f);
-            reflectionRect.anchorMax = new Vector2(0.86f, 0.84f);
-            reflectionRect.offsetMin = Vector2.zero;
-            reflectionRect.offsetMax = Vector2.zero;
+            reflectionRect.anchorMin = new Vector2(0.5f, 0.5f);
+            reflectionRect.anchorMax = new Vector2(0.5f, 0.5f);
+            reflectionRect.pivot = new Vector2(0.5f, 0.5f);
+            reflectionRect.sizeDelta = new Vector2(24, 372);
+            reflectionRect.anchoredPosition = new Vector2(62, -6);
 
             var topReflectionGo = CreateUiChild(bottleGo.transform, "TopReflection");
             var topReflectionImage = topReflectionGo.AddComponent<Image>();
@@ -1007,7 +1015,7 @@ namespace Decantra.Presentation
             rimRect.anchorMax = new Vector2(0.5f, 0.5f);
             rimRect.pivot = new Vector2(0.5f, 0.5f);
             rimRect.sizeDelta = new Vector2(96, 18);
-            rimRect.anchoredPosition = new Vector2(0, 188);
+            rimRect.anchoredPosition = new Vector2(0, 237);
 
             var neckGo = CreateUiChild(bottleGo.transform, "BottleNeck");
             var neck = neckGo.AddComponent<Image>();
@@ -1020,7 +1028,7 @@ namespace Decantra.Presentation
             neckRect.anchorMax = new Vector2(0.5f, 0.5f);
             neckRect.pivot = new Vector2(0.5f, 0.5f);
             neckRect.sizeDelta = new Vector2(78, 56);
-            neckRect.anchoredPosition = new Vector2(0, 162);
+            neckRect.anchoredPosition = new Vector2(0, 211);
 
             // Inner neck shadow for 3D depth
             var neckInnerGo = CreateUiChild(bottleGo.transform, "NeckInnerShadow");
@@ -1034,7 +1042,7 @@ namespace Decantra.Presentation
             neckInnerRect.anchorMax = new Vector2(0.5f, 0.5f);
             neckInnerRect.pivot = new Vector2(0.5f, 0.5f);
             neckInnerRect.sizeDelta = new Vector2(62, 48);
-            neckInnerRect.anchoredPosition = new Vector2(0, 168);
+            neckInnerRect.anchoredPosition = new Vector2(0, 217);
 
             // Lip highlight at rim edge
             var lipHighlightGo = CreateUiChild(bottleGo.transform, "LipHighlight");
@@ -1049,7 +1057,7 @@ namespace Decantra.Presentation
             lipHighlightRect.anchorMax = new Vector2(0.5f, 0.5f);
             lipHighlightRect.pivot = new Vector2(0.5f, 0.5f);
             lipHighlightRect.sizeDelta = new Vector2(88, 10);
-            lipHighlightRect.anchoredPosition = new Vector2(0, 194);
+            lipHighlightRect.anchoredPosition = new Vector2(0, 243);
 
             var flangeGo = CreateUiChild(bottleGo.transform, "BottleFlange");
             var flange = flangeGo.AddComponent<Image>();
@@ -1063,7 +1071,7 @@ namespace Decantra.Presentation
             flangeRect.anchorMax = new Vector2(0.5f, 0.5f);
             flangeRect.pivot = new Vector2(0.5f, 0.5f);
             flangeRect.sizeDelta = new Vector2(104, 14);
-            flangeRect.anchoredPosition = new Vector2(0, 138);
+            flangeRect.anchoredPosition = new Vector2(0, 187);
 
             var highlightGo = CreateUiChild(bottleGo.transform, "CurvedHighlight");
             var highlight = highlightGo.AddComponent<Image>();
@@ -1120,7 +1128,7 @@ namespace Decantra.Presentation
             stopperRect.anchorMax = new Vector2(0.5f, 0.5f);
             stopperRect.pivot = new Vector2(0.5f, 0.5f);
             stopperRect.sizeDelta = new Vector2(80, 24);
-            stopperRect.anchoredPosition = new Vector2(0, 168);
+            stopperRect.anchoredPosition = new Vector2(0, 217);
             stopper.gameObject.SetActive(false);
             rimGo.transform.SetSiblingIndex(stopperGo.transform.GetSiblingIndex());
 

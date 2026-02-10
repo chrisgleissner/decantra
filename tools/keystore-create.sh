@@ -13,9 +13,9 @@ set -euo pipefail
 # - charset: a-zA-Z0-9
 #
 # Usage:
-#   ./generate-keystore-and-env.sh [alias]
+#   ./keystore-create.sh [alias]
 # Example:
-#   ./generate-keystore-and-env.sh decantra
+#   ./keystore-create.sh decantra
 
 ENV_FILE=".env"
 KEYSTORE_FILE="release.keystore"

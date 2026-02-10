@@ -16,7 +16,16 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
-        private const int ReferenceCapacity = 10;
+        private const float BaseHeightRatio = 0.42f;
+        private const float BaseWidthRatio = 1.1f;
+
+        // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
+        private const float RefOutlineHeight = 372f;
+        private const float RefSlotRootHeight = 300f;
+        // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
+        // Elements at or below are "body" elements whose height stretches.
+        private const float TopFixedThreshold = 120f;
+
         [SerializeField] private RectTransform slotRoot;
         [SerializeField] private List<Image> slots = new List<Image>();
         [SerializeField] private ColorPalette palette;
@@ -46,9 +55,31 @@ namespace Decantra.Presentation.View
         private Bottle lastBottle;
         private bool isSink;
         private Coroutine resistanceRoutine;
+        private int _levelMaxCapacity = 4;
+        private bool _originalLayoutCaptured;
+        private readonly List<ChildLayoutInfo> _originalChildLayouts = new List<ChildLayoutInfo>();
+
+        /// <summary>Cached original layout of a child RectTransform for capacity-based resizing.</summary>
+        private struct ChildLayoutInfo
+        {
+            public RectTransform Rect;
+            public Vector2 AnchoredPosition;
+            public Vector2 SizeDelta;
+            public bool IsTopFixed; // true = above top-fixed threshold, position shifts but height unchanged
+            public bool IsBody;     // true = stretchable body element (outline, glassBack, etc.)
+        }
 
         public int Index { get; private set; }
         public bool IsSink => isSink;
+        public RectTransform SlotRoot => slotRoot;
+
+        /// <summary>
+        /// Set by GameController at level load. Used to compute canonical liquid heights.
+        /// </summary>
+        public void SetLevelMaxCapacity(int maxCapacity)
+        {
+            _levelMaxCapacity = Mathf.Max(1, maxCapacity);
+        }
 
         private void Awake()
         {
@@ -85,11 +116,12 @@ namespace Decantra.Presentation.View
                 reflectionStrip.raycastTarget = false;
 
                 var rect = reflectionStrip.rectTransform;
-                // Right-side reflection strip: ~12% width, ~72% height, centered ~20% inward from right
-                rect.anchorMin = new Vector2(0.74f, 0.12f);
-                rect.anchorMax = new Vector2(0.86f, 0.84f);
-                rect.offsetMin = Vector2.zero;
-                rect.offsetMax = Vector2.zero;
+                // Right-side reflection strip: center-anchored to match outline body scaling
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(24, 372);
+                rect.anchoredPosition = new Vector2(62, -6);
             }
 
             if (glassBack != null)
@@ -134,8 +166,11 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
+            int refCap = _levelMaxCapacity;
+
             int segmentIndex = 0;
             segmentUnits.Clear();
+            int unitsBefore = 0;
 
             int runCount = 0;
             ColorId? runColor = null;
@@ -146,7 +181,8 @@ namespace Decantra.Presentation.View
                 {
                     if (runCount > 0)
                     {
-                        RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, segmentUnits);
+                        RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, refCap, segmentUnits, unitsBefore);
+                        unitsBefore += runCount;
                         runCount = 0;
                         runColor = null;
                     }
@@ -164,7 +200,8 @@ namespace Decantra.Presentation.View
                 }
                 else
                 {
-                    RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, segmentUnits);
+                    RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, refCap, segmentUnits, unitsBefore);
+                    unitsBefore += runCount;
                     runColor = color;
                     runCount = 1;
                 }
@@ -172,7 +209,8 @@ namespace Decantra.Presentation.View
 
             if (runCount > 0)
             {
-                RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, segmentUnits);
+                RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, refCap, segmentUnits, unitsBefore);
+                unitsBefore += runCount;
             }
 
             for (int i = segmentIndex; i < slots.Count; i++)
@@ -214,9 +252,122 @@ namespace Decantra.Presentation.View
 
         private void ApplyCapacityScale(int capacity)
         {
-            float clampedCapacity = Mathf.Max(1f, capacity);
-            float scaleY = clampedCapacity / ReferenceCapacity;
-            transform.localScale = new Vector3(baseScale.x, baseScale.y * scaleY, baseScale.z);
+            // No transform scaling — all bottles have identical width and identical
+            // top/bottom decorations. Only the liquid-holding body section varies.
+            transform.localScale = baseScale;
+
+            CaptureOriginalLayout();
+
+            float ratio = _levelMaxCapacity > 0 ? (float)capacity / _levelMaxCapacity : 1f;
+            // Full height reduction of the reference body (outline). Top-fixed elements
+            // must shift down by this amount to track the new body top edge.
+            float bodyHeightDelta = RefOutlineHeight * (1f - ratio);
+
+            for (int i = 0; i < _originalChildLayouts.Count; i++)
+            {
+                var info = _originalChildLayouts[i];
+                if (info.Rect == null) continue;
+
+                if (info.IsTopFixed)
+                {
+                    // Shift top-fixed elements down by the FULL body height reduction
+                    // so they track the new top of the body (bottom-anchored shrink).
+                    info.Rect.anchoredPosition = new Vector2(
+                        info.AnchoredPosition.x,
+                        info.AnchoredPosition.y - bodyHeightDelta);
+                }
+                else if (info.IsBody)
+                {
+                    // Bottom-anchored shrink: each body element keeps its bottom edge
+                    // fixed and shrinks upward. Center shifts by its own height delta.
+                    float elementHalfDelta = info.SizeDelta.y * (1f - ratio) * 0.5f;
+                    info.Rect.sizeDelta = new Vector2(
+                        info.SizeDelta.x,
+                        info.SizeDelta.y * ratio);
+                    info.Rect.anchoredPosition = new Vector2(
+                        info.AnchoredPosition.x,
+                        info.AnchoredPosition.y - elementHalfDelta);
+                }
+                // Bottom elements (shadow, basePlate) stay at their original positions
+            }
+
+            // Resize slotRoot and its parent liquidMask proportionally (bottom-anchored)
+            if (slotRoot != null)
+            {
+                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
+
+                var liquidMask = slotRoot.parent as RectTransform;
+                if (liquidMask != null)
+                {
+                    var origMask = FindOriginalLayout(liquidMask);
+                    if (origMask.Rect != null)
+                    {
+                        float maskHalfDelta = origMask.SizeDelta.y * (1f - ratio) * 0.5f;
+                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, origMask.SizeDelta.y * ratio);
+                        liquidMask.anchoredPosition = new Vector2(
+                            origMask.AnchoredPosition.x,
+                            origMask.AnchoredPosition.y - maskHalfDelta);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Captures the original layout of all child RectTransforms on first call.
+        /// Classifies each as "top-fixed" (position shifts, height unchanged) or
+        /// "body" (height scales with capacity ratio).
+        /// </summary>
+        private void CaptureOriginalLayout()
+        {
+            if (_originalLayoutCaptured) return;
+            _originalLayoutCaptured = true;
+
+            _originalChildLayouts.Clear();
+            // Capture direct children of the bottle
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var child = transform.GetChild(i) as RectTransform;
+                if (child == null) continue;
+
+                var info = new ChildLayoutInfo
+                {
+                    Rect = child,
+                    AnchoredPosition = child.anchoredPosition,
+                    SizeDelta = child.sizeDelta,
+                    IsTopFixed = child.anchoredPosition.y > TopFixedThreshold,
+                    IsBody = child.anchoredPosition.y <= TopFixedThreshold
+                             && child.sizeDelta.y > 100f // Only tall elements are body
+                };
+
+                _originalChildLayouts.Add(info);
+            }
+
+            // Also capture the liquidMask (child of bottle, parent of slotRoot)
+            if (slotRoot != null && slotRoot.parent != null && slotRoot.parent != transform)
+            {
+                var liquidMask = slotRoot.parent as RectTransform;
+                if (liquidMask != null)
+                {
+                    _originalChildLayouts.Add(new ChildLayoutInfo
+                    {
+                        Rect = liquidMask,
+                        AnchoredPosition = liquidMask.anchoredPosition,
+                        SizeDelta = liquidMask.sizeDelta,
+                        IsTopFixed = false,
+                        IsBody = true
+                    });
+                }
+            }
+        }
+
+        private ChildLayoutInfo FindOriginalLayout(RectTransform rect)
+        {
+            for (int i = 0; i < _originalChildLayouts.Count; i++)
+            {
+                if (_originalChildLayouts[i].Rect == rect)
+                    return _originalChildLayouts[i];
+            }
+            return default;
         }
 
         private void ApplySinkStyle(Bottle bottle)
@@ -225,12 +376,15 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
+            // Sink marker: pure black for maximum visual distinction
+            Color sinkMarkerColor = new Color(0f, 0f, 0f, 0.7f);
+
             if (bottle.IsSink)
             {
                 if (basePlate != null)
                 {
                     basePlate.gameObject.SetActive(true);
-                    basePlate.color = new Color(0.12f, 0.12f, 0.16f, 0.95f);
+                    basePlate.color = sinkMarkerColor;
                 }
 
                 if (body != null)
@@ -245,11 +399,6 @@ namespace Decantra.Presentation.View
                     outline.color = sinkOutline;
                 }
 
-                if (anchorCollar != null)
-                {
-                    anchorCollar.gameObject.SetActive(true);
-                }
-
                 if (normalShadow != null)
                 {
                     normalShadow.gameObject.SetActive(false);
@@ -259,8 +408,7 @@ namespace Decantra.Presentation.View
             {
                 if (basePlate != null)
                 {
-                    basePlate.gameObject.SetActive(true);
-                    basePlate.color = baseDefaultColor;
+                    basePlate.gameObject.SetActive(false);
                 }
 
                 if (body != null)
@@ -279,11 +427,114 @@ namespace Decantra.Presentation.View
                     anchorCollar.gameObject.SetActive(false);
                 }
 
-                if (normalShadow != null)
+                // Subtle 3D shadow beneath the bottle base
+                if (normalShadow != null && outline != null)
                 {
-                    normalShadow.gameObject.SetActive(false);
+                    normalShadow.gameObject.SetActive(true);
+                    normalShadow.color = new Color(0f, 0f, 0f, 0.15f);
+                    var shadowRect = normalShadow.rectTransform;
+                    shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    shadowRect.pivot = new Vector2(0.5f, 0.5f);
+                    float outlineBottom = outline.rectTransform.anchoredPosition.y
+                                          - outline.rectTransform.sizeDelta.y * 0.5f;
+                    shadowRect.sizeDelta = new Vector2(130f, 20f);
+                    shadowRect.anchoredPosition = new Vector2(0f, outlineBottom);
                 }
             }
+
+            UpdateBaseLayout();
+        }
+
+        /// <summary>
+        /// Positions the anchorCollar (marker band) so that it is vertically centered
+        /// within the first slot of liquid. When 1 unit of liquid is poured in, the
+        /// liquid above and below the band will have equal height.
+        /// Re-parents the collar into slotRoot and places it last in sibling order
+        /// so it renders on top of any liquid (it represents a marking in the glass).
+        /// </summary>
+        private void UpdateCollarLayout(int capacity)
+        {
+            if (anchorCollar == null || slotRoot == null) return;
+
+            // Re-parent into slotRoot if not already there, so coordinates match liquid
+            if (anchorCollar.rectTransform.parent != slotRoot)
+            {
+                anchorCollar.rectTransform.SetParent(slotRoot, false);
+            }
+
+            // Ensure collar renders on top of liquid segments (glass marking)
+            anchorCollar.rectTransform.SetAsLastSibling();
+
+            float height = slotRoot.rect.height;
+            if (height <= 0f) height = RefSlotRootHeight;
+            float width = slotRoot.rect.width;
+            if (width <= 0f) width = 112f;
+
+            // Height of 1 slot in local space
+            float oneSlotHeight = capacity > 0 ? height / capacity : height;
+
+            // Collar height is ~40% of one slot so liquid is visible above and below
+            float collarHeight = oneSlotHeight * 0.4f;
+            // Center the collar vertically within the first slot
+            float collarCenterY = oneSlotHeight * 0.5f;
+
+            var collarRect = anchorCollar.rectTransform;
+            collarRect.anchorMin = new Vector2(0.5f, 0f);
+            collarRect.anchorMax = new Vector2(0.5f, 0f);
+            collarRect.pivot = new Vector2(0.5f, 0.5f);
+            collarRect.sizeDelta = new Vector2(width, collarHeight);
+            collarRect.anchoredPosition = new Vector2(0f, collarCenterY);
+        }
+
+        /// <summary>
+        /// Positions the basePlate as a subtle foot beneath the bottle for sink bottles.
+        /// Directly attached (no gap), slightly wider than the bottle, height ≤ 10% of bottle.
+        /// For non-sink bottles, resets basePlate to default.
+        /// </summary>
+        private void UpdateBaseLayout()
+        {
+            if (basePlate == null || outline == null) return;
+            if (!isSink) return; // Non-sink bottles keep default basePlate
+
+            var outlineRect = outline.rectTransform;
+            float outlineHeight = outlineRect.rect.height;
+            float outlineWidth = outlineRect.rect.width;
+            if (outlineHeight <= 0f || outlineWidth <= 0f) return;
+
+            float baseHeight = ResolveSinkBaseHeight(outline);
+            if (baseHeight <= 0f)
+            {
+                baseHeight = outlineHeight * BaseHeightRatio;
+            }
+            else
+            {
+                baseHeight = Mathf.Max(baseHeight, outlineHeight * 0.03f);
+            }
+            baseHeight *= 2.5f;
+            float baseWidth = outlineWidth * BaseWidthRatio;
+
+            var baseRect = basePlate.rectTransform;
+            baseRect.anchorMin = new Vector2(0.5f, 0.5f);
+            baseRect.anchorMax = new Vector2(0.5f, 0.5f);
+            baseRect.pivot = new Vector2(0.5f, 1f);
+            baseRect.sizeDelta = new Vector2(baseWidth, baseHeight);
+
+            float outlineBottom = outlineRect.anchoredPosition.y - outlineHeight * outlineRect.pivot.y;
+            baseRect.anchoredPosition = new Vector2(0f, outlineBottom);
+        }
+
+        private static float ResolveSinkBaseHeight(Image outlineImage)
+        {
+            if (outlineImage == null) return 0f;
+            var sprite = outlineImage.sprite;
+            if (sprite == null) return 0f;
+            float bottomBorderPx = sprite.border.y;
+            if (bottomBorderPx <= 0f) return 0f;
+            float ppu = sprite.pixelsPerUnit;
+            if (ppu <= 0f) return 0f;
+            // Base height is exactly 2x the bottom border thickness of the bottle body.
+            return 2f * (bottomBorderPx / ppu);
         }
 
         private void EnsureColorsInitialized()
@@ -330,10 +581,11 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
             int filledUnits = lastBottle.Count;
-            float unitHeight = height / lastBottle.Capacity;
-            float startY = unitHeight * filledUnits;
-            float incomingHeight = unitHeight * amount;
+            float startY = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, filledUnits);
+            float incomingHeight = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, amount);
 
             var image = incomingSlots[0];
             image.gameObject.SetActive(true);
@@ -370,10 +622,11 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
             int filledUnits = lastBottle.Count;
-            float unitHeight = height / lastBottle.Capacity;
-            float startY = unitHeight * filledUnits;
-            float incomingHeight = unitHeight * amount * t;
+            float startY = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, filledUnits);
+            float incomingHeight = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, amount * t);
 
             var image = incomingSlots[0];
             image.gameObject.SetActive(true);
@@ -410,20 +663,25 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
-            float unitHeight = height / lastBottle.Capacity;
+            float unitHeight = height / lastBottle.Capacity; // unused but kept for API compat
             int topIndex = segmentUnits.Count - 1;
             int topUnits = Mathf.Max(0, segmentUnits[topIndex]);
             float removedUnits = Mathf.Clamp(amount * t, 0f, topUnits);
             float remainingUnits = Mathf.Max(0f, topUnits - removedUnits);
 
-            float yOffset = 0f;
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
+
+            float unitsBefore = 0f;
             for (int i = 0; i < topIndex; i++)
             {
                 if (i < segmentUnits.Count)
                 {
-                    yOffset += height * segmentUnits[i] / lastBottle.Capacity;
+                    unitsBefore += segmentUnits[i];
                 }
             }
+
+            float yOffset = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, unitsBefore);
 
             var image = slots[topIndex];
             if (image == null) return;
@@ -431,7 +689,7 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, height * remainingUnits / lastBottle.Capacity);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, remainingUnits));
             rect.anchoredPosition = new Vector2(0, yOffset);
 
             UpdateLiquidSurfaceForFill(Mathf.Max(0f, lastBottle.Count - amount * t), lastBottle.TopColor);
@@ -513,14 +771,19 @@ namespace Decantra.Presentation.View
 
             int topIndex = segmentUnits.Count - 1;
             int topUnits = Mathf.Max(0, segmentUnits[topIndex]);
-            float yOffset = 0f;
+
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
+            float unitsBefore = 0f;
             for (int i = 0; i < topIndex; i++)
             {
                 if (i < segmentUnits.Count)
                 {
-                    yOffset += height * segmentUnits[i] / lastBottle.Capacity;
+                    unitsBefore += segmentUnits[i];
                 }
             }
+
+            float yOffset = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, unitsBefore);
 
             var image = slots[topIndex];
             if (image == null) return;
@@ -528,11 +791,11 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, height * topUnits / lastBottle.Capacity);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, topUnits));
             rect.anchoredPosition = new Vector2(0, yOffset);
         }
 
-        private void RenderSegment(ColorId? color, int units, int index, float width, float height, int capacity, List<int> unitList)
+        private void RenderSegment(ColorId? color, int units, int index, float width, float height, int capacity, int refCapacity, List<int> unitList, int unitsBefore)
         {
             if (index < 0 || index >= slots.Count) return;
             var image = slots[index];
@@ -542,16 +805,9 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, height * units / capacity);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, units));
 
-            float yOffset = 0f;
-            for (int i = 0; i < index; i++)
-            {
-                if (i < unitList.Count)
-                {
-                    yOffset += height * unitList[i] / capacity;
-                }
-            }
+            float yOffset = BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, unitsBefore);
             rect.anchoredPosition = new Vector2(0, yOffset);
 
             if (color.HasValue && palette != null)
@@ -654,8 +910,10 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
-            float unitHeight = height / lastBottle.Capacity;
-            float fillHeight = Mathf.Clamp(filledUnits, 0f, lastBottle.Capacity) * unitHeight;
+            float clampedUnits = Mathf.Clamp(filledUnits, 0f, lastBottle.Capacity);
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
+            float fillHeight = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, clampedUnits);
 
             var rect = liquidSurface.rectTransform;
             rect.anchorMin = new Vector2(0.5f, 0f);
