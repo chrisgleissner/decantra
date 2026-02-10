@@ -147,6 +147,7 @@ namespace Decantra.Presentation.View
                 if (rows > 0 && cellHeight > 0f)
                 {
                     float idealGap = (availableHeight - (rows * cellHeight)) / (rows + 1f);
+                    idealGap *= 2f;
                     if (idealGap > 0f)
                     {
                         int gapPx = Mathf.RoundToInt(idealGap);

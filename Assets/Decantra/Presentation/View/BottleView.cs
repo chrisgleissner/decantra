@@ -511,6 +511,7 @@ namespace Decantra.Presentation.View
             {
                 baseHeight = Mathf.Max(baseHeight, outlineHeight * 0.03f);
             }
+            baseHeight *= 2.5f;
             float baseWidth = outlineWidth * BaseWidthRatio;
 
             var baseRect = basePlate.rectTransform;
