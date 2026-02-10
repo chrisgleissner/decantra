@@ -38,6 +38,9 @@ Coverage/**
 Logs/**
 *.log
 
+# Env vars
+.env
+
 # OS generated files
 .DS_Store
 Thumbs.db
@@ -88,5 +91,4 @@ plans.md
 solver-solutions-debug.txt
 solutions-1-1000.txt
 release.keystore
-.env
 TestResults-*.xml

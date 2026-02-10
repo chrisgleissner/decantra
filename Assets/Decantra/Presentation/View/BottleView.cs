@@ -16,8 +16,8 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
-        private const float BaseHeightRatio = 0.07f;
-        private const float BaseWidthRatio = 2.0f;
+        private const float BaseHeightRatio = 0.3f;
+        private const float BaseWidthRatio = 1.1f;
 
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
         private const float RefOutlineHeight = 372f;
