@@ -258,9 +258,9 @@ namespace Decantra.Presentation.View
             CaptureOriginalLayout();
 
             float ratio = _levelMaxCapacity > 0 ? (float)capacity / _levelMaxCapacity : 1f;
-            // Delta in local pixels between the reference body height and this bottle's body height
+            // Full height reduction of the reference body (outline). Top-fixed elements
+            // must shift down by this amount to track the new body top edge.
             float bodyHeightDelta = RefOutlineHeight * (1f - ratio);
-            float halfDelta = bodyHeightDelta * 0.5f;
 
             for (int i = 0; i < _originalChildLayouts.Count; i++)
             {
@@ -269,25 +269,28 @@ namespace Decantra.Presentation.View
 
                 if (info.IsTopFixed)
                 {
-                    // Shift top-fixed elements downward by half the delta
+                    // Shift top-fixed elements down by the FULL body height reduction
+                    // so they track the new top of the body (bottom-anchored shrink).
                     info.Rect.anchoredPosition = new Vector2(
                         info.AnchoredPosition.x,
-                        info.AnchoredPosition.y - halfDelta);
+                        info.AnchoredPosition.y - bodyHeightDelta);
                 }
                 else if (info.IsBody)
                 {
-                    // Shrink body elements and shift their center down by half delta
+                    // Bottom-anchored shrink: each body element keeps its bottom edge
+                    // fixed and shrinks upward. Center shifts by its own height delta.
+                    float elementHalfDelta = info.SizeDelta.y * (1f - ratio) * 0.5f;
                     info.Rect.sizeDelta = new Vector2(
                         info.SizeDelta.x,
                         info.SizeDelta.y * ratio);
                     info.Rect.anchoredPosition = new Vector2(
                         info.AnchoredPosition.x,
-                        info.AnchoredPosition.y - halfDelta);
+                        info.AnchoredPosition.y - elementHalfDelta);
                 }
                 // Bottom elements (shadow, basePlate) stay at their original positions
             }
 
-            // Resize slotRoot and its parent liquidMask proportionally
+            // Resize slotRoot and its parent liquidMask proportionally (bottom-anchored)
             if (slotRoot != null)
             {
                 slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
@@ -298,10 +301,11 @@ namespace Decantra.Presentation.View
                     var origMask = FindOriginalLayout(liquidMask);
                     if (origMask.Rect != null)
                     {
+                        float maskHalfDelta = origMask.SizeDelta.y * (1f - ratio) * 0.5f;
                         liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, origMask.SizeDelta.y * ratio);
                         liquidMask.anchoredPosition = new Vector2(
                             origMask.AnchoredPosition.x,
-                            origMask.AnchoredPosition.y - halfDelta);
+                            origMask.AnchoredPosition.y - maskHalfDelta);
                     }
                 }
             }
