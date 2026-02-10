@@ -16,6 +16,9 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
+        private const float BaseHeightRatio = 0.07f;
+        private const float BaseWidthRatio = 1.08f;
+
         [SerializeField] private RectTransform slotRoot;
         [SerializeField] private List<Image> slots = new List<Image>();
         [SerializeField] private ColorPalette palette;
@@ -45,9 +48,19 @@ namespace Decantra.Presentation.View
         private Bottle lastBottle;
         private bool isSink;
         private Coroutine resistanceRoutine;
+        private int _levelMaxCapacity = 4;
 
         public int Index { get; private set; }
         public bool IsSink => isSink;
+        public RectTransform SlotRoot => slotRoot;
+
+        /// <summary>
+        /// Set by GameController at level load. Used to compute canonical liquid heights.
+        /// </summary>
+        public void SetLevelMaxCapacity(int maxCapacity)
+        {
+            _levelMaxCapacity = Mathf.Max(1, maxCapacity);
+        }
 
         private void Awake()
         {
@@ -133,8 +146,11 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
+            int refCap = _levelMaxCapacity;
+
             int segmentIndex = 0;
             segmentUnits.Clear();
+            int unitsBefore = 0;
 
             int runCount = 0;
             ColorId? runColor = null;
@@ -145,7 +161,8 @@ namespace Decantra.Presentation.View
                 {
                     if (runCount > 0)
                     {
-                        RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, segmentUnits);
+                        RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, refCap, segmentUnits, unitsBefore);
+                        unitsBefore += runCount;
                         runCount = 0;
                         runColor = null;
                     }
@@ -163,7 +180,8 @@ namespace Decantra.Presentation.View
                 }
                 else
                 {
-                    RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, segmentUnits);
+                    RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, refCap, segmentUnits, unitsBefore);
+                    unitsBefore += runCount;
                     runColor = color;
                     runCount = 1;
                 }
@@ -171,7 +189,8 @@ namespace Decantra.Presentation.View
 
             if (runCount > 0)
             {
-                RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, segmentUnits);
+                RenderSegment(runColor, runCount, segmentIndex++, width, height, bottle.Capacity, refCap, segmentUnits, unitsBefore);
+                unitsBefore += runCount;
             }
 
             for (int i = segmentIndex; i < slots.Count; i++)
@@ -294,6 +313,36 @@ namespace Decantra.Presentation.View
                     normalShadow.gameObject.SetActive(false);
                 }
             }
+
+            UpdateBaseLayout();
+        }
+
+        /// <summary>
+        /// Positions the basePlate as a subtle foot beneath the bottle for sink bottles.
+        /// Directly attached (no gap), slightly wider than the bottle, height ≤ 10% of bottle.
+        /// For non-sink bottles, resets basePlate to default.
+        /// </summary>
+        private void UpdateBaseLayout()
+        {
+            if (basePlate == null || outline == null) return;
+            if (!isSink) return; // Non-sink bottles keep default basePlate
+
+            var outlineRect = outline.rectTransform;
+            float outlineHeight = outlineRect.rect.height;
+            float outlineWidth = outlineRect.rect.width;
+            if (outlineHeight <= 0f || outlineWidth <= 0f) return;
+
+            float baseHeight = outlineHeight * BaseHeightRatio;
+            float baseWidth = outlineWidth * BaseWidthRatio;
+
+            var baseRect = basePlate.rectTransform;
+            baseRect.anchorMin = new Vector2(0.5f, 0.5f);
+            baseRect.anchorMax = new Vector2(0.5f, 0.5f);
+            baseRect.pivot = new Vector2(0.5f, 1f);
+            baseRect.sizeDelta = new Vector2(baseWidth, baseHeight);
+
+            float outlineBottom = outlineRect.anchoredPosition.y - outlineHeight * outlineRect.pivot.y;
+            baseRect.anchoredPosition = new Vector2(0f, outlineBottom);
         }
 
         private void EnsureColorsInitialized()
@@ -340,10 +389,11 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
             int filledUnits = lastBottle.Count;
-            float unitHeight = height / lastBottle.Capacity;
-            float startY = unitHeight * filledUnits;
-            float incomingHeight = unitHeight * amount;
+            float startY = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, filledUnits);
+            float incomingHeight = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, amount);
 
             var image = incomingSlots[0];
             image.gameObject.SetActive(true);
@@ -380,10 +430,11 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
             int filledUnits = lastBottle.Count;
-            float unitHeight = height / lastBottle.Capacity;
-            float startY = unitHeight * filledUnits;
-            float incomingHeight = unitHeight * amount * t;
+            float startY = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, filledUnits);
+            float incomingHeight = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, amount * t);
 
             var image = incomingSlots[0];
             image.gameObject.SetActive(true);
@@ -426,14 +477,19 @@ namespace Decantra.Presentation.View
             float removedUnits = Mathf.Clamp(amount * t, 0f, topUnits);
             float remainingUnits = Mathf.Max(0f, topUnits - removedUnits);
 
-            float yOffset = 0f;
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
+
+            float unitsBefore = 0f;
             for (int i = 0; i < topIndex; i++)
             {
                 if (i < segmentUnits.Count)
                 {
-                    yOffset += height * segmentUnits[i] / lastBottle.Capacity;
+                    unitsBefore += segmentUnits[i];
                 }
             }
+
+            float yOffset = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, unitsBefore);
 
             var image = slots[topIndex];
             if (image == null) return;
@@ -441,7 +497,7 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, height * remainingUnits / lastBottle.Capacity);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, remainingUnits));
             rect.anchoredPosition = new Vector2(0, yOffset);
 
             UpdateLiquidSurfaceForFill(Mathf.Max(0f, lastBottle.Count - amount * t), lastBottle.TopColor);
@@ -523,14 +579,19 @@ namespace Decantra.Presentation.View
 
             int topIndex = segmentUnits.Count - 1;
             int topUnits = Mathf.Max(0, segmentUnits[topIndex]);
-            float yOffset = 0f;
+
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
+            float unitsBefore = 0f;
             for (int i = 0; i < topIndex; i++)
             {
                 if (i < segmentUnits.Count)
                 {
-                    yOffset += height * segmentUnits[i] / lastBottle.Capacity;
+                    unitsBefore += segmentUnits[i];
                 }
             }
+
+            float yOffset = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, unitsBefore);
 
             var image = slots[topIndex];
             if (image == null) return;
@@ -538,11 +599,11 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, height * topUnits / lastBottle.Capacity);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, topUnits));
             rect.anchoredPosition = new Vector2(0, yOffset);
         }
 
-        private void RenderSegment(ColorId? color, int units, int index, float width, float height, int capacity, List<int> unitList)
+        private void RenderSegment(ColorId? color, int units, int index, float width, float height, int capacity, int refCapacity, List<int> unitList, int unitsBefore)
         {
             if (index < 0 || index >= slots.Count) return;
             var image = slots[index];
@@ -552,16 +613,9 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, height * units / capacity);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, units));
 
-            float yOffset = 0f;
-            for (int i = 0; i < index; i++)
-            {
-                if (i < unitList.Count)
-                {
-                    yOffset += height * unitList[i] / capacity;
-                }
-            }
+            float yOffset = BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, unitsBefore);
             rect.anchoredPosition = new Vector2(0, yOffset);
 
             if (color.HasValue && palette != null)
@@ -664,8 +718,10 @@ namespace Decantra.Presentation.View
                 height = 300f;
             }
 
-            float unitHeight = height / lastBottle.Capacity;
-            float fillHeight = Mathf.Clamp(filledUnits, 0f, lastBottle.Capacity) * unitHeight;
+            float clampedUnits = Mathf.Clamp(filledUnits, 0f, lastBottle.Capacity);
+            int cap = lastBottle.Capacity;
+            int refCap = _levelMaxCapacity;
+            float fillHeight = BottleVisualMapping.LocalHeightForUnits(height, cap, refCap, clampedUnits);
 
             var rect = liquidSurface.rectTransform;
             rect.anchorMin = new Vector2(0.5f, 0f);

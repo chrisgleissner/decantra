@@ -577,6 +577,14 @@ namespace Decantra.Presentation.Controller
 
             if (bottleViews != null)
             {
+                // Compute max capacity for canonical liquid-height mapping
+                int maxCap = 1;
+                for (int i = 0; i < _state.Bottles.Count; i++)
+                {
+                    if (_state.Bottles[i].Capacity > maxCap)
+                        maxCap = _state.Bottles[i].Capacity;
+                }
+
                 for (int i = 0; i < bottleViews.Count; i++)
                 {
                     var view = bottleViews[i];
@@ -588,6 +596,7 @@ namespace Decantra.Presentation.Controller
                     }
                     if (active)
                     {
+                        view.SetLevelMaxCapacity(maxCap);
                         view.Render(_state.Bottles[i]);
                     }
                 }
