@@ -14,11 +14,16 @@ namespace Decantra.Presentation.View
     /// Provides a canonical slot-to-pixel mapping so that the same number of slots
     /// always renders at the same pixel height regardless of bottle capacity.
     ///
-    /// Strategy: bottles use proportional scaleY = (capacity / refCapacity) * refScaleY.
-    /// This means the local-space unit height is simply H / capacity (same as 0.9.4),
-    /// while the on-screen pixel invariant is maintained by the proportional transform:
-    ///   pixelPerSlot = (H / cap) * (cap / refCap * refScaleY) * parent
-    ///                = H * refScaleY / refCap * parent = CONSTANT  ✓
+    /// Strategy: bottles do NOT use transform scaling. Instead, only the liquid-holding
+    /// body section (slotRoot, outline, glassBack, etc.) is resized proportionally to
+    /// capacity. The top and bottom decorations (rim, neck, flange, basePlate) stay at
+    /// fixed sizes across all bottles.
+    ///
+    /// The slotRoot height for each bottle is: RefSlotRootHeight * (cap / refCap).
+    /// LocalHeightForUnits returns: slotRootHeight * units / capacity.
+    /// Thus the on-screen pixel height of K slots is:
+    ///   (RefSlotRootHeight * cap/refCap) * K / cap = RefSlotRootHeight * K / refCap
+    ///   = CONSTANT across all bottles  ✓
     ///
     /// Every bottle fills 100% of its slotRoot at capacity.
     /// </summary>

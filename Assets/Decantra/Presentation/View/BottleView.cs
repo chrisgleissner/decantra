@@ -17,7 +17,14 @@ namespace Decantra.Presentation.View
     public sealed class BottleView : MonoBehaviour
     {
         private const float BaseHeightRatio = 0.07f;
-        private const float BaseWidthRatio = 1.08f;
+        private const float BaseWidthRatio = 1.0f;
+
+        // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
+        private const float RefOutlineHeight = 372f;
+        private const float RefSlotRootHeight = 300f;
+        // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
+        // Elements at or below are "body" elements whose height stretches.
+        private const float TopFixedThreshold = 120f;
 
         [SerializeField] private RectTransform slotRoot;
         [SerializeField] private List<Image> slots = new List<Image>();
@@ -49,6 +56,18 @@ namespace Decantra.Presentation.View
         private bool isSink;
         private Coroutine resistanceRoutine;
         private int _levelMaxCapacity = 4;
+        private bool _originalLayoutCaptured;
+        private readonly List<ChildLayoutInfo> _originalChildLayouts = new List<ChildLayoutInfo>();
+
+        /// <summary>Cached original layout of a child RectTransform for capacity-based resizing.</summary>
+        private struct ChildLayoutInfo
+        {
+            public RectTransform Rect;
+            public Vector2 AnchoredPosition;
+            public Vector2 SizeDelta;
+            public bool IsTopFixed; // true = above top-fixed threshold, position shifts but height unchanged
+            public bool IsBody;     // true = stretchable body element (outline, glassBack, etc.)
+        }
 
         public int Index { get; private set; }
         public bool IsSink => isSink;
@@ -232,9 +251,118 @@ namespace Decantra.Presentation.View
 
         private void ApplyCapacityScale(int capacity)
         {
-            float scaleY = BottleVisualMapping.ProportionalScaleY(capacity, _levelMaxCapacity);
-            // All bottles have identical width — only height varies with capacity
-            transform.localScale = new Vector3(baseScale.x, baseScale.y * scaleY, baseScale.z);
+            // No transform scaling — all bottles have identical width and identical
+            // top/bottom decorations. Only the liquid-holding body section varies.
+            transform.localScale = baseScale;
+
+            CaptureOriginalLayout();
+
+            float ratio = _levelMaxCapacity > 0 ? (float)capacity / _levelMaxCapacity : 1f;
+            // Delta in local pixels between the reference body height and this bottle's body height
+            float bodyHeightDelta = RefOutlineHeight * (1f - ratio);
+            float halfDelta = bodyHeightDelta * 0.5f;
+
+            for (int i = 0; i < _originalChildLayouts.Count; i++)
+            {
+                var info = _originalChildLayouts[i];
+                if (info.Rect == null) continue;
+
+                if (info.IsTopFixed)
+                {
+                    // Shift top-fixed elements downward by half the delta
+                    info.Rect.anchoredPosition = new Vector2(
+                        info.AnchoredPosition.x,
+                        info.AnchoredPosition.y - halfDelta);
+                }
+                else if (info.IsBody)
+                {
+                    // Shrink body elements and shift their center down by half delta
+                    info.Rect.sizeDelta = new Vector2(
+                        info.SizeDelta.x,
+                        info.SizeDelta.y * ratio);
+                    info.Rect.anchoredPosition = new Vector2(
+                        info.AnchoredPosition.x,
+                        info.AnchoredPosition.y - halfDelta);
+                }
+                // Bottom elements (shadow, basePlate) stay at their original positions
+            }
+
+            // Resize slotRoot and its parent liquidMask proportionally
+            if (slotRoot != null)
+            {
+                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
+
+                var liquidMask = slotRoot.parent as RectTransform;
+                if (liquidMask != null)
+                {
+                    var origMask = FindOriginalLayout(liquidMask);
+                    if (origMask.Rect != null)
+                    {
+                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, origMask.SizeDelta.y * ratio);
+                        liquidMask.anchoredPosition = new Vector2(
+                            origMask.AnchoredPosition.x,
+                            origMask.AnchoredPosition.y - halfDelta);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Captures the original layout of all child RectTransforms on first call.
+        /// Classifies each as "top-fixed" (position shifts, height unchanged) or
+        /// "body" (height scales with capacity ratio).
+        /// </summary>
+        private void CaptureOriginalLayout()
+        {
+            if (_originalLayoutCaptured) return;
+            _originalLayoutCaptured = true;
+
+            _originalChildLayouts.Clear();
+            // Capture direct children of the bottle
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var child = transform.GetChild(i) as RectTransform;
+                if (child == null) continue;
+
+                var info = new ChildLayoutInfo
+                {
+                    Rect = child,
+                    AnchoredPosition = child.anchoredPosition,
+                    SizeDelta = child.sizeDelta,
+                    IsTopFixed = child.anchoredPosition.y > TopFixedThreshold,
+                    IsBody = child.anchoredPosition.y <= TopFixedThreshold
+                             && child.sizeDelta.y > 100f // Only tall elements are body
+                };
+
+                _originalChildLayouts.Add(info);
+            }
+
+            // Also capture the liquidMask (child of bottle, parent of slotRoot)
+            if (slotRoot != null && slotRoot.parent != null && slotRoot.parent != transform)
+            {
+                var liquidMask = slotRoot.parent as RectTransform;
+                if (liquidMask != null)
+                {
+                    _originalChildLayouts.Add(new ChildLayoutInfo
+                    {
+                        Rect = liquidMask,
+                        AnchoredPosition = liquidMask.anchoredPosition,
+                        SizeDelta = liquidMask.sizeDelta,
+                        IsTopFixed = false,
+                        IsBody = true
+                    });
+                }
+            }
+        }
+
+        private ChildLayoutInfo FindOriginalLayout(RectTransform rect)
+        {
+            for (int i = 0; i < _originalChildLayouts.Count; i++)
+            {
+                if (_originalChildLayouts[i].Rect == rect)
+                    return _originalChildLayouts[i];
+            }
+            return default;
         }
 
         private void ApplySinkStyle(Bottle bottle)
@@ -243,10 +371,10 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
-            // Sink marker color: halfway between black and the bottle outline color
+            // Sink marker color: 57.5% toward black from outline color (halfway + 15% darker)
             Color sinkMarkerColor = outline != null
-                ? Color.Lerp(Color.black, outlineDefaultColor, 0.5f)
-                : new Color(0.33f, 0.38f, 0.44f, 0.9f);
+                ? Color.Lerp(Color.black, outlineDefaultColor, 0.425f)
+                : new Color(0.28f, 0.32f, 0.37f, 0.9f);
             sinkMarkerColor.a = 0.9f;
 
             if (bottle.IsSink)
@@ -318,7 +446,8 @@ namespace Decantra.Presentation.View
         /// Positions the anchorCollar (marker band) so that it is vertically centered
         /// within the first slot of liquid. When 1 unit of liquid is poured in, the
         /// liquid above and below the band will have equal height.
-        /// Re-parents the collar into slotRoot so it aligns with liquid coordinates.
+        /// Re-parents the collar into slotRoot and places it last in sibling order
+        /// so it renders on top of any liquid (it represents a marking in the glass).
         /// </summary>
         private void UpdateCollarLayout(int capacity)
         {
@@ -330,8 +459,11 @@ namespace Decantra.Presentation.View
                 anchorCollar.rectTransform.SetParent(slotRoot, false);
             }
 
+            // Ensure collar renders on top of liquid segments (glass marking)
+            anchorCollar.rectTransform.SetAsLastSibling();
+
             float height = slotRoot.rect.height;
-            if (height <= 0f) height = 300f;
+            if (height <= 0f) height = RefSlotRootHeight;
             float width = slotRoot.rect.width;
             if (width <= 0f) width = 112f;
 
