@@ -315,10 +315,10 @@ namespace Decantra.Presentation.View
             float offset = minGap * TopRowsDownwardGapFactor;
             float buttonBottom = GetTopControlBottomInGridSpace();
             float desiredGap = minGap * TopRowsDownwardGapFactor;
+            float topRowVisualTop = GetRowVisualTop(rows[0]);
             if (float.IsFinite(buttonBottom))
             {
-                float topRowTop = rows[0].TopY;
-                float currentGap = buttonBottom - topRowTop;
+                float currentGap = buttonBottom - topRowVisualTop;
                 desiredGap = ResolveDesiredTopGap(minGap);
                 float requiredTopShift = Mathf.Max(0f, desiredGap - currentGap);
                 offset = Mathf.Max(offset, requiredTopShift);
@@ -334,7 +334,7 @@ namespace Decantra.Presentation.View
             float remainingTopShift = 0f;
             if (float.IsFinite(buttonBottom))
             {
-                float shiftedTopRowTop = rows[0].TopY - offset;
+                float shiftedTopRowTop = topRowVisualTop - offset;
                 float shiftedGap = buttonBottom - shiftedTopRowTop;
                 remainingTopShift = Mathf.Max(0f, desiredGap - shiftedGap);
             }
@@ -365,6 +365,28 @@ namespace Decantra.Presentation.View
                 var anchored = bottleGrid.anchoredPosition;
                 bottleGrid.anchoredPosition = new Vector2(anchored.x, anchored.y - wholeGridShift);
             }
+        }
+
+        private float GetRowVisualTop(RowInfo row)
+        {
+            float visualTop = row.TopY;
+            for (int i = 0; i < row.Children.Count; i++)
+            {
+                var cellRect = row.Children[i];
+                if (cellRect == null) continue;
+                for (int c = 0; c < cellRect.childCount; c++)
+                {
+                    var child = cellRect.GetChild(c) as RectTransform;
+                    if (child == null || !child.gameObject.activeSelf) continue;
+                    child.GetWorldCorners(_childCorners);
+                    for (int j = 0; j < _childCorners.Length; j++)
+                    {
+                        var local = bottleGrid.InverseTransformPoint(_childCorners[j]);
+                        visualTop = Mathf.Max(visualTop, local.y);
+                    }
+                }
+            }
+            return visualTop;
         }
 
         private float ResolveDesiredTopGap(float minRowGap)

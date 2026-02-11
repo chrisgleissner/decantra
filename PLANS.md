@@ -1,27 +1,27 @@
 
 # PLANS — Ensure Correct Padding Above Top Row Bottles (2026-02-11)
 
-## Status: COMPLETE
+## Status: IN PROGRESS
 
-Goal: Fix the visual defect where tallest bottles in row 1 touch or overlap the Reset/Options buttons above them, by increasing the button-clearance target in HudSafeLayout.
+Goal: Fix the visual defect where tallest bottles in row 1 touch or overlap the Reset/Options buttons above them.
 
 ## Root Cause
 
-`HudSafeLayout.TargetButtonClearanceFactor` = 0.30 (30% of button height) produced insufficient vertical clearance between the bottom of the Reset/Options buttons and the top of row-1 bottles.
+Bottle decorations (rim, neck, lip highlight, stopper) overflow the grid cell boundary by up to 38px (cell extends to Y=210 from center, lip highlight top reaches Y=248). `HudSafeLayout.ApplyTopRowsDownwardOffset()` computed clearance using `GetWorldCorners()` on the cell RectTransform, which only measures the 220×420 cell boundary — not the visual content that overflows it. The algorithm literally could not see the decorations.
 
-The existing `ApplyTopRowsDownwardOffset()` algorithm already detects and corrects insufficient clearance, but the target gap was too small. Increasing the constant makes the algorithm enforce a larger gap, using the existing row-shift and whole-grid-shift mechanisms.
+## Fix
 
-## Plan
+1. Added `GetRowVisualTop()` to scan child RectTransforms of each bottle in the top row, expanding the measured top boundary to include overflowing decorations (neck, rim, lip highlight, stopper).
+2. Used this visual top (instead of cell top) in both the initial clearance check and the residual shift calculation.
+3. Kept `TargetButtonClearanceFactor` at `0.55f` to provide comfortable visual margin above the true bottle top.
 
-### 1) Implement fix (single constant change)
-- [x] Increase `TargetButtonClearanceFactor` from `0.30f` to `0.55f` in `HudSafeLayout.cs`
+### Files changed
+- `HudSafeLayout.cs`: Added `GetRowVisualTop()` method; changed 2 lines in `ApplyTopRowsDownwardOffset()` to use visual top instead of cell top
 
-### 2) Verify
-- [x] Run EditMode + PlayMode tests via `./scripts/test.sh` — 207 EditMode passed, 52 PlayMode passed, 0 failures
-- [x] All tests green, including `BottleGrid_MaintainsRowPaddingAndHudClearance`
-- [x] Regenerate screenshots via `./build --screenshots` — all 10 screenshots captured
-- [x] Screenshots confirm visible gap above row 1, no bottle-to-bottle or bottle-to-UI contact
-- [x] Push and await CI
+### Verification
+- [ ] Run EditMode + PlayMode tests
+- [ ] Regenerate screenshots — confirm visible gap above all bottles in row 1
+- [ ] Push and await CI
 
 ## Invariants preserved
 - Column center alignment: unchanged (no X-coordinate changes)
