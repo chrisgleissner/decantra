@@ -377,6 +377,12 @@ namespace Decantra.Presentation
 
             controller.ShowOptionsOverlay();
             yield return WaitForOptionsOverlayVisible(controller);
+            if (_failed)
+            {
+                controller.HideOptionsOverlay();
+                yield return null;
+                yield break;
+            }
             yield return new WaitForSeconds(0.2f);
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
 
@@ -419,7 +425,7 @@ namespace Decantra.Presentation
             }
         }
 
-        private static IEnumerator WaitForOptionsOverlayVisible(GameController controller)
+        private IEnumerator WaitForOptionsOverlayVisible(GameController controller)
         {
             float timeout = 2f;
             float elapsed = 0f;
@@ -439,6 +445,9 @@ namespace Decantra.Presentation
                 elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
+
+            Debug.LogError("RuntimeScreenshot: Options overlay did not become visible within timeout.");
+            _failed = true;
         }
 
         private IEnumerator CaptureScreenshot(string path)

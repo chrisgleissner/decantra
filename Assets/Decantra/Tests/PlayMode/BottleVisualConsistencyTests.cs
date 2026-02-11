@@ -49,7 +49,7 @@ namespace Decantra.Tests.PlayMode
             {
                 int capacity = capacities[i];
                 var slotRoot = FindSlotRoot(bottleViews[i]);
-                Assert.IsNotNull(slotRoot, "LiquidRoot rect was not found.");
+                Assert.IsNotNull(slotRoot, "slotRoot rect was not found.");
                 heights[capacity] = GetWorldHeight(slotRoot);
             }
 
@@ -100,7 +100,7 @@ namespace Decantra.Tests.PlayMode
                     if (fill > capacity) continue;
 
                     var slotRoot = FindSlotRoot(bottleViews[i]);
-                    Assert.IsNotNull(slotRoot, "LiquidRoot rect was not found.");
+                    Assert.IsNotNull(slotRoot, "slotRoot rect was not found.");
                     float height = GetFilledWorldHeight(slotRoot);
                     heights.Add(height);
                 }
