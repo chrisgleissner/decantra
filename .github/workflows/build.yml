@@ -233,6 +233,7 @@ jobs:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: Android
+          buildsPath: Builds
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
           versioning: None
           customParameters: >
@@ -255,6 +256,7 @@ jobs:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: Android
+          buildsPath: Builds
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
           versioning: None
           customParameters: >
@@ -273,6 +275,7 @@ jobs:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: Android
+          buildsPath: Builds
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildDebugApk
           versioning: None
           customParameters: >

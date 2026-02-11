@@ -203,14 +203,19 @@ namespace Decantra.App.Editor
             {
                 if (args[i] == "-buildPath")
                 {
+                    // Use the last provided -buildPath so explicit overrides win.
                     outputPath = args[i + 1];
-                    break;
                 }
             }
 
             if (string.IsNullOrWhiteSpace(outputPath))
             {
                 outputPath = defaultPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(Path.GetExtension(outputPath)))
+            {
+                outputPath = Path.Combine(outputPath, Path.GetFileName(defaultPath));
             }
 
             string directory = Path.GetDirectoryName(outputPath);
