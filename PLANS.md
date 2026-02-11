@@ -1,30 +1,37 @@
 
-# PLANS — Bottle Layout + HUD Spacing Fixes (2026-02-10)
+# PLANS — Ensure Correct Padding Above Top Row Bottles (2026-02-11)
 
-## Status: CODE COMPLETE (VISUAL VERIFY PENDING)
+## Status: IN PROGRESS
 
-Goal: Fix sink base height, move top HUD cluster up by reset button height, and vertically center the 3x3 bottle grid between top HUD and bottom HUD without changing gameplay behavior.
+Goal: Fix the visual defect where tallest bottles in row 1 touch or overlap the Reset/Options buttons above them.
 
-## Plan
+## Root Cause
 
-### 1) Layout baselines and measurements
-- Identify the main bottle body lower boundary thickness (sliced sprite bottom border) and use it to derive sink base height.
-- Derive reset button rendered height from its RectTransform (fallback to LayoutElement if needed).
-- Keep all top bottle element relative positioning unchanged.
+Bottle decorations (rim, neck, lip highlight, stopper) overflow the grid cell boundary by up to 38px (cell extends to Y=210 from center, lip highlight top reaches Y=248). `HudSafeLayout.ApplyTopRowsDownwardOffset()` computed clearance using `GetWorldCorners()` on the cell RectTransform, which only measures the 220×420 cell boundary — not the visual content that overflows it. The algorithm literally could not see the decorations.
 
-### 2) Implement layout changes
-- Update sink base plate height to 2x the body lower boundary thickness (outline sprite bottom border in local units).
-- Shift the entire top HUD cluster (logo + level/moves/score + reset/options) upward by the reset button height.
-- Keep grid centered by relying on HudSafeLayout's equal top/bottom padding and bottle area centering.
+## Fix
 
-### 3) Verification
-- Run EditMode + PlayMode tests + coverage via tools/test.sh. (Done)
-- Build + install Android APK and spot-check on at least two aspect ratios. (Pending)
-- Confirm no overlaps and equal vertical padding using temporary guides if needed (remove before final). (Pending)
+1. Added `GetRowVisualTop()` to scan child RectTransforms of each bottle in the top row, expanding the measured top boundary to include overflowing decorations (neck, rim, lip highlight, stopper).
+2. Used this visual top (instead of cell top) in both the initial clearance check and the residual shift calculation.
+3. Kept `TargetButtonClearanceFactor` at `0.55f` to provide comfortable visual margin above the true bottle top.
 
-## Notes
-- CI cannot be run locally; will rely on local tests and CI after push.
-- Visual validation on device(s) still needed.
+### Files changed
+- `HudSafeLayout.cs`: Added `GetRowVisualTop()` method; changed 2 lines in `ApplyTopRowsDownwardOffset()` to use visual top instead of cell top
+
+### Verification
+- [ ] Run EditMode + PlayMode tests
+- [ ] Regenerate screenshots — confirm visible gap above all bottles in row 1
+- [ ] Push and await CI
+
+## Invariants preserved
+- Column center alignment: unchanged (no X-coordinate changes)
+- Row base alignment: unchanged (only vertical offset of rows 1-2 within the grid)
+- Inter-row spacing: unchanged (shift is capped by `maxSafeOffset`)
+- Bottle width/height/scaling/liquid rendering: unchanged
+- Game mechanics: unchanged
+
+## Files changed
+- `HudSafeLayout.cs`: 1 constant (`TargetButtonClearanceFactor` 0.30 → 0.55)
 
 ---
 

@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 namespace Decantra.Presentation.View
 {
@@ -16,6 +17,11 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
+        private const float TopRowsDownwardOffsetPx = 35f;
+        private const float TopRowsDownwardReferenceHeightPx = 2400f;
+        private const int ShiftedTopRowCount = 2;
+        private const float RowBottomMergeTolerance = 8f;
+
         [SerializeField] private RectTransform topHud;
         [SerializeField] private RectTransform secondaryHud;
         [SerializeField] private RectTransform brandLockup;
@@ -28,8 +34,11 @@ namespace Decantra.Presentation.View
 
         private RectTransform _root;
         private readonly Vector3[] _corners = new Vector3[4];
+        private readonly Vector3[] _childCorners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
+        private bool _pendingTopRowOffset;
+        private int _lastActiveBottleCount = -1;
         private bool _gridLayoutCached;
         private Vector2 _baseGridSpacing;
         private RectOffset _baseGridPadding;
@@ -62,6 +71,12 @@ namespace Decantra.Presentation.View
         private void OnEnable()
         {
             _dirty = true;
+            Canvas.willRenderCanvases += HandleWillRenderCanvases;
+        }
+
+        private void OnDisable()
+        {
+            Canvas.willRenderCanvases -= HandleWillRenderCanvases;
         }
 
         private void OnRectTransformDimensionsChange()
@@ -90,9 +105,32 @@ namespace Decantra.Presentation.View
             changed |= HasChanged(bottomHud);
             changed |= HasChanged(bottleArea);
             changed |= HasChanged(bottleGrid);
+            changed |= HasBottleActivationChanged();
 
             _dirty = changed;
             return changed;
+        }
+
+        private bool HasBottleActivationChanged()
+        {
+            if (bottleGrid == null) return false;
+
+            int activeCount = 0;
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                if (bottleGrid.GetChild(i).gameObject.activeSelf)
+                {
+                    activeCount++;
+                }
+            }
+
+            if (activeCount == _lastActiveBottleCount)
+            {
+                return false;
+            }
+
+            _lastActiveBottleCount = activeCount;
+            return true;
         }
 
         private static bool HasChanged(RectTransform rect)
@@ -177,6 +215,15 @@ namespace Decantra.Presentation.View
 
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
+            _pendingTopRowOffset = true;
+        }
+
+        private void HandleWillRenderCanvases()
+        {
+            if (!_pendingTopRowOffset) return;
+            _pendingTopRowOffset = false;
+            ApplyTopRowsDownwardOffset();
         }
 
         private void EnsureGridLayoutCache()
@@ -246,6 +293,85 @@ namespace Decantra.Presentation.View
                 max = Mathf.Max(max, local.y);
             }
             return max;
+        }
+
+        private void ApplyTopRowsDownwardOffset()
+        {
+            if (bottleGrid == null || secondaryHud == null) return;
+            var rows = new List<RowInfo>(3);
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                if (!(bottleGrid.GetChild(i) is RectTransform childRect)) continue;
+                if (!childRect.gameObject.activeSelf) continue;
+                AddChildToRows(rows, childRect);
+            }
+
+            if (rows.Count < 2) return;
+            // Row order must follow shared baseline (bottom Y), not visual top,
+            // because bottles can have different heights.
+            rows.Sort((a, b) => b.BottomY.CompareTo(a.BottomY));
+
+            int maxShiftedRow = Mathf.Min(ShiftedTopRowCount, rows.Count) - 1;
+            if (maxShiftedRow < 0) return;
+
+            float screenHeight = Mathf.Max(1f, Screen.height);
+            float offset = TopRowsDownwardOffsetPx * (screenHeight / TopRowsDownwardReferenceHeightPx);
+            if (offset <= 0f) return;
+
+            for (int rowIndex = 0; rowIndex <= maxShiftedRow; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                for (int childIndex = 0; childIndex < row.Children.Count; childIndex++)
+                {
+                    var child = row.Children[childIndex];
+                    var anchored = child.anchoredPosition;
+                    child.anchoredPosition = new Vector2(anchored.x, anchored.y - offset);
+                }
+            }
+        }
+
+        private void AddChildToRows(List<RowInfo> rows, RectTransform childRect)
+        {
+            childRect.GetWorldCorners(_childCorners);
+            float top = float.MinValue;
+            float bottom = float.MaxValue;
+            for (int i = 0; i < _childCorners.Length; i++)
+            {
+                var local = bottleGrid.InverseTransformPoint(_childCorners[i]);
+                top = Mathf.Max(top, local.y);
+                bottom = Mathf.Min(bottom, local.y);
+            }
+
+            float centerY = (top + bottom) * 0.5f;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (Mathf.Abs(rows[i].BottomY - bottom) <= RowBottomMergeTolerance)
+                {
+                    rows[i].Children.Add(childRect);
+                    rows[i].TopY = Mathf.Max(rows[i].TopY, top);
+                    rows[i].BottomY = Mathf.Min(rows[i].BottomY, bottom);
+                    rows[i].CenterY = (rows[i].TopY + rows[i].BottomY) * 0.5f;
+                    return;
+                }
+            }
+
+            rows.Add(new RowInfo(centerY, top, bottom, childRect));
+        }
+
+        private sealed class RowInfo
+        {
+            public float CenterY;
+            public float TopY;
+            public float BottomY;
+            public readonly List<RectTransform> Children;
+
+            public RowInfo(float centerY, float topY, float bottomY, RectTransform child)
+            {
+                CenterY = centerY;
+                TopY = topY;
+                BottomY = bottomY;
+                Children = new List<RectTransform>(3) { child };
+            }
         }
     }
 }

@@ -35,7 +35,8 @@ namespace Decantra.Presentation
             "screenshot-09-level-20.png",
             "screenshot-05-level-24.png",
             "screenshot-06-interstitial.png",
-            "screenshot-07-level-36.png"
+            "screenshot-07-level-36.png",
+            "screenshot-10-options.png"
         };
 
         private bool _failed;
@@ -85,6 +86,7 @@ namespace Decantra.Presentation
             yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[6]);
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[8]);
+            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[9]);
 
             yield return new WaitForEndOfFrame();
             WriteCompletionMarker(outputDir);
@@ -359,6 +361,35 @@ namespace Decantra.Presentation
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
         }
 
+        private IEnumerator CaptureOptionsScreenshot(GameController controller, string outputDir, string fileName)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.HideOptionsOverlay();
+            yield return null;
+
+            controller.ShowOptionsOverlay();
+            yield return WaitForOptionsOverlayVisible(controller);
+            if (_failed)
+            {
+                controller.HideOptionsOverlay();
+                yield return null;
+                yield break;
+            }
+            yield return new WaitForSeconds(0.2f);
+            yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+
+            controller.HideOptionsOverlay();
+            yield return null;
+        }
+
         private static void HideInterstitialIfAny()
         {
             var banner = UnityEngine.Object.FindFirstObjectByType<LevelCompleteBanner>();
@@ -392,6 +423,31 @@ namespace Decantra.Presentation
                 elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
+        }
+
+        private IEnumerator WaitForOptionsOverlayVisible(GameController controller)
+        {
+            float timeout = 2f;
+            float elapsed = 0f;
+            while (elapsed < timeout)
+            {
+                if (controller != null && controller.IsOptionsOverlayVisible)
+                {
+                    yield break;
+                }
+
+                var overlay = GameObject.Find("OptionsOverlay");
+                if (overlay != null && overlay.activeInHierarchy)
+                {
+                    yield break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Debug.LogError("RuntimeScreenshot: Options overlay did not become visible within timeout.");
+            _failed = true;
         }
 
         private IEnumerator CaptureScreenshot(string path)

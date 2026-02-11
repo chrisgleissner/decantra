@@ -46,7 +46,7 @@ SDK_DIR="$(resolve_sdk_dir)"
 
 usage() {
   cat <<EOF
-Usage: tools/android-emulator.sh [options]
+Usage: scripts/android-emulator.sh [options]
 
 Options:
   --sdk-dir PATH         Android SDK root (default: $SDK_DIR)

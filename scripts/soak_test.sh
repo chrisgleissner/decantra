@@ -21,7 +21,7 @@ log() {
 
 usage() {
   cat <<'EOF'
-Usage: tools/soak_test.sh [options]
+Usage: scripts/soak_test.sh [options]
 
 Options:
   --duration <seconds>      Total soak duration (default: 600)

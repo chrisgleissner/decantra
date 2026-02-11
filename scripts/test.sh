@@ -119,6 +119,6 @@ run_with_log "PlayMode tests" "${PLAYMODE_LOG_PATH}" "${UNITY_PATH}" \
   -testResults "${PROJECT_PATH}/Logs/PlayModeTestResults.xml" \
   -logFile "${PLAYMODE_LOG_PATH}"
 
-"${PROJECT_PATH}/tools/coverage_gate.sh" "${PROJECT_PATH}/Coverage" "0.8"
+"${PROJECT_PATH}/scripts/coverage_gate.sh" "${PROJECT_PATH}/Coverage" "0.8"
 
 echo "EditMode tests, PlayMode tests, and coverage completed. Logs: ${BOOTSTRAP_LOG_PATH}, ${EDITMODE_LOG_PATH}, ${PLAYMODE_LOG_PATH}"

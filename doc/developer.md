@@ -28,7 +28,7 @@
      ANDROID_SDK_ROOT=~/Android/Sdk \
      ANDROID_HOME=~/Android/Sdk \
      ANDROID_NDK_ROOT=~/Android/Sdk/ndk/27.2.12479018 \
-     ./tools/build_android.sh`
+     ./scripts/build_android.sh`
 
 The APK will be produced at:
 - `Builds/Android/Decantra.apk`

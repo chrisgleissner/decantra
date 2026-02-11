@@ -2,7 +2,7 @@
 """Validate an Android emulator screenshot is not a black or near-black screen.
 
 Usage:
-    python3 tools/validate_emulator_screenshot.py <screenshot.png>
+    python3 scripts/validate_emulator_screenshot.py <screenshot.png>
 
 Exit codes:
     0 - Screenshot shows visible gameplay content (PASS)

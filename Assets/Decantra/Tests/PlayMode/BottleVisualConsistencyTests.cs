@@ -23,7 +23,7 @@ namespace Decantra.Tests.PlayMode
         private const float HeightTolerance = 0.75f;
 
         [UnityTest]
-        public IEnumerator BottleHeights_AreProportionalToCapacity()
+        public IEnumerator SlotRootHeights_AreProportionalToCapacity()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
@@ -32,11 +32,13 @@ namespace Decantra.Tests.PlayMode
             Assert.GreaterOrEqual(bottleViews.Count, 4, "Expected at least 4 bottle views.");
 
             int[] capacities = { 4, 6, 8, 10 };
+            int levelMaxCapacity = capacities.Max();
             var heights = new Dictionary<int, float>();
 
             for (int i = 0; i < capacities.Length; i++)
             {
                 int capacity = capacities[i];
+                bottleViews[i].SetLevelMaxCapacity(levelMaxCapacity);
                 var bottle = CreateBottle(capacity, 0);
                 bottleViews[i].Render(bottle);
             }
@@ -46,22 +48,18 @@ namespace Decantra.Tests.PlayMode
             for (int i = 0; i < capacities.Length; i++)
             {
                 int capacity = capacities[i];
-                var outline = FindChildRect(bottleViews[i].transform, "Outline");
-                Assert.IsNotNull(outline, "Outline rect was not found.");
-                heights[capacity] = GetWorldHeight(outline);
+                var slotRoot = FindSlotRoot(bottleViews[i]);
+                Assert.IsNotNull(slotRoot, "slotRoot rect was not found.");
+                heights[capacity] = GetWorldHeight(slotRoot);
             }
 
+            float referenceHeight = heights[levelMaxCapacity];
             for (int i = 0; i < capacities.Length; i++)
             {
-                for (int j = i + 1; j < capacities.Length; j++)
-                {
-                    int a = capacities[i];
-                    int b = capacities[j];
-                    float ratio = heights[a] / heights[b];
-                    float expected = a / (float)b;
-                    Assert.AreEqual(expected, ratio, 0.02f,
-                        $"Expected height ratio {a}:{b} to be {expected}, got {ratio}.");
-                }
+                int capacity = capacities[i];
+                float expected = referenceHeight * (capacity / (float)levelMaxCapacity);
+                Assert.AreEqual(expected, heights[capacity], HeightTolerance,
+                    $"Expected slotRoot height for cap-{capacity} to be {expected}, got {heights[capacity]}.");
             }
         }
 
@@ -76,6 +74,10 @@ namespace Decantra.Tests.PlayMode
 
             int[] capacities = { 4, 6, 8, 10 };
             int maxCapacity = capacities.Max();
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                bottleViews[i].SetLevelMaxCapacity(maxCapacity);
+            }
 
             for (int fill = 0; fill <= maxCapacity; fill++)
             {
@@ -98,7 +100,7 @@ namespace Decantra.Tests.PlayMode
                     if (fill > capacity) continue;
 
                     var slotRoot = FindSlotRoot(bottleViews[i]);
-                    Assert.IsNotNull(slotRoot, "LiquidRoot rect was not found.");
+                    Assert.IsNotNull(slotRoot, "slotRoot rect was not found.");
                     float height = GetFilledWorldHeight(slotRoot);
                     heights.Add(height);
                 }
@@ -116,8 +118,27 @@ namespace Decantra.Tests.PlayMode
 
         private static List<BottleView> FindBottleViews()
         {
-            return Object.FindObjectsByType<BottleView>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .ToList();
+            var grid = GameObject.Find("BottleGrid")?.transform;
+            if (grid == null)
+            {
+                return Object.FindObjectsByType<BottleView>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                    .OrderBy(v => v.name)
+                    .ToList();
+            }
+
+            var result = new List<BottleView>(9);
+            for (int i = 0; i < grid.childCount; i++)
+            {
+                var child = grid.GetChild(i);
+                if (child == null || !child.gameObject.activeSelf) continue;
+                var view = child.GetComponent<BottleView>();
+                if (view != null)
+                {
+                    result.Add(view);
+                }
+            }
+
+            return result;
         }
 
         private static Bottle CreateBottle(int capacity, int filled)
@@ -128,12 +149,6 @@ namespace Decantra.Tests.PlayMode
                 slots[i] = ColorId.Red;
             }
             return new Bottle(slots);
-        }
-
-        private static RectTransform FindChildRect(Transform root, string name)
-        {
-            var child = root.Find(name);
-            return child != null ? child.GetComponent<RectTransform>() : null;
         }
 
         private static RectTransform FindSlotRoot(BottleView bottleView)

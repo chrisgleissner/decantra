@@ -62,11 +62,11 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
 
 ## Tools
 
-- [`tools/test.sh`](tools/test.sh): Unity batchmode EditMode test runner.
-- [`tools/build_android.sh`](tools/build_android.sh): Builds debug Android APK via Unity batchmode.
-- [`tools/install_android.sh`](tools/install_android.sh): Installs APK on first connected ADB device.
-- [`tools/dev_install_run.sh`](tools/dev_install_run.sh): Builds, installs, and launches the app on device.
-- [`tools/coverage_gate.sh`](tools/coverage_gate.sh): Fails if coverage is below the required threshold.
+- [`scripts/test.sh`](scripts/test.sh): Unity batchmode EditMode test runner.
+- [`scripts/build_android.sh`](scripts/build_android.sh): Builds debug Android APK via Unity batchmode.
+- [`scripts/install_android.sh`](scripts/install_android.sh): Installs APK on first connected ADB device.
+- [`scripts/dev_install_run.sh`](scripts/dev_install_run.sh): Builds, installs, and launches the app on device.
+- [`scripts/coverage_gate.sh`](scripts/coverage_gate.sh): Fails if coverage is below the required threshold.
 - [`build`](build): Runs tests, builds APK, and optionally installs/launches on device.
 
 ## App (Editor)

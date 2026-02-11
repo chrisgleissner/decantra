@@ -91,6 +91,7 @@ namespace Decantra.Presentation
             {
                 EnsureBackgroundRendering(existingController, cameras);
                 EnsureRestartDialog(existingController);
+                EnsureHudSafeLayout();
                 WireResetButton(existingController);
                 WireOptionsButton(existingController);
                 WireShareButton(existingController);
@@ -112,7 +113,7 @@ namespace Decantra.Presentation
             var gridRoot = CreateGridRoot(gameCanvas.transform, out var bottleAreaRect);
 
             var hudSafeLayout = uiCanvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
-            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding, layoutPadding);
+            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding + 12f, layoutPadding);
 
             var palette = CreatePalette();
 
@@ -180,6 +181,35 @@ namespace Decantra.Presentation
                 var input = bottleView.GetComponent<BottleInput>();
                 SetPrivateField(input, "controller", controller);
             }
+        }
+
+        private static void EnsureHudSafeLayout()
+        {
+            var topHudRect = GameObject.Find("TopHud")?.GetComponent<RectTransform>();
+            var secondaryHudRect = GameObject.Find("SecondaryHud")?.GetComponent<RectTransform>();
+            var brandLockupRect = GameObject.Find("BrandLockup")?.GetComponent<RectTransform>();
+            var bottomHudRect = GameObject.Find("BottomHud")?.GetComponent<RectTransform>();
+            var bottleAreaRect = GameObject.Find("BottleArea")?.GetComponent<RectTransform>();
+            var bottleGridRect = GameObject.Find("BottleGrid")?.GetComponent<RectTransform>();
+            if (topHudRect == null || secondaryHudRect == null || bottomHudRect == null || bottleAreaRect == null || bottleGridRect == null)
+            {
+                return;
+            }
+
+            var uiCanvas = topHudRect.GetComponentInParent<Canvas>();
+            if (uiCanvas == null)
+            {
+                return;
+            }
+
+            var safeLayout = uiCanvas.GetComponent<HudSafeLayout>();
+            if (safeLayout == null)
+            {
+                safeLayout = uiCanvas.gameObject.AddComponent<HudSafeLayout>();
+            }
+
+            // Match runtime bootstrap defaults when wiring an existing scene.
+            safeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, bottleGridRect, 36f, 24f);
         }
 
         private static void EnsureRestartDialog(GameController controller)
@@ -525,7 +555,7 @@ namespace Decantra.Presentation
 
             var baseImage = bg.AddComponent<Image>();
             baseImage.sprite = GetPlaceholderSprite();
-            baseImage.color = Color.white;
+            baseImage.color = Color.black;
             baseImage.type = Image.Type.Simple;
             baseImage.raycastTarget = false;
             baseImage.material = cloudsMaterial;
@@ -713,7 +743,7 @@ namespace Decantra.Presentation
             topRect.anchorMin = new Vector2(0.5f, 1f);
             topRect.anchorMax = new Vector2(0.5f, 1f);
             topRect.pivot = new Vector2(0.5f, 1f);
-            topRect.anchoredPosition = new Vector2(0, -232);
+            topRect.anchoredPosition = new Vector2(0, -218);
             topRect.sizeDelta = new Vector2(1000, 150);
 
             var topLayout = topHud.AddComponent<HorizontalLayoutGroup>();
@@ -757,7 +787,7 @@ namespace Decantra.Presentation
             secondaryRect.anchorMin = new Vector2(0.5f, 1f);
             secondaryRect.anchorMax = new Vector2(0.5f, 1f);
             secondaryRect.pivot = new Vector2(0.5f, 1f);
-            secondaryRect.anchoredPosition = new Vector2(0, -406);
+            secondaryRect.anchoredPosition = new Vector2(0, -392);
             secondaryRect.sizeDelta = new Vector2(800, 150);
 
             var secondaryLayout = secondaryHud.AddComponent<HorizontalLayoutGroup>();
@@ -1928,6 +1958,15 @@ namespace Decantra.Presentation
             closeText.alignment = TextAnchor.MiddleCenter;
             AddTextEffects(closeText, new Color(0f, 0f, 0f, 0.6f));
 
+            var versionRow = CreateUiChild(content.transform, "VersionRow");
+            var versionRowElement = versionRow.AddComponent<LayoutElement>();
+            versionRowElement.preferredHeight = 54;
+            var versionText = CreateHudText(versionRow.transform, "VersionText");
+            versionText.fontSize = 24;
+            versionText.alignment = TextAnchor.MiddleCenter;
+            versionText.color = new Color(0.7f, 0.75f, 0.85f, 0.9f);
+            versionText.text = BuildVersionFooterText();
+
             // Wire controls to controller
             if (controller != null)
             {
@@ -1946,6 +1985,47 @@ namespace Decantra.Presentation
             // Start hidden
             root.SetActive(false);
             return root;
+        }
+
+        private static string BuildVersionFooterText()
+        {
+            string versionName = string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version;
+            string versionNumber = GetRuntimeVersionNumber();
+            return $"Version {versionName} ({versionNumber})";
+        }
+
+        private static string GetRuntimeVersionNumber()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var packageManager = activity.Call<AndroidJavaObject>("getPackageManager"))
+                {
+                    string packageName = activity.Call<string>("getPackageName");
+                    using (var packageInfo = packageManager.Call<AndroidJavaObject>("getPackageInfo", packageName, 0))
+                    using (var versionClass = new AndroidJavaClass("android.os.Build$VERSION"))
+                    {
+                        int sdkInt = versionClass.GetStatic<int>("SDK_INT");
+                        if (sdkInt >= 28)
+                        {
+                            long code = packageInfo.Call<long>("getLongVersionCode");
+                            return code.ToString();
+                        }
+
+                        int legacyCode = packageInfo.Get<int>("versionCode");
+                        return legacyCode.ToString();
+                    }
+                }
+            }
+            catch
+            {
+                return "unknown";
+            }
+#else
+            return "editor";
+#endif
         }
 
         private static GameObject CreateOptionsRow(Transform parent, string name)

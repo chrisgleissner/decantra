@@ -34,7 +34,7 @@ This is the authoritative, ordered checklist for preparing and publishing Decant
 - [ ] Run tests:
   - [ ] `./build` (runs EditMode + PlayMode + coverage and builds APK)
 - [ ] Build release APK (optional):
-  - [ ] `DECANTRA_BUILD_VARIANT=release ./tools/build_android.sh`
+  - [ ] `DECANTRA_BUILD_VARIANT=release ./scripts/build_android.sh`
 - [ ] Build release AAB (recommended for Play):
   - [ ] Unity menu: Decantra/Build/Android Release AAB
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Verify that an AAB is signed with the release keystore (not debug signed)
-# Usage: ./tools/verify_aab_signing.sh [path/to/file.aab]
+# Usage: ./scripts/verify_aab_signing.sh [path/to/file.aab]
 #
 # Environment variables (from .env):
 #   KEYSTORE_STORE_FILE - path to release keystore
