@@ -39,7 +39,7 @@ configure_android_sdk_env() {
   local sdk_dir="$1"
   export ANDROID_SDK_ROOT="$sdk_dir"
   export ANDROID_HOME="$sdk_dir"
-  export PATH="$ANDROID_HOME/cmdline-scripts/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+  export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 }
 
 SDK_DIR="$(resolve_sdk_dir)"
@@ -125,9 +125,9 @@ install_sdk_tools() {
   if [[ ! -f cmdline-tools.zip ]]; then
     curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
   fi
-  if [[ ! -d "$ANDROID_HOME/cmdline-scripts/latest" ]]; then
+  if [[ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]]; then
     unzip -q cmdline-tools.zip -d /tmp/android-cmdline
-    mv /tmp/android-cmdline/cmdline-tools "$ANDROID_HOME/cmdline-scripts/latest"
+    mv /tmp/android-cmdline/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
   fi
 
   yes | sdkmanager --licenses || true

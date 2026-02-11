@@ -96,6 +96,7 @@ namespace Decantra.Presentation
                 time += Time.unscaledDeltaTime;
                 float t = Mathf.Clamp01(time / exitDuration);
                 SetLogoAlpha(1f - t);
+                SetBackgroundAlpha(1f - t);
                 yield return null;
             }
 
