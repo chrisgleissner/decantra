@@ -1,30 +1,37 @@
 
-# PLANS — Bottle Layout + HUD Spacing Fixes (2026-02-10)
+# PLANS — Ensure Correct Padding Above Top Row Bottles (2026-02-11)
 
-## Status: CODE COMPLETE (VISUAL VERIFY PENDING)
+## Status: IN PROGRESS
 
-Goal: Fix sink base height, move top HUD cluster up by reset button height, and vertically center the 3x3 bottle grid between top HUD and bottom HUD without changing gameplay behavior.
+Goal: Fix the visual defect where tallest bottles in row 1 touch or overlap the Reset/Options buttons above them, by increasing the button-clearance target in HudSafeLayout.
+
+## Root Cause
+
+`HudSafeLayout.TargetButtonClearanceFactor` = 0.30 (30% of button height) produces insufficient vertical clearance between the bottom of the Reset/Options buttons and the top of row-1 bottles.
+
+The existing `ApplyTopRowsDownwardOffset()` algorithm already detects and corrects insufficient clearance, but the target gap is too small. Increasing the constant makes the algorithm enforce a larger gap, using the existing row-shift and whole-grid-shift mechanisms.
 
 ## Plan
 
-### 1) Layout baselines and measurements
-- Identify the main bottle body lower boundary thickness (sliced sprite bottom border) and use it to derive sink base height.
-- Derive reset button rendered height from its RectTransform (fallback to LayoutElement if needed).
-- Keep all top bottle element relative positioning unchanged.
+### 1) Implement fix (single constant change)
+- [x] Increase `TargetButtonClearanceFactor` from `0.30f` to `0.55f` in `HudSafeLayout.cs`
 
-### 2) Implement layout changes
-- Update sink base plate height to 2x the body lower boundary thickness (outline sprite bottom border in local units).
-- Shift the entire top HUD cluster (logo + level/moves/score + reset/options) upward by the reset button height.
-- Keep grid centered by relying on HudSafeLayout's equal top/bottom padding and bottle area centering.
+### 2) Verify
+- [ ] Run EditMode + PlayMode tests via `./scripts/test.sh`
+- [ ] All tests green, including `BottleGrid_MaintainsRowPaddingAndHudClearance`
+- [ ] Regenerate screenshots via `./build --screenshots`
+- [ ] Screenshots confirm visible gap above row 1, no bottle-to-bottle or bottle-to-UI contact
+- [ ] Push and confirm CI green
 
-### 3) Verification
-- Run EditMode + PlayMode tests + coverage via scripts/test.sh. (Done)
-- Build + install Android APK and spot-check on at least two aspect ratios. (Pending)
-- Confirm no overlaps and equal vertical padding using temporary guides if needed (remove before final). (Pending)
+## Invariants preserved
+- Column center alignment: unchanged (no X-coordinate changes)
+- Row base alignment: unchanged (only vertical offset of rows 1-2 within the grid)
+- Inter-row spacing: unchanged (shift is capped by `maxSafeOffset`)
+- Bottle width/height/scaling/liquid rendering: unchanged
+- Game mechanics: unchanged
 
-## Notes
-- CI cannot be run locally; will rely on local tests and CI after push.
-- Visual validation on device(s) still needed.
+## Files changed
+- `HudSafeLayout.cs`: 1 constant (`TargetButtonClearanceFactor` 0.30 → 0.55)
 
 ---
 

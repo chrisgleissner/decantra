@@ -18,7 +18,7 @@ namespace Decantra.Presentation.View
     public sealed class HudSafeLayout : MonoBehaviour
     {
         private const float TopRowsDownwardGapFactor = 0.45f;
-        private const float TargetButtonClearanceFactor = 0.30f;
+        private const float TargetButtonClearanceFactor = 0.55f;
         private const int ShiftedTopRowCount = 2;
         private const float RowBottomMergeTolerance = 8f;
 
