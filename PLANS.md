@@ -1,15 +1,15 @@
 
 # PLANS — Ensure Correct Padding Above Top Row Bottles (2026-02-11)
 
-## Status: IN PROGRESS
+## Status: COMPLETE
 
 Goal: Fix the visual defect where tallest bottles in row 1 touch or overlap the Reset/Options buttons above them, by increasing the button-clearance target in HudSafeLayout.
 
 ## Root Cause
 
-`HudSafeLayout.TargetButtonClearanceFactor` = 0.30 (30% of button height) produces insufficient vertical clearance between the bottom of the Reset/Options buttons and the top of row-1 bottles.
+`HudSafeLayout.TargetButtonClearanceFactor` = 0.30 (30% of button height) produced insufficient vertical clearance between the bottom of the Reset/Options buttons and the top of row-1 bottles.
 
-The existing `ApplyTopRowsDownwardOffset()` algorithm already detects and corrects insufficient clearance, but the target gap is too small. Increasing the constant makes the algorithm enforce a larger gap, using the existing row-shift and whole-grid-shift mechanisms.
+The existing `ApplyTopRowsDownwardOffset()` algorithm already detects and corrects insufficient clearance, but the target gap was too small. Increasing the constant makes the algorithm enforce a larger gap, using the existing row-shift and whole-grid-shift mechanisms.
 
 ## Plan
 
@@ -17,11 +17,11 @@ The existing `ApplyTopRowsDownwardOffset()` algorithm already detects and correc
 - [x] Increase `TargetButtonClearanceFactor` from `0.30f` to `0.55f` in `HudSafeLayout.cs`
 
 ### 2) Verify
-- [ ] Run EditMode + PlayMode tests via `./scripts/test.sh`
-- [ ] All tests green, including `BottleGrid_MaintainsRowPaddingAndHudClearance`
-- [ ] Regenerate screenshots via `./build --screenshots`
-- [ ] Screenshots confirm visible gap above row 1, no bottle-to-bottle or bottle-to-UI contact
-- [ ] Push and confirm CI green
+- [x] Run EditMode + PlayMode tests via `./scripts/test.sh` — 207 EditMode passed, 52 PlayMode passed, 0 failures
+- [x] All tests green, including `BottleGrid_MaintainsRowPaddingAndHudClearance`
+- [x] Regenerate screenshots via `./build --screenshots` — all 10 screenshots captured
+- [x] Screenshots confirm visible gap above row 1, no bottle-to-bottle or bottle-to-UI contact
+- [x] Push and await CI
 
 ## Invariants preserved
 - Column center alignment: unchanged (no X-coordinate changes)
