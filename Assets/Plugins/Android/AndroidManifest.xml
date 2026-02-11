@@ -32,7 +32,7 @@
 
         <activity
             android:name="com.unity3d.player.UnityPlayerGameActivity"
-            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:theme="@style/DecantraTheme"
             android:exported="true"
             android:resizeableActivity="false"
             android:launchMode="singleTask"
