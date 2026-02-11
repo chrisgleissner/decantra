@@ -672,22 +672,22 @@ if [[ "${GENERATE_SOLUTIONS}" == "true" ]]; then
   # Run validation gates on generated solutions
   log "Running solution validation gates"
   
-  if [[ -x "${ROOT_DIR}/tools/monotonicity_gate.sh" ]]; then
-    "${ROOT_DIR}/tools/monotonicity_gate.sh" || {
+  if [[ -x "${ROOT_DIR}/scripts/monotonicity_gate.sh" ]]; then
+    "${ROOT_DIR}/scripts/monotonicity_gate.sh" || {
       echo "Monotonicity gate failed" >&2
       exit 1
     }
   fi
   
-  if [[ -x "${ROOT_DIR}/tools/solvability_gate.sh" ]]; then
-    "${ROOT_DIR}/tools/solvability_gate.sh" || {
+  if [[ -x "${ROOT_DIR}/scripts/solvability_gate.sh" ]]; then
+    "${ROOT_DIR}/scripts/solvability_gate.sh" || {
       echo "Solvability gate failed" >&2
       exit 1
     }
   fi
   
-  if [[ -x "${ROOT_DIR}/tools/diversity_gate.sh" ]]; then
-    "${ROOT_DIR}/tools/diversity_gate.sh" || {
+  if [[ -x "${ROOT_DIR}/scripts/diversity_gate.sh" ]]; then
+    "${ROOT_DIR}/scripts/diversity_gate.sh" || {
       echo "Diversity gate failed" >&2
       exit 1
     }
@@ -726,7 +726,7 @@ fi
 
 if [[ "${RUN_TESTS}" == "true" ]]; then
   log "Running Unity tests"
-  "${ROOT_DIR}/tools/test.sh"
+  "${ROOT_DIR}/scripts/test.sh"
 fi
 
 if [[ "${RUN_BUILD}" == "true" ]]; then
@@ -743,7 +743,7 @@ if [[ "${RUN_BUILD}" == "true" ]]; then
   else
     log "Building debug APK"
   fi
-  DECANTRA_BUILD_VARIANT="${BUILD_VARIANT}" DECANTRA_BUILD_FORMAT="${BUILD_FORMAT}" "${ROOT_DIR}/tools/build_android.sh"
+  DECANTRA_BUILD_VARIANT="${BUILD_VARIANT}" DECANTRA_BUILD_FORMAT="${BUILD_FORMAT}" "${ROOT_DIR}/scripts/build_android.sh"
 fi
 
 if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
@@ -754,7 +754,7 @@ if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
   fi
   if [[ -z "${DEVICE_ID}" ]]; then
     log "No adb devices found. Starting Android emulator."
-    "${ROOT_DIR}/tools/android-emulator.sh" --no-prereqs
+    "${ROOT_DIR}/scripts/android-emulator.sh" --no-prereqs
     ensure_adb_daemon
     DEVICE_ID="$(find_adb_device || true)"
   fi
@@ -770,7 +770,7 @@ if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
   if [[ "${CAPTURE_MOTION}" == "true" ]]; then
     screenshot_args+=("--motion-capture")
   fi
-  "${ROOT_DIR}/tools/capture_screenshots.sh" "${screenshot_args[@]}"
+  "${ROOT_DIR}/scripts/capture_screenshots.sh" "${screenshot_args[@]}"
 fi
 
 if [[ "${RUN_INSTALL}" == "true" ]]; then

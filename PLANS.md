@@ -18,7 +18,7 @@ Goal: Fix sink base height, move top HUD cluster up by reset button height, and 
 - Keep grid centered by relying on HudSafeLayout's equal top/bottom padding and bottle area centering.
 
 ### 3) Verification
-- Run EditMode + PlayMode tests + coverage via tools/test.sh. (Done)
+- Run EditMode + PlayMode tests + coverage via scripts/test.sh. (Done)
 - Build + install Android APK and spot-check on at least two aspect ratios. (Pending)
 - Confirm no overlaps and equal vertical padding using temporary guides if needed (remove before final). (Pending)
 

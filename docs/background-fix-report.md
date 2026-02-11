@@ -220,7 +220,7 @@ Added to `RuntimeScreenshot.cs`:
 3. `Assets/Decantra/Presentation/Runtime/RuntimeScreenshot.cs`
    - Added multi-frame motion capture mode
 
-4. `tools/verify_background.py`
+4. `scripts/verify_background.py`
    - New comprehensive verification tool with all gates
 
 5. `PLANS.md`

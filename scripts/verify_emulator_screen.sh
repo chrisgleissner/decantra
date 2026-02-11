@@ -3,7 +3,7 @@
 # a black screen.  Exits non-zero if the screenshot fails validation.
 #
 # Usage:
-#   tools/verify_emulator_screen.sh [--output-dir DIR] [--delay SECONDS]
+#   scripts/verify_emulator_screen.sh [--output-dir DIR] [--delay SECONDS]
 #
 # Requirements: adb, python3, Pillow (pip install Pillow)
 

@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 namespace Decantra.Presentation.View
 {
@@ -16,6 +17,11 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
+        private const float TopRowsDownwardGapFactor = 0.45f;
+        private const float TargetButtonClearanceFactor = 0.30f;
+        private const int ShiftedTopRowCount = 2;
+        private const float RowBottomMergeTolerance = 8f;
+
         [SerializeField] private RectTransform topHud;
         [SerializeField] private RectTransform secondaryHud;
         [SerializeField] private RectTransform brandLockup;
@@ -28,8 +34,10 @@ namespace Decantra.Presentation.View
 
         private RectTransform _root;
         private readonly Vector3[] _corners = new Vector3[4];
+        private readonly Vector3[] _childCorners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
+        private int _lastActiveBottleCount = -1;
         private bool _gridLayoutCached;
         private Vector2 _baseGridSpacing;
         private RectOffset _baseGridPadding;
@@ -90,9 +98,32 @@ namespace Decantra.Presentation.View
             changed |= HasChanged(bottomHud);
             changed |= HasChanged(bottleArea);
             changed |= HasChanged(bottleGrid);
+            changed |= HasBottleActivationChanged();
 
             _dirty = changed;
             return changed;
+        }
+
+        private bool HasBottleActivationChanged()
+        {
+            if (bottleGrid == null) return false;
+
+            int activeCount = 0;
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                if (bottleGrid.GetChild(i).gameObject.activeSelf)
+                {
+                    activeCount++;
+                }
+            }
+
+            if (activeCount == _lastActiveBottleCount)
+            {
+                return false;
+            }
+
+            _lastActiveBottleCount = activeCount;
+            return true;
         }
 
         private static bool HasChanged(RectTransform rect)
@@ -177,6 +208,8 @@ namespace Decantra.Presentation.View
 
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
+            ApplyTopRowsDownwardOffset();
         }
 
         private void EnsureGridLayoutCache()
@@ -246,6 +279,236 @@ namespace Decantra.Presentation.View
                 max = Mathf.Max(max, local.y);
             }
             return max;
+        }
+
+        private void ApplyTopRowsDownwardOffset()
+        {
+            if (bottleGrid == null || secondaryHud == null) return;
+            var rows = new List<RowInfo>(3);
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                if (!(bottleGrid.GetChild(i) is RectTransform childRect)) continue;
+                if (!childRect.gameObject.activeSelf) continue;
+                AddChildToRows(rows, childRect);
+            }
+
+            if (rows.Count < 2) return;
+            // Row order must follow shared baseline (bottom Y), not visual top,
+            // because bottles can have different heights.
+            rows.Sort((a, b) => b.BottomY.CompareTo(a.BottomY));
+
+            float minGap = float.MaxValue;
+            for (int i = 0; i < rows.Count - 1; i++)
+            {
+                float gap = rows[i].BottomY - rows[i + 1].TopY;
+                if (gap > 0f)
+                {
+                    minGap = Mathf.Min(minGap, gap);
+                }
+            }
+
+            if (!float.IsFinite(minGap) || minGap <= 0f) return;
+
+            int maxShiftedRow = Mathf.Min(ShiftedTopRowCount, rows.Count) - 1;
+            if (maxShiftedRow < 0) return;
+
+            float offset = minGap * TopRowsDownwardGapFactor;
+            float buttonBottom = GetTopControlBottomInGridSpace();
+            float desiredGap = minGap * TopRowsDownwardGapFactor;
+            if (float.IsFinite(buttonBottom))
+            {
+                float topRowTop = rows[0].TopY;
+                float currentGap = buttonBottom - topRowTop;
+                desiredGap = ResolveDesiredTopGap(minGap);
+                float requiredTopShift = Mathf.Max(0f, desiredGap - currentGap);
+                offset = Mathf.Max(offset, requiredTopShift);
+            }
+
+            float maxSafeOffset = GetMaxSafeOffsetWithoutOverlap(rows, maxShiftedRow);
+            if (float.IsFinite(maxSafeOffset))
+            {
+                offset = Mathf.Min(offset, maxSafeOffset);
+            }
+            if (offset <= 0f) return;
+
+            float remainingTopShift = 0f;
+            if (float.IsFinite(buttonBottom))
+            {
+                float shiftedTopRowTop = rows[0].TopY - offset;
+                float shiftedGap = buttonBottom - shiftedTopRowTop;
+                remainingTopShift = Mathf.Max(0f, desiredGap - shiftedGap);
+            }
+
+            float wholeGridShift = 0f;
+            if (remainingTopShift > 0f && rows.Count >= 3)
+            {
+                float maxGridShift = GetMaxWholeGridDownwardOffset(rows, minGap);
+                if (maxGridShift > 0f)
+                {
+                    wholeGridShift = Mathf.Min(remainingTopShift, maxGridShift);
+                }
+            }
+
+            for (int rowIndex = 0; rowIndex <= maxShiftedRow; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                for (int childIndex = 0; childIndex < row.Children.Count; childIndex++)
+                {
+                    var child = row.Children[childIndex];
+                    var anchored = child.anchoredPosition;
+                    child.anchoredPosition = new Vector2(anchored.x, anchored.y - offset);
+                }
+            }
+
+            if (wholeGridShift > 0f)
+            {
+                var anchored = bottleGrid.anchoredPosition;
+                bottleGrid.anchoredPosition = new Vector2(anchored.x, anchored.y - wholeGridShift);
+            }
+        }
+
+        private float ResolveDesiredTopGap(float minRowGap)
+        {
+            float buttonHeight = GetTopControlHeightInGridSpace();
+            if (buttonHeight <= 0f)
+            {
+                return minRowGap * TopRowsDownwardGapFactor;
+            }
+
+            return buttonHeight * TargetButtonClearanceFactor;
+        }
+
+        private float GetTopControlBottomInGridSpace()
+        {
+            float minBottom = float.MaxValue;
+            bool found = false;
+            for (int i = 0; i < secondaryHud.childCount; i++)
+            {
+                if (!(secondaryHud.GetChild(i) is RectTransform childRect)) continue;
+                if (!childRect.gameObject.activeSelf) continue;
+                if (!IsTopControlButton(childRect)) continue;
+
+                childRect.GetWorldCorners(_childCorners);
+                float bottom = float.MaxValue;
+                for (int cornerIndex = 0; cornerIndex < _childCorners.Length; cornerIndex++)
+                {
+                    var local = bottleGrid.InverseTransformPoint(_childCorners[cornerIndex]);
+                    bottom = Mathf.Min(bottom, local.y);
+                }
+
+                minBottom = Mathf.Min(minBottom, bottom);
+                found = true;
+            }
+
+            return found ? minBottom : float.NaN;
+        }
+
+        private float GetTopControlHeightInGridSpace()
+        {
+            float minHeight = float.MaxValue;
+            bool found = false;
+            for (int i = 0; i < secondaryHud.childCount; i++)
+            {
+                if (!(secondaryHud.GetChild(i) is RectTransform childRect)) continue;
+                if (!childRect.gameObject.activeSelf) continue;
+                if (!IsTopControlButton(childRect)) continue;
+
+                childRect.GetWorldCorners(_childCorners);
+                float top = float.MinValue;
+                float bottom = float.MaxValue;
+                for (int cornerIndex = 0; cornerIndex < _childCorners.Length; cornerIndex++)
+                {
+                    var local = bottleGrid.InverseTransformPoint(_childCorners[cornerIndex]);
+                    top = Mathf.Max(top, local.y);
+                    bottom = Mathf.Min(bottom, local.y);
+                }
+
+                minHeight = Mathf.Min(minHeight, top - bottom);
+                found = true;
+            }
+
+            return found ? minHeight : 0f;
+        }
+
+        private static bool IsTopControlButton(RectTransform rect)
+        {
+            string name = rect.gameObject.name;
+            return string.Equals(name, "ResetButton") || string.Equals(name, "OptionsButton");
+        }
+
+        private static float GetMaxSafeOffsetWithoutOverlap(List<RowInfo> rows, int maxShiftedRow)
+        {
+            int nextRowIndex = maxShiftedRow + 1;
+            if (nextRowIndex >= rows.Count) return float.PositiveInfinity;
+
+            float boundaryGap = rows[maxShiftedRow].BottomY - rows[nextRowIndex].TopY;
+            if (boundaryGap <= 0f) return 0f;
+            return boundaryGap;
+        }
+
+        private float GetMaxWholeGridDownwardOffset(List<RowInfo> rows, float minGap)
+        {
+            if (bottleGrid == null || bottomHud == null || rows == null || rows.Count == 0)
+            {
+                return 0f;
+            }
+
+            bottomHud.GetWorldCorners(_corners);
+            float bottomHudTop = float.MinValue;
+            for (int i = 0; i < _corners.Length; i++)
+            {
+                var local = bottleGrid.InverseTransformPoint(_corners[i]);
+                bottomHudTop = Mathf.Max(bottomHudTop, local.y);
+            }
+
+            float bottomRowBottom = rows[rows.Count - 1].BottomY;
+            float requiredBottomGap = ResolveDesiredTopGap(minGap);
+            float available = bottomRowBottom - bottomHudTop - requiredBottomGap;
+            return Mathf.Max(0f, available);
+        }
+
+        private void AddChildToRows(List<RowInfo> rows, RectTransform childRect)
+        {
+            childRect.GetWorldCorners(_childCorners);
+            float top = float.MinValue;
+            float bottom = float.MaxValue;
+            for (int i = 0; i < _childCorners.Length; i++)
+            {
+                var local = bottleGrid.InverseTransformPoint(_childCorners[i]);
+                top = Mathf.Max(top, local.y);
+                bottom = Mathf.Min(bottom, local.y);
+            }
+
+            float centerY = (top + bottom) * 0.5f;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (Mathf.Abs(rows[i].BottomY - bottom) <= RowBottomMergeTolerance)
+                {
+                    rows[i].Children.Add(childRect);
+                    rows[i].TopY = Mathf.Max(rows[i].TopY, top);
+                    rows[i].BottomY = Mathf.Min(rows[i].BottomY, bottom);
+                    rows[i].CenterY = (rows[i].TopY + rows[i].BottomY) * 0.5f;
+                    return;
+                }
+            }
+
+            rows.Add(new RowInfo(centerY, top, bottom, childRect));
+        }
+
+        private sealed class RowInfo
+        {
+            public float CenterY;
+            public float TopY;
+            public float BottomY;
+            public readonly List<RectTransform> Children;
+
+            public RowInfo(float centerY, float topY, float bottomY, RectTransform child)
+            {
+                CenterY = centerY;
+                TopY = topY;
+                BottomY = bottomY;
+                Children = new List<RectTransform>(3) { child };
+            }
         }
     }
 }

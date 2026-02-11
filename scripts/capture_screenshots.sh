@@ -15,7 +15,7 @@ export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
 
 usage() {
   cat <<'EOF'
-Usage: tools/capture_screenshots.sh [OPTIONS]
+Usage: scripts/capture_screenshots.sh [OPTIONS]
 
 Options:
   --apk <path>           APK to install before capture
@@ -146,6 +146,7 @@ expected=(
   "screenshot-05-level-24.png"
   "screenshot-06-interstitial.png"
   "screenshot-07-level-36.png"
+  "screenshot-10-options.png"
 )
 
 remote_dir="files/DecantraScreenshots"

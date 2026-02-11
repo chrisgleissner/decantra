@@ -106,8 +106,8 @@ echo "Android ${OUTPUT_LABEL} built at ${OUTPUT_PATH}"
 if [[ "${DECANTRA_BUILD_FORMAT}" == "aab" ]]; then
   echo ""
   echo "Running post-build signing verification..."
-  if [[ -x "${PROJECT_PATH}/tools/verify_aab_signing.sh" ]]; then
-    "${PROJECT_PATH}/tools/verify_aab_signing.sh" "${OUTPUT_PATH}"
+  if [[ -x "${PROJECT_PATH}/scripts/verify_aab_signing.sh" ]]; then
+    "${PROJECT_PATH}/scripts/verify_aab_signing.sh" "${OUTPUT_PATH}"
   else
     echo "Warning: verify_aab_signing.sh not found or not executable" >&2
   fi

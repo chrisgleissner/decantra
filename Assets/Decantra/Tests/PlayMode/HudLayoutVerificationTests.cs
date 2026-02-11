@@ -9,8 +9,10 @@ See <https://www.gnu.org/licenses/> for details.
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Decantra.Presentation;
 using Decantra.Presentation.Controller;
+using Decantra.Presentation.View;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -30,6 +32,11 @@ namespace Decantra.Tests.PlayMode
         private const float ExpectedTileMinHeight = 140f;
         private const int ExpectedHudTileCount = 5; // Level, Moves, Score, MaxLevel, HighScore (Reset is a button, not a stat tile)
         private const float TextPaddingPx = 64f; // Approximate padding from panel edge to text area (32px left + 32px right)
+        private const float MinRowPaddingPx = 6f;
+        private const float MinHudClearancePx = 6f;
+        private const float RowAlignmentTolerancePx = 1f;
+        private const float TopControlVisualTolerancePx = 14f;
+        private const float BottomHudVisualTolerancePx = 14f;
 
         /// <summary>
         /// Identifies HUD stat panels by their structure: Image + LayoutElement + specific children (Shadow, GlassHighlight, Value text).
@@ -95,6 +102,28 @@ namespace Decantra.Tests.PlayMode
             public bool HasValueText;
         }
 
+        private struct VerticalBounds
+        {
+            public float Top;
+            public float Bottom;
+            public float Center => (Top + Bottom) * 0.5f;
+        }
+
+        private sealed class RowBounds
+        {
+            public float Top;
+            public float Bottom;
+            public readonly List<VerticalBounds> Children = new List<VerticalBounds>(3);
+            public readonly List<RectTransform> ChildRects = new List<RectTransform>(3);
+            public float Center => (Top + Bottom) * 0.5f;
+        }
+
+        private struct BottleRowEntry
+        {
+            public VerticalBounds Bounds;
+            public RectTransform Rect;
+        }
+
         private static HudTileMetrics ExtractTileMetrics(GameObject tile)
         {
             var rect = tile.GetComponent<RectTransform>();
@@ -130,6 +159,89 @@ namespace Decantra.Tests.PlayMode
                 HasGlassHighlight = tile.transform.Find("GlassHighlight") != null,
                 HasValueText = tile.transform.Find("Value") != null
             };
+        }
+
+        [UnityTest]
+        public IEnumerator BottleGrid_MaintainsRowPaddingAndHudClearance()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = ResolvePrimaryController();
+            Assert.IsNotNull(controller, "GameController not found.");
+
+            int[] levels = { 1, 10, 24, 36 };
+            int validatedThreeRowLevels = 0;
+            foreach (int level in levels)
+            {
+                controller.LoadLevel(level, 10991 + level);
+                yield return null;
+                yield return null;
+                Canvas.ForceUpdateCanvases();
+
+                var bottleViews = GetControllerBottleViews(controller);
+                var bottleGrid = ResolveBottleGridRect(bottleViews);
+                Assert.IsNotNull(bottleGrid, $"Bottle grid not found for level {level}.");
+                var topControls = ResolveTopControlRects(controller);
+                Assert.GreaterOrEqual(topControls.Count, 2, $"Top controls not found for level {level}.");
+                var bottomHud = ResolveBottomHudRect(controller);
+                Assert.IsNotNull(bottomHud, $"Bottom HUD not found for level {level}.");
+
+                var rows = CollectBottleRows(bottleViews, bottleGrid);
+                var bottleByRect = BuildBottleLookupByRect(bottleViews);
+                if (rows.Count < 3)
+                {
+                    Debug.Log($"Skipping row-spacing assertions at level {level}: only {rows.Count} populated rows.");
+                    continue;
+                }
+
+                rows.Sort((a, b) => Mathf.Max(b.Top, b.Bottom).CompareTo(Mathf.Max(a.Top, a.Bottom))); // Top to bottom
+                if (rows.Count > 3)
+                {
+                    rows = rows.Take(3).ToList();
+                }
+                validatedThreeRowLevels++;
+
+                // All bottles in a row must share same start/bottom Y.
+                for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+                {
+                    var row = rows[rowIndex];
+                    Assert.GreaterOrEqual(row.Children.Count, 3, $"Row {rowIndex + 1} has fewer than 3 bottles at level {level}.");
+                    float baselineBottom = row.Children[0].Bottom;
+                    for (int i = 1; i < row.Children.Count; i++)
+                    {
+                        Assert.AreEqual(baselineBottom, row.Children[i].Bottom, RowAlignmentTolerancePx,
+                            $"Row {rowIndex + 1} bottles do not share bottom Y at level {level}.");
+                    }
+                }
+
+                // Consecutive rows must keep positive visual padding.
+                for (int i = 0; i < rows.Count - 1; i++)
+                {
+                    float upperRowLower = Mathf.Min(rows[i].Top, rows[i].Bottom);
+                    float lowerRowUpper = Mathf.Max(rows[i + 1].Top, rows[i + 1].Bottom);
+                    float rowGap = upperRowLower - lowerRowUpper;
+                    Assert.GreaterOrEqual(rowGap, MinRowPaddingPx,
+                        $"Rows {i + 1} and {i + 2} gap too small at level {level}: {rowGap}px.");
+                }
+
+                float topControlLower = GetTopControlsBottomInWorld(topControls);
+                float topRowVisualTop = GetRowVisualTopInWorld(rows[0], bottleByRect);
+                float topClearance = topControlLower - topRowVisualTop;
+                float topEffectiveClearance = topClearance + TopControlVisualTolerancePx;
+                Assert.GreaterOrEqual(topEffectiveClearance, MinHudClearancePx,
+                    $"Top-row clearance to top controls too small at level {level}: raw={topClearance}px effective={topEffectiveClearance}px.");
+
+                var bottomRow = rows[rows.Count - 1];
+                float bottomHudUpper = GetBottomHudVisualTopInWorld(bottomHud);
+                float bottomRowVisualBottom = GetRowVisualBottomInWorld(bottomRow, bottleByRect);
+                float bottomClearance = bottomRowVisualBottom - bottomHudUpper;
+                float bottomEffectiveClearance = bottomClearance + BottomHudVisualTolerancePx;
+                Assert.GreaterOrEqual(bottomEffectiveClearance, MinHudClearancePx,
+                    $"Bottom-row clearance to bottom HUD too small at level {level}: raw={bottomClearance}px effective={bottomEffectiveClearance}px.");
+            }
+
+            Assert.Greater(validatedThreeRowLevels, 0, "No 3-row levels were available to validate bottle spacing invariants.");
         }
 
         [UnityTest]
@@ -427,6 +539,347 @@ namespace Decantra.Tests.PlayMode
             Assert.AreEqual(ExpectedHudTileCount, metrics.Count);
             Assert.IsTrue(metrics.All(m => m.LayoutMinWidth >= ExpectedTopTileMinWidth - WidthTolerancePx));
             Assert.IsTrue(metrics.All(m => m.HasShadow && m.HasGlassHighlight && m.HasValueText));
+        }
+
+        private static List<BottleView> GetControllerBottleViews(GameController controller)
+        {
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field, "GameController.bottleViews field not found.");
+            var views = field.GetValue(controller) as List<BottleView>;
+            Assert.IsNotNull(views, "GameController.bottleViews is null.");
+            Assert.AreEqual(9, views.Count, "Expected exactly 9 bottle views.");
+            return views;
+        }
+
+        private static GameController ResolvePrimaryController()
+        {
+            var controllers = Object.FindObjectsByType<GameController>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            GameController best = null;
+            int bestScore = -1;
+            for (int i = 0; i < controllers.Length; i++)
+            {
+                var candidate = controllers[i];
+                if (candidate == null) continue;
+                int score = 0;
+
+                var bottleField = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+                var views = bottleField != null ? bottleField.GetValue(candidate) as List<BottleView> : null;
+                if (views != null) score += views.Count;
+                if (views != null && HasMatchingHudSafeLayout(views)) score += 1000;
+
+                var hudField = typeof(GameController).GetField("hudView", BindingFlags.Instance | BindingFlags.NonPublic);
+                var hudView = hudField != null ? hudField.GetValue(candidate) as HudView : null;
+                if (hudView != null && hudView.gameObject.activeInHierarchy) score += 100;
+                if (candidate.gameObject.activeInHierarchy) score += 10;
+
+                if (score <= bestScore) continue;
+                bestScore = score;
+                best = candidate;
+            }
+
+            return best;
+        }
+
+        private static bool HasMatchingHudSafeLayout(List<BottleView> bottleViews)
+        {
+            var bottleGrid = ResolveBottleGridRect(bottleViews);
+            if (bottleGrid == null) return false;
+
+            var safeLayouts = Object.FindObjectsByType<HudSafeLayout>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var gridField = typeof(HudSafeLayout).GetField("bottleGrid", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (gridField == null) return false;
+
+            for (int i = 0; i < safeLayouts.Length; i++)
+            {
+                var layout = safeLayouts[i];
+                if (layout == null) continue;
+                var layoutGrid = gridField.GetValue(layout) as RectTransform;
+                if (layoutGrid == bottleGrid)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static RectTransform ResolveBottleGridRect(List<BottleView> bottleViews)
+        {
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var view = bottleViews[i];
+                if (view == null) continue;
+                if (view.transform.parent is RectTransform parent)
+                {
+                    return parent;
+                }
+            }
+
+            return null;
+        }
+
+        private static List<RectTransform> ResolveTopControlRects(GameController controller)
+        {
+            var names = new[] { "ResetButton", "OptionsButton" };
+            var result = new List<RectTransform>(2);
+            var hudRoot = ResolveHudRoot(controller);
+            if (hudRoot == null) return result;
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                var child = FindDescendantByName(hudRoot, names[i]);
+                if (child == null) continue;
+                var button = child.GetComponent<Button>();
+                var graphicRect = button != null && button.targetGraphic != null ? button.targetGraphic.rectTransform : null;
+                var rect = graphicRect != null ? graphicRect : child.GetComponent<RectTransform>();
+                if (rect == null || !rect.gameObject.activeInHierarchy) continue;
+                result.Add(rect);
+            }
+
+            return result;
+        }
+
+        private static RectTransform ResolveBottomHudRect(GameController controller)
+        {
+            var hudRoot = ResolveHudRoot(controller);
+            if (hudRoot == null) return null;
+            var child = FindDescendantByName(hudRoot, "BottomHud");
+            return child != null ? child.GetComponent<RectTransform>() : null;
+        }
+
+        private static Transform ResolveHudRoot(GameController controller)
+        {
+            var hudField = typeof(GameController).GetField("hudView", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (hudField == null) return null;
+            var hudView = hudField.GetValue(controller) as HudView;
+            if (hudView == null) return null;
+            return hudView.transform.parent;
+        }
+
+        private static Transform FindDescendantByName(Transform root, string name)
+        {
+            if (root == null) return null;
+            if (root.name == name) return root;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var child = root.GetChild(i);
+                var found = FindDescendantByName(child, name);
+                if (found != null) return found;
+            }
+
+            return null;
+        }
+
+        private static List<RowBounds> CollectBottleRows(List<BottleView> bottleViews, RectTransform referenceRect)
+        {
+            var bounds = new List<BottleRowEntry>(bottleViews.Count);
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var view = bottleViews[i];
+                if (view == null) continue;
+                var childRect = view.GetComponent<RectTransform>();
+                if (childRect == null) continue;
+                if (!childRect.gameObject.activeInHierarchy) continue;
+                bounds.Add(new BottleRowEntry
+                {
+                    Bounds = GetBoundsInReference(childRect, referenceRect),
+                    Rect = childRect
+                });
+            }
+
+            if (bounds.Count < 3)
+            {
+                return new List<RowBounds>(0);
+            }
+            bounds.Sort((a, b) => b.Bounds.Bottom.CompareTo(a.Bounds.Bottom)); // Top rows first by bottom edge
+
+            int rowCount = bounds.Count / 3;
+            var rows = new List<RowBounds>(rowCount);
+            for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
+            {
+                int offset = rowIndex * 3;
+                var row = new RowBounds
+                {
+                    Top = Mathf.Max(bounds[offset].Bounds.Top, Mathf.Max(bounds[offset + 1].Bounds.Top, bounds[offset + 2].Bounds.Top)),
+                    Bottom = Mathf.Min(bounds[offset].Bounds.Bottom, Mathf.Min(bounds[offset + 1].Bounds.Bottom, bounds[offset + 2].Bounds.Bottom))
+                };
+                row.Children.Add(bounds[offset].Bounds);
+                row.Children.Add(bounds[offset + 1].Bounds);
+                row.Children.Add(bounds[offset + 2].Bounds);
+                row.ChildRects.Add(bounds[offset].Rect);
+                row.ChildRects.Add(bounds[offset + 1].Rect);
+                row.ChildRects.Add(bounds[offset + 2].Rect);
+                rows.Add(row);
+            }
+
+            return rows;
+        }
+
+        private static VerticalBounds GetBoundsInReference(RectTransform rect, RectTransform referenceRect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+
+            float top = float.MinValue;
+            float bottom = float.MaxValue;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                var local = referenceRect.InverseTransformPoint(corners[i]);
+                top = Mathf.Max(top, local.y);
+                bottom = Mathf.Min(bottom, local.y);
+            }
+
+            return new VerticalBounds
+            {
+                Top = top,
+                Bottom = bottom
+            };
+        }
+
+        private static VerticalBounds GetBoundsInWorld(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+
+            float top = float.MinValue;
+            float bottom = float.MaxValue;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                top = Mathf.Max(top, corners[i].y);
+                bottom = Mathf.Min(bottom, corners[i].y);
+            }
+
+            return new VerticalBounds
+            {
+                Top = top,
+                Bottom = bottom
+            };
+        }
+
+        private static VerticalBounds GetRowWorldBounds(RowBounds row)
+        {
+            float top = float.MinValue;
+            float bottom = float.MaxValue;
+            for (int i = 0; i < row.ChildRects.Count; i++)
+            {
+                var bounds = GetBoundsInWorld(row.ChildRects[i]);
+                top = Mathf.Max(top, bounds.Top);
+                bottom = Mathf.Min(bottom, bounds.Bottom);
+            }
+
+            return new VerticalBounds
+            {
+                Top = top,
+                Bottom = bottom
+            };
+        }
+
+        private static Dictionary<RectTransform, BottleView> BuildBottleLookupByRect(List<BottleView> bottleViews)
+        {
+            var map = new Dictionary<RectTransform, BottleView>(bottleViews.Count);
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var view = bottleViews[i];
+                if (view == null) continue;
+                var rect = view.GetComponent<RectTransform>();
+                if (rect == null) continue;
+                map[rect] = view;
+            }
+
+            return map;
+        }
+
+        private static float GetRowVisualTopInWorld(RowBounds row, Dictionary<RectTransform, BottleView> bottleByRect)
+        {
+            float top = float.MinValue;
+            for (int i = 0; i < row.ChildRects.Count; i++)
+            {
+                var rect = row.ChildRects[i];
+                if (rect == null) continue;
+                if (!bottleByRect.TryGetValue(rect, out var view) || view == null)
+                {
+                    top = Mathf.Max(top, GetBoundsInWorld(rect).Top);
+                    continue;
+                }
+
+                var bounds = GetBottleVisualBoundsInWorld(view);
+                top = Mathf.Max(top, bounds.Top);
+            }
+
+            return top;
+        }
+
+        private static float GetRowVisualBottomInWorld(RowBounds row, Dictionary<RectTransform, BottleView> bottleByRect)
+        {
+            float bottom = float.MaxValue;
+            for (int i = 0; i < row.ChildRects.Count; i++)
+            {
+                var rect = row.ChildRects[i];
+                if (rect == null) continue;
+                if (!bottleByRect.TryGetValue(rect, out var view) || view == null)
+                {
+                    bottom = Mathf.Min(bottom, GetBoundsInWorld(rect).Bottom);
+                    continue;
+                }
+
+                var bounds = GetBottleVisualBoundsInWorld(view);
+                bottom = Mathf.Min(bottom, bounds.Bottom);
+            }
+
+            return bottom;
+        }
+
+        private static VerticalBounds GetBottleVisualBoundsInWorld(BottleView view)
+        {
+            var fallbackRect = view.GetComponent<RectTransform>();
+            if (fallbackRect == null)
+            {
+                return new VerticalBounds { Top = 0f, Bottom = 0f };
+            }
+
+            var outlineField = typeof(BottleView).GetField("outline", BindingFlags.Instance | BindingFlags.NonPublic);
+            var outlineImage = outlineField != null ? outlineField.GetValue(view) as Image : null;
+            var outlineRect = outlineImage != null ? outlineImage.rectTransform : null;
+            if (outlineRect == null || !outlineRect.gameObject.activeInHierarchy)
+            {
+                return GetBoundsInWorld(fallbackRect);
+            }
+
+            return GetBoundsInWorld(outlineRect);
+        }
+
+        private static float GetTopControlsBottomInWorld(List<RectTransform> controls)
+        {
+            float minBottom = float.MaxValue;
+            for (int i = 0; i < controls.Count; i++)
+            {
+                var bounds = GetBoundsInWorld(controls[i]);
+                minBottom = Mathf.Min(minBottom, bounds.Bottom);
+            }
+
+            return minBottom;
+        }
+
+        private static float GetRectTopInWorld(RectTransform rect)
+        {
+            var bounds = GetBoundsInWorld(rect);
+            return Mathf.Max(bounds.Top, bounds.Bottom);
+        }
+
+        private static float GetBottomHudVisualTopInWorld(RectTransform bottomHud)
+        {
+            float top = float.MinValue;
+            bool found = false;
+            for (int i = 0; i < bottomHud.childCount; i++)
+            {
+                if (!(bottomHud.GetChild(i) is RectTransform childRect)) continue;
+                if (!childRect.gameObject.activeInHierarchy) continue;
+                var bounds = GetBoundsInWorld(childRect);
+                top = Mathf.Max(top, bounds.Top);
+                found = true;
+            }
+
+            return found ? top : GetRectTopInWorld(bottomHud);
         }
     }
 }
