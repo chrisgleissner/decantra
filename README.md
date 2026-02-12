@@ -11,18 +11,17 @@ Bottle-sorting puzzle game for Android built in Unity.
 ## How to Play
 
 - Drag one bottle onto another to pour liquid.
-- You can only pour onto the same color or into an empty segment.
+- You can only pour into an empty bottle or onto the same color.
+- Some bottles are anchored as indicated by their dark base. They can receive liquid but cannot be lifted.
 - A level is complete when all bottles are either empty or contain exactly one color.
-- Some bottles are anchored (dark base): they can receive liquid but cannot be lifted.
-- Bottles may have different capacity, and later levels add more colors and constraints.
 
 ## Features
 
 - Infinite, procedurally generated puzzles.
 - Move budgets that reward efficient play.
 - Varied bottle sizes and anchored sink bottles for added challenge.
-- Smooth, mobile-first controls designed for short sessions.
-- Configurable starfield effect 
+- Smooth, mobile-first controls.
+- Configurable starfield effect.
 
 ## Screenshots
 
