@@ -450,6 +450,7 @@ namespace Decantra.Presentation
 
             intro.ShowBlackOverlayImmediate();
             yield return new WaitForEndOfFrame();
+            yield return new WaitForSeconds(0.9f);
 
             StartCoroutine(intro.FadeToClear(0.8f));
             yield return new WaitForSeconds(0.4f);

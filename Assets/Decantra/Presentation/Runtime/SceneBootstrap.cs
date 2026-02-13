@@ -2007,8 +2007,8 @@ namespace Decantra.Presentation
 
             var helpScrollGo = CreateUiChild(helpPanelRoot.transform, "ScrollView");
             var helpScrollElement = helpScrollGo.AddComponent<LayoutElement>();
-            helpScrollElement.flexibleHeight = 1f;
-            helpScrollElement.minHeight = 980;
+            helpScrollElement.flexibleHeight = 0f;
+            helpScrollElement.minHeight = 0f;
             var helpScrollImage = helpScrollGo.AddComponent<Image>();
             helpScrollImage.sprite = GetRoundedSprite();
             helpScrollImage.type = Image.Type.Sliced;
@@ -2051,6 +2051,15 @@ namespace Decantra.Presentation
             helpBody.text = BuildHowToPlayBodyText();
             helpBody.raycastTarget = false;
             contentRoot.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            Canvas.ForceUpdateCanvases();
+            float helpBodyHeight = Mathf.Max(0f, helpBody.preferredHeight);
+            float desiredScrollHeight = helpBodyHeight + 48f;
+            float maxScrollHeight = 980f;
+            float minScrollHeight = 240f;
+            float clampedScrollHeight = Mathf.Clamp(desiredScrollHeight, minScrollHeight, maxScrollHeight);
+            helpScrollElement.preferredHeight = clampedScrollHeight;
+            helpScroll.vertical = desiredScrollHeight > clampedScrollHeight + 0.5f;
 
             helpScroll.viewport = viewportRect;
             helpScroll.content = helpBodyRect;
@@ -2277,7 +2286,7 @@ namespace Decantra.Presentation
             handleImage.sprite = GetSoftCircleSprite();
             handleImage.color = new Color(1f, 0.98f, 0.92f, 0.95f);
             var handleRect = handle.GetComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(48, 48);
+            handleRect.sizeDelta = new Vector2(44, 30);
 
             // Invisible expanded touch target for reliable slider interaction
             var touchTarget = CreateUiChild(handle.transform, "TouchTarget");

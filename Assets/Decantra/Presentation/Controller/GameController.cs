@@ -98,6 +98,7 @@ namespace Decantra.Presentation.Controller
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
+        private const float StartupVisualSettleSeconds = 0.9f;
 
         private readonly struct GeneratedLevel
         {
@@ -941,7 +942,9 @@ namespace Decantra.Presentation.Controller
                 LoadLevel(_currentLevel, _currentSeed);
             }
 
-            yield return null;
+            // Keep gameplay fully hidden while background transitions and first-frame
+            // post-load visual adjustments settle, then fade in uniformly from black.
+            yield return new WaitForSecondsRealtime(StartupVisualSettleSeconds);
 
             if (introBanner != null)
             {

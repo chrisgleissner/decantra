@@ -36,6 +36,11 @@ Bottle-sorting puzzle game for Android built in Unity.
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png" alt="Level 24" width="180"/></td>
     <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png" alt="Level 36" width="180"/></td>
   </tr>
+  <tr>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-08-level-10.png" alt="Level 10" width="180"/></td>
+    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-10-options.png" alt="Options" width="180"/></td>
+    <td><img src="./doc/play-store-assets/screenshots/phone/help_overlay.png" alt="Help" width="180"/></td>
+  </tr>
 </table>
 
 ## Installation
