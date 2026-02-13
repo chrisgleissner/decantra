@@ -15,7 +15,6 @@ using System.Threading.Tasks;
 using Decantra.Domain.Background;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
-using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
 using Decantra.Domain.Scoring;
