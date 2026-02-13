@@ -27,6 +27,9 @@ namespace Decantra.Presentation
 
         private static readonly string[] ScreenshotFiles =
         {
+            "startup_fade_in_midpoint.png",
+            "help_overlay.png",
+            "options_panel_typography.png",
             "screenshot-01-launch.png",
             "screenshot-02-intro.png",
             "screenshot-03-level-01.png",
@@ -77,16 +80,19 @@ namespace Decantra.Presentation
             string outputDir = Path.Combine(Application.persistentDataPath, OutputDirectoryName);
             Directory.CreateDirectory(outputDir);
 
+            yield return CaptureStartupFadeMidpoint(outputDir, ScreenshotFiles[0]);
             yield return CaptureLaunchScreenshot(outputDir);
             yield return CaptureIntroScreenshot(outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[2]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[3]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[4]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, ScreenshotFiles[5]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[6]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[5]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[6]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[7]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, ScreenshotFiles[8]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[9]);
             yield return CaptureInterstitialScreenshot(outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[8]);
-            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[9]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[11]);
+            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[2]);
+            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[12]);
+            yield return CaptureHelpOverlayScreenshot(controller, outputDir, ScreenshotFiles[1]);
 
             yield return new WaitForEndOfFrame();
             WriteCompletionMarker(outputDir);
@@ -296,7 +302,7 @@ namespace Decantra.Presentation
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
             yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[0]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[3]));
         }
 
         private IEnumerator CaptureIntroScreenshot(string outputDir)
@@ -314,7 +320,7 @@ namespace Decantra.Presentation
             intro.EnableScreenshotMode();
             StartCoroutine(intro.Play());
             yield return new WaitForSeconds(intro.GetCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[1]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[4]));
             intro.DismissEarly();
             yield return new WaitForSeconds(0.5f);
         }
@@ -333,7 +339,7 @@ namespace Decantra.Presentation
             banner.Show(2, 4, 280, false, () => { }, () => complete = true);
             yield return WaitForInterstitialVisible();
             yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[7]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[10]));
             float timeout = 4f;
             float elapsed = 0f;
             while (!complete && elapsed < timeout)
@@ -387,6 +393,66 @@ namespace Decantra.Presentation
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
 
             controller.HideOptionsOverlay();
+            yield return null;
+        }
+
+        private IEnumerator CaptureHelpOverlayScreenshot(GameController controller, string outputDir, string fileName)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.HideHowToPlayOverlay();
+            controller.HideOptionsOverlay();
+            yield return null;
+
+            controller.ShowOptionsOverlay();
+            yield return WaitForOptionsOverlayVisible(controller);
+            if (_failed)
+            {
+                controller.HideOptionsOverlay();
+                yield break;
+            }
+
+            controller.ShowHowToPlayOverlay();
+            yield return WaitForHowToPlayOverlayVisible(controller);
+            if (_failed)
+            {
+                controller.HideHowToPlayOverlay();
+                controller.HideOptionsOverlay();
+                yield break;
+            }
+
+            yield return new WaitForSeconds(0.2f);
+            yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+
+            controller.HideHowToPlayOverlay();
+            controller.HideOptionsOverlay();
+            yield return null;
+        }
+
+        private IEnumerator CaptureStartupFadeMidpoint(string outputDir, string fileName)
+        {
+            var intro = UnityEngine.Object.FindFirstObjectByType<IntroBanner>();
+            if (intro == null)
+            {
+                Debug.LogWarning("RuntimeScreenshot: intro banner not found; skipping startup fade midpoint capture.");
+                yield break;
+            }
+
+            intro.ShowBlackOverlayImmediate();
+            yield return new WaitForEndOfFrame();
+
+            StartCoroutine(intro.FadeToClear(0.8f));
+            yield return new WaitForSeconds(0.4f);
+            yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+
+            intro.HideImmediate();
             yield return null;
         }
 
@@ -447,6 +513,31 @@ namespace Decantra.Presentation
             }
 
             Debug.LogError("RuntimeScreenshot: Options overlay did not become visible within timeout.");
+            _failed = true;
+        }
+
+        private IEnumerator WaitForHowToPlayOverlayVisible(GameController controller)
+        {
+            float timeout = 2f;
+            float elapsed = 0f;
+            while (elapsed < timeout)
+            {
+                if (controller != null && controller.IsHowToPlayOverlayVisible)
+                {
+                    yield break;
+                }
+
+                var overlay = GameObject.Find("HowToPlayOverlay");
+                if (overlay != null && overlay.activeInHierarchy)
+                {
+                    yield break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Debug.LogError("RuntimeScreenshot: How to Play overlay did not become visible within timeout.");
             _failed = true;
         }
 

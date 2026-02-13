@@ -63,6 +63,39 @@ namespace Decantra.Presentation
             SetLogoRaycasts(false);
         }
 
+        public void ShowBlackOverlayImmediate()
+        {
+            EnsureReferences();
+            ApplyLayout();
+            _dismissRequested = false;
+            _isPlaying = false;
+            SetLogoAlpha(0f);
+            SetBackgroundAlpha(1f);
+            SetLogoRaycasts(false);
+        }
+
+        public IEnumerator FadeToClear(float duration)
+        {
+            EnsureReferences();
+            _dismissRequested = false;
+            _isPlaying = true;
+            SetLogoAlpha(0f);
+            SetLogoRaycasts(false);
+
+            float totalDuration = Mathf.Max(0.01f, duration);
+            float elapsed = 0f;
+            while (elapsed < totalDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / totalDuration);
+                SetBackgroundAlpha(1f - t);
+                yield return null;
+            }
+
+            SetBackgroundAlpha(0f);
+            _isPlaying = false;
+        }
+
         public IEnumerator Play()
         {
             EnsureReferences();
