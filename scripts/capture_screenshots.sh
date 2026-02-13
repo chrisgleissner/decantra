@@ -137,6 +137,9 @@ fi
 adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null
 
 expected=(
+  "startup_fade_in_midpoint.png"
+  "help_overlay.png"
+  "options_panel_typography.png"
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"
   "screenshot-03-level-01.png"
