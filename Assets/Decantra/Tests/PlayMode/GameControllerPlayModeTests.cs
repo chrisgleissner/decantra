@@ -104,6 +104,56 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator FirstMove_DoesNotShiftBottleGridVertically()
+        {
+            SceneBootstrap.EnsureScene();
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller, "GameController not found.");
+
+            float readyTimeout = 8f;
+            float readyElapsed = 0f;
+            while (readyElapsed < readyTimeout && (!controller.HasActiveLevel || controller.IsInputLocked))
+            {
+                readyElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Controller did not load an active level in time.");
+            Assert.IsFalse(controller.IsInputLocked, "Controller remained input-locked after startup.");
+
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            var gridRect = GameObject.Find("BottleGrid")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(gridRect, "BottleGrid RectTransform not found.");
+
+            float beforeAnchoredY = gridRect.anchoredPosition.y;
+
+            var state = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(state, "Controller state not available.");
+            Assert.IsTrue(TryFindValidMove(state, out int source, out int target), "No valid move found in initial state.");
+
+            int poured = controller.GetPourAmount(source, target);
+            Assert.Greater(poured, 0, "Resolved move had zero pour amount.");
+            float expectedDuration = Mathf.Max(0.2f, 0.12f * poured);
+
+            controller.OnBottleTapped(source);
+            yield return null;
+            controller.OnBottleTapped(target);
+
+            yield return new WaitForSeconds(expectedDuration + 0.25f);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            float afterAnchoredY = gridRect.anchoredPosition.y;
+            float delta = afterAnchoredY - beforeAnchoredY;
+
+            Assert.AreEqual(0f, delta, 0.0001f,
+                $"BottleGrid anchored Y changed after first move. Before={beforeAnchoredY:F6}, After={afterAnchoredY:F6}, Delta={delta:F6}");
+        }
+
+        [UnityTest]
         public IEnumerator OutOfMoves_ShowsFailureAndBlocksInput()
         {
             SceneBootstrap.EnsureScene();

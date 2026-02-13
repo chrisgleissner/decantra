@@ -24,6 +24,7 @@ namespace Decantra.Presentation.View
         private LayoutElement layoutElement;
         private CanvasGroup canvasGroup;
         private GridLayoutGroup gridLayout;
+        private HudSafeLayout hudSafeLayout;
         private Vector3 originalPosition;
         private Transform originalParent;
         private BottleInput currentTarget;
@@ -47,6 +48,7 @@ namespace Decantra.Presentation.View
             layoutElement ??= GetComponent<LayoutElement>() ?? gameObject.AddComponent<LayoutElement>();
             canvasGroup ??= GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
             gridLayout ??= GetComponentInParent<GridLayoutGroup>();
+            hudSafeLayout ??= GetComponentInParent<HudSafeLayout>();
         }
 
         public void OnPointerClick(PointerEventData eventData)
@@ -168,6 +170,7 @@ namespace Decantra.Presentation.View
             if (gridLayout != null)
             {
                 gridLayout.enabled = true;
+                hudSafeLayout?.MarkLayoutDirty();
             }
             if (canvasGroup != null)
             {

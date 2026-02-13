@@ -44,6 +44,11 @@ namespace Decantra.Presentation.View
         private RectOffset _baseGridPadding;
         private Vector2 _baseGridSize;
 
+        public void MarkLayoutDirty()
+        {
+            _dirty = true;
+        }
+
         public void Configure(RectTransform topHudRect, RectTransform secondaryHudRect, RectTransform brandLockupRect,
             RectTransform bottomHudRect, RectTransform bottleAreaRect, RectTransform bottleGridRect,
             float topPaddingPx, float bottomPaddingPx)
