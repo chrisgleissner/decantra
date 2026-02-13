@@ -9,6 +9,9 @@ See <https://www.gnu.org/licenses/> for details.
 using System;
 using System.Collections;
 using System.IO;
+using System.Reflection;
+using Decantra.Domain.Model;
+using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,6 +25,8 @@ namespace Decantra.Presentation
         private const string MotionCaptureFlag = "decantra_motion_capture";
         private const string OutputDirectoryName = "DecantraScreenshots";
         private const string MotionDirectoryName = "motion";
+        private const string InitialRenderFileName = "initial_render.png";
+        private const string AfterFirstMoveFileName = "after_first_move.png";
         private const int MotionFrameCount = 6;
         private const float MotionFrameIntervalMs = 600f;
 
@@ -79,6 +84,8 @@ namespace Decantra.Presentation
 
             string outputDir = Path.Combine(Application.persistentDataPath, OutputDirectoryName);
             Directory.CreateDirectory(outputDir);
+
+            yield return CaptureFirstMoveShiftEvidence(controller, outputDir);
 
             yield return CaptureStartupFadeMidpoint(outputDir, ScreenshotFiles[0]);
             yield return CaptureLaunchScreenshot(outputDir);
@@ -298,6 +305,182 @@ namespace Decantra.Presentation
                 elapsed += Time.unscaledDeltaTime;
                 yield return null;
             }
+        }
+
+        private IEnumerator CaptureFirstMoveShiftEvidence(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+            yield return new WaitForSeconds(0.2f);
+            yield return new WaitForEndOfFrame();
+
+            var gridRect = GameObject.Find("BottleGrid")?.GetComponent<RectTransform>();
+            if (gridRect == null)
+            {
+                Debug.LogError("RuntimeScreenshot: BottleGrid not found for first-move evidence capture.");
+                _failed = true;
+                yield break;
+            }
+
+            var before = CaptureGridSnapshot(gridRect);
+            Debug.Log($"RuntimeScreenshot GridBefore anchoredY={before.AnchoredY:F3} centerY={before.WorldCenterY:F3} minY={before.WorldMinY:F3} canvasScale={before.CanvasScale:F3} screen={before.ScreenWidth}x{before.ScreenHeight} safe={before.SafeAreaX:F1},{before.SafeAreaY:F1},{before.SafeAreaWidth:F1},{before.SafeAreaHeight:F1} bottles=[{before.BottleLocalYCsv}]");
+            yield return CaptureScreenshot(Path.Combine(outputDir, InitialRenderFileName));
+
+            if (!TryFindFirstValidMove(controller, out int source, out int target, out float duration))
+            {
+                Debug.LogError("RuntimeScreenshot: no valid first move found.");
+                _failed = true;
+                yield break;
+            }
+
+            controller.OnBottleTapped(source);
+            yield return null;
+            controller.OnBottleTapped(target);
+
+            yield return new WaitForSeconds(Mathf.Max(0.25f, duration + 0.2f));
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            var after = CaptureGridSnapshot(gridRect);
+            Debug.Log($"RuntimeScreenshot GridAfter anchoredY={after.AnchoredY:F3} centerY={after.WorldCenterY:F3} minY={after.WorldMinY:F3} canvasScale={after.CanvasScale:F3} screen={after.ScreenWidth}x{after.ScreenHeight} safe={after.SafeAreaX:F1},{after.SafeAreaY:F1},{after.SafeAreaWidth:F1},{after.SafeAreaHeight:F1} bottles=[{after.BottleLocalYCsv}]");
+            yield return CaptureScreenshot(Path.Combine(outputDir, AfterFirstMoveFileName));
+
+            float anchoredDelta = after.AnchoredY - before.AnchoredY;
+            float worldMinDelta = after.WorldMinY - before.WorldMinY;
+            float roundedAnchoredDelta = Mathf.Round(anchoredDelta * 1000f) / 1000f;
+
+            Debug.Log($"RuntimeScreenshot GridDelta anchoredY={anchoredDelta:F6} rounded={roundedAnchoredDelta:F3} worldMinY={worldMinDelta:F6}");
+            if (roundedAnchoredDelta != 0f)
+            {
+                Debug.LogError($"RuntimeScreenshot: grid shifted after first move (rounded anchored delta={roundedAnchoredDelta:F3}).");
+                _failed = true;
+            }
+        }
+
+        private static GridSnapshot CaptureGridSnapshot(RectTransform gridRect)
+        {
+            var corners = new Vector3[4];
+            gridRect.GetWorldCorners(corners);
+
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                minY = Mathf.Min(minY, corners[i].y);
+                maxY = Mathf.Max(maxY, corners[i].y);
+            }
+
+            var canvas = gridRect.GetComponentInParent<Canvas>();
+            float scale = canvas != null ? canvas.scaleFactor : 1f;
+
+            string bottleLocalY = BuildBottleLocalYCsv(gridRect);
+
+            Rect safeArea = Screen.safeArea;
+
+            return new GridSnapshot(
+                gridRect.anchoredPosition.y,
+                (minY + maxY) * 0.5f,
+                minY,
+                scale,
+                Screen.width,
+                Screen.height,
+                safeArea.x,
+                safeArea.y,
+                safeArea.width,
+                safeArea.height,
+                bottleLocalY);
+        }
+
+        private static string BuildBottleLocalYCsv(RectTransform gridRect)
+        {
+            if (gridRect == null) return string.Empty;
+
+            var values = new System.Text.StringBuilder();
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                if (!(gridRect.GetChild(i) is RectTransform child))
+                {
+                    continue;
+                }
+
+                if (values.Length > 0)
+                {
+                    values.Append(", ");
+                }
+
+                values.Append(child.name);
+                values.Append(':');
+                values.Append(child.localPosition.y.ToString("F3"));
+            }
+
+            return values.ToString();
+        }
+
+        private static bool TryFindFirstValidMove(GameController controller, out int source, out int target, out float duration)
+        {
+            source = -1;
+            target = -1;
+            duration = 0f;
+
+            if (controller == null) return false;
+
+            var stateField = typeof(GameController).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (stateField == null) return false;
+            if (!(stateField.GetValue(controller) is LevelState state)) return false;
+
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                for (int j = 0; j < state.Bottles.Count; j++)
+                {
+                    if (i == j) continue;
+                    int poured = MoveRules.GetPourAmount(state, i, j);
+                    if (poured <= 0) continue;
+
+                    source = i;
+                    target = j;
+                    duration = Mathf.Max(0.2f, 0.12f * poured);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private readonly struct GridSnapshot
+        {
+            public GridSnapshot(float anchoredY, float worldCenterY, float worldMinY, float canvasScale, int screenWidth, int screenHeight, float safeAreaX, float safeAreaY, float safeAreaWidth, float safeAreaHeight, string bottleLocalYCsv)
+            {
+                AnchoredY = anchoredY;
+                WorldCenterY = worldCenterY;
+                WorldMinY = worldMinY;
+                CanvasScale = canvasScale;
+                ScreenWidth = screenWidth;
+                ScreenHeight = screenHeight;
+                SafeAreaX = safeAreaX;
+                SafeAreaY = safeAreaY;
+                SafeAreaWidth = safeAreaWidth;
+                SafeAreaHeight = safeAreaHeight;
+                BottleLocalYCsv = bottleLocalYCsv ?? string.Empty;
+            }
+
+            public float AnchoredY { get; }
+            public float WorldCenterY { get; }
+            public float WorldMinY { get; }
+            public float CanvasScale { get; }
+            public int ScreenWidth { get; }
+            public int ScreenHeight { get; }
+            public float SafeAreaX { get; }
+            public float SafeAreaY { get; }
+            public float SafeAreaWidth { get; }
+            public float SafeAreaHeight { get; }
+            public string BottleLocalYCsv { get; }
         }
 
         private IEnumerator CaptureLaunchScreenshot(string outputDir)
