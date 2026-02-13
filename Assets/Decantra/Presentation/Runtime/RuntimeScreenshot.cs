@@ -91,6 +91,9 @@ namespace Decantra.Presentation
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[11]);
             yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[2]);
+            // Capture the options overlay twice: once with the new descriptive filename
+            // ("options_panel_typography.png") and once with the legacy numbered filename
+            // ("screenshot-10-options.png") to preserve backward compatibility with existing assets.
             yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[12]);
             yield return CaptureHelpOverlayScreenshot(controller, outputDir, ScreenshotFiles[1]);
 
