@@ -156,6 +156,7 @@ namespace Decantra.Tests.PlayMode
         /// <summary>
         /// Regression test: simulates a drag-release cycle (the trigger for the upward shift bug)
         /// and asserts that individual bottle Y positions do not change.
+        /// Captures before/after screenshots and writes a JSON report under Artifacts/drag-release-test/.
         /// </summary>
         [UnityTest]
         public IEnumerator FirstDragRelease_DoesNotShiftBottlePositions()
@@ -184,13 +185,28 @@ namespace Decantra.Tests.PlayMode
             var gridRect = GameObject.Find("BottleGrid")?.GetComponent<RectTransform>();
             Assert.IsNotNull(gridRect, "BottleGrid RectTransform not found.");
 
+            // Prepare artifact output directory
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string outputDir = Path.Combine(projectRoot, "Artifacts", "drag-release-test");
+            Directory.CreateDirectory(outputDir);
+
             // Capture per-bottle Y positions BEFORE drag
             var beforePositions = new float[gridRect.childCount];
+            var bottleNames = new string[gridRect.childCount];
             for (int i = 0; i < gridRect.childCount; i++)
             {
                 var child = gridRect.GetChild(i) as RectTransform;
                 if (child != null)
+                {
                     beforePositions[i] = child.anchoredPosition.y;
+                    bottleNames[i] = child.name;
+                }
+            }
+
+            // Screenshot BEFORE drag (skip in batchmode — WaitForEndOfFrame hangs)
+            if (!Application.isBatchMode)
+            {
+                yield return CaptureTestScreenshot(Path.Combine(outputDir, "before_drag.png"));
             }
 
             // Find a draggable bottle
@@ -218,22 +234,36 @@ namespace Decantra.Tests.PlayMode
                 yield return null;
             }
 
-            // Simulate drag release: re-enable GridLayoutGroup and mark dirty (same as AnimateReturn)
+            // Simulate drag release: re-enable GridLayoutGroup then flush pending
+            // CanvasUpdateRegistry rebuild, exactly mimicking AnimateReturn.
             gridLayout.enabled = true;
+            Canvas.ForceUpdateCanvases();
             var safeLayout = Object.FindFirstObjectByType<HudSafeLayout>();
             if (safeLayout != null)
             {
                 safeLayout.MarkLayoutDirty();
             }
 
-            // Let layout re-settle
-            Canvas.ForceUpdateCanvases();
+            // Let layout re-settle (LateUpdate applies ForceRebuild + TopRowOffset)
             yield return null;
             yield return null;
 
-            // Capture per-bottle Y positions AFTER drag
+            // Screenshot AFTER drag-release (skip in batchmode — WaitForEndOfFrame hangs)
+            if (!Application.isBatchMode)
+            {
+                yield return CaptureTestScreenshot(Path.Combine(outputDir, "after_drag.png"));
+            }
+
+            // Capture per-bottle Y positions AFTER drag and compute deltas
             float maxDelta = 0f;
             string worstChild = "";
+            var report = new System.Text.StringBuilder();
+            report.AppendLine("{");
+            report.AppendLine($"  \"timestamp\": \"{System.DateTime.UtcNow:O}\",");
+            report.AppendLine($"  \"screen\": \"{Screen.width}x{Screen.height}\",");
+            report.AppendLine("  \"bottles\": [");
+
+            int activeCount = 0;
             for (int i = 0; i < gridRect.childCount; i++)
             {
                 var child = gridRect.GetChild(i) as RectTransform;
@@ -245,10 +275,60 @@ namespace Decantra.Tests.PlayMode
                     maxDelta = d;
                     worstChild = $"{child.name} before={beforePositions[i]:F4} after={afterY:F4}";
                 }
+
+                if (activeCount > 0) report.AppendLine(",");
+                report.Append($"    {{ \"name\": \"{bottleNames[i]}\", \"beforeY\": {beforePositions[i]:F4}, \"afterY\": {afterY:F4}, \"deltaY\": {(afterY - beforePositions[i]):F4} }}");
+                activeCount++;
             }
+
+            report.AppendLine();
+            report.AppendLine("  ],");
+            report.AppendLine($"  \"maxDeltaY\": {maxDelta:F6},");
+            report.AppendLine($"  \"worstBottle\": \"{worstChild}\",");
+            report.AppendLine($"  \"pass\": {(maxDelta < 0.5f ? "true" : "false")}");
+            report.AppendLine("}");
+
+            string reportPath = Path.Combine(outputDir, "report.json");
+            File.WriteAllText(reportPath, report.ToString());
+            Debug.Log($"Drag-release test report written to {reportPath}");
 
             Assert.AreEqual(0f, maxDelta, 0.5f,
                 $"Bottle positions shifted after drag-release. Worst delta={maxDelta:F4} ({worstChild})");
+        }
+
+        /// <summary>
+        /// Captures a screenshot to the given path. Gracefully logs and continues if capture fails
+        /// (e.g. in batchmode with no GPU).
+        /// </summary>
+        private static IEnumerator CaptureTestScreenshot(string path)
+        {
+            yield return new WaitForEndOfFrame();
+            try
+            {
+                var texture = ScreenCapture.CaptureScreenshotAsTexture();
+                if (texture != null)
+                {
+                    var bytes = texture.EncodeToPNG();
+                    Object.Destroy(texture);
+                    if (bytes != null && bytes.Length > 0)
+                    {
+                        File.WriteAllBytes(path, bytes);
+                        Debug.Log($"Screenshot saved: {path} ({bytes.Length} bytes)");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Screenshot encode failed for {path}");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"Screenshot capture returned null for {path} (expected in batchmode)");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"Screenshot capture failed for {path}: {ex.Message}");
+            }
         }
 
         [UnityTest]
