@@ -328,40 +328,115 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            var gridLayout = gridRect.GetComponent<GridLayoutGroup>();
+
+            // Capture per-bottle positions BEFORE drag
+            var beforePositions = CaptureBottlePositions(gridRect);
             var before = CaptureGridSnapshot(gridRect);
             Debug.Log($"RuntimeScreenshot GridBefore anchoredY={before.AnchoredY:F3} centerY={before.WorldCenterY:F3} minY={before.WorldMinY:F3} canvasScale={before.CanvasScale:F3} screen={before.ScreenWidth}x{before.ScreenHeight} safe={before.SafeAreaX:F1},{before.SafeAreaY:F1},{before.SafeAreaWidth:F1},{before.SafeAreaHeight:F1} bottles=[{before.BottleLocalYCsv}]");
             yield return CaptureScreenshot(Path.Combine(outputDir, InitialRenderFileName));
 
-            if (!TryFindFirstValidMove(controller, out int source, out int target, out float duration))
+            // Simulate drag-release (the actual bug trigger) instead of tap-pour
+            if (gridLayout != null)
             {
-                Debug.LogError("RuntimeScreenshot: no valid first move found.");
-                _failed = true;
-                yield break;
+                gridLayout.enabled = false;
             }
 
-            controller.OnBottleTapped(source);
-            yield return null;
-            controller.OnBottleTapped(target);
+            // Wait frames to let cumulative offset bug manifest (pre-fix)
+            for (int f = 0; f < 10; f++)
+            {
+                yield return null;
+            }
 
-            yield return new WaitForSeconds(Mathf.Max(0.25f, duration + 0.2f));
+            // Simulate drag release
+            if (gridLayout != null)
+            {
+                gridLayout.enabled = true;
+            }
+
+            var safeLayout = UnityEngine.Object.FindFirstObjectByType<Decantra.Presentation.View.HudSafeLayout>();
+            if (safeLayout != null)
+            {
+                safeLayout.MarkLayoutDirty();
+            }
+
             Canvas.ForceUpdateCanvases();
             yield return null;
             yield return new WaitForEndOfFrame();
 
+            var afterPositions = CaptureBottlePositions(gridRect);
             var after = CaptureGridSnapshot(gridRect);
             Debug.Log($"RuntimeScreenshot GridAfter anchoredY={after.AnchoredY:F3} centerY={after.WorldCenterY:F3} minY={after.WorldMinY:F3} canvasScale={after.CanvasScale:F3} screen={after.ScreenWidth}x{after.ScreenHeight} safe={after.SafeAreaX:F1},{after.SafeAreaY:F1},{after.SafeAreaWidth:F1},{after.SafeAreaHeight:F1} bottles=[{after.BottleLocalYCsv}]");
             yield return CaptureScreenshot(Path.Combine(outputDir, AfterFirstMoveFileName));
 
-            float anchoredDelta = after.AnchoredY - before.AnchoredY;
-            float worldMinDelta = after.WorldMinY - before.WorldMinY;
-            float roundedAnchoredDelta = Mathf.Round(anchoredDelta * 1000f) / 1000f;
+            // Compute per-bottle deltas and max shift
+            float maxBottleDelta = 0f;
+            string worstBottle = "";
+            var reportBuilder = new System.Text.StringBuilder();
+            reportBuilder.AppendLine("{");
+            reportBuilder.AppendLine($"  \"resolution\": \"{before.ScreenWidth}x{before.ScreenHeight}\",");
+            reportBuilder.AppendLine($"  \"scaleFactor\": {before.CanvasScale:F4},");
+            reportBuilder.AppendLine($"  \"safeArea\": {{ \"x\": {before.SafeAreaX:F1}, \"y\": {before.SafeAreaY:F1}, \"w\": {before.SafeAreaWidth:F1}, \"h\": {before.SafeAreaHeight:F1} }},");
+            reportBuilder.AppendLine($"  \"gridAnchoredY\": {{ \"before\": {before.AnchoredY:F6}, \"after\": {after.AnchoredY:F6}, \"delta\": {(after.AnchoredY - before.AnchoredY):F6} }},");
+            reportBuilder.AppendLine("  \"bottles\": [");
 
-            Debug.Log($"RuntimeScreenshot GridDelta anchoredY={anchoredDelta:F6} rounded={roundedAnchoredDelta:F3} worldMinY={worldMinDelta:F6}");
-            if (roundedAnchoredDelta != 0f)
+            int bottleCount = Mathf.Min(beforePositions.Length, afterPositions.Length);
+            for (int i = 0; i < bottleCount; i++)
             {
-                Debug.LogError($"RuntimeScreenshot: grid shifted after first move (rounded anchored delta={roundedAnchoredDelta:F3}).");
+                float d = afterPositions[i].y - beforePositions[i].y;
+                if (Mathf.Abs(d) > Mathf.Abs(maxBottleDelta))
+                {
+                    maxBottleDelta = d;
+                    worstBottle = beforePositions[i].name;
+                }
+                string comma = i < bottleCount - 1 ? "," : "";
+                reportBuilder.AppendLine($"    {{ \"name\": \"{beforePositions[i].name}\", \"beforeY\": {beforePositions[i].y:F4}, \"afterY\": {afterPositions[i].y:F4}, \"deltaY\": {d:F4} }}{comma}");
+            }
+
+            reportBuilder.AppendLine("  ],");
+            reportBuilder.AppendLine($"  \"maxBottleDeltaY\": {maxBottleDelta:F6},");
+            reportBuilder.AppendLine($"  \"worstBottle\": \"{worstBottle}\",");
+            reportBuilder.AppendLine($"  \"pass\": {(Mathf.Abs(maxBottleDelta) < 0.5f ? "true" : "false")}");
+            reportBuilder.AppendLine("}");
+
+            string reportPath = Path.Combine(outputDir, "report.json");
+            try
+            {
+                File.WriteAllText(reportPath, reportBuilder.ToString());
+                Debug.Log($"RuntimeScreenshot: wrote delta report to {reportPath}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"RuntimeScreenshot: failed to write report: {ex.Message}");
+            }
+
+            Debug.Log($"RuntimeScreenshot BottleDelta maxY={maxBottleDelta:F6} worst={worstBottle}");
+            if (Mathf.Abs(maxBottleDelta) >= 0.5f)
+            {
+                Debug.LogError($"RuntimeScreenshot: bottles shifted after drag-release (max delta={maxBottleDelta:F4}, bottle={worstBottle}).");
                 _failed = true;
             }
+        }
+
+        private struct BottlePosition
+        {
+            public string name;
+            public float y;
+        }
+
+        private static BottlePosition[] CaptureBottlePositions(RectTransform gridRect)
+        {
+            var positions = new BottlePosition[gridRect.childCount];
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                var child = gridRect.GetChild(i) as RectTransform;
+                positions[i] = new BottlePosition
+                {
+                    name = child != null ? child.name : $"child_{i}",
+                    y = child != null ? child.anchoredPosition.y : 0f
+                };
+            }
+            return positions;
         }
 
         private static GridSnapshot CaptureGridSnapshot(RectTransform gridRect)

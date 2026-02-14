@@ -153,6 +153,104 @@ namespace Decantra.Tests.PlayMode
                 $"BottleGrid anchored Y changed after first move. Before={beforeAnchoredY:F6}, After={afterAnchoredY:F6}, Delta={delta:F6}");
         }
 
+        /// <summary>
+        /// Regression test: simulates a drag-release cycle (the trigger for the upward shift bug)
+        /// and asserts that individual bottle Y positions do not change.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FirstDragRelease_DoesNotShiftBottlePositions()
+        {
+            SceneBootstrap.EnsureScene();
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller, "GameController not found.");
+
+            float readyTimeout = 8f;
+            float readyElapsed = 0f;
+            while (readyElapsed < readyTimeout && (!controller.HasActiveLevel || controller.IsInputLocked))
+            {
+                readyElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Controller did not load an active level in time.");
+            Assert.IsFalse(controller.IsInputLocked, "Controller remained input-locked after startup.");
+
+            // Let layout fully stabilize
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+            yield return null;
+
+            var gridRect = GameObject.Find("BottleGrid")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(gridRect, "BottleGrid RectTransform not found.");
+
+            // Capture per-bottle Y positions BEFORE drag
+            var beforePositions = new float[gridRect.childCount];
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                var child = gridRect.GetChild(i) as RectTransform;
+                if (child != null)
+                    beforePositions[i] = child.anchoredPosition.y;
+            }
+
+            // Find a draggable bottle
+            var state = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(state, "Controller state not available.");
+            int dragIndex = -1;
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                if (Decantra.Domain.Rules.InteractionRules.CanDrag(state.Bottles[i]))
+                {
+                    dragIndex = i;
+                    break;
+                }
+            }
+            Assert.GreaterOrEqual(dragIndex, 0, "No draggable bottle found.");
+
+            // Simulate drag: disable GridLayoutGroup (same as OnBeginDrag)
+            var gridLayout = gridRect.GetComponent<GridLayoutGroup>();
+            Assert.IsNotNull(gridLayout, "GridLayoutGroup not found.");
+            gridLayout.enabled = false;
+
+            // Wait a few frames (simulates drag duration where cumulative offset would build up)
+            for (int f = 0; f < 10; f++)
+            {
+                yield return null;
+            }
+
+            // Simulate drag release: re-enable GridLayoutGroup and mark dirty (same as AnimateReturn)
+            gridLayout.enabled = true;
+            var safeLayout = Object.FindFirstObjectByType<HudSafeLayout>();
+            if (safeLayout != null)
+            {
+                safeLayout.MarkLayoutDirty();
+            }
+
+            // Let layout re-settle
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+            yield return null;
+
+            // Capture per-bottle Y positions AFTER drag
+            float maxDelta = 0f;
+            string worstChild = "";
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                var child = gridRect.GetChild(i) as RectTransform;
+                if (child == null || !child.gameObject.activeSelf) continue;
+                float afterY = child.anchoredPosition.y;
+                float d = Mathf.Abs(afterY - beforePositions[i]);
+                if (d > maxDelta)
+                {
+                    maxDelta = d;
+                    worstChild = $"{child.name} before={beforePositions[i]:F4} after={afterY:F4}";
+                }
+            }
+
+            Assert.AreEqual(0f, maxDelta, 0.5f,
+                $"Bottle positions shifted after drag-release. Worst delta={maxDelta:F4} ({worstChild})");
+        }
+
         [UnityTest]
         public IEnumerator OutOfMoves_ShowsFailureAndBlocksInput()
         {
