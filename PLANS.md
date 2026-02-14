@@ -1,143 +1,93 @@
-# PLANS — First-Move Bottle Grid Vertical Shift (2026-02-13)
+# PLANS — First-Drag Bottle Grid Vertical Shift (2026-02-14)
 
 ## Objective
 
-Eliminate the one-time upward shift of the 3x3 bottle grid occurring between first gameplay render and the first player move, with deterministic proof and no regressions.
+Eliminate the one-time upward shift of the bottle grid on first drag-release, with deterministic proof and no regressions.
 
 ## Scope Constraints
 
-- [x] No gameplay mechanics changes.
-- [x] No intentional spacing/alignment redesign.
-- [x] No unrelated refactors.
-- [x] No timing hacks unless justified and documented.
+- [ ] No gameplay mechanics changes.
+- [ ] No intentional spacing/alignment redesign.
+- [ ] No unrelated refactors.
+- [ ] No timing hacks unless justified and documented.
 
 ## Assumptions
 
 - [x] Primary runtime scene is created by `SceneBootstrap.EnsureScene()`.
 - [x] Grid root is `BottleGrid` under `BottleArea`.
 - [x] Layout authority is `HudSafeLayout` + `GridLayoutGroup`.
-- [ ] Confirmed on automated run that bug reproduces pre-fix. (not reproducible on Linux batchmode / emulator under current build)
+- [x] Bug triggers on drag-release only (not on tap, OPTIONS, or RESET).
+
+## Root Cause Analysis
+
+### Problem Statement
+When the first playable level appears and the user drags a bottle and releases it, all bottles shift
+upward by ~10 px. The shift is permanent (positions remain after shift) and only occurs once per
+session.
+
+### Compounding bugs identified
+
+**Bug 1 — `hudSafeLayout` is always `null` in `BottleInput`**
+Bottles live under `Canvas_Game/BottleArea/BottleGrid/Bottle_N`. `HudSafeLayout` lives on `Canvas_UI`.
+`GetComponentInParent<HudSafeLayout>()` only searches ancestors, so it never finds the component.
+The prior fix's `hudSafeLayout?.MarkLayoutDirty()` in `AnimateReturn` was a **silent no-op**.
+
+**Bug 2 — Cumulative offset during drag + deferred application**
+`ApplyTopRowsDownwardOffset()` is applied via a deferred `Canvas.willRenderCanvases` callback AFTER
+`ForceRebuildLayoutImmediate` runs in `LateUpdate`. This creates two problems:
+
+1. **Timing gap**: Between the `ForceRebuild` (children at canonical positions) and the deferred
+   offset (children shifted down), there is a window where any intervening layout rebuild can undo
+   the offset.
+
+2. **Cumulative offset during drag**: While `GridLayoutGroup` is disabled (during drag),
+   `ForceRebuildLayoutImmediate` is a no-op (disabled grid skipped), yet the deferred callback
+   still applies `ApplyTopRowsDownwardOffset()`. This reads the CURRENT positions (already offset)
+   and subtracts offset again — **cumulatively** pushing non-dragged bottles down by `offset * N`
+   over N drag frames. On drag release, `GridLayoutGroup` re-enables and snaps all children to
+   canonical + 1x offset, producing the visible upward jump.
+
+### Fix
+
+1. **Inline offset application**: Move `ApplyTopRowsDownwardOffset()` from deferred callback
+   directly into `ApplyLayout()`, immediately after `ForceRebuildLayoutImmediate`. No timing gap.
+2. **Guard against cumulative offset**: In `ApplyTopRowsDownwardOffset()`, skip if
+   `GridLayoutGroup` is disabled (positions aren't at canonical values during drag anyway).
+3. **Remove deferred mechanism**: Delete `_pendingTopRowOffset`, `HandleWillRenderCanvases`, and
+   the `Canvas.willRenderCanvases` subscription.
+4. **Fix null reference**: In `BottleInput`, use `FindFirstObjectByType<HudSafeLayout>()` instead
+   of `GetComponentInParent<HudSafeLayout>()` since they're on different canvases.
 
 ## Execution Checklist
 
 ### Phase 1 — Investigation
-
-- [x] Create/replace this `PLANS.md` plan for this incident.
-- [x] Inspect lifecycle paths (`Awake`, `OnEnable`, `Start`, first updates) for gameplay layout.
-- [x] Inspect `RectTransform`/layout systems (`GridLayoutGroup`, `ContentSizeFitter`, safe-area logic).
-- [x] Inspect first-interaction code path (`BottleInput`, `GameController.NotifyFirstInteraction`, first move).
-- [x] Add targeted instrumentation for pre/post-first-move grid coordinates and canvas scale.
-- [x] Capture pre-fix numeric evidence of delta. (delta observed as 0.000 on emulator captures)
-
-### Phase 2 — Root Cause + Fix
-
+- [x] Inspect lifecycle paths and first-interaction code path.
+- [x] Inspect layout systems (GridLayoutGroup, HudSafeLayout, ApplyTopRowsDownwardOffset).
 - [x] Identify root cause with code-level explanation.
-- [x] Implement minimal fix in production code.
-- [x] Keep behavior deterministic and layout-equivalent except removal of unintended shift.
+- [x] Identify why prior fix and prior test were insufficient.
+
+### Phase 2 — Fix
+- [ ] Implement fix in `HudSafeLayout.cs`: inline offset, remove deferred callback, guard grid disabled.
+- [ ] Fix `BottleInput.cs`: use global search for `HudSafeLayout`.
+- [ ] Ensure fix is deterministic and layout-equivalent.
 
 ### Phase 3 — Automated Verification
-
-- [x] Add/extend PlayMode test: first rendered level, one valid move, assert grid Y unchanged.
-- [x] Ensure test is deterministic and CI-safe.
-- [ ] Add deterministic screenshot flow for:
-	- [x] `initial_render.png`
-	- [x] `after_first_move.png`
-- [x] Compute/log numeric Y delta and assert exactly zero after fix.
+- [ ] Fix existing PlayMode test to measure individual bottle positions.
+- [ ] Add screenshot + position delta test with artifacts.
+- [ ] Assert zero vertical delta for all bottles between initial render and post-first-drag.
 
 ### Phase 4 — Regression Safety
-
-- [x] Run EditMode tests.
-- [x] Run PlayMode tests (including new regression test).
-- [x] Verify no regressions in bottle alignment/spacing, touch handling, and move animation timing.
-- [x] Document all verification outputs in this file.
-
-## Investigation Notes (Live)
-
-### 2026-02-13T00:00 — Initial code audit
-
-- `HudSafeLayout.ApplyLayout()` force-rebuilds `BottleGrid` and then sets `_pendingTopRowOffset = true`.
-- `HudSafeLayout.HandleWillRenderCanvases()` applies a row offset by directly mutating child `anchoredPosition` values.
-- `BottleInput.OnBeginDrag()` toggles `GridLayoutGroup.enabled` off; `AnimateReturn()` toggles it on.
-- `GameController.NotifyFirstInteraction()` only toggles `_introDismissed`; no direct layout mutations.
-- Existing screenshot automation in `RuntimeScreenshot` can be extended for deterministic artifact capture.
-
-### 2026-02-13T00:20 — Instrumentation and regression test added
-
-- `RuntimeScreenshot` now captures deterministic first-move stability artifacts:
-	- `initial_render.png`
-	- `after_first_move.png`
-- Runtime logs now include before/after values for:
-	- grid `anchoredPosition.y`
-	- grid world center/min Y
-	- canvas scale factor
-	- per-bottle local Y positions
-- Runtime now computes and logs numeric first-move delta and flags failure when rounded anchored Y delta is non-zero.
-- New PlayMode regression test added in `GameControllerPlayModeTests`:
-	- `FirstMove_DoesNotShiftBottleGridVertically`
-	- waits for startup stabilisation
-	- executes exactly one valid move
-	- asserts zero anchored Y delta
-
-### Working hypothesis (to verify)
-
-- A one-time first-interaction rebuild resets child positions managed by `GridLayoutGroup` after the top-row offset has been applied manually, creating visible upward displacement.
-- Need instrumentation and pre-fix test evidence before finalizing this hypothesis.
-
-### 2026-02-13T00:40 — Root cause and fix implementation
-
-- Root cause identified in layout synchronization boundary:
-	- `BottleInput` disables and re-enables parent `GridLayoutGroup` during drag lifecycle.
-	- `HudSafeLayout` applies row offsets via deferred canvas-cycle mutation.
-	- If the grid layout is rebuilt between these cycles, a one-time post-first-move visual jump can occur before safe-layout reconciliation.
-- Implemented minimal fix:
-	- Added `HudSafeLayout.MarkLayoutDirty()`.
-	- `BottleInput` now caches `HudSafeLayout` and calls `MarkLayoutDirty()` immediately after re-enabling `GridLayoutGroup` in drag return.
-	- This guarantees deterministic immediate reconciliation on next layout pass after drag-induced rebuilds.
-
-### 2026-02-13T01:00 — Deterministic verification completed
-
-- Targeted PlayMode regression test run:
-	- `Decantra.Tests.PlayMode.GameControllerPlayModeTests.FirstMove_DoesNotShiftBottleGridVertically`
-	- Result: PASS.
-- Full test pipeline run via `./scripts/test.sh`:
-	- EditMode: PASS
-	- PlayMode: PASS
-	- Coverage gate: PASS (`Line coverage: 0.918`, min `0.800`)
-- Android screenshot capture run with `--screenshots-only`:
-	- Output directory: `Artifacts/first-move-shift`
-	- Includes `initial_render.png` and `after_first_move.png` plus legacy captures.
-- Numeric delta logs from runtime instrumentation:
-	- `RuntimeScreenshot GridDelta anchoredY=0.000000 rounded=0.000 worldMinY=0.000000`
-	- Verified across repeated captures on emulator.
+- [ ] Run EditMode tests.
+- [ ] Run PlayMode tests.
+- [ ] Verify no visual regressions.
+- [ ] Update this file with results.
 
 ## Artifact Paths
 
-- `Artifacts/first-move-shift/initial_render.png`
-- `Artifacts/first-move-shift/after_first_move.png`
+- `test-artifacts/layout-shift/A.png` — Initial render before interaction
+- `test-artifacts/layout-shift/B.png` — After first drag-release
+- `test-artifacts/layout-shift/report.json` — Position delta measurements
 
-## Verification Log (Live)
+## Verification Log
 
-- New PlayMode test added and passing:
-	- `FirstMove_DoesNotShiftBottleGridVertically`
-- Runtime screenshot assertion for first-move delta added and passing:
-	- Fails capture flow if rounded anchored delta is non-zero.
-- Export script updated to enforce artifact pull for:
-	- `initial_render.png`
-	- `after_first_move.png`
-
-## Root Cause (Final)
-
-- The one-time jump risk comes from layout synchronization across systems:
-	- `BottleInput` toggles `GridLayoutGroup` during drag.
-	- `HudSafeLayout` applies deferred post-rebuild row positioning.
-	- Without explicit resync signal, a first interaction can land in a transient frame where grid positions appear shifted.
-
-## Fix Summary (Final)
-
-- Added deterministic resync hook:
-	- `HudSafeLayout.MarkLayoutDirty()`
-	- Called from `BottleInput` immediately after re-enabling `GridLayoutGroup` in drag return.
-- Added deterministic proof tooling:
-	- Runtime first-move pre/post snapshots + numeric delta assertion.
-	- Required artifacts `initial_render.png` and `after_first_move.png` exported and validated.
-	- PlayMode regression test asserting zero vertical delta after first move.
+_(To be filled during execution)_

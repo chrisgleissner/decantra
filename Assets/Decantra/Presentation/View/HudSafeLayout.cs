@@ -37,7 +37,6 @@ namespace Decantra.Presentation.View
         private readonly Vector3[] _childCorners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
-        private bool _pendingTopRowOffset;
         private int _lastActiveBottleCount = -1;
         private bool _gridLayoutCached;
         private Vector2 _baseGridSpacing;
@@ -76,12 +75,10 @@ namespace Decantra.Presentation.View
         private void OnEnable()
         {
             _dirty = true;
-            Canvas.willRenderCanvases += HandleWillRenderCanvases;
         }
 
         private void OnDisable()
         {
-            Canvas.willRenderCanvases -= HandleWillRenderCanvases;
         }
 
         private void OnRectTransformDimensionsChange()
@@ -221,13 +218,6 @@ namespace Decantra.Presentation.View
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
             LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
-            _pendingTopRowOffset = true;
-        }
-
-        private void HandleWillRenderCanvases()
-        {
-            if (!_pendingTopRowOffset) return;
-            _pendingTopRowOffset = false;
             ApplyTopRowsDownwardOffset();
         }
 
@@ -303,6 +293,9 @@ namespace Decantra.Presentation.View
         private void ApplyTopRowsDownwardOffset()
         {
             if (bottleGrid == null || secondaryHud == null) return;
+            // Guard: skip when GridLayoutGroup is disabled (e.g. during drag)
+            // to prevent cumulative offset on un-reset positions.
+            if (bottleGridLayout != null && !bottleGridLayout.enabled) return;
             var rows = new List<RowInfo>(3);
             for (int i = 0; i < bottleGrid.childCount; i++)
             {

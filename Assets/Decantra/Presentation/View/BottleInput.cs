@@ -48,7 +48,7 @@ namespace Decantra.Presentation.View
             layoutElement ??= GetComponent<LayoutElement>() ?? gameObject.AddComponent<LayoutElement>();
             canvasGroup ??= GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
             gridLayout ??= GetComponentInParent<GridLayoutGroup>();
-            hudSafeLayout ??= GetComponentInParent<HudSafeLayout>();
+            hudSafeLayout ??= Object.FindFirstObjectByType<HudSafeLayout>();
         }
 
         public void OnPointerClick(PointerEventData eventData)
