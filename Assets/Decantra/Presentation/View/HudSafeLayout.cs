@@ -37,12 +37,12 @@ namespace Decantra.Presentation.View
         private readonly Vector3[] _childCorners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
+        private bool _pendingTopRowOffset;
         private int _lastActiveBottleCount = -1;
         private bool _gridLayoutCached;
         private Vector2 _baseGridSpacing;
         private RectOffset _baseGridPadding;
         private Vector2 _baseGridSize;
-        private RectOffset _cachedPadding;
 
         public void MarkLayoutDirty()
         {
@@ -76,10 +76,12 @@ namespace Decantra.Presentation.View
         private void OnEnable()
         {
             _dirty = true;
+            Canvas.willRenderCanvases += HandleWillRenderCanvases;
         }
 
         private void OnDisable()
         {
+            Canvas.willRenderCanvases -= HandleWillRenderCanvases;
         }
 
         private void OnRectTransformDimensionsChange()
@@ -193,23 +195,11 @@ namespace Decantra.Presentation.View
                     {
                         int gapPx = Mathf.RoundToInt(idealGap);
                         bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, idealGap);
-                        // Reuse the RectOffset instance to avoid spurious
-                        // LayoutGroup.SetDirty calls caused by reference
-                        // inequality when SetProperty compares the old and new
-                        // RectOffset (class, not struct).
-                        if (_cachedPadding == null
-                            || _cachedPadding.left != _baseGridPadding.left
-                            || _cachedPadding.right != _baseGridPadding.right
-                            || _cachedPadding.top != gapPx
-                            || _cachedPadding.bottom != gapPx)
-                        {
-                            _cachedPadding = new RectOffset(
-                                _baseGridPadding.left,
-                                _baseGridPadding.right,
-                                gapPx,
-                                gapPx);
-                        }
-                        bottleGridLayout.padding = _cachedPadding;
+                        bottleGridLayout.padding = new RectOffset(
+                            _baseGridPadding.left,
+                            _baseGridPadding.right,
+                            gapPx,
+                            gapPx);
                         bottleGrid.sizeDelta = new Vector2(
                             bottleGrid.sizeDelta.x,
                             rows * cellHeight + (rows - 1f) * idealGap + 2f * idealGap);
@@ -231,6 +221,13 @@ namespace Decantra.Presentation.View
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
             LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
+            _pendingTopRowOffset = true;
+        }
+
+        private void HandleWillRenderCanvases()
+        {
+            if (!_pendingTopRowOffset) return;
+            _pendingTopRowOffset = false;
             ApplyTopRowsDownwardOffset();
         }
 
@@ -306,9 +303,6 @@ namespace Decantra.Presentation.View
         private void ApplyTopRowsDownwardOffset()
         {
             if (bottleGrid == null || secondaryHud == null) return;
-            // Guard: skip when GridLayoutGroup is disabled (e.g. during drag)
-            // to prevent cumulative offset on un-reset positions.
-            if (bottleGridLayout != null && !bottleGridLayout.enabled) return;
             var rows = new List<RowInfo>(3);
             for (int i = 0; i < bottleGrid.childCount; i++)
             {
