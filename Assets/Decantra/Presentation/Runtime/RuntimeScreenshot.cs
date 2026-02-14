@@ -348,10 +348,12 @@ namespace Decantra.Presentation
                 yield return null;
             }
 
-            // Simulate drag release
+            // Simulate drag release: re-enable then flush pending CanvasUpdateRegistry
+            // rebuild, exactly as AnimateReturn does after the fix.
             if (gridLayout != null)
             {
                 gridLayout.enabled = true;
+                Canvas.ForceUpdateCanvases();
             }
 
             var safeLayout = UnityEngine.Object.FindFirstObjectByType<Decantra.Presentation.View.HudSafeLayout>();
@@ -360,9 +362,8 @@ namespace Decantra.Presentation
                 safeLayout.MarkLayoutDirty();
             }
 
-            Canvas.ForceUpdateCanvases();
             yield return null;
-            yield return new WaitForEndOfFrame();
+            yield return null;
 
             var afterPositions = CaptureBottlePositions(gridRect);
             var after = CaptureGridSnapshot(gridRect);

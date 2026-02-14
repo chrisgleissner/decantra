@@ -5,10 +5,7 @@ on:
     types: [published]
   push:
     branches:
-      - "main"
-      - "feature/**"
-      - "fix/**"
-      - "hotfix/**"
+      - "**"
   pull_request:
     paths-ignore:
       - "**.md"

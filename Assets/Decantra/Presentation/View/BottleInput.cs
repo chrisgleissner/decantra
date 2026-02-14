@@ -162,7 +162,7 @@ namespace Decantra.Presentation.View
                 time += Time.deltaTime;
                 float t = Mathf.Clamp01(time / duration);
                 rectTransform.position = Vector3.Lerp(start, end, t);
-                yield return new WaitForEndOfFrame();
+                yield return null;
             }
 
             rectTransform.position = end;
@@ -170,6 +170,12 @@ namespace Decantra.Presentation.View
             if (gridLayout != null)
             {
                 gridLayout.enabled = true;
+                // Flush the pending CanvasUpdateRegistry rebuild caused by
+                // GridLayoutGroup.OnEnable() → SetDirty() → MarkLayoutForRebuild.
+                // Without this, CanvasUpdateRegistry.PerformUpdate runs AFTER
+                // HudSafeLayout.ApplyLayout (LateUpdate) and overwrites the
+                // per-row offset that ApplyTopRowsDownwardOffset applied.
+                Canvas.ForceUpdateCanvases();
                 hudSafeLayout?.MarkLayoutDirty();
             }
             if (canvasGroup != null)

@@ -30,6 +30,18 @@ fi
 mkdir -p "${PROJECT_PATH}/Logs"
 mkdir -p "${PROJECT_PATH}/Coverage"
 
+cleanup_unity_test_artifacts() {
+  rm -f "${PROJECT_PATH}"/Assets/InitTestScene*.unity
+  rm -f "${PROJECT_PATH}"/Assets/InitTestScene*.unity.meta
+  rm -f "${PROJECT_PATH}"/Assets/Resources/PerformanceTestRunInfo.json
+  rm -f "${PROJECT_PATH}"/Assets/Resources/PerformanceTestRunInfo.json.meta
+  rm -f "${PROJECT_PATH}"/Assets/Resources/PerformanceTestRunSettings.json
+  rm -f "${PROJECT_PATH}"/Assets/Resources/PerformanceTestRunSettings.json.meta
+}
+
+cleanup_unity_test_artifacts
+trap cleanup_unity_test_artifacts EXIT
+
 sanitize_log() {
   local log_path="$1"
   if [[ ! -f "${log_path}" ]]; then

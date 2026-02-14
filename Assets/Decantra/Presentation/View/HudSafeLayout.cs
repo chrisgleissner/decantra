@@ -42,6 +42,7 @@ namespace Decantra.Presentation.View
         private Vector2 _baseGridSpacing;
         private RectOffset _baseGridPadding;
         private Vector2 _baseGridSize;
+        private RectOffset _cachedPadding;
 
         public void MarkLayoutDirty()
         {
@@ -192,11 +193,23 @@ namespace Decantra.Presentation.View
                     {
                         int gapPx = Mathf.RoundToInt(idealGap);
                         bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, idealGap);
-                        bottleGridLayout.padding = new RectOffset(
-                            _baseGridPadding.left,
-                            _baseGridPadding.right,
-                            gapPx,
-                            gapPx);
+                        // Reuse the RectOffset instance to avoid spurious
+                        // LayoutGroup.SetDirty calls caused by reference
+                        // inequality when SetProperty compares the old and new
+                        // RectOffset (class, not struct).
+                        if (_cachedPadding == null
+                            || _cachedPadding.left != _baseGridPadding.left
+                            || _cachedPadding.right != _baseGridPadding.right
+                            || _cachedPadding.top != gapPx
+                            || _cachedPadding.bottom != gapPx)
+                        {
+                            _cachedPadding = new RectOffset(
+                                _baseGridPadding.left,
+                                _baseGridPadding.right,
+                                gapPx,
+                                gapPx);
+                        }
+                        bottleGridLayout.padding = _cachedPadding;
                         bottleGrid.sizeDelta = new Vector2(
                             bottleGrid.sizeDelta.x,
                             rows * cellHeight + (rows - 1f) * idealGap + 2f * idealGap);
