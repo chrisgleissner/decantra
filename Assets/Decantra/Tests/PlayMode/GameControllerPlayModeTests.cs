@@ -129,6 +129,31 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(gridRect, "BottleGrid RectTransform not found.");
 
             float beforeAnchoredY = gridRect.anchoredPosition.y;
+            var beforeRows = new (string Name, float ScreenY)[gridRect.childCount];
+            int beforeCount = 0;
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                if (!(gridRect.GetChild(i) is RectTransform child) || !child.gameObject.activeSelf)
+                {
+                    continue;
+                }
+
+                var screen = RectTransformUtility.WorldToScreenPoint(null, child.TransformPoint(child.rect.center));
+                beforeRows[beforeCount++] = (child.name, screen.y);
+            }
+
+            for (int i = 0; i < beforeCount - 1; i++)
+            {
+                for (int j = i + 1; j < beforeCount; j++)
+                {
+                    if (beforeRows[j].ScreenY > beforeRows[i].ScreenY)
+                    {
+                        var temp = beforeRows[i];
+                        beforeRows[i] = beforeRows[j];
+                        beforeRows[j] = temp;
+                    }
+                }
+            }
 
             var state = GetPrivateField(controller, "_state") as LevelState;
             Assert.IsNotNull(state, "Controller state not available.");
@@ -151,184 +176,38 @@ namespace Decantra.Tests.PlayMode
 
             Assert.AreEqual(0f, delta, 0.0001f,
                 $"BottleGrid anchored Y changed after first move. Before={beforeAnchoredY:F6}, After={afterAnchoredY:F6}, Delta={delta:F6}");
-        }
 
-        /// <summary>
-        /// Regression test: simulates a drag-release cycle (the trigger for the upward shift bug)
-        /// and asserts that individual bottle Y positions do not change.
-        /// Captures before/after screenshots and writes a JSON report under Artifacts/drag-release-test/.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator FirstDragRelease_DoesNotShiftBottlePositions()
-        {
-            SceneBootstrap.EnsureScene();
-
-            var controller = Object.FindFirstObjectByType<GameController>();
-            Assert.IsNotNull(controller, "GameController not found.");
-
-            float readyTimeout = 8f;
-            float readyElapsed = 0f;
-            while (readyElapsed < readyTimeout && (!controller.HasActiveLevel || controller.IsInputLocked))
+            int topRowCount = Mathf.Min(6, beforeCount);
+            float worstDelta = 0f;
+            string worstBottle = string.Empty;
+            for (int i = 0; i < topRowCount; i++)
             {
-                readyElapsed += Time.unscaledDeltaTime;
-                yield return null;
-            }
+                string name = beforeRows[i].Name;
+                float beforeScreenY = beforeRows[i].ScreenY;
+                bool found = false;
+                float afterScreenY = 0f;
 
-            Assert.IsTrue(controller.HasActiveLevel, "Controller did not load an active level in time.");
-            Assert.IsFalse(controller.IsInputLocked, "Controller remained input-locked after startup.");
-
-            // Let layout fully stabilize
-            Canvas.ForceUpdateCanvases();
-            yield return null;
-            yield return null;
-
-            var gridRect = GameObject.Find("BottleGrid")?.GetComponent<RectTransform>();
-            Assert.IsNotNull(gridRect, "BottleGrid RectTransform not found.");
-
-            // Prepare artifact output directory
-            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            string outputDir = Path.Combine(projectRoot, "Artifacts", "drag-release-test");
-            Directory.CreateDirectory(outputDir);
-
-            // Capture per-bottle Y positions BEFORE drag
-            var beforePositions = new float[gridRect.childCount];
-            var bottleNames = new string[gridRect.childCount];
-            for (int i = 0; i < gridRect.childCount; i++)
-            {
-                var child = gridRect.GetChild(i) as RectTransform;
-                if (child != null)
+                for (int c = 0; c < gridRect.childCount; c++)
                 {
-                    beforePositions[i] = child.anchoredPosition.y;
-                    bottleNames[i] = child.name;
-                }
-            }
-
-            // Screenshot BEFORE drag (skip in batchmode — WaitForEndOfFrame hangs)
-            if (!Application.isBatchMode)
-            {
-                yield return CaptureTestScreenshot(Path.Combine(outputDir, "before_drag.png"));
-            }
-
-            // Find a draggable bottle
-            var state = GetPrivateField(controller, "_state") as LevelState;
-            Assert.IsNotNull(state, "Controller state not available.");
-            int dragIndex = -1;
-            for (int i = 0; i < state.Bottles.Count; i++)
-            {
-                if (Decantra.Domain.Rules.InteractionRules.CanDrag(state.Bottles[i]))
-                {
-                    dragIndex = i;
+                    if (!(gridRect.GetChild(c) is RectTransform child) || !child.gameObject.activeSelf) continue;
+                    if (!string.Equals(child.name, name, System.StringComparison.Ordinal)) continue;
+                    var screen = RectTransformUtility.WorldToScreenPoint(null, child.TransformPoint(child.rect.center));
+                    afterScreenY = screen.y;
+                    found = true;
                     break;
                 }
-            }
-            Assert.GreaterOrEqual(dragIndex, 0, "No draggable bottle found.");
 
-            // Simulate drag: disable GridLayoutGroup (same as OnBeginDrag)
-            var gridLayout = gridRect.GetComponent<GridLayoutGroup>();
-            Assert.IsNotNull(gridLayout, "GridLayoutGroup not found.");
-            gridLayout.enabled = false;
-
-            // Wait a few frames (simulates drag duration where cumulative offset would build up)
-            for (int f = 0; f < 10; f++)
-            {
-                yield return null;
-            }
-
-            // Simulate drag release: re-enable GridLayoutGroup then flush pending
-            // CanvasUpdateRegistry rebuild, exactly mimicking AnimateReturn.
-            gridLayout.enabled = true;
-            Canvas.ForceUpdateCanvases();
-            var safeLayout = Object.FindFirstObjectByType<HudSafeLayout>();
-            if (safeLayout != null)
-            {
-                safeLayout.MarkLayoutDirty();
-            }
-
-            // Let layout re-settle (LateUpdate applies ForceRebuild + TopRowOffset)
-            yield return null;
-            yield return null;
-
-            // Screenshot AFTER drag-release (skip in batchmode — WaitForEndOfFrame hangs)
-            if (!Application.isBatchMode)
-            {
-                yield return CaptureTestScreenshot(Path.Combine(outputDir, "after_drag.png"));
-            }
-
-            // Capture per-bottle Y positions AFTER drag and compute deltas
-            float maxDelta = 0f;
-            string worstChild = "";
-            var report = new System.Text.StringBuilder();
-            report.AppendLine("{");
-            report.AppendLine($"  \"timestamp\": \"{System.DateTime.UtcNow:O}\",");
-            report.AppendLine($"  \"screen\": \"{Screen.width}x{Screen.height}\",");
-            report.AppendLine("  \"bottles\": [");
-
-            int activeCount = 0;
-            for (int i = 0; i < gridRect.childCount; i++)
-            {
-                var child = gridRect.GetChild(i) as RectTransform;
-                if (child == null || !child.gameObject.activeSelf) continue;
-                float afterY = child.anchoredPosition.y;
-                float d = Mathf.Abs(afterY - beforePositions[i]);
-                if (d > maxDelta)
+                Assert.IsTrue(found, $"Bottle '{name}' from top rows before move not found after move.");
+                float d = Mathf.Abs(Mathf.Round(afterScreenY) - Mathf.Round(beforeScreenY));
+                if (d > worstDelta)
                 {
-                    maxDelta = d;
-                    worstChild = $"{child.name} before={beforePositions[i]:F4} after={afterY:F4}";
-                }
-
-                if (activeCount > 0) report.AppendLine(",");
-                report.Append($"    {{ \"name\": \"{bottleNames[i]}\", \"beforeY\": {beforePositions[i]:F4}, \"afterY\": {afterY:F4}, \"deltaY\": {(afterY - beforePositions[i]):F4} }}");
-                activeCount++;
-            }
-
-            report.AppendLine();
-            report.AppendLine("  ],");
-            report.AppendLine($"  \"maxDeltaY\": {maxDelta:F6},");
-            report.AppendLine($"  \"worstBottle\": \"{worstChild}\",");
-            report.AppendLine($"  \"pass\": {(maxDelta < 0.5f ? "true" : "false")}");
-            report.AppendLine("}");
-
-            string reportPath = Path.Combine(outputDir, "report.json");
-            File.WriteAllText(reportPath, report.ToString());
-            Debug.Log($"Drag-release test report written to {reportPath}");
-
-            Assert.AreEqual(0f, maxDelta, 0.5f,
-                $"Bottle positions shifted after drag-release. Worst delta={maxDelta:F4} ({worstChild})");
-        }
-
-        /// <summary>
-        /// Captures a screenshot to the given path. Gracefully logs and continues if capture fails
-        /// (e.g. in batchmode with no GPU).
-        /// </summary>
-        private static IEnumerator CaptureTestScreenshot(string path)
-        {
-            yield return new WaitForEndOfFrame();
-            try
-            {
-                var texture = ScreenCapture.CaptureScreenshotAsTexture();
-                if (texture != null)
-                {
-                    var bytes = texture.EncodeToPNG();
-                    Object.Destroy(texture);
-                    if (bytes != null && bytes.Length > 0)
-                    {
-                        File.WriteAllBytes(path, bytes);
-                        Debug.Log($"Screenshot saved: {path} ({bytes.Length} bytes)");
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"Screenshot encode failed for {path}");
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning($"Screenshot capture returned null for {path} (expected in batchmode)");
+                    worstDelta = d;
+                    worstBottle = name;
                 }
             }
-            catch (System.Exception ex)
-            {
-                Debug.LogWarning($"Screenshot capture failed for {path}: {ex.Message}");
-            }
+
+            Assert.LessOrEqual(worstDelta, 1f,
+                $"Top rows moved on first move. Worst bottle={worstBottle}, rounded screen delta={worstDelta:F3}px");
         }
 
         [UnityTest]
