@@ -17,10 +17,11 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
-        private const float TopRowsDownwardOffsetPx = 35f;
+        private const float TopRowsDownwardOffsetPx = 65f;
         private const float TopRowsDownwardReferenceHeightPx = 2400f;
+        private const float TopHudClearanceExtraPx = 30f;
         private const int ShiftedTopRowCount = 2;
-        private const float RowBottomMergeTolerance = 8f;
+        private const float RowAnchoredMergeTolerance = 8f;
 
         [SerializeField] private RectTransform topHud;
         [SerializeField] private RectTransform secondaryHud;
@@ -37,7 +38,6 @@ namespace Decantra.Presentation.View
         private readonly Vector3[] _childCorners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
-        private bool _pendingTopRowOffset;
         private int _lastActiveBottleCount = -1;
         private bool _gridLayoutCached;
         private Vector2 _baseGridSpacing;
@@ -76,12 +76,10 @@ namespace Decantra.Presentation.View
         private void OnEnable()
         {
             _dirty = true;
-            Canvas.willRenderCanvases += HandleWillRenderCanvases;
         }
 
         private void OnDisable()
         {
-            Canvas.willRenderCanvases -= HandleWillRenderCanvases;
         }
 
         private void OnRectTransformDimensionsChange()
@@ -163,7 +161,7 @@ namespace Decantra.Presentation.View
 
             float bottomTop = GetMaxY(bottomHud);
 
-            float desiredTop = topBottom - topPadding;
+            float desiredTop = topBottom - topPadding - TopHudClearanceExtraPx;
             float desiredBottom = bottomTop + bottomPadding;
 
             var rootRect = _root.rect;
@@ -221,13 +219,6 @@ namespace Decantra.Presentation.View
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
             LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
-            _pendingTopRowOffset = true;
-        }
-
-        private void HandleWillRenderCanvases()
-        {
-            if (!_pendingTopRowOffset) return;
-            _pendingTopRowOffset = false;
             ApplyTopRowsDownwardOffset();
         }
 
@@ -303,6 +294,7 @@ namespace Decantra.Presentation.View
         private void ApplyTopRowsDownwardOffset()
         {
             if (bottleGrid == null || secondaryHud == null) return;
+            if (bottleGridLayout != null && !bottleGridLayout.enabled) return;
             var rows = new List<RowInfo>(3);
             for (int i = 0; i < bottleGrid.childCount; i++)
             {
@@ -312,9 +304,9 @@ namespace Decantra.Presentation.View
             }
 
             if (rows.Count < 2) return;
-            // Row order must follow shared baseline (bottom Y), not visual top,
-            // because bottles can have different heights.
-            rows.Sort((a, b) => b.BottomY.CompareTo(a.BottomY));
+            // Row order follows anchored Y so all bottles in the same visual grid row
+            // stay grouped even when their rendered heights differ by capacity.
+            rows.Sort((a, b) => b.RowY.CompareTo(a.RowY));
 
             int maxShiftedRow = Mathf.Min(ShiftedTopRowCount, rows.Count) - 1;
             if (maxShiftedRow < 0) return;
@@ -347,12 +339,13 @@ namespace Decantra.Presentation.View
                 bottom = Mathf.Min(bottom, local.y);
             }
 
-            float centerY = (top + bottom) * 0.5f;
+            float rowY = childRect.anchoredPosition.y;
             for (int i = 0; i < rows.Count; i++)
             {
-                if (Mathf.Abs(rows[i].BottomY - bottom) <= RowBottomMergeTolerance)
+                if (Mathf.Abs(rows[i].RowY - rowY) <= RowAnchoredMergeTolerance)
                 {
                     rows[i].Children.Add(childRect);
+                    rows[i].RowY = (rows[i].RowY * (rows[i].Children.Count - 1) + rowY) / rows[i].Children.Count;
                     rows[i].TopY = Mathf.Max(rows[i].TopY, top);
                     rows[i].BottomY = Mathf.Min(rows[i].BottomY, bottom);
                     rows[i].CenterY = (rows[i].TopY + rows[i].BottomY) * 0.5f;
@@ -360,19 +353,21 @@ namespace Decantra.Presentation.View
                 }
             }
 
-            rows.Add(new RowInfo(centerY, top, bottom, childRect));
+            rows.Add(new RowInfo(rowY, top, bottom, childRect));
         }
 
         private sealed class RowInfo
         {
+            public float RowY;
             public float CenterY;
             public float TopY;
             public float BottomY;
             public readonly List<RectTransform> Children;
 
-            public RowInfo(float centerY, float topY, float bottomY, RectTransform child)
+            public RowInfo(float rowY, float topY, float bottomY, RectTransform child)
             {
-                CenterY = centerY;
+                RowY = rowY;
+                CenterY = (topY + bottomY) * 0.5f;
                 TopY = topY;
                 BottomY = bottomY;
                 Children = new List<RectTransform>(3) { child };

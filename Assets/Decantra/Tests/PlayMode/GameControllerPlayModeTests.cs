@@ -129,6 +129,31 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(gridRect, "BottleGrid RectTransform not found.");
 
             float beforeAnchoredY = gridRect.anchoredPosition.y;
+            var beforeRows = new (string Name, float ScreenY)[gridRect.childCount];
+            int beforeCount = 0;
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                if (!(gridRect.GetChild(i) is RectTransform child) || !child.gameObject.activeSelf)
+                {
+                    continue;
+                }
+
+                var screen = RectTransformUtility.WorldToScreenPoint(null, child.TransformPoint(child.rect.center));
+                beforeRows[beforeCount++] = (child.name, screen.y);
+            }
+
+            for (int i = 0; i < beforeCount - 1; i++)
+            {
+                for (int j = i + 1; j < beforeCount; j++)
+                {
+                    if (beforeRows[j].ScreenY > beforeRows[i].ScreenY)
+                    {
+                        var temp = beforeRows[i];
+                        beforeRows[i] = beforeRows[j];
+                        beforeRows[j] = temp;
+                    }
+                }
+            }
 
             var state = GetPrivateField(controller, "_state") as LevelState;
             Assert.IsNotNull(state, "Controller state not available.");
@@ -151,6 +176,38 @@ namespace Decantra.Tests.PlayMode
 
             Assert.AreEqual(0f, delta, 0.0001f,
                 $"BottleGrid anchored Y changed after first move. Before={beforeAnchoredY:F6}, After={afterAnchoredY:F6}, Delta={delta:F6}");
+
+            int topRowCount = Mathf.Min(6, beforeCount);
+            float worstDelta = 0f;
+            string worstBottle = string.Empty;
+            for (int i = 0; i < topRowCount; i++)
+            {
+                string name = beforeRows[i].Name;
+                float beforeScreenY = beforeRows[i].ScreenY;
+                bool found = false;
+                float afterScreenY = 0f;
+
+                for (int c = 0; c < gridRect.childCount; c++)
+                {
+                    if (!(gridRect.GetChild(c) is RectTransform child) || !child.gameObject.activeSelf) continue;
+                    if (!string.Equals(child.name, name, System.StringComparison.Ordinal)) continue;
+                    var screen = RectTransformUtility.WorldToScreenPoint(null, child.TransformPoint(child.rect.center));
+                    afterScreenY = screen.y;
+                    found = true;
+                    break;
+                }
+
+                Assert.IsTrue(found, $"Bottle '{name}' from top rows before move not found after move.");
+                float d = Mathf.Abs(Mathf.Round(afterScreenY) - Mathf.Round(beforeScreenY));
+                if (d > worstDelta)
+                {
+                    worstDelta = d;
+                    worstBottle = name;
+                }
+            }
+
+            Assert.LessOrEqual(worstDelta, 1f,
+                $"Top rows moved on first move. Worst bottle={worstBottle}, rounded screen delta={worstDelta:F3}px");
         }
 
         [UnityTest]

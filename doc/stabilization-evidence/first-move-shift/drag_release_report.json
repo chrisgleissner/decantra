@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-02-14T11:32:04.4182580Z",
+  "screen": "640x480",
+  "bottles": [
+    { "name": "Bottle_1", "beforeY": -425.0000, "afterY": -425.0000, "deltaY": 0.0000 },
+    { "name": "Bottle_2", "beforeY": -425.0000, "afterY": -425.0000, "deltaY": 0.0000 },
+    { "name": "Bottle_3", "beforeY": -425.0000, "afterY": -425.0000, "deltaY": 0.0000 },
+    { "name": "Bottle_4", "beforeY": -875.0000, "afterY": -875.0000, "deltaY": 0.0000 },
+    { "name": "Bottle_5", "beforeY": -875.0000, "afterY": -875.0000, "deltaY": 0.0000 },
+    { "name": "Bottle_6", "beforeY": -875.0000, "afterY": -875.0000, "deltaY": 0.0000 }
+  ],
+  "maxDeltaY": 0.000000,
+  "worstBottle": "",
+  "pass": true
+}

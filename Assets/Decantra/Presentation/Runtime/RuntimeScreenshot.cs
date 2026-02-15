@@ -13,6 +13,7 @@ using System.Reflection;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
+using Decantra.Presentation.View;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -317,6 +318,8 @@ namespace Decantra.Presentation
 
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
+            controller.LoadLevel(36, 192731);
+            yield return WaitForControllerReady(controller);
             yield return new WaitForSeconds(0.2f);
             yield return new WaitForEndOfFrame();
 
@@ -328,40 +331,268 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            var gridLayout = gridRect.GetComponent<GridLayoutGroup>();
+
+            // Capture per-bottle positions BEFORE first move
+            var beforePositions = CaptureBottlePositions(gridRect);
             var before = CaptureGridSnapshot(gridRect);
+            var beforeClearance = MeasureOptionsToBottleClearance();
             Debug.Log($"RuntimeScreenshot GridBefore anchoredY={before.AnchoredY:F3} centerY={before.WorldCenterY:F3} minY={before.WorldMinY:F3} canvasScale={before.CanvasScale:F3} screen={before.ScreenWidth}x{before.ScreenHeight} safe={before.SafeAreaX:F1},{before.SafeAreaY:F1},{before.SafeAreaWidth:F1},{before.SafeAreaHeight:F1} bottles=[{before.BottleLocalYCsv}]");
             yield return CaptureScreenshot(Path.Combine(outputDir, InitialRenderFileName));
+            Debug.Log($"RuntimeScreenshot Level36Before optionsBottomY={beforeClearance.OptionsBottomY:F3} bottleTopY={beforeClearance.BottleTopY:F3} gapPx={beforeClearance.GapPx:F3} bottle={beforeClearance.BottleName} brightUnderOptions={beforeClearance.BrightPixelsUnderOptions}");
 
-            if (!TryFindFirstValidMove(controller, out int source, out int target, out float duration))
+            // Perform the first valid user move on level 36.
+            if (TryFindFirstValidMove(controller, out int sourceIndex, out int targetIndex, out float duration))
             {
-                Debug.LogError("RuntimeScreenshot: no valid first move found.");
+                bool started = controller.TryStartMove(sourceIndex, targetIndex, out float actualDuration);
+                if (started)
+                {
+                    float waitDuration = Mathf.Max(duration, actualDuration) + 0.35f;
+                    yield return new WaitForSeconds(waitDuration);
+                    yield return null;
+                    yield return null;
+                }
+                else
+                {
+                    Debug.LogError($"RuntimeScreenshot: failed to start first move source={sourceIndex} target={targetIndex}.");
+                    _failed = true;
+                }
+            }
+            else
+            {
+                Debug.LogError("RuntimeScreenshot: no valid first move found on level 36.");
                 _failed = true;
-                yield break;
             }
 
-            controller.OnBottleTapped(source);
-            yield return null;
-            controller.OnBottleTapped(target);
-
-            yield return new WaitForSeconds(Mathf.Max(0.25f, duration + 0.2f));
+            if (gridLayout != null && !gridLayout.enabled)
+            {
+                gridLayout.enabled = true;
+            }
             Canvas.ForceUpdateCanvases();
-            yield return null;
-            yield return new WaitForEndOfFrame();
 
+            var safeLayout = UnityEngine.Object.FindFirstObjectByType<Decantra.Presentation.View.HudSafeLayout>();
+            if (safeLayout != null)
+            {
+                safeLayout.MarkLayoutDirty();
+            }
+
+            yield return null;
+            yield return null;
+
+            var afterPositions = CaptureBottlePositions(gridRect);
             var after = CaptureGridSnapshot(gridRect);
+            var afterClearance = MeasureOptionsToBottleClearance();
             Debug.Log($"RuntimeScreenshot GridAfter anchoredY={after.AnchoredY:F3} centerY={after.WorldCenterY:F3} minY={after.WorldMinY:F3} canvasScale={after.CanvasScale:F3} screen={after.ScreenWidth}x{after.ScreenHeight} safe={after.SafeAreaX:F1},{after.SafeAreaY:F1},{after.SafeAreaWidth:F1},{after.SafeAreaHeight:F1} bottles=[{after.BottleLocalYCsv}]");
             yield return CaptureScreenshot(Path.Combine(outputDir, AfterFirstMoveFileName));
+            Debug.Log($"RuntimeScreenshot Level36After optionsBottomY={afterClearance.OptionsBottomY:F3} bottleTopY={afterClearance.BottleTopY:F3} gapPx={afterClearance.GapPx:F3} bottle={afterClearance.BottleName} brightUnderOptions={afterClearance.BrightPixelsUnderOptions}");
 
-            float anchoredDelta = after.AnchoredY - before.AnchoredY;
-            float worldMinDelta = after.WorldMinY - before.WorldMinY;
-            float roundedAnchoredDelta = Mathf.Round(anchoredDelta * 1000f) / 1000f;
+            // Compute per-bottle deltas and max shift
+            float maxBottleDelta = 0f;
+            string worstBottle = "";
+            var reportBuilder = new System.Text.StringBuilder();
+            reportBuilder.AppendLine("{");
+            reportBuilder.AppendLine("  \"levelIndex\": 36,");
+            reportBuilder.AppendLine("  \"seed\": 192731,");
+            reportBuilder.AppendLine($"  \"resolution\": \"{before.ScreenWidth}x{before.ScreenHeight}\",");
+            reportBuilder.AppendLine($"  \"scaleFactor\": {before.CanvasScale:F4},");
+            reportBuilder.AppendLine($"  \"safeArea\": {{ \"x\": {before.SafeAreaX:F1}, \"y\": {before.SafeAreaY:F1}, \"w\": {before.SafeAreaWidth:F1}, \"h\": {before.SafeAreaHeight:F1} }},");
+            reportBuilder.AppendLine($"  \"optionsClearancePx\": {{ \"before\": {beforeClearance.GapPx:F6}, \"after\": {afterClearance.GapPx:F6} }},");
+            reportBuilder.AppendLine($"  \"brightPixelsImmediatelyBelowOptions\": {{ \"before\": {(beforeClearance.BrightPixelsUnderOptions ? "true" : "false")}, \"after\": {(afterClearance.BrightPixelsUnderOptions ? "true" : "false")} }},");
+            reportBuilder.AppendLine($"  \"trackedBottle\": {{ \"before\": \"{beforeClearance.BottleName}\", \"after\": \"{afterClearance.BottleName}\" }},");
+            reportBuilder.AppendLine($"  \"gridAnchoredY\": {{ \"before\": {before.AnchoredY:F6}, \"after\": {after.AnchoredY:F6}, \"delta\": {(after.AnchoredY - before.AnchoredY):F6} }},");
+            reportBuilder.AppendLine("  \"bottles\": [");
 
-            Debug.Log($"RuntimeScreenshot GridDelta anchoredY={anchoredDelta:F6} rounded={roundedAnchoredDelta:F3} worldMinY={worldMinDelta:F6}");
-            if (roundedAnchoredDelta != 0f)
+            int bottleCount = Mathf.Min(beforePositions.Length, afterPositions.Length);
+            for (int i = 0; i < bottleCount; i++)
             {
-                Debug.LogError($"RuntimeScreenshot: grid shifted after first move (rounded anchored delta={roundedAnchoredDelta:F3}).");
+                float d = afterPositions[i].y - beforePositions[i].y;
+                if (Mathf.Abs(d) > Mathf.Abs(maxBottleDelta))
+                {
+                    maxBottleDelta = d;
+                    worstBottle = beforePositions[i].name;
+                }
+                string comma = i < bottleCount - 1 ? "," : "";
+                reportBuilder.AppendLine($"    {{ \"name\": \"{beforePositions[i].name}\", \"beforeY\": {beforePositions[i].y:F4}, \"afterY\": {afterPositions[i].y:F4}, \"deltaY\": {d:F4} }}{comma}");
+            }
+
+            reportBuilder.AppendLine("  ],");
+            reportBuilder.AppendLine($"  \"maxBottleDeltaY\": {maxBottleDelta:F6},");
+            reportBuilder.AppendLine($"  \"worstBottle\": \"{worstBottle}\",");
+            reportBuilder.AppendLine($"  \"pass\": {(Mathf.Abs(maxBottleDelta) < 0.5f ? "true" : "false")}");
+            reportBuilder.AppendLine("}");
+
+            string reportPath = Path.Combine(outputDir, "report.json");
+            try
+            {
+                File.WriteAllText(reportPath, reportBuilder.ToString());
+                Debug.Log($"RuntimeScreenshot: wrote delta report to {reportPath}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"RuntimeScreenshot: failed to write report: {ex.Message}");
+            }
+
+            Debug.Log($"RuntimeScreenshot BottleDelta maxY={maxBottleDelta:F6} worst={worstBottle}");
+            if (Mathf.Abs(maxBottleDelta) >= 0.5f)
+            {
+                Debug.LogError($"RuntimeScreenshot: bottles shifted after drag-release (max delta={maxBottleDelta:F4}, bottle={worstBottle}).");
                 _failed = true;
             }
+
+            if (beforeClearance.GapPx < 15f || afterClearance.GapPx < 15f)
+            {
+                Debug.LogWarning($"RuntimeScreenshot: level 36 OPTIONS clearance below 15px (before={beforeClearance.GapPx:F2}, after={afterClearance.GapPx:F2}).");
+            }
+
+            if (beforeClearance.BrightPixelsUnderOptions || afterClearance.BrightPixelsUnderOptions)
+            {
+                Debug.LogWarning("RuntimeScreenshot: bright pixels detected immediately below OPTIONS within required 15px gap band.");
+            }
+        }
+
+        private readonly struct OptionsClearanceSnapshot
+        {
+            public OptionsClearanceSnapshot(float optionsBottomY, float bottleTopY, float gapPx, string bottleName, bool brightPixelsUnderOptions)
+            {
+                OptionsBottomY = optionsBottomY;
+                BottleTopY = bottleTopY;
+                GapPx = gapPx;
+                BottleName = bottleName ?? string.Empty;
+                BrightPixelsUnderOptions = brightPixelsUnderOptions;
+            }
+
+            public float OptionsBottomY { get; }
+            public float BottleTopY { get; }
+            public float GapPx { get; }
+            public string BottleName { get; }
+            public bool BrightPixelsUnderOptions { get; }
+        }
+
+        private static OptionsClearanceSnapshot MeasureOptionsToBottleClearance()
+        {
+            var optionsRect = GameObject.Find("OptionsButton")?.GetComponent<RectTransform>();
+            if (optionsRect == null)
+            {
+                return new OptionsClearanceSnapshot(0f, 0f, -1f, "missing_options_button", false);
+            }
+
+            var optionCorners = new Vector3[4];
+            optionsRect.GetWorldCorners(optionCorners);
+            float optionMinX = optionCorners[0].x;
+            float optionMaxX = optionCorners[2].x;
+            float optionBottomY = optionCorners[0].y;
+            float optionCenterX = (optionMinX + optionMaxX) * 0.5f;
+
+            BottleView[] bottles = UnityEngine.Object.FindObjectsByType<BottleView>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            RectTransform bestBottleRect = null;
+            string bestBottleName = string.Empty;
+            float bestBottleTopY = float.MinValue;
+            float bestOverlap = 0f;
+            float bestCenterDistance = float.MaxValue;
+
+            for (int i = 0; i < bottles.Length; i++)
+            {
+                if (bottles[i] == null) continue;
+                var bottleRect = bottles[i].GetComponent<RectTransform>();
+                if (bottleRect == null) continue;
+
+                var corners = new Vector3[4];
+                bottleRect.GetWorldCorners(corners);
+                float minX = corners[0].x;
+                float maxX = corners[2].x;
+                float topY = corners[1].y;
+                float overlapX = Mathf.Max(0f, Mathf.Min(optionMaxX, maxX) - Mathf.Max(optionMinX, minX));
+                float centerX = (minX + maxX) * 0.5f;
+                float centerDistance = Mathf.Abs(centerX - optionCenterX);
+
+                if (overlapX > bestOverlap ||
+                    (Mathf.Approximately(overlapX, bestOverlap) && topY > bestBottleTopY) ||
+                    (Mathf.Approximately(overlapX, bestOverlap) && Mathf.Approximately(topY, bestBottleTopY) && centerDistance < bestCenterDistance))
+                {
+                    bestOverlap = overlapX;
+                    bestBottleTopY = topY;
+                    bestBottleRect = bottleRect;
+                    bestBottleName = bottleRect.name;
+                    bestCenterDistance = centerDistance;
+                }
+            }
+
+            if (bestBottleRect == null)
+            {
+                return new OptionsClearanceSnapshot(optionBottomY, 0f, -1f, "missing_bottle", false);
+            }
+
+            bool brightPixels = AnyBrightPixelsImmediatelyBelowOptions(optionCorners, bestBottleRect);
+            float gap = optionBottomY - bestBottleTopY;
+            return new OptionsClearanceSnapshot(optionBottomY, bestBottleTopY, gap, bestBottleName, brightPixels);
+        }
+
+        private static bool AnyBrightPixelsImmediatelyBelowOptions(Vector3[] optionCorners, RectTransform bottleRect)
+        {
+            if (optionCorners == null || optionCorners.Length < 4 || bottleRect == null)
+            {
+                return false;
+            }
+
+            var bottleCorners = new Vector3[4];
+            bottleRect.GetWorldCorners(bottleCorners);
+
+            int xMin = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(optionCorners[0].x, bottleCorners[0].x)), 0, Screen.width - 1);
+            int xMax = Mathf.Clamp(Mathf.FloorToInt(Mathf.Min(optionCorners[2].x, bottleCorners[2].x)), 0, Screen.width - 1);
+            if (xMax <= xMin)
+            {
+                return false;
+            }
+
+            int yTop = Mathf.Clamp(Mathf.FloorToInt(optionCorners[0].y) - 1, 0, Screen.height - 1);
+            int yBottom = Mathf.Clamp(yTop - 14, 0, Screen.height - 1);
+            if (yTop <= yBottom)
+            {
+                return false;
+            }
+
+            var texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+            texture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0, false);
+            texture.Apply(false, false);
+
+            bool found = false;
+            for (int y = yBottom; y <= yTop && !found; y++)
+            {
+                for (int x = xMin; x <= xMax; x++)
+                {
+                    Color c = texture.GetPixel(x, y);
+                    float brightness = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+                    if (brightness > 0.5f)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            UnityEngine.Object.Destroy(texture);
+            return found;
+        }
+
+        private struct BottlePosition
+        {
+            public string name;
+            public float y;
+        }
+
+        private static BottlePosition[] CaptureBottlePositions(RectTransform gridRect)
+        {
+            var positions = new BottlePosition[gridRect.childCount];
+            for (int i = 0; i < gridRect.childCount; i++)
+            {
+                var child = gridRect.GetChild(i) as RectTransform;
+                positions[i] = new BottlePosition
+                {
+                    name = child != null ? child.name : $"child_{i}",
+                    y = child != null ? child.anchoredPosition.y : 0f
+                };
+            }
+            return positions;
         }
 
         private static GridSnapshot CaptureGridSnapshot(RectTransform gridRect)

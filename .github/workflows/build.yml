@@ -5,11 +5,12 @@ on:
     types: [published]
   push:
     branches:
-      - "main"
-      - "feature/**"
-      - "fix/**"
-      - "hotfix/**"
+      - "**"
   pull_request:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
     paths-ignore:
       - "**.md"
       - "doc/**"
