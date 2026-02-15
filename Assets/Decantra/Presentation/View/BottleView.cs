@@ -21,7 +21,7 @@ namespace Decantra.Presentation.View
 
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
         private const float RefOutlineHeight = 372f;
-        private const float RefSlotRootHeight = 300f;
+        private const float RefSlotRootHeight = 320f;
         // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
         // Elements at or below are "body" elements whose height stretches.
         private const float TopFixedThreshold = 120f;

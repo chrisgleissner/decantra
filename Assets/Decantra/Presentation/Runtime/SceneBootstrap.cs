@@ -958,8 +958,8 @@ namespace Decantra.Presentation
             liquidRect.anchorMin = new Vector2(0.5f, 0f);
             liquidRect.anchorMax = new Vector2(0.5f, 0f);
             liquidRect.pivot = new Vector2(0.5f, 0f);
-            liquidRect.sizeDelta = new Vector2(112, 300);
-            liquidRect.anchoredPosition = new Vector2(0, -2);
+            liquidRect.sizeDelta = new Vector2(112, 320);
+            liquidRect.anchoredPosition = new Vector2(0, 0);
 
             var liquidSurfaceGo = CreateUiChild(liquidMaskGo.transform, "LiquidSurface");
             var liquidSurface = liquidSurfaceGo.AddComponent<Image>();

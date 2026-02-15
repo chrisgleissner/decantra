@@ -1,138 +1,78 @@
-# PLANS — First-Drag Bottle Grid Vertical Shift (2026-02-14)
+# PLANS — Terminal State & Visual Gap Fix (2026-02-15)
 
 ## Objective
 
-Eliminate the one-time upward shift of the bottle grid on first drag-release, with deterministic proof and no regressions.
+Three fixes ensuring solved levels display correctly and only accept fully-filled bottles as complete.
 
 ## Scope Constraints
 
-- [x] No gameplay mechanics changes.
-- [x] No intentional spacing/alignment redesign.
-- [x] No unrelated refactors.
-- [x] No timing hacks unless justified and documented.
+- [x] No gameplay mechanics changes beyond tightened `IsWin()` predicate.
+- [x] No bottle geometry redesign.
+- [x] No neck-area changes.
+- [x] Presentation changes are pixel-level corrections only.
 
-## Assumptions
+## Issue 1 — Terminal State Accepts Partially Filled Bottles
 
-- [x] Primary runtime scene is created by `SceneBootstrap.EnsureScene()`.
-- [x] Grid root is `BottleGrid` under `BottleArea`.
-- [x] Layout authority is `HudSafeLayout` + `GridLayoutGroup`.
-- [x] Bug triggers on drag-release only (not on tap, OPTIONS, or RESET).
-- [x] ALL 9 bottles shift uniformly upward by the same pixel amount.
-
-## Root Cause Analysis
-
-### Problem Statement
-When the first playable level appears and the user drags a bottle and releases it, all 9 bottles
-shift upward by ~10 px uniformly. The shift is permanent and only occurs once per session.
-
-### Root cause: Double-rebuild race between HudSafeLayout and CanvasUpdateRegistry
-
-When `AnimateReturn` re-enables the `GridLayoutGroup` (`gridLayout.enabled = true`),
-`GridLayoutGroup.OnEnable()` calls `SetDirty()` → `MarkLayoutForRebuild()`, which registers a
-pending rebuild with Unity's `CanvasUpdateRegistry`.
-
-The frame then proceeds:
-
-1. **LateUpdate** → `HudSafeLayout.ApplyLayout()`:
-   - Sets grid spacing, padding, sizeDelta
-   - Calls `ForceRebuildLayoutImmediate(bottleGrid)` — creates a **separate** LayoutRebuilder
-     from pool, rebuilds, releases it. Does NOT remove the pending rebuilder from
-     `CanvasUpdateRegistry`.
-   - Calls `ApplyTopRowsDownwardOffset()` — shifts top 2 rows down by ~35px (scaled).
-
-2. **Canvas.willRenderCanvases** → `CanvasUpdateRegistry.PerformUpdate()`:
-   - Finds the **original** pending rebuild from `OnEnable.SetDirty()`.
-   - Runs `GridLayoutGroup.SetLayoutVertical()` → positions ALL children to canonical grid
-     positions, **overwriting** the top-row offset from step 1.
-
-3. **Render** → bottles at canonical positions (offset lost).
-
-### Additional contributing factor: RectOffset reference inequality
-
-`ApplyLayout()` created `new RectOffset(...)` each frame for `bottleGridLayout.padding`. Since
-`RectOffset` is a class (reference type), `LayoutGroup.SetProperty<T>` may use `Object.Equals`
-(reference comparison), finding the new instance ≠ old instance, which calls `SetDirty()` →
-`MarkLayoutForRebuild()` every frame. This could cause the same double-rebuild race on every
-frame (not just on re-enable), making `ApplyTopRowsDownwardOffset()` NEVER visible.
-
-### Three compounding bugs identified
-
-**Bug 1 — CanvasUpdateRegistry double-rebuild (PRIMARY CAUSE)**
-See above. `GridLayoutGroup.OnEnable()` → `SetDirty()` → pending rebuild overwrites the top-row
-offset applied in `LateUpdate`.
-
-**Bug 2 — `hudSafeLayout` is always `null` in `BottleInput`**
-Bottles live under `Canvas_Game`. `HudSafeLayout` lives on `Canvas_UI`.
-`GetComponentInParent<HudSafeLayout>()` never finds it. The `MarkLayoutDirty()` call in
-`AnimateReturn` was a **silent no-op**.
-
-**Bug 3 — Cumulative offset during drag**
-While `GridLayoutGroup` is disabled (during drag), `ForceRebuildLayoutImmediate` is a no-op
-(disabled grid skipped by `LayoutRebuilder.PerformLayoutCalculation`), yet the deferred
-`willRenderCanvases` callback still ran `ApplyTopRowsDownwardOffset()`, reading CURRENT positions
-(already offset) and subtracting again — cumulatively pushing top-2-row bottles down over drag
-frames.
+### Problem
+`LevelState.IsWin()` checked monochrome + irreducible but did NOT require `IsFull`. With variable-capacity bottles, the solver could find terminal states with partially-filled monochrome bottles accepted as "solved."
 
 ### Fix
+Added `if (!bottle.IsFull) return false;` in `IsWin()` before the monochrome check. Every non-empty bottle must now be both full AND monochrome.
 
-1. **Flush pending rebuild on re-enable**: In `AnimateReturn`, call `Canvas.ForceUpdateCanvases()`
-   immediately after `gridLayout.enabled = true`. This processes the `CanvasUpdateRegistry` pending
-   rebuild NOW, so it no longer overwrites the offset later during `willRenderCanvases`.
+### Files Changed
+- `Assets/Decantra/Domain/Model/LevelState.cs` — added `IsFull` guard
 
-2. **Cache `RectOffset` instance**: In `HudSafeLayout.ApplyLayout()`, reuse the same `RectOffset`
-   instance when padding values haven't changed, preventing spurious `SetDirty()` →
-   `MarkLayoutForRebuild()` from reference inequality.
+### Tests Updated
+- `LevelCompletionTests.cs` — 6 tests flipped from `Assert.IsTrue` to `Assert.IsFalse` for partial-monochrome scenarios
+- `LevelStateTests.cs` — 1 test flipped (`IsWin_PassesWithPartiallyFilledUniformBottle_IfIrreducible` → `IsWin_FailsWithPartiallyFilledUniformBottle_EvenIfIrreducible`)
 
-3. **Use `yield return null` instead of `WaitForEndOfFrame`**: In `AnimateReturn`, the animation
-   loop now uses `yield return null` so the grid re-enable happens during the Update phase (before
-   LateUpdate), giving `HudSafeLayout.ApplyLayout()` a chance to apply ForceRebuild + TopRowOffset
-   in the SAME frame's LateUpdate — before rendering.
+### Tests Added
+- `TerminalStateInvariantTests.cs` — 9 new tests:
+  - 7 unit tests for `IsWin()` edge cases (partial, full, empty, mixed, regression)
+  - 1 generator invariant test (color units match bottle capacity)
+  - 1 integration test (25 levels: generate → solve → verify all bottles full or empty)
 
-4. **Guard against cumulative offset**: In `ApplyTopRowsDownwardOffset()`, return early if
-   `GridLayoutGroup` is disabled. Removes cumulative offset accumulation during drag.
+## Issue 2 — Visual Gap at Top of Full Bottles
 
-5. **Inline offset application**: `ApplyTopRowsDownwardOffset()` is called directly in
-   `ApplyLayout()` after `ForceRebuildLayoutImmediate`, no deferred callback.
+### Problem
+`RefSlotRootHeight` (300) was smaller than `liquidMask` height (320), creating a 20px gap. Plus `slotRoot` had `anchoredPosition.y = -2`, adding 2px more. Full bottles showed empty slivers at top of main body.
 
-6. **Fix null reference**: In `BottleInput`, use `FindFirstObjectByType<HudSafeLayout>()` instead
-   of `GetComponentInParent<HudSafeLayout>()` for cross-canvas discovery.
+### Fix
+- `BottleView.cs`: `RefSlotRootHeight` 300 → 320 (matches liquidMask height)
+- `SceneBootstrap.cs`: `liquidRect.sizeDelta` (112,300) → (112,320); `anchoredPosition` (0,-2) → (0,0)
+
+## Issue 3 — Top Row Bottles Overlap HUD
+
+### Problem
+`TopRowsDownwardOffsetPx = 35` didn't provide enough clearance from RESET/OPTIONS buttons.
+
+### Fix
+- `HudSafeLayout.cs`: `TopRowsDownwardOffsetPx` 35 → 50
 
 ## Execution Checklist
 
 ### Phase 1 — Investigation
-- [x] Inspect lifecycle paths and first-interaction code path.
-- [x] Inspect layout systems (GridLayoutGroup, HudSafeLayout, ApplyTopRowsDownwardOffset).
-- [x] Identify root cause with code-level explanation.
-- [x] Identify CanvasUpdateRegistry double-rebuild as primary cause of uniform shift.
+- [x] Root cause analysis for all three issues.
+- [x] Traced rendering pipeline: BottleView → slotRoot → liquidMask → segments.
+- [x] Confirmed RefSlotRootHeight/liquidMask height mismatch (300 vs 320).
 
 ### Phase 2 — Fix
-- [x] `BottleInput.cs`: `Canvas.ForceUpdateCanvases()` after grid re-enable; `yield return null`.
-- [x] `HudSafeLayout.cs`: cached `_cachedPadding`; inline offset; grid-disabled guard.
-- [x] `BottleInput.cs`: `FindFirstObjectByType<HudSafeLayout>()` for cross-canvas.
-- [x] Ensure fix is deterministic and layout-equivalent.
+- [x] `LevelState.cs`: `IsFull` guard in `IsWin()`.
+- [x] `BottleView.cs`: `RefSlotRootHeight` 300 → 320.
+- [x] `SceneBootstrap.cs`: slotRoot size 300 → 320, offset -2 → 0.
+- [x] `HudSafeLayout.cs`: `TopRowsDownwardOffsetPx` 35 → 50.
 
-### Phase 3 — Automated Verification
-- [x] `FirstDragRelease_DoesNotShiftBottlePositions` PlayMode test with per-bottle delta assertion.
-- [x] Drag-release simulation + JSON report + screenshot evidence in `RuntimeScreenshot.cs`.
-- [x] Test sequence matches actual `AnimateReturn` flow: re-enable → ForceUpdateCanvases → MarkDirty.
+### Phase 3 — Tests
+- [x] 7 flipped existing tests (6 in LevelCompletionTests, 1 in LevelStateTests).
+- [x] 9 new tests in TerminalStateInvariantTests.
+- [x] EditMode tests: **216 passed, 0 failed** (2026-02-15).
 
 ### Phase 4 — Regression Safety
-- [x] EditMode tests: **207 passed, 0 failed** (2026-02-14).
-- [x] PlayMode tests: **54 passed, 0 failed, 2 skipped** (2026-02-14).
-- [ ] Re-run tests after latest changes (Canvas.ForceUpdateCanvases + RectOffset caching).
-- [ ] On-device screenshot verification via `./build --screenshots`.
-
-## Artifact Paths
-
-- `Artifacts/drag-release-test/` — PlayMode test artifacts (before/after screenshots, report.json)
-- `Artifacts/first-move-shift/` — RuntimeScreenshot evidence (requires device)
+- [x] All 216 EditMode tests passing.
+- [ ] PlayMode tests (pending full script completion).
+- [ ] On-device visual verification.
 
 ## Verification Log
 
-- **2026-02-14 10:03**: Initial fix committed (3a19483): inline offset, guard, null reference fix.
-- **2026-02-14 10:06**: Test committed (d8bbb3e): drag-release regression test + RuntimeScreenshot.
-- **2026-02-14 10:16**: PlayMode tests 54/54 passed (prior to latest CanvasUpdateRegistry fix).
-- **2026-02-14 10:47**: EditMode tests 207/207 passed.
-- **2026-02-14**: Root cause refined: CanvasUpdateRegistry double-rebuild as primary cause.
-- **2026-02-14**: Additional fixes: `Canvas.ForceUpdateCanvases()` flush, `RectOffset` caching,
-  `yield return null` timing improvement. Pending re-test.
+- **2026-02-15 00:01**: EditMode tests 216/216 passed (including 9 new TerminalStateInvariantTests).
+- **2026-02-15**: SolvabilityFuzzTests (60 levels) passed with tightened IsWin — solver finds fully-packed solutions within node limits.

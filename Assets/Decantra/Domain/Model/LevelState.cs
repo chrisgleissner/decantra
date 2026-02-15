@@ -44,11 +44,12 @@ namespace Decantra.Domain.Model
 
         public bool IsWin()
         {
-            // 1. Every non-empty bottle contains liquid of exactly one color
+            // 1. Every non-empty bottle must be completely full AND monochrome
             for (int i = 0; i < Bottles.Count; i++)
             {
                 var bottle = Bottles[i];
                 if (bottle.IsEmpty) continue;
+                if (!bottle.IsFull) return false;
                 if (!bottle.IsMonochrome) return false;
             }
 

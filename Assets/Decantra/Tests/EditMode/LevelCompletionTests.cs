@@ -12,17 +12,16 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void IsWin_Level18Scenario_PartialMonochrome_ReturnsTrue()
+        public void IsWin_Level18Scenario_PartialMonochrome_ReturnsFalse()
         {
             // One bottle, 1 unit of Green. Capacity 4.
-            // Old logic: Failed because !IsFull.
-            // New logic: Should pass (Monochrome + no other bottles).
+            // Not full → not win.
             var bottles = new[]
             {
                 new Bottle(new ColorId?[] { ColorId.Green, null, null, null })
             };
             var state = CreateLevel(bottles);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]
@@ -53,40 +52,34 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void IsWin_ConsolidationNotPossible_ReturnsTrue()
+        public void IsWin_ConsolidationNotPossible_ReturnsFalse()
         {
             // Bottle 1: Green (3 units)
             // Bottle 2: Green (3 units)
             // Cap 4.
-            // Pour 1->2 possible (1 unit).
-            // Result: Bottle 1 (2 units), Bottle 2 (4 units).
-            // Bottle 1 NOT empty. Count not reduced.
-            // So IsWin = true (Irreducible).
+            // Neither bottle is full → not win.
             var bottles = new[]
             {
                 new Bottle(new ColorId?[] { ColorId.Green, ColorId.Green, ColorId.Green, null }),
                 new Bottle(new ColorId?[] { ColorId.Green, ColorId.Green, ColorId.Green, null })
             };
             var state = CreateLevel(bottles);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]
-        public void IsWin_SinkRestrictions_ReturnsTrue()
+        public void IsWin_SinkRestrictions_ReturnsFalse()
         {
             // Bottle 1 (Sink): Green (1 unit)
             // Bottle 2 (Normal): Empty (Capacity 4)
-            // Technically could pour Sink -> Normal.
-            // But Sink cannot be source.
-            // So no legal move exists.
-            // IsWin = true.
+            // Sink has 1/4 fill → not full → not win.
             var bottles = new[]
             {
                 new Bottle(new ColorId?[] { ColorId.Green, null, null, null }, isSink: true),
                 new Bottle(new ColorId?[] { null, null, null, null })
             };
             var state = CreateLevel(bottles);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]
@@ -139,40 +132,33 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void IsWin_TwoBottlesSameColorCannotMergeDueToCapacity_ReturnsTrue()
+        public void IsWin_TwoBottlesSameColorCannotMergeDueToCapacity_ReturnsFalse()
         {
-            // Bottle 1: Red (3 units) in capacity 4
-            // Bottle 2: Red (3 units) in capacity 4
-            // Cannot pour all of 1 -> 2 (only 1 unit fits), so count not reducible
+            // Bottle 1: Red (3 units) cap 4 - not full
+            // Bottle 2: Red (3 units) cap 4 - not full
+            // Neither bottle is full → not win.
             var bottles = new[]
             {
                 new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, null }),
                 new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, null })
             };
             var state = CreateLevel(bottles);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]
-        public void IsWin_CannotMergeBecauseSinkCannotBeSource_ReturnsTrue()
+        public void IsWin_CannotMergeBecauseSinkCannotBeSource_ReturnsFalse()
         {
-            // Bottle 1 (Sink): Red (2 units) in capacity 4
-            // Bottle 2 (Normal): Red (1 unit) in capacity 4
-            // Sink cannot be poured FROM. Normal cannot fully pour into Sink (would need 3 free).
-            // Wait - Normal has 1 unit, Sink has 2 free. So Normal CAN fully pour into Sink.
-            // Let's fix: make Normal have more than Sink can hold.
-            // Bottle 1 (Sink): Red (3 units) in capacity 4 - 1 free
-            // Bottle 2 (Normal): Red (2 units) in capacity 4
-            // Normal has 2 units, Sink has 1 free. Cannot fully pour.
-            // Sink has 3 units, Normal has 2 free. Sink CANNOT pour (is sink).
-            // Result: IsWin = true (no reducing move exists)
+            // Bottle 1 (Sink): Red (3 units) in capacity 4 - not full
+            // Bottle 2 (Normal): Red (2 units) in capacity 4 - not full
+            // Neither bottle is full → not win.
             var bottles = new[]
             {
                 new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, null }, isSink: true),
                 new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, null, null })
             };
             var state = CreateLevel(bottles);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]
@@ -208,20 +194,18 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void IsWin_AsymmetricCapacitiesAllowOnlyPartialPour_ReturnsTrue()
+        public void IsWin_AsymmetricCapacitiesAllowOnlyPartialPour_ReturnsFalse()
         {
-            // Bottle 1: Red (5 units) cap 6 - 1 free
-            // Bottle 2: Red (4 units) cap 5 - 1 free
-            // Bottle 1 has 5, can pour max 1 into Bottle 2. Not full pour.
-            // Bottle 2 has 4, can pour max 1 into Bottle 1. Not full pour.
-            // No reduction possible.
+            // Bottle 1: Red (5 units) cap 6 - not full
+            // Bottle 2: Red (4 units) cap 5 - not full
+            // Neither bottle is full → not win.
             var bottles = new[]
             {
                 new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, ColorId.Red, ColorId.Red, null }),
                 new Bottle(new ColorId?[] { ColorId.Red, ColorId.Red, ColorId.Red, ColorId.Red, null })
             };
             var state = CreateLevel(bottles);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]

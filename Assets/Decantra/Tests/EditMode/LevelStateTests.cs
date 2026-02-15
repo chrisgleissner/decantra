@@ -83,7 +83,7 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void IsWin_PassesWithPartiallyFilledUniformBottle_IfIrreducible()
+        public void IsWin_FailsWithPartiallyFilledUniformBottle_EvenIfIrreducible()
         {
             var bottles = new Bottle[3];
             bottles[0] = new Bottle(new ColorId?[] { ColorId.Blue, ColorId.Blue, null, null });
@@ -91,7 +91,7 @@ namespace Decantra.Tests.EditMode
             bottles[2] = new Bottle(new ColorId?[] { null, null, null, null });
 
             var state = new LevelState(bottles, 0, 10, 3, 1, 123);
-            Assert.IsTrue(state.IsWin());
+            Assert.IsFalse(state.IsWin());
         }
 
         [Test]
