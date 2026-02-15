@@ -17,7 +17,7 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
-        private const float TopRowsDownwardOffsetPx = 50f;
+        private const float TopRowsDownwardOffsetPx = 65f;
         private const float TopRowsDownwardReferenceHeightPx = 2400f;
         private const int ShiftedTopRowCount = 2;
         private const float RowBottomMergeTolerance = 8f;
