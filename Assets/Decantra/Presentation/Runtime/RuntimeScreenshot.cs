@@ -28,6 +28,7 @@ namespace Decantra.Presentation
         private const string MotionDirectoryName = "motion";
         private const string InitialRenderFileName = "initial_render.png";
         private const string AfterFirstMoveFileName = "after_first_move.png";
+        private const string FirstMoveDiffFileName = "first_move_diff.png";
         private const int MotionFrameCount = 6;
         private const float MotionFrameIntervalMs = 600f;
 
@@ -338,7 +339,8 @@ namespace Decantra.Presentation
             var before = CaptureGridSnapshot(gridRect);
             var beforeClearance = MeasureOptionsToBottleClearance();
             Debug.Log($"RuntimeScreenshot GridBefore anchoredY={before.AnchoredY:F3} centerY={before.WorldCenterY:F3} minY={before.WorldMinY:F3} canvasScale={before.CanvasScale:F3} screen={before.ScreenWidth}x{before.ScreenHeight} safe={before.SafeAreaX:F1},{before.SafeAreaY:F1},{before.SafeAreaWidth:F1},{before.SafeAreaHeight:F1} bottles=[{before.BottleLocalYCsv}]");
-            yield return CaptureScreenshot(Path.Combine(outputDir, InitialRenderFileName));
+            string initialPath = Path.Combine(outputDir, InitialRenderFileName);
+            yield return CaptureScreenshot(initialPath);
             Debug.Log($"RuntimeScreenshot Level36Before optionsBottomY={beforeClearance.OptionsBottomY:F3} bottleTopY={beforeClearance.BottleTopY:F3} gapPx={beforeClearance.GapPx:F3} bottle={beforeClearance.BottleName} brightUnderOptions={beforeClearance.BrightPixelsUnderOptions}");
 
             // Perform the first valid user move on level 36.
@@ -383,8 +385,11 @@ namespace Decantra.Presentation
             var after = CaptureGridSnapshot(gridRect);
             var afterClearance = MeasureOptionsToBottleClearance();
             Debug.Log($"RuntimeScreenshot GridAfter anchoredY={after.AnchoredY:F3} centerY={after.WorldCenterY:F3} minY={after.WorldMinY:F3} canvasScale={after.CanvasScale:F3} screen={after.ScreenWidth}x{after.ScreenHeight} safe={after.SafeAreaX:F1},{after.SafeAreaY:F1},{after.SafeAreaWidth:F1},{after.SafeAreaHeight:F1} bottles=[{after.BottleLocalYCsv}]");
-            yield return CaptureScreenshot(Path.Combine(outputDir, AfterFirstMoveFileName));
+            string afterPath = Path.Combine(outputDir, AfterFirstMoveFileName);
+            yield return CaptureScreenshot(afterPath);
             Debug.Log($"RuntimeScreenshot Level36After optionsBottomY={afterClearance.OptionsBottomY:F3} bottleTopY={afterClearance.BottleTopY:F3} gapPx={afterClearance.GapPx:F3} bottle={afterClearance.BottleName} brightUnderOptions={afterClearance.BrightPixelsUnderOptions}");
+            string diffPath = Path.Combine(outputDir, FirstMoveDiffFileName);
+            TryCreateFirstMoveDiffImage(initialPath, afterPath, diffPath);
 
             // Compute per-bottle deltas and max shift
             float maxBottleDelta = 0f;
@@ -393,6 +398,7 @@ namespace Decantra.Presentation
             reportBuilder.AppendLine("{");
             reportBuilder.AppendLine("  \"levelIndex\": 36,");
             reportBuilder.AppendLine("  \"seed\": 192731,");
+            reportBuilder.AppendLine($"  \"buildProvenance\": {{ \"commitSha\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.CommitSha)}\", \"buildTimestampUtc\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.BuildTimestampUtc)}\", \"unityVersion\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.UnityVersion)}\", \"pipelineId\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.PipelineId)}\", \"refName\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.RefName)}\", \"versionName\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.VersionName)}\", \"versionCode\": \"{EscapeJson(Decantra.Presentation.BuildProvenance.VersionCode)}\" }},");
             reportBuilder.AppendLine($"  \"resolution\": \"{before.ScreenWidth}x{before.ScreenHeight}\",");
             reportBuilder.AppendLine($"  \"scaleFactor\": {before.CanvasScale:F4},");
             reportBuilder.AppendLine($"  \"safeArea\": {{ \"x\": {before.SafeAreaX:F1}, \"y\": {before.SafeAreaY:F1}, \"w\": {before.SafeAreaWidth:F1}, \"h\": {before.SafeAreaHeight:F1} }},");
@@ -432,6 +438,7 @@ namespace Decantra.Presentation
                 Debug.LogError($"RuntimeScreenshot: failed to write report: {ex.Message}");
             }
 
+            Debug.Log($"RuntimeScreenshot BuildProvenance {Decantra.Presentation.BuildProvenance.ToDiagnosticString()}");
             Debug.Log($"RuntimeScreenshot BottleDelta maxY={maxBottleDelta:F6} worst={worstBottle}");
             if (Mathf.Abs(maxBottleDelta) >= 0.5f)
             {
@@ -654,6 +661,21 @@ namespace Decantra.Presentation
             return values.ToString();
         }
 
+        private static string EscapeJson(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
+        }
+
         private static bool TryFindFirstValidMove(GameController controller, out int source, out int target, out float duration)
         {
             source = -1;
@@ -682,6 +704,65 @@ namespace Decantra.Presentation
             }
 
             return false;
+        }
+
+        private static void TryCreateFirstMoveDiffImage(string initialPath, string afterPath, string diffPath)
+        {
+            try
+            {
+                if (!File.Exists(initialPath) || !File.Exists(afterPath))
+                {
+                    return;
+                }
+
+                byte[] initialBytes = File.ReadAllBytes(initialPath);
+                byte[] afterBytes = File.ReadAllBytes(afterPath);
+
+                var initial = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                var after = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+
+                if (!initial.LoadImage(initialBytes) || !after.LoadImage(afterBytes))
+                {
+                    UnityEngine.Object.Destroy(initial);
+                    UnityEngine.Object.Destroy(after);
+                    return;
+                }
+
+                int width = Mathf.Min(initial.width, after.width);
+                int height = Mathf.Min(initial.height, after.height);
+                if (width <= 0 || height <= 0)
+                {
+                    UnityEngine.Object.Destroy(initial);
+                    UnityEngine.Object.Destroy(after);
+                    return;
+                }
+
+                var diff = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        Color a = initial.GetPixel(x, y);
+                        Color b = after.GetPixel(x, y);
+                        float delta = Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b);
+                        float intensity = Mathf.Clamp01(delta * 2.5f);
+                        diff.SetPixel(x, y, new Color(intensity, intensity, intensity, 1f));
+                    }
+                }
+
+                diff.Apply(false, false);
+                File.WriteAllBytes(diffPath, diff.EncodeToPNG());
+
+                UnityEngine.Object.Destroy(initial);
+                UnityEngine.Object.Destroy(after);
+                UnityEngine.Object.Destroy(diff);
+
+                Debug.Log($"RuntimeScreenshot: wrote first-move diff image to {diffPath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"RuntimeScreenshot: failed to create first-move diff image: {ex.Message}");
+            }
         }
 
         private readonly struct GridSnapshot

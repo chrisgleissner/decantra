@@ -98,6 +98,24 @@ jobs:
             -coverageResultsPath Coverage
             -coverageOptions "generateAdditionalMetrics;assemblyFilters:+Decantra.Domain;dontClear"
 
+      - name: Upload first-interaction regression artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-FirstInteractionShift
+          path: Artifacts/first-interaction-shift-test/**
+          if-no-files-found: warn
+
+      - name: Verify first-interaction shift report
+        run: |
+          python3 tools/release/verify_first_interaction_report.py \
+            --report Artifacts/first-interaction-shift-test/report.json \
+            --max-dy 1.0 \
+            --require-files \
+              Artifacts/first-interaction-shift-test/S0.png \
+              Artifacts/first-interaction-shift-test/S1.png \
+              Artifacts/first-interaction-shift-test/diff.png
+
       - name: Upload code coverage artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -141,6 +159,15 @@ jobs:
         with:
           lfs: true
           fetch-depth: 0
+
+      - name: Validate clean checkout before build
+        run: |
+          git update-index -q --refresh
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "Working tree is not clean before Android build." >&2
+            git status --short
+            exit 1
+          fi
 
       - name: Prepare keystore (optional)
         id: keystore

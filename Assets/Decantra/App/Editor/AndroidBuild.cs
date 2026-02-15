@@ -10,6 +10,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -21,6 +22,17 @@ namespace Decantra.App.Editor
     {
         private const string DefaultApkPath = "Builds/Android/Decantra.apk";
         private const string DefaultAabPath = "Builds/Android/Decantra.aab";
+        private const string BuildProvenanceSourcePath = "Assets/Decantra/Presentation/Runtime/BuildProvenance.Generated.cs";
+
+        private readonly struct BuildProvenanceSourceBackup
+        {
+            public BuildProvenanceSourceBackup(string originalContent)
+            {
+                OriginalContent = originalContent;
+            }
+
+            public string OriginalContent { get; }
+        }
 
         [MenuItem("Decantra/Build/Android Debug APK")]
         public static void BuildDebugApk()
@@ -227,32 +239,138 @@ namespace Decantra.App.Editor
             PlayerSettings.productName = "Decantra";
             PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
 
+            EnsureCleanGitTreeForCiBuild();
+
             bool previousBuildAppBundle = EditorUserBuildSettings.buildAppBundle;
-            EditorUserBuildSettings.buildAppBundle = buildAppBundle;
+            BuildProvenanceSourceBackup provenanceBackup = WriteBuildProvenanceSource();
 
-            var buildPlayerOptions = new BuildPlayerOptions
+            try
             {
-                scenes = new[] { "Assets/Decantra/Scenes/Main.unity" },
-                locationPathName = outputPath,
-                target = BuildTarget.Android,
-                options = options
-            };
+                EditorUserBuildSettings.buildAppBundle = buildAppBundle;
 
-            Debug.Log($"AndroidBuild: Invoking BuildPipeline.BuildPlayer for {artifactLabel}...");
-            BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
-            EditorUserBuildSettings.buildAppBundle = previousBuildAppBundle;
-            if (report.summary.result != BuildResult.Succeeded)
+                var buildPlayerOptions = new BuildPlayerOptions
+                {
+                    scenes = new[] { "Assets/Decantra/Scenes/Main.unity" },
+                    locationPathName = outputPath,
+                    target = BuildTarget.Android,
+                    options = options
+                };
+
+                Debug.Log($"AndroidBuild: Invoking BuildPipeline.BuildPlayer for {artifactLabel}...");
+                BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+                if (report.summary.result != BuildResult.Succeeded)
+                {
+                    Debug.LogError($"Android build failed: {report.summary.result}");
+                    throw new Exception("Android build failed");
+                }
+
+                if (buildAppBundle && requireKeystore)
+                {
+                    VerifyAabSigning(outputPath, keystoreConfig);
+                }
+
+                Debug.Log($"Android {artifactLabel} built at {outputPath}");
+            }
+            finally
             {
-                Debug.LogError($"Android build failed: {report.summary.result}");
-                throw new Exception("Android build failed");
+                EditorUserBuildSettings.buildAppBundle = previousBuildAppBundle;
+                RestoreBuildProvenanceSource(provenanceBackup);
+            }
+        }
+
+        private static void EnsureCleanGitTreeForCiBuild()
+        {
+            if (!IsGitHubActionsEnvironment())
+            {
+                return;
             }
 
-            if (buildAppBundle && requireKeystore)
+            string status = TryRunGit("status", "--porcelain");
+            if (!string.IsNullOrWhiteSpace(status))
             {
-                VerifyAabSigning(outputPath, keystoreConfig);
+                FailBuild("AndroidBuild: CI build aborted because git working tree is not clean.");
+            }
+        }
+
+        private static BuildProvenanceSourceBackup WriteBuildProvenanceSource()
+        {
+            string projectPath = Directory.GetCurrentDirectory();
+            string absolutePath = Path.Combine(
+                projectPath,
+                BuildProvenanceSourcePath.Replace('/', Path.DirectorySeparatorChar));
+
+            string originalContent = File.Exists(absolutePath)
+                ? File.ReadAllText(absolutePath)
+                : string.Empty;
+
+            string generated = GenerateBuildProvenanceSource();
+            File.WriteAllText(absolutePath, generated, Encoding.UTF8);
+            AssetDatabase.ImportAsset(BuildProvenanceSourcePath, ImportAssetOptions.ForceSynchronousImport);
+
+            Debug.Log($"AndroidBuild: Updated {BuildProvenanceSourcePath} with build provenance.");
+            return new BuildProvenanceSourceBackup(originalContent);
+        }
+
+        private static void RestoreBuildProvenanceSource(BuildProvenanceSourceBackup backup)
+        {
+            string projectPath = Directory.GetCurrentDirectory();
+            string absolutePath = Path.Combine(
+                projectPath,
+                BuildProvenanceSourcePath.Replace('/', Path.DirectorySeparatorChar));
+
+            File.WriteAllText(absolutePath, backup.OriginalContent ?? string.Empty, Encoding.UTF8);
+            AssetDatabase.ImportAsset(BuildProvenanceSourcePath, ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        private static string GenerateBuildProvenanceSource()
+        {
+            string commitSha = FirstNonEmptyEnv("GITHUB_SHA") ?? TryRunGit("rev-parse", "HEAD") ?? "unknown";
+            string timestampUtc = DateTime.UtcNow.ToString("O");
+            string unityVersion = Application.unityVersion;
+            string pipelineId = FirstNonEmptyEnv("GITHUB_RUN_ID", "BUILD_BUILDID", "CI_PIPELINE_ID") ?? "local";
+            string refName = FirstNonEmptyEnv("GITHUB_REF_NAME", "GITHUB_REF") ?? "local";
+            string versionName = PlayerSettings.bundleVersion;
+            string versionCode = PlayerSettings.Android.bundleVersionCode.ToString();
+
+            var builder = new StringBuilder();
+            builder.AppendLine("/*");
+            builder.AppendLine("Decantra - A Unity-based bottle-sorting puzzle game");
+            builder.AppendLine("Copyright (C) 2026 Christian Gleissner");
+            builder.AppendLine();
+            builder.AppendLine("Licensed under the GNU General Public License v2.0 or later.");
+            builder.AppendLine("See <https://www.gnu.org/licenses/> for details.");
+            builder.AppendLine("*/");
+            builder.AppendLine();
+            builder.AppendLine("namespace Decantra.Presentation");
+            builder.AppendLine("{");
+            builder.AppendLine("    internal static class BuildProvenanceGenerated");
+            builder.AppendLine("    {");
+            builder.AppendLine($"        public const string CommitSha = \"{EscapeForCSharpLiteral(commitSha)}\";");
+            builder.AppendLine($"        public const string BuildTimestampUtc = \"{EscapeForCSharpLiteral(timestampUtc)}\";");
+            builder.AppendLine($"        public const string UnityVersion = \"{EscapeForCSharpLiteral(unityVersion)}\";");
+            builder.AppendLine($"        public const string PipelineId = \"{EscapeForCSharpLiteral(pipelineId)}\";");
+            builder.AppendLine($"        public const string RefName = \"{EscapeForCSharpLiteral(refName)}\";");
+            builder.AppendLine($"        public const string VersionName = \"{EscapeForCSharpLiteral(versionName)}\";");
+            builder.AppendLine($"        public const string VersionCode = \"{EscapeForCSharpLiteral(versionCode)}\";");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+
+            return builder.ToString();
+        }
+
+        private static string EscapeForCSharpLiteral(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
             }
 
-            Debug.Log($"Android {artifactLabel} built at {outputPath}");
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n")
+                .Replace("\t", "\\t");
         }
 
         private static bool ShouldRequireKeystore(BuildOptions options)

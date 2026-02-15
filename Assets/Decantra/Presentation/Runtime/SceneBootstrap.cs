@@ -2155,7 +2155,7 @@ namespace Decantra.Presentation
         {
             string versionName = string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version;
             string versionNumber = GetRuntimeVersionNumber();
-            return $"Version {versionName} ({versionNumber})";
+            return $"Version {versionName} ({versionNumber})\n<size=75%>{BuildProvenance.FooterLine}</size>";
         }
 
         private static string BuildHowToPlayBodyText()

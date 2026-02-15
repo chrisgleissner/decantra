@@ -139,6 +139,8 @@ adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}"
 expected=(
   "initial_render.png"
   "after_first_move.png"
+  "first_move_diff.png"
+  "report.json"
   "startup_fade_in_midpoint.png"
   "help_overlay.png"
   "options_panel_typography.png"

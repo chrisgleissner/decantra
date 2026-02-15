@@ -1,78 +1,81 @@
-# PLANS — Terminal State & Visual Gap Fix (2026-02-15)
+# PLANS — Release Integrity Investigation & Corrective Release (2026-02-15)
 
-## Objective
+## Mission
 
-Three fixes ensuring solved levels display correctly and only accept fully-filled bottles as complete.
+Conclusively diagnose and fix the mismatch where the officially deployed/tagged artifact (`1.0.1`, installed `versionCode=4430`) still shows first-interaction row shift, while a newer main-built APK appears fixed.
 
-## Scope Constraints
+## Assumptions (validated against repo as work proceeds)
 
-- [x] No gameplay mechanics changes beyond tightened `IsWin()` predicate.
-- [x] No bottle geometry redesign.
-- [x] No neck-area changes.
-- [x] Presentation changes are pixel-level corrections only.
+1. Unity project + Android CI pipeline exist in this repo.
+2. Release path is GitHub Actions -> AAB upload to Play internal + GitHub release artifact.
+3. Shift can be deterministically detected via row position metrics and screenshot deltas.
+4. Play Console is not directly available from this environment; operator checklist is required for upload verification.
 
-## Issue 1 — Terminal State Accepts Partially Filled Bottles
+## Non-negotiable constraints
 
-### Problem
-`LevelState.IsWin()` checked monochrome + irreducible but did NOT require `IsFull`. With variable-capacity bottles, the solver could find terminal states with partially-filled monochrome bottles accepted as "solved."
+- No partial "likely fixed" conclusion.
+- No test weakening.
+- Preserve historical tags; prefer corrective tag (`1.0.2`) over moving `1.0.1`.
+- Every conclusion must be backed by reproducible commands + artifacts.
 
-### Fix
-Added `if (!bottle.IsFull) return false;` in `IsWin()` before the monochrome check. Every non-empty bottle must now be both full AND monochrome.
+## Execution Contract
 
-### Files Changed
-- `Assets/Decantra/Domain/Model/LevelState.cs` — added `IsFull` guard
+### 1) Reproduce + characterize
+- [ ] Capture evidence for official broken behavior (before/after first interaction) from installed official build path.
+- [ ] Record measured dy for rows 1 and 2 and store screenshots + JSON report.
 
-### Tests Updated
-- `LevelCompletionTests.cs` — 6 tests flipped from `Assert.IsTrue` to `Assert.IsFalse` for partial-monochrome scenarios
-- `LevelStateTests.cs` — 1 test flipped (`IsWin_PassesWithPartiallyFilledUniformBottle_IfIrreducible` → `IsWin_FailsWithPartiallyFilledUniformBottle_EvenIfIrreducible`)
+**Done criteria:** a reproducible artifact set exists with `S0`, `S1`, `diff`, and metric JSON showing pass/fail.
 
-### Tests Added
-- `TerminalStateInvariantTests.cs` — 9 new tests:
-  - 7 unit tests for `IsWin()` edge cases (partial, full, empty, mixed, regression)
-  - 1 generator invariant test (color units match bottle capacity)
-  - 1 integration test (25 levels: generate → solve → verify all bottles full or empty)
+### 2) Establish provenance
+- [ ] Resolve `1.0.1 -> commit SHA` and record commit metadata.
+- [ ] Record current main commit SHA and relation to release tag.
+- [ ] Capture build inputs used by release path (Unity version, player settings, build methods, workflow logic).
 
-## Issue 2 — Visual Gap at Top of Full Bottles
+**Done criteria:** report maps tag/commit/build-inputs and identifies whether fix commits are included in the official tag.
 
-### Problem
-`RefSlotRootHeight` (300) was smaller than `liquidMask` height (320), creating a 20px gap. Plus `slotRoot` had `anchoredPosition.y = -2`, adding 2px more. Full bottles showed empty slivers at top of main body.
+### 3) Determine mismatch root cause
+- [ ] Evaluate tag mismatch vs config drift vs stale artifact.
+- [ ] Produce evidence-backed root-cause statement.
 
-### Fix
-- `BottleView.cs`: `RefSlotRootHeight` 300 → 320 (matches liquidMask height)
-- `SceneBootstrap.cs`: `liquidRect.sizeDelta` (112,300) → (112,320); `anchoredPosition` (0,-2) → (0,0)
+**Done criteria:** exactly one primary root cause (or ranked causes) is documented with evidence.
 
-## Issue 3 — Top Row Bottles Overlap HUD
+### 4) Implement corrective changes
+- [ ] Ensure first-interaction shift fix is in canonical release path.
+- [ ] Harden pipeline against dirty-tree / wrong-commit release ambiguity.
+- [ ] Embed non-sensitive build provenance in app payload.
 
-### Problem
-`TopRowsDownwardOffsetPx = 35` didn't provide enough clearance from RESET/OPTIONS buttons.
+**Done criteria:** code + workflow changes guarantee reproducible release inputs and runtime provenance visibility.
 
-### Fix
-- `HudSafeLayout.cs`: `TopRowsDownwardOffsetPx` 35 → 50
+### 5) Add automated regression verification
+- [ ] Add deterministic regression test for row 1+2 dy on first interaction.
+- [ ] Emit `S0.png`, `S1.png`, `diff.png`, and JSON metric report.
+- [ ] Run test locally and in CI; publish artifacts.
 
-## Execution Checklist
+**Done criteria:** failing behavior is caught automatically; corrected behavior passes.
 
-### Phase 1 — Investigation
-- [x] Root cause analysis for all three issues.
-- [x] Traced rendering pipeline: BottleView → slotRoot → liquidMask → segments.
-- [x] Confirmed RefSlotRootHeight/liquidMask height mismatch (300 vs 320).
+### 6) Release artifact verification
+- [ ] Generate canonical release artifact (APK/AAB path).
+- [ ] Compute SHA-256 hashes and store machine-readable hash manifest.
+- [ ] Verify artifact provenance metadata (commit SHA, timestamp, Unity version, pipeline ID).
+- [ ] If Play upload is external, provide exact operator checklist including expected versionCode.
 
-### Phase 2 — Fix
-- [x] `LevelState.cs`: `IsFull` guard in `IsWin()`.
-- [x] `BottleView.cs`: `RefSlotRootHeight` 300 → 320.
-- [x] `SceneBootstrap.cs`: slotRoot size 300 → 320, offset -2 → 0.
-- [x] `HudSafeLayout.cs`: `TopRowsDownwardOffsetPx` 35 → 50.
+**Done criteria:** verified artifact + provenance + operator steps are reproducible and auditable.
 
-### Phase 3 — Tests
-- [x] 7 flipped existing tests (6 in LevelCompletionTests, 1 in LevelStateTests).
-- [x] 9 new tests in TerminalStateInvariantTests.
-- [x] EditMode tests: **216 passed, 0 failed** (2026-02-15).
+### 7) Documentation deliverables
+- [ ] Check in Release Provenance Report under `doc/`.
+- [ ] Include commands, outputs, hashes, and final conclusion.
 
-### Phase 4 — Regression Safety
-- [x] All 216 EditMode tests passing.
-- [ ] PlayMode tests (pending full script completion).
-- [ ] On-device visual verification.
+**Done criteria:** report is complete, reproducible, and suitable for release sign-off.
 
-## Verification Log
+## Current findings (in-progress)
 
-- **2026-02-15 00:01**: EditMode tests 216/216 passed (including 9 new TerminalStateInvariantTests).
-- **2026-02-15**: SolvabilityFuzzTests (60 levels) passed with tightened IsWin — solver finds fully-packed solutions within node limits.
+- Confirmed: `1.0.1` tag resolves to `cd6d2a4`.
+- Confirmed: shift-stabilization commits are post-`1.0.1` on main (starting at `3a19483` and follow-ups).
+- Working hypothesis: official deployed `1.0.1` artifact predates final stabilization fixes; latest-main APK includes them.
+
+## Verification ledger (to be updated live)
+
+- [ ] Local deterministic regression test run complete.
+- [ ] CI run includes regression artifacts.
+- [ ] Artifact hash manifest generated.
+- [ ] Release provenance report committed.
