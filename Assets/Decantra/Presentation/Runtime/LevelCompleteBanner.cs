@@ -36,8 +36,8 @@ namespace Decantra.Presentation
         [SerializeField] private int maxFlyingStars = 8;
 
         private readonly float[] starPitches = { 0.9f, 1.0f, 1.08f, 1.16f, 1.24f };
-        private AudioSource[] _starSources;
         private AudioClip _starClip;
+        private AudioManager _audioManager;
         private int _lastStarCount;
         private RectTransform _effectsRoot;
         private Image _glistenImage;
@@ -127,14 +127,7 @@ namespace Decantra.Presentation
         private void Awake()
         {
             _starClip = CreateStarClip();
-            _starSources = new AudioSource[5];
-            for (int i = 0; i < _starSources.Length; i++)
-            {
-                var source = gameObject.AddComponent<AudioSource>();
-                source.playOnAwake = false;
-                source.loop = false;
-                _starSources[i] = source;
-            }
+            _audioManager = FindFirstObjectByType<AudioManager>();
         }
 
         public void Show(int level, int stars, int awardedScore, bool sfxEnabled, Action onScoreApply, Action onComplete)
@@ -738,16 +731,19 @@ namespace Decantra.Presentation
 
         private void PlayStarLayers(int stars)
         {
-            if (_starClip == null || _starSources == null) return;
+            if (_starClip == null) return;
             if (stars <= 0) return;
-            int layers = Mathf.Min(stars, _starSources.Length);
+            if (_audioManager == null)
+            {
+                _audioManager = FindFirstObjectByType<AudioManager>();
+            }
+
+            if (_audioManager == null) return;
+            int layers = Mathf.Min(stars, starPitches.Length);
             for (int i = 0; i < layers; i++)
             {
-                var source = _starSources[i];
-                if (source == null) continue;
-                source.pitch = starPitches[Mathf.Min(i, starPitches.Length - 1)];
-                source.volume = 0.45f;
-                source.PlayOneShot(_starClip);
+                float pitch = starPitches[Mathf.Min(i, starPitches.Length - 1)];
+                _audioManager.PlayTransient(_starClip, 0.45f, pitch);
             }
         }
 
@@ -757,6 +753,10 @@ namespace Decantra.Presentation
             float duration = 0.18f;
             int samples = Mathf.CeilToInt(sampleRate * duration);
             var clip = AudioClip.Create("StarChime", samples, 1, sampleRate, false);
+            if (clip == null)
+            {
+                return null;
+            }
 
             float[] data = new float[samples];
             float baseFreq = 640f;
@@ -768,7 +768,12 @@ namespace Decantra.Presentation
                 float shimmer = Mathf.Sin(2f * Mathf.PI * (baseFreq * 2.01f) * t) * 0.2f;
                 data[i] = (sine + shimmer) * env;
             }
-            clip.SetData(data, 0);
+
+            AudioManager.HardenSampleData(data, sampleRate, 1, 0.006f, 0.012f);
+            if (!clip.SetData(data, 0))
+            {
+                return null;
+            }
             return clip;
         }
     }

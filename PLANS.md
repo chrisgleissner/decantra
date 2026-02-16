@@ -1,4 +1,4 @@
-# Decantra Feature Implementation Plan
+# Sound Effects Subsystem Hardening Plan
 
 ## Accessible Colors Toggle Feature (2026-02-16)
 
@@ -37,116 +37,117 @@
 
 ## Milestone 1: Architecture
 
-- [x] Introduce modular managers/services for tutorial, audio, options navigation, accessibility, legal content, and progression persistence.
-- [x] Keep Domain layer pure; place Unity-specific orchestration in Presentation/App layers.
-- [x] Ensure scene wiring avoids brittle hardcoded references (serialized references or registry-based lookup).
-- [x] Validate no race conditions during first-launch boot + scene load.
+The project had multiple independent SFX playback paths with abrupt start/stop behavior. Procedural clip generation existed in runtime code, while UI/celebration paths also played clips directly. This allowed discontinuities and repeated transients to surface as audible pops/clicks and increased listener fatigue under rapid repetition.
 
-### Architecture Acceptance Criteria
+## 2) Root cause analysis of popping artifacts
 
-- Managers are isolated by responsibility and reusable.
-- No UnityEngine references added to Domain.
-- Scene startup is deterministic and null-safe.
+Technical causes identified:
 
----
+- Non-zero first sample values in generated clips can create an immediate waveform discontinuity at playback start.
+- Missing/insufficient attack ramps can create steep onset edges.
+- Abrupt stop conditions without controlled release can create end clicks.
+- Direct source triggering can expose phase discontinuities when repeated rapidly on the same source.
 
-## Milestone 2: UI Implementation
+## 3) Why UI button sounds pop
 
-- [x] Build tutorial overlay UI (dimmer, highlight target, instruction text, Next, Skip).
-- [x] Add reset confirmation modal with large high-contrast buttons.
-- [x] Add legal pages (Privacy Policy, Terms of Service) with scrollable content.
-- [x] Expand Options page UI: replay tutorial, sound toggle, volume slider, legal entries, high-contrast toggle.
-- [x] Add level completion indicator UI (checkmark/marker).
+- Imported/static clips (if used) may not start at exact zero crossing.
+- Imported/static clips (if used) may not end at exact zero crossing.
+- Direct one-shot triggering can begin at arbitrary waveform phase and stack tightly under rapid tapping.
+- Without explicit fade-in/fade-out, short transients become edge-sensitive and click-prone.
 
-### UI Acceptance Criteria
+## 4) Psychoacoustic fatigue explanation
 
-- All required controls exist, are visible, and sized for mobile.
-- Legal pages scroll cleanly on small resolutions.
-- Reset dialog blocks background interactions until choice.
+Fatigue increases when highly similar transients repeat with little variation, especially in upper-mid/high ranges. Fixed spectral centroids and identical temporal shapes are perceived as harsh over time. Slight deterministic micro-variation in pitch/amplitude, controlled RMS, and short envelopes reduce perceived harshness while preserving responsiveness.
 
----
+## 5) Unified audio safety layer proposal
 
-## Milestone 3: State Management
+Implement/route all SFX playback through `AudioManager`:
 
-- [x] Add tutorial step-state machine with structured step data.
-- [x] Add replay tutorial action independent of gameplay progress.
-- [x] Add completed-level tracking state and update hooks.
+- Fixed pool of `AudioSource` components (no per-play source creation).
+- Single `PlayTransient(...)` wrapper used by button, pour, level-complete, and banner star layers.
+- Runtime hardening for any clip played through wrapper:
+  - Attack/release envelope (5–20 ms constrained window).
+  - Hard boundaries: first and last sample set to `0f`.
+  - DC offset removal (mean subtraction per channel).
+  - Peak clamp to `[-1f, 1f]`.
+- Cache hardened static clips to avoid repeated allocations/work.
 
-### State Management Acceptance Criteria
+## 6) Dynamic pour DSP design
 
-- Tutorial starts on first launch and can be replayed safely mid-session.
-- Level completion state updates reliably and deterministically.
+Pour clips are generated as a deterministic bank across fill ratios:
 
----
+- `fillRatio = liquidLevel/capacity`
+- `airRatio = 1 - fillRatio`
+- Resonance center moves with fill state:
+  - `f_res = lerp(240 Hz, 1050 Hz, fillRatio)`
+- Layers:
+  1. Turbulence: deterministic white noise band-shaped to roughly 300–2500 Hz.
+  2. Air resonance: deterministic band-pass resonator around `f_res` (Q≈3).
+  3. Modulation: subtle deterministic ±2% frequency and ±5% amplitude jitter.
+  4. Gain shaping:
+     - `noiseGain = 0.8 - 0.3 * fillRatio`
+     - `resonanceGain = airRatio * 0.6`
+- Final hardening pass applies anti-pop envelope, DC removal, clipping protection, and zero edges.
 
-## Milestone 4: Accessibility
+## 7) Implementation steps
 
-- [x] High-contrast mode toggle with persisted setting.
-- [x] Color differentiation safeguards for color-blind users.
-- [x] Increase critical button tap targets (reset confirmation, tutorial controls, options entries).
+1. Audit all audio playback and procedural clip entry points.
+2. Replace direct one-shot usage with pooled `PlayTransient` wrapper in `AudioManager`.
+3. Build deterministic pour clip bank with dynamic resonance/noise behavior.
+4. Redesign button and completion clips for softer spectral balance plus hardened boundaries.
+5. Route `LevelCompleteBanner` star playback through `AudioManager` wrapper.
+6. Add focused PlayMode tests for clip hardening and source-pool invariants.
 
-### Accessibility Acceptance Criteria
+## 8) Validation plan
 
-- High-contrast applies immediately and persists.
-- Critical actions have clearly larger touch targets.
-- UI remains legible in all added flows.
+- Verify generated clips start/end at exact zero.
+- Verify no sample exceeds `[-1, 1]`.
+- Verify near-zero DC mean on generated clips.
+- Verify no `PlayOneShot` remains in project runtime code.
+- Verify repeated playback does not allocate new `AudioSource`s.
+- Exercise rapid click/pour/complete calls in tests and manual run.
 
----
+## 9) Risks and mitigations
 
-## Milestone 5: Persistence
+- **Risk:** Runtime `GetData` on compressed static clips may fail.
+  - **Mitigation:** Fallback to original clip if data read/set fails.
+- **Risk:** Source-pool stealing could truncate tails under extreme overlap.
+  - **Mitigation:** pool size increased and round-robin scheduling.
+- **Risk:** Per-clip hardening could allocate on first play.
+  - **Mitigation:** cache hardened clip by instance ID.
 
-- [x] Persist tutorial completion, sound enabled, volume, high-contrast mode, and level completion flags.
-- [x] Add centralized preference keys and default handling.
+## 10) Completion checklist
 
-### Persistence Acceptance Criteria
+- [x] Project-wide audio audit completed (`AudioSource`, `PlayOneShot`, `Play`, `AudioClip.Create`, UI click hooks).
+- [x] Root causes and anti-pop strategy documented.
+- [x] Unified pooled playback wrapper implemented in `AudioManager`.
+- [x] Direct `PlayOneShot` usage removed from gameplay/UI runtime code.
+- [x] Clip safety hardening implemented (attack/release, zero boundaries, DC removal, clamp).
+- [x] Dynamic deterministic pour redesign implemented with fill-dependent resonance.
+- [x] Button playback routed through hardened wrapper.
+- [x] Level-complete/bottle-complete clip redesigned as short, softer transient.
+- [x] LevelCompleteBanner star SFX routed through `AudioManager`.
+- [x] Focused PlayMode tests added for safety and pool behavior.
+- [ ] Unity test execution completed in this environment (Unity executable unavailable).
+- [ ] Android on-device acoustic validation completed in this environment.
 
-- Relaunch retains all settings and progression indicators.
-- Muted sound remains silent after restart.
+## Audit findings
 
----
+Search scope covered:
 
-## Milestone 6: Navigation Wiring
+- `AudioSource`
+- `PlayOneShot`
+- `.Play(`
+- `AudioClip.Create`
+- `OnAudioFilterRead`
+- UI button click hooks
 
-- [x] Ensure main menu -> options route exists and is stable.
-- [x] Wire options -> replay tutorial / legal pages / back navigation.
-- [x] Wire tutorial and reset confirmation modal as blocking overlays.
+Findings:
 
-### Navigation Acceptance Criteria
-
-- All new pages/features are reachable from Options.
-- Back navigation is consistent and returns user to prior context.
-
----
-
-## Milestone 7: Testing
-
-- [x] Add/extend automated tests for tutorial first-launch gating, replay behavior, sound prefs, reset modal flow, legal content loading, and level progression persistence.
-- [x] Execute EditMode tests and verify no regressions.
-- [x] Create manual validation checklist for device/small-resolution UX.
-
-### Testing Acceptance Criteria
-
-- Automated tests pass for modified/new systems.
-- Manual checklist confirms no clipping, null refs, or interaction leaks.
-
-### Manual Validation Checklist
-
-- [x] Tutorial triggers on first launch and is skippable.
-- [x] Replay Tutorial relaunches overlay without resetting progress.
-- [x] Reset dialog blocks interaction and requires explicit confirmation.
-- [x] Sound toggle + volume slider apply and persist.
-- [x] Privacy Policy and Terms pages open from Options and scroll on small screens.
-- [x] Options contains replay tutorial, sound controls, legal entries, and accessibility toggles.
-- [x] No null references reported in modified files.
-- [x] UI controls remain reachable and readable on mobile-sized layout.
-
----
-
-## Progress Log
-
-- 2026-02-16: Plan created.
-- 2026-02-16: Implemented `TutorialManager`, `AudioManager`, and `ResetLevelDialog` with runtime scene wiring.
-- 2026-02-16: Added in-app Privacy Policy and Terms pages using replaceable text assets under `Assets/Resources/Legal`.
-- 2026-02-16: Expanded Options navigation for replay tutorial, sound settings, accessibility toggles, and legal links.
-- 2026-02-16: Added completed-level tracking, HUD completion marker, and persistence defaults.
-- 2026-02-16: Updated/added PlayMode tests for reset confirmation, options/legal navigation, and settings persistence.
+- Procedural clips are generated in `Assets/Decantra/Presentation/Runtime/AudioManager.cs` and `Assets/Decantra/Presentation/Runtime/LevelCompleteBanner.cs`.
+- Prior to this change, direct `PlayOneShot` existed in:
+  - `AudioManager.PlayPour`, `AudioManager.PlayLevelComplete`, `AudioManager.PlayButtonClick`
+  - `LevelCompleteBanner.PlayStarLayers`
+- No `OnAudioFilterRead` implementation was present.
+- No imported static audio assets (`wav/mp3/ogg/aiff`) were present in repository content.
+- UI buttons trigger SFX via `GameController.PlayButtonSfx` -> `AudioManager.PlayButtonClick`.
