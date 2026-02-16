@@ -7,7 +7,7 @@
 - [x] Classify each failure root cause (incorrect/brittle test vs production defect vs nondeterminism).
 - [x] Apply minimal deterministic fixes.
 - [x] Verify fixes with available local non-Unity checks and repeated deterministic analysis from CI evidence.
-- [ ] Finalize risk review and Definition of Done validation.
+- [x] Finalize risk review and Definition of Done validation.
 
 ## 1) Inventory of failing CI runs on `main`
 
@@ -65,6 +65,7 @@ Execution notes:
 
 - Baseline command before changes: `./scripts/test.sh` → `Unity not found. Set UNITY_PATH to the Unity editor executable.`
 - Post-change command: `./scripts/test.sh` → same environment limitation, no additional failures observable without Unity.
+- Automated review/security: `code_review` rerun clean after fix; `codeql_checker` reported 0 C# alerts.
 
 ## 6) Risk assessment
 

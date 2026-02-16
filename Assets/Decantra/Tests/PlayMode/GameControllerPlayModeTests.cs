@@ -891,9 +891,9 @@ namespace Decantra.Tests.PlayMode
 
         private static void AssertColorApproximately(Color32 expected, Color32 actual, byte channelTolerance)
         {
-            Assert.LessOrEqual(Mathf.Abs(expected.r - actual.r), channelTolerance, "Red channel mismatch.");
-            Assert.LessOrEqual(Mathf.Abs(expected.g - actual.g), channelTolerance, "Green channel mismatch.");
-            Assert.LessOrEqual(Mathf.Abs(expected.b - actual.b), channelTolerance, "Blue channel mismatch.");
+            Assert.LessOrEqual(Mathf.Abs((int)expected.r - actual.r), channelTolerance, "Red channel mismatch.");
+            Assert.LessOrEqual(Mathf.Abs((int)expected.g - actual.g), channelTolerance, "Green channel mismatch.");
+            Assert.LessOrEqual(Mathf.Abs((int)expected.b - actual.b), channelTolerance, "Blue channel mismatch.");
             Assert.AreEqual(expected.a, actual.a, "Alpha channel mismatch.");
         }
 
