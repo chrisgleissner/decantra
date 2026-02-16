@@ -105,7 +105,7 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "drag-pour",
                 "Bottle_2",
-                "Drag the source bottle onto a target bottle, then release. The top liquid pours only if the target has space and is empty or has the same top color."
+                "Drag a bottle onto another and release. It pours only if space is available and the top color matches or the target is empty."
             ));
 
             if (_controller != null && _controller.TryGetSinkBottleObjectName(out string sinkBottleName))
@@ -120,7 +120,7 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "goal",
                 "LevelPanel",
-                "3 circles show difficulty. More filled = harder and more permitted moves. MOVES is current vs. permitted. Fewer moves = higher score."
+                "Circles indicate difficulty. More filled means harder levels. MOVES shows used vs. allowed. Fewer moves give a higher score."
             ));
             _steps.Add(new TutorialStepData(
                 "reset",
