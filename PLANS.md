@@ -1,153 +1,105 @@
-# Sound Effects Subsystem Hardening Plan
+# Decantra Build Stabilization Plan (Branch: test/fix-build)
 
-## Accessible Colors Toggle Feature (2026-02-16)
+Last updated: 2026-02-16
 
-### Feature description
+## Problem statement
 
-- Add a Settings toggle labeled exactly `Accessible Colors`.
-- Persist toggle state with default OFF and initialize palette state during startup.
-- Route all liquid color resolution through a centralized palette provider that supports exactly:
-  - `DefaultPalette`
-  - `AccessiblePalette`
-- Use this exact accessible 8-color palette: `#0072B2`, `#E69F00`, `#56B4E9`, `#009E73`, `#F0E442`, `#D55E00`, `#CC79A7`, `#1B2A41`.
+CI/build reliability is broken or unverified for branch `test/fix-build`. The goal is to restore a deterministic, reproducible Unity 6 build that succeeds both locally (from clean checkout) and on CI, then keep iterating until CI is fully green.
 
-### Implementation steps
+## Known CI failure evidence
 
-- [x] Update palette provider to expose `DefaultPalette`/`AccessiblePalette` selection and resolve colors centrally for bottle liquid visuals.
-- [x] Add `Accessible Colors` toggle row to Options and wire it to game settings state.
-- [x] Persist/reload accessible colors setting through `SettingsStore` (default OFF).
-- [x] Apply palette mode before first level render and re-render bottles when toggled at runtime.
-- [x] Add focused tests for palette switching, luminance-order distinction, and mid-game toggle safety.
+### Evidence captured
 
-### Risk assessment
+1. `gh run list --branch test/fix-build --limit 10` returned `no runs found`.
+2. GitHub CLI auth and repo access verified:
+   - Authenticated as `chrisgleissner`.
+   - Repository `chrisgleissner/decantra` accessible.
+   - Default branch is `main`.
 
-- Runtime toggle may leave transient preview overlays stale if bottle visuals are not re-rendered consistently.
-- SceneBootstrap UI wiring order may show stale toggle defaults if runtime state is not loaded before interaction.
-- Palette data mismatches (hex conversion drift) could violate exact accessible color requirements.
+### Current interpretation
 
-### Test checklist
+- There are currently no recorded workflow runs for this branch, or runs are not being triggered (workflow trigger/config issue).
+- We still must validate workflow configuration and execute a CI run to green.
 
-- [x] Unit: palette switching returns expected colors for both palettes.
-- [x] Unit: accessible and default palettes produce distinct grayscale luminance ordering.
-- [x] Integration: toggling during active level updates rendered bottle liquid colors.
-- [x] Regression: toggling on/off mid-game does not produce null references.
-- [ ] Execute Unity EditMode/PlayMode tests in this environment (blocked: Unity editor executable unavailable).
+## Hypotheses
 
----
+1. Workflow trigger conditions do not include pushes/PRs for `test/fix-build`.
+2. Workflow files may be invalid, disabled, or filtered by path rules.
+3. CI uses Unity version/settings inconsistent with project `ProjectVersion.txt`.
+4. CI setup (Android SDK/NDK/license/cache) may be nondeterministic or misconfigured.
+5. Local clean build might expose latent package/import or test gate failures that would fail CI.
 
-## Milestone 1: Architecture
+## Step-by-step remediation strategy
 
-The project had multiple independent SFX playback paths with abrupt start/stop behavior. Procedural clip generation existed in runtime code, while UI/celebration paths also played clips directly. This allowed discontinuities and repeated transients to surface as audible pops/clicks and increased listener fatigue under rapid repetition.
+### Phase 1 — Baseline & Evidence
 
-## 2) Root cause analysis of popping artifacts
+1. Inspect `.github/workflows/*.yml` for trigger and job configuration.
+2. Enumerate workflows with `gh workflow list` and run history with repo-scoped commands.
+3. If no run exists for branch, trigger workflow manually with `gh workflow run` using this branch.
+4. Capture run IDs and logs in this document.
 
-Technical causes identified:
+### Phase 2 — Clean Local Reproduction
 
-- Non-zero first sample values in generated clips can create an immediate waveform discontinuity at playback start.
-- Missing/insufficient attack ramps can create steep onset edges.
-- Abrupt stop conditions without controlled release can create end clicks.
-- Direct source triggering can expose phase discontinuities when repeated rapidly on the same source.
+1. Ensure Unity version matches `ProjectSettings/ProjectVersion.txt`.
+2. Remove `Library/`, `Temp/`, and any `obj/` folders.
+3. Run the exact CI-equivalent command(s) for tests/build.
+4. Record pass/fail and concrete error messages.
 
-## 3) Why UI button sounds pop
+### Phase 3 — Root Cause & Minimal Fix
 
-- Imported/static clips (if used) may not start at exact zero crossing.
-- Imported/static clips (if used) may not end at exact zero crossing.
-- Direct one-shot triggering can begin at arbitrary waveform phase and stack tightly under rapid tapping.
-- Without explicit fade-in/fade-out, short transients become edge-sensitive and click-prone.
+1. Triage each concrete failure category from logs:
+   - Unity compile/build errors
+   - Package/dependency resolution
+   - Android SDK/NDK/toolchain mismatch
+   - Licensing or runner setup errors
+   - Test failures
+   - Cache corruption
+2. Apply one targeted deterministic fix at a time.
+3. Re-run local clean validation after each fix.
+4. Record causal link and verification evidence here.
 
-## 4) Psychoacoustic fatigue explanation
+### Phase 4 — CI Hardening
 
-Fatigue increases when highly similar transients repeat with little variation, especially in upper-mid/high ranges. Fixed spectral centroids and identical temporal shapes are perceived as harsh over time. Slight deterministic micro-variation in pitch/amplitude, controlled RMS, and short envelopes reduce perceived harshness while preserving responsiveness.
+1. Align CI Unity version with project version.
+2. Ensure deterministic package resolution (no floating versions).
+3. Validate Android SDK/NDK setup and license activation in workflow.
+4. Ensure cache keys are stable and safe (or remove harmful cache usage).
+5. Keep local and CI commands identical.
 
-## 5) Unified audio safety layer proposal
+### Phase 5 — Push, Observe, Iterate
 
-Implement/route all SFX playback through `AudioManager`:
+1. Commit focused fix(es) on `test/fix-build`.
+2. Push and monitor run with:
+   - `gh run list --branch test/fix-build`
+   - `gh run watch <run-id>`
+   - `gh run view <run-id> --log`
+3. If run fails, loop back to Phase 3.
+4. Continue until all required jobs pass.
 
-- Fixed pool of `AudioSource` components (no per-play source creation).
-- Single `PlayTransient(...)` wrapper used by button, pour, level-complete, and banner star layers.
-- Runtime hardening for any clip played through wrapper:
-  - Attack/release envelope (5–20 ms constrained window).
-  - Hard boundaries: first and last sample set to `0f`.
-  - DC offset removal (mean subtraction per channel).
-  - Peak clamp to `[-1f, 1f]`.
-- Cache hardened static clips to avoid repeated allocations/work.
+### Phase 6 — Finalization
 
-## 6) Dynamic pour DSP design
+1. Confirm fully green workflow (no skipped failing jobs, no masked errors).
+2. Remove temporary debug artifacts.
+3. Record root cause summary and green run ID in this file.
+4. Ensure final commit message references the green CI run.
 
-Pour clips are generated as a deterministic bank across fill ratios:
+## Verification checklist
 
-- `fillRatio = liquidLevel/capacity`
-- `airRatio = 1 - fillRatio`
-- Resonance center moves with fill state:
-  - `f_res = lerp(240 Hz, 1050 Hz, fillRatio)`
-- Layers:
-  1. Turbulence: deterministic white noise band-shaped to roughly 300–2500 Hz.
-  2. Air resonance: deterministic band-pass resonator around `f_res` (Q≈3).
-  3. Modulation: subtle deterministic ±2% frequency and ±5% amplitude jitter.
-  4. Gain shaping:
-     - `noiseGain = 0.8 - 0.3 * fillRatio`
-     - `resonanceGain = airRatio * 0.6`
-- Final hardening pass applies anti-pop envelope, DC removal, clipping protection, and zero edges.
+- [ ] Local clean checkout build succeeds.
+- [ ] Local clean tests (required gates) succeed.
+- [ ] CI workflow run exists for `test/fix-build` and is green.
+- [ ] CI Unity version equals `ProjectSettings/ProjectVersion.txt`.
+- [ ] Android SDK/NDK config is deterministic and valid.
+- [ ] Package resolution is deterministic (no floating dependencies).
+- [ ] No temporary debug artifacts committed.
+- [ ] Final commit message references green CI run ID.
 
-## 7) Implementation steps
+## Execution log
 
-1. Audit all audio playback and procedural clip entry points.
-2. Replace direct one-shot usage with pooled `PlayTransient` wrapper in `AudioManager`.
-3. Build deterministic pour clip bank with dynamic resonance/noise behavior.
-4. Redesign button and completion clips for softer spectral balance plus hardened boundaries.
-5. Route `LevelCompleteBanner` star playback through `AudioManager` wrapper.
-6. Add focused PlayMode tests for clip hardening and source-pool invariants.
+### 2026-02-16T00:00 — Baseline start
 
-## 8) Validation plan
-
-- Verify generated clips start/end at exact zero.
-- Verify no sample exceeds `[-1, 1]`.
-- Verify near-zero DC mean on generated clips.
-- Verify no `PlayOneShot` remains in project runtime code.
-- Verify repeated playback does not allocate new `AudioSource`s.
-- Exercise rapid click/pour/complete calls in tests and manual run.
-
-## 9) Risks and mitigations
-
-- **Risk:** Runtime `GetData` on compressed static clips may fail.
-  - **Mitigation:** Fallback to original clip if data read/set fails.
-- **Risk:** Source-pool stealing could truncate tails under extreme overlap.
-  - **Mitigation:** pool size increased and round-robin scheduling.
-- **Risk:** Per-clip hardening could allocate on first play.
-  - **Mitigation:** cache hardened clip by instance ID.
-
-## 10) Completion checklist
-
-- [x] Project-wide audio audit completed (`AudioSource`, `PlayOneShot`, `Play`, `AudioClip.Create`, UI click hooks).
-- [x] Root causes and anti-pop strategy documented.
-- [x] Unified pooled playback wrapper implemented in `AudioManager`.
-- [x] Direct `PlayOneShot` usage removed from gameplay/UI runtime code.
-- [x] Clip safety hardening implemented (attack/release, zero boundaries, DC removal, clamp).
-- [x] Dynamic deterministic pour redesign implemented with fill-dependent resonance.
-- [x] Button playback routed through hardened wrapper.
-- [x] Level-complete/bottle-complete clip redesigned as short, softer transient.
-- [x] LevelCompleteBanner star SFX routed through `AudioManager`.
-- [x] Focused PlayMode tests added for safety and pool behavior.
-- [ ] Unity test execution completed in this environment (Unity executable unavailable).
-- [ ] Android on-device acoustic validation completed in this environment.
-
-## Audit findings
-
-Search scope covered:
-
-- `AudioSource`
-- `PlayOneShot`
-- `.Play(`
-- `AudioClip.Create`
-- `OnAudioFilterRead`
-- UI button click hooks
-
-Findings:
-
-- Procedural clips are generated in `Assets/Decantra/Presentation/Runtime/AudioManager.cs` and `Assets/Decantra/Presentation/Runtime/LevelCompleteBanner.cs`.
-- Prior to this change, direct `PlayOneShot` existed in:
-  - `AudioManager.PlayPour`, `AudioManager.PlayLevelComplete`, `AudioManager.PlayButtonClick`
-  - `LevelCompleteBanner.PlayStarLayers`
-- No `OnAudioFilterRead` implementation was present.
-- No imported static audio assets (`wav/mp3/ogg/aiff`) were present in repository content.
-- UI buttons trigger SFX via `GameController.PlayButtonSfx` -> `AudioManager.PlayButtonClick`.
+- Replaced `PLANS.md` with this authoritative execution plan.
+- Confirmed git branch is `test/fix-build`.
+- Confirmed `gh` authentication and repo access.
+- Initial CI query: no runs found for `test/fix-build`.
+- Next: inspect workflow files and force a branch run if needed.
