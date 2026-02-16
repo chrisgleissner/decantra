@@ -1,4 +1,77 @@
-# Sound Effects Subsystem Hardening Plan
+# Main CI Test Stabilization Plan (2026-02-16)
+
+## Status Checklist
+
+- [x] Inventory recent failed `main` workflow runs and isolate test-related failures.
+- [x] Extract exact failing test cases and stack traces from CI logs.
+- [x] Classify each failure root cause (incorrect/brittle test vs production defect vs nondeterminism).
+- [ ] Apply minimal deterministic fixes.
+- [ ] Verify fixes with available local non-Unity checks and repeated deterministic analysis from CI evidence.
+- [ ] Finalize risk review and Definition of Done validation.
+
+## 1) Inventory of failing CI runs on `main`
+
+Recent failed `Build Decantra` runs on `main`:
+
+- Run `22079902510` (run #369) — **failed** in job `63802878058` (`Unity tests (EditMode + PlayMode)`).
+- Run `22079759763` (run #366) — **failed** in job `63802470989` (`Unity tests (EditMode + PlayMode)`).
+- Run `21925005022` (run #307) — failed in Android build job only; Unity tests passed (**not test-failure scope**).
+- Run `21924282035` (run #305) — failed in Android build job only; Unity tests passed (**not test-failure scope**).
+
+## 2) Exact failing test cases with stack traces
+
+### Failure A (appears in runs 22079759763 and 22079902510)
+
+- Test: `Decantra.Tests.PlayMode.OptionsNavigationPlayModeTests.ReplayTutorial_SeparatesLevelAndMovesSteps_AndKeepsTextWithinContainer`
+- Error:
+  - `Instruction text overflowed container. content=LEVEL & Difficulty ...`
+  - `Expected: less than or equal to 198.5f`
+  - `But was: 273.375f`
+- Stack trace:
+  - `at Decantra.Tests.PlayMode.OptionsNavigationPlayModeTests.AssertInstructionFits (...) in Assets/Decantra/Tests/PlayMode/OptionsNavigationPlayModeTests.cs:165`
+  - `at ...ReplayTutorial_SeparatesLevelAndMovesSteps_AndKeepsTextWithinContainer... in ...OptionsNavigationPlayModeTests.cs:116`
+
+### Failure B (appears in run 22079902510)
+
+- Test: `Decantra.Tests.PlayMode.GameControllerPlayModeTests.AccessibleColorsToggle_UpdatesRenderedBottleLiquid`
+- Error:
+  - `Expected: RGBA(59, 130, 255, 255)`
+  - `But was: RGBA(59, 129, 255, 255)`
+- Stack trace:
+  - `at ...AccessibleColorsToggle_UpdatesRenderedBottleLiquid... in Assets/Decantra/Tests/PlayMode/GameControllerPlayModeTests.cs:721`
+
+## 3) Root cause classification
+
+- Failure A: **B. Legitimate production defect**
+  - Tutorial instruction content was expanded/split; current `InstructionText` layout height in overlay is too small for the required LEVEL & Difficulty copy, producing deterministic overflow in CI.
+- Failure B: **A/C. Brittle assertion with minor rendering nondeterminism**
+  - Test compares post-processed color using strict `Color32` equality; float/HSV conversion + platform rounding yields ±1 channel variation.
+
+## 4) Proposed fix strategy
+
+- Failure A: minimally increase available tutorial instruction text area in `SceneBootstrap.CreateTutorialOverlay` so required text fits container.
+- Failure B: make test assertion deterministic but tolerant to 1-step channel rounding drift (bounded per-channel tolerance), while still verifying palette switch and distinct colors.
+
+## 5) Verification steps
+
+1. Run available local repo test command baseline (`./scripts/test.sh`) to capture environment limitations.
+2. Apply minimal code/test changes for Failures A and B.
+3. Run available non-Unity validation commands (repository does not provide non-Unity executable tests; record limitation).
+4. Re-check changed tests/logic statically against CI stack traces and failure conditions for deterministic resolution.
+
+## 6) Risk assessment
+
+- UI layout change could shift tutorial panel composition; mitigate by only adjusting instruction text bounds.
+- Tolerance in color assertion could hide larger regressions; mitigate by using tight per-channel bound (1) and preserving distinct-color assertion.
+
+## 7) Definition of Done
+
+- Both historical failing tests have deterministic, root-cause fixes.
+- No unrelated files/refactors are introduced.
+- `PLANS.md` documents inventory, stack traces, classification, strategy, verification, and risks.
+- PR includes concise summary of fixes and validation limits (Unity unavailable locally in this environment).
+
+ # Sound Effects Subsystem Hardening Plan
 
 ## Accessible Colors Toggle Feature (2026-02-16)
 
