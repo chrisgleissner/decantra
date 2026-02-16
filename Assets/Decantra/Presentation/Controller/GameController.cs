@@ -100,6 +100,7 @@ namespace Decantra.Presentation.Controller
         private GameObject _privacyPolicyOverlay;
         private GameObject _termsOverlay;
         private GameObject _highContrastOverlay;
+        private Toggle _accessibleColorsToggle;
         private AudioManager _audioManager;
 
         private const float TransitionTimeoutSeconds = 2.5f;
@@ -1011,10 +1012,9 @@ namespace Decantra.Presentation.Controller
         {
             if (_optionsOverlay != null)
             {
-                var accessibleColorsToggle = _optionsOverlay.transform.Find("Panel/ListContainer/Content/AccessibleColorsRow/Toggle")?.GetComponent<Toggle>();
-                if (accessibleColorsToggle != null)
+                if (_accessibleColorsToggle != null)
                 {
-                    accessibleColorsToggle.SetIsOnWithoutNotify(_colorBlindAssistEnabled);
+                    _accessibleColorsToggle.SetIsOnWithoutNotify(_colorBlindAssistEnabled);
                 }
                 _optionsOverlay.SetActive(true);
             }

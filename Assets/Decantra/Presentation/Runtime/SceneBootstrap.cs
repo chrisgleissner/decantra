@@ -2494,6 +2494,7 @@ namespace Decantra.Presentation
                 SetPrivateField(controller, "_privacyPolicyOverlay", privacyOverlay);
                 SetPrivateField(controller, "_termsOverlay", termsOverlay);
                 SetPrivateField(controller, "_highContrastOverlay", highContrastOverlay);
+                SetPrivateField(controller, "_accessibleColorsToggle", accessibleColorsToggle);
             }
             else
             {
