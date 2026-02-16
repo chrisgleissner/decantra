@@ -2402,6 +2402,7 @@ namespace Decantra.Presentation
             var sfxToggle = CreateToggleRow(list.transform, "SfxRow", "SOUND EFFECTS", controller != null && controller.IsSfxEnabled);
             var sfxVolumeSlider = CreateOptionsSlider(list.transform, "SfxVolumeRow", "VOLUME",
                 0f, 1f, controller != null ? controller.SfxVolume01 : 1f);
+            var accessibleColorsToggle = CreateToggleRow(list.transform, "AccessibleColorsRow", "Accessible Colors", controller != null && controller.AccessibleColorsEnabled);
 
             var sectionHeader = CreateHudText(list.transform, "StarfieldHeader");
             sectionHeader.fontSize = 32;
@@ -2478,6 +2479,7 @@ namespace Decantra.Presentation
                 replayTutorialButton.onClick.AddListener(controller.ReplayTutorial);
                 sfxToggle.onValueChanged.AddListener(controller.SetSfxEnabled);
                 sfxVolumeSlider.onValueChanged.AddListener(controller.SetSfxVolume01);
+                accessibleColorsToggle.onValueChanged.AddListener(controller.SetAccessibleColorsEnabled);
 
                 starfieldToggle.onValueChanged.AddListener(controller.SetStarfieldEnabled);
                 densitySlider.onValueChanged.AddListener(controller.SetStarfieldDensity);

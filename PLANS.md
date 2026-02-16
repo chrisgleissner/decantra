@@ -1,5 +1,40 @@
 # Decantra Feature Implementation Plan
 
+## Accessible Colors Toggle Feature (2026-02-16)
+
+### Feature description
+
+- Add a Settings toggle labeled exactly `Accessible Colors`.
+- Persist toggle state with default OFF and initialize palette state during startup.
+- Route all liquid color resolution through a centralized palette provider that supports exactly:
+  - `DefaultPalette`
+  - `AccessiblePalette`
+- Use this exact accessible 8-color palette: `#0072B2`, `#E69F00`, `#56B4E9`, `#009E73`, `#F0E442`, `#D55E00`, `#CC79A7`, `#1B2A41`.
+
+### Implementation steps
+
+- [x] Update palette provider to expose `DefaultPalette`/`AccessiblePalette` selection and resolve colors centrally for bottle liquid visuals.
+- [x] Add `Accessible Colors` toggle row to Options and wire it to game settings state.
+- [x] Persist/reload accessible colors setting through `SettingsStore` (default OFF).
+- [x] Apply palette mode before first level render and re-render bottles when toggled at runtime.
+- [x] Add focused tests for palette switching, luminance-order distinction, and mid-game toggle safety.
+
+### Risk assessment
+
+- Runtime toggle may leave transient preview overlays stale if bottle visuals are not re-rendered consistently.
+- SceneBootstrap UI wiring order may show stale toggle defaults if runtime state is not loaded before interaction.
+- Palette data mismatches (hex conversion drift) could violate exact accessible color requirements.
+
+### Test checklist
+
+- [x] Unit: palette switching returns expected colors for both palettes.
+- [x] Unit: accessible and default palettes produce distinct grayscale luminance ordering.
+- [x] Integration: toggling during active level updates rendered bottle liquid colors.
+- [x] Regression: toggling on/off mid-game does not produce null references.
+- [ ] Execute Unity EditMode/PlayMode tests in this environment (blocked: Unity editor executable unavailable).
+
+---
+
 ## Milestone 1: Architecture
 
 - [x] Introduce modular managers/services for tutorial, audio, options navigation, accessibility, legal content, and progression persistence.

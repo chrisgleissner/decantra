@@ -48,13 +48,14 @@ namespace Decantra.Tests.PlayMode
         {
             var store = new SettingsStore();
 
+            Assert.IsFalse(store.LoadAccessibleColorsEnabled());
             store.SaveTutorialCompleted(true);
             store.SaveHighContrastEnabled(true);
-            store.SaveColorBlindAssistEnabled(true);
+            store.SaveAccessibleColorsEnabled(true);
 
             Assert.IsTrue(store.LoadTutorialCompleted());
             Assert.IsTrue(store.LoadHighContrastEnabled());
-            Assert.IsTrue(store.LoadColorBlindAssistEnabled());
+            Assert.IsTrue(store.LoadAccessibleColorsEnabled());
         }
     }
 }

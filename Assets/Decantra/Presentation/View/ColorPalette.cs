@@ -23,14 +23,20 @@ namespace Decantra.Presentation.View
             public Color Color;
         }
 
+        public enum PaletteKind
+        {
+            DefaultPalette = 0,
+            AccessiblePalette = 1
+        }
+
         [SerializeField] private List<Entry> entries = new List<Entry>();
         [SerializeField] private List<Entry> colorBlindEntries = new List<Entry>();
 
-        private bool _colorBlindMode;
+        private PaletteKind _activePalette = PaletteKind.DefaultPalette;
 
         public Color GetColor(ColorId colorId)
         {
-            var source = _colorBlindMode && colorBlindEntries != null && colorBlindEntries.Count > 0
+            var source = _activePalette == PaletteKind.AccessiblePalette && colorBlindEntries != null && colorBlindEntries.Count > 0
                 ? colorBlindEntries
                 : entries;
 
@@ -44,9 +50,14 @@ namespace Decantra.Presentation.View
             return Color.white;
         }
 
+        public void SetAccessibleColorsEnabled(bool enabled)
+        {
+            _activePalette = enabled ? PaletteKind.AccessiblePalette : PaletteKind.DefaultPalette;
+        }
+
         public void SetColorBlindMode(bool enabled)
         {
-            _colorBlindMode = enabled;
+            SetAccessibleColorsEnabled(enabled);
         }
     }
 }

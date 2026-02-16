@@ -29,3 +29,20 @@ MonoBehaviour:
     Color: {r: 0.2, g: 0.85, b: 0.9, a: 1}
   - ColorId: 7
     Color: {r: 0.92, g: 0.36, b: 0.78, a: 1}
+  colorBlindEntries:
+  - ColorId: 0
+    Color: {r: 0, g: 0.44705883, b: 0.69803923, a: 1}
+  - ColorId: 1
+    Color: {r: 0.9019608, g: 0.62352943, b: 0, a: 1}
+  - ColorId: 2
+    Color: {r: 0.3372549, g: 0.7058824, b: 0.9137255, a: 1}
+  - ColorId: 3
+    Color: {r: 0, g: 0.61960787, b: 0.4509804, a: 1}
+  - ColorId: 4
+    Color: {r: 0.9411765, g: 0.89411765, b: 0.25882354, a: 1}
+  - ColorId: 5
+    Color: {r: 0.8352941, g: 0.36862746, b: 0, a: 1}
+  - ColorId: 6
+    Color: {r: 0.8, g: 0.4745098, b: 0.654902, a: 1}
+  - ColorId: 7
+    Color: {r: 0.105882354, g: 0.16470589, b: 0.25490198, a: 1}

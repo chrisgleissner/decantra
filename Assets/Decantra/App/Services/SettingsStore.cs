@@ -17,7 +17,7 @@ namespace Decantra.App.Services
         private const string SfxVolumeKey = "decantra.sfx.volume";
         private const string TutorialCompletedKey = "decantra.tutorial.completed";
         private const string HighContrastEnabledKey = "decantra.accessibility.highcontrast";
-        private const string ColorBlindAssistEnabledKey = "decantra.accessibility.colorblind";
+        private const string AccessibleColorsEnabledKey = "decantra.accessibility.colorblind";
         private const string StarfieldEnabledKey = "decantra.starfield.enabled";
         private const string StarfieldDensityKey = "decantra.starfield.density";
         private const string StarfieldSpeedKey = "decantra.starfield.speed";
@@ -67,15 +67,25 @@ namespace Decantra.App.Services
             PlayerPrefs.Save();
         }
 
+        public bool LoadAccessibleColorsEnabled()
+        {
+            return PlayerPrefs.GetInt(AccessibleColorsEnabledKey, 0) == 1;
+        }
+
+        public void SaveAccessibleColorsEnabled(bool enabled)
+        {
+            PlayerPrefs.SetInt(AccessibleColorsEnabledKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
         public bool LoadColorBlindAssistEnabled()
         {
-            return PlayerPrefs.GetInt(ColorBlindAssistEnabledKey, 0) == 1;
+            return LoadAccessibleColorsEnabled();
         }
 
         public void SaveColorBlindAssistEnabled(bool enabled)
         {
-            PlayerPrefs.SetInt(ColorBlindAssistEnabledKey, enabled ? 1 : 0);
-            PlayerPrefs.Save();
+            SaveAccessibleColorsEnabled(enabled);
         }
 
         public StarfieldConfig LoadStarfieldConfig()
