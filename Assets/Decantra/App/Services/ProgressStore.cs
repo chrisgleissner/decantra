@@ -102,6 +102,7 @@ namespace Decantra.App.Services
             if (data.CurrentSeed < 0) data.CurrentSeed = 0;
             if (data.CurrentScore < 0) data.CurrentScore = 0;
             if (data.HighScore < 0) data.HighScore = 0;
+            if (data.CompletedLevels == null) data.CompletedLevels = new List<int>();
             if (data.BestPerformances == null) data.BestPerformances = new List<LevelPerformanceRecord>();
         }
     }

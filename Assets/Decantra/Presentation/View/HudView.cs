@@ -32,7 +32,8 @@ namespace Decantra.Presentation.View
             int score,
             int highScore,
             int maxLevel,
-            int difficulty100)
+            int difficulty100,
+            bool levelCompleted)
         {
             if (titleText != null)
             {
@@ -46,7 +47,8 @@ namespace Decantra.Presentation.View
 
                 // Use smaller size for circles without affecting the level number.
                 // Using a percentage keeps behavior stable across different base font sizes.
-                levelText.text = $"LEVEL\n{levelIndex} <size=50%>{circles}</size>";
+                string completionMark = levelCompleted ? " <size=70%>✓</size>" : string.Empty;
+                levelText.text = $"LEVEL\n{levelIndex}{completionMark} <size=50%>{circles}</size>";
             }
 
             if (movesText != null)

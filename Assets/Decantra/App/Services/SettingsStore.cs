@@ -14,6 +14,10 @@ namespace Decantra.App.Services
     public sealed class SettingsStore
     {
         private const string SfxEnabledKey = "decantra.sfx.enabled";
+        private const string SfxVolumeKey = "decantra.sfx.volume";
+        private const string TutorialCompletedKey = "decantra.tutorial.completed";
+        private const string HighContrastEnabledKey = "decantra.accessibility.highcontrast";
+        private const string ColorBlindAssistEnabledKey = "decantra.accessibility.colorblind";
         private const string StarfieldEnabledKey = "decantra.starfield.enabled";
         private const string StarfieldDensityKey = "decantra.starfield.density";
         private const string StarfieldSpeedKey = "decantra.starfield.speed";
@@ -27,6 +31,50 @@ namespace Decantra.App.Services
         public void SaveSfxEnabled(bool enabled)
         {
             PlayerPrefs.SetInt(SfxEnabledKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public float LoadSfxVolume01()
+        {
+            return Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 1f));
+        }
+
+        public void SaveSfxVolume01(float volume)
+        {
+            PlayerPrefs.SetFloat(SfxVolumeKey, Mathf.Clamp01(volume));
+            PlayerPrefs.Save();
+        }
+
+        public bool LoadTutorialCompleted()
+        {
+            return PlayerPrefs.GetInt(TutorialCompletedKey, 0) == 1;
+        }
+
+        public void SaveTutorialCompleted(bool completed)
+        {
+            PlayerPrefs.SetInt(TutorialCompletedKey, completed ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public bool LoadHighContrastEnabled()
+        {
+            return PlayerPrefs.GetInt(HighContrastEnabledKey, 0) == 1;
+        }
+
+        public void SaveHighContrastEnabled(bool enabled)
+        {
+            PlayerPrefs.SetInt(HighContrastEnabledKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public bool LoadColorBlindAssistEnabled()
+        {
+            return PlayerPrefs.GetInt(ColorBlindAssistEnabledKey, 0) == 1;
+        }
+
+        public void SaveColorBlindAssistEnabled(bool enabled)
+        {
+            PlayerPrefs.SetInt(ColorBlindAssistEnabledKey, enabled ? 1 : 0);
             PlayerPrefs.Save();
         }
 

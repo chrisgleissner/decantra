@@ -363,6 +363,14 @@ namespace Decantra.Tests.PlayMode
 
             yield return null;
 
+            var confirmReset = GameObject.Find("YesButton");
+            Assert.IsNotNull(confirmReset, "Reset confirmation should be visible after tapping reset.");
+            var confirmResetButton = confirmReset.GetComponent<Button>();
+            Assert.IsNotNull(confirmResetButton, "Reset confirmation button should have Button component.");
+            confirmResetButton.onClick.Invoke();
+
+            yield return null;
+
             var resetState = GetPrivateField(controller, "_state") as LevelState;
             Assert.IsNotNull(resetState);
             string resetKey = StateEncoder.Encode(resetState);
@@ -399,6 +407,14 @@ namespace Decantra.Tests.PlayMode
             var button = resetGo.GetComponent<Button>();
             Assert.IsNotNull(button, "Reset button should have Button component.");
             button.onClick.Invoke();
+
+            yield return null;
+
+            var confirmReset = GameObject.Find("YesButton");
+            Assert.IsNotNull(confirmReset, "Reset confirmation should be visible after tapping reset.");
+            var confirmResetButton = confirmReset.GetComponent<Button>();
+            Assert.IsNotNull(confirmResetButton, "Reset confirmation button should have Button component.");
+            confirmResetButton.onClick.Invoke();
 
             yield return null;
 

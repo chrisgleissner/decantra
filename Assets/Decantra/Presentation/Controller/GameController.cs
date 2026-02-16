@@ -36,6 +36,8 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private IntroBanner introBanner;
         [SerializeField] private OutOfMovesBanner outOfMovesBanner;
         [SerializeField] private RestartGameDialog restartDialog;
+        [SerializeField] private ResetLevelDialog resetLevelDialog;
+        [SerializeField] private TutorialManager tutorialManager;
         [SerializeField] private Image backgroundImage;
         [SerializeField] private Image backgroundDetail;
         [SerializeField] private Image backgroundFlow;
@@ -88,12 +90,17 @@ namespace Decantra.Presentation.Controller
         private bool _usedRestart;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
+        private float _sfxVolume01 = 1f;
+        private bool _highContrastEnabled;
+        private bool _colorBlindAssistEnabled;
         private StarfieldConfig _starfieldConfig;
         private Material _starfieldMaterial;
         private GameObject _optionsOverlay;
         private GameObject _howToPlayOverlay;
-        private AudioSource _audioSource;
-        private AudioClip _pourClip;
+        private GameObject _privacyPolicyOverlay;
+        private GameObject _termsOverlay;
+        private GameObject _highContrastOverlay;
+        private AudioManager _audioManager;
 
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
@@ -262,6 +269,9 @@ namespace Decantra.Presentation.Controller
 
         public bool IsInputLocked => _inputLocked;
         public bool IsSfxEnabled => _sfxEnabled;
+        public float SfxVolume01 => _sfxVolume01;
+        public bool HighContrastEnabled => _highContrastEnabled;
+        public bool ColorBlindAssistEnabled => _colorBlindAssistEnabled;
         public bool HasActiveLevel => _state != null;
 
         private void Awake()
@@ -282,9 +292,18 @@ namespace Decantra.Presentation.Controller
             Canvas.ForceUpdateCanvases();
             _progress = _progressStore.Load();
             _sfxEnabled = _settingsStore.LoadSfxEnabled();
+            _sfxVolume01 = _settingsStore.LoadSfxVolume01();
+            _highContrastEnabled = _settingsStore.LoadHighContrastEnabled();
+            _colorBlindAssistEnabled = _settingsStore.LoadColorBlindAssistEnabled();
             _starfieldConfig = _settingsStore.LoadStarfieldConfig();
             ApplyStarfieldConfig();
             SetupAudio();
+            ApplyAccessibilitySettings();
+
+            if (tutorialManager != null)
+            {
+                tutorialManager.Initialize(this, _settingsStore);
+            }
 
             _scoreSession = new ScoreSession(_progress?.CurrentScore ?? 0);
             _scoreSession.BeginAttempt(_progress?.CurrentScore ?? 0);
@@ -398,6 +417,21 @@ namespace Decantra.Presentation.Controller
             if (_inputLocked) return;
             if (_isCompleting) return;
 
+            if (resetLevelDialog != null)
+            {
+                _inputLocked = true;
+                PlayButtonSfx();
+                resetLevelDialog.Show(ConfirmResetCurrentLevel, CancelResetCurrentLevel);
+                return;
+            }
+
+            ConfirmResetCurrentLevel();
+        }
+
+        private void ConfirmResetCurrentLevel()
+        {
+            if (_isResetting || _state == null) return;
+
             _isResetting = true;
             _inputLocked = true;
 
@@ -412,6 +446,13 @@ namespace Decantra.Presentation.Controller
             _usedRestart = true;
             _inputLocked = false;
             _isResetting = false;
+            PlayButtonSfx();
+        }
+
+        private void CancelResetCurrentLevel()
+        {
+            _inputLocked = false;
+            PlayButtonSfx();
         }
 
         private void RestartCurrentLevel(LevelState restartState = null)
@@ -600,7 +641,8 @@ namespace Decantra.Presentation.Controller
                 int displayScore = total;
                 int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
-                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel, _currentDifficulty100);
+                bool levelCompleted = IsCurrentLevelCompleted(_state.LevelIndex);
+                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel, _currentDifficulty100, levelCompleted);
             }
 
             if (_state.IsWin() && !_isCompleting)
@@ -645,6 +687,14 @@ namespace Decantra.Presentation.Controller
                     _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
                     _progress.CurrentLevel = nextLevel;
                     _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
+                    if (_progress.CompletedLevels == null)
+                    {
+                        _progress.CompletedLevels = new List<int>();
+                    }
+                    if (!_progress.CompletedLevels.Contains(_currentLevel))
+                    {
+                        _progress.CompletedLevels.Add(_currentLevel);
+                    }
                     _progress.CurrentScore = _scoreSession?.TotalScore ?? _progress.CurrentScore;
                     if (_progress.CurrentScore > _progress.HighScore)
                     {
@@ -667,7 +717,8 @@ namespace Decantra.Presentation.Controller
 
             if (levelBanner != null)
             {
-                levelBanner.Show(_currentLevel, _lastStars, awardedScore, _sfxEnabled, onScoreApply, () => finished = true);
+                PlayLevelCompleteSfx();
+                levelBanner.Show(_currentLevel, _lastStars, awardedScore, false, onScoreApply, () => finished = true);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -840,6 +891,84 @@ namespace Decantra.Presentation.Controller
         {
             _sfxEnabled = enabled;
             _settingsStore.SaveSfxEnabled(enabled);
+            if (_audioManager != null)
+            {
+                _audioManager.SetEnabled(enabled);
+            }
+            PlayButtonSfx();
+        }
+
+        public void SetSfxVolume01(float volume01)
+        {
+            _sfxVolume01 = Mathf.Clamp01(volume01);
+            _settingsStore.SaveSfxVolume01(_sfxVolume01);
+            if (_audioManager != null)
+            {
+                _audioManager.SetVolume01(_sfxVolume01);
+            }
+        }
+
+        public void SetHighContrastEnabled(bool enabled)
+        {
+            _highContrastEnabled = enabled;
+            _settingsStore.SaveHighContrastEnabled(enabled);
+            ApplyAccessibilitySettings();
+            PlayButtonSfx();
+        }
+
+        public void SetColorBlindAssistEnabled(bool enabled)
+        {
+            _colorBlindAssistEnabled = enabled;
+            _settingsStore.SaveColorBlindAssistEnabled(enabled);
+            ApplyAccessibilitySettings();
+            Render();
+            PlayButtonSfx();
+        }
+
+        public void ReplayTutorial()
+        {
+            HideOptionsOverlay();
+            if (tutorialManager != null)
+            {
+                tutorialManager.BeginReplay();
+            }
+            PlayButtonSfx();
+        }
+
+        public void ShowPrivacyPolicyOverlay()
+        {
+            if (_privacyPolicyOverlay != null)
+            {
+                _privacyPolicyOverlay.SetActive(true);
+            }
+            PlayButtonSfx();
+        }
+
+        public void HidePrivacyPolicyOverlay()
+        {
+            if (_privacyPolicyOverlay != null)
+            {
+                _privacyPolicyOverlay.SetActive(false);
+            }
+            PlayButtonSfx();
+        }
+
+        public void ShowTermsOverlay()
+        {
+            if (_termsOverlay != null)
+            {
+                _termsOverlay.SetActive(true);
+            }
+            PlayButtonSfx();
+        }
+
+        public void HideTermsOverlay()
+        {
+            if (_termsOverlay != null)
+            {
+                _termsOverlay.SetActive(false);
+            }
+            PlayButtonSfx();
         }
 
         public StarfieldConfig StarfieldConfiguration => _starfieldConfig;
@@ -878,6 +1007,7 @@ namespace Decantra.Presentation.Controller
             {
                 _optionsOverlay.SetActive(true);
             }
+            PlayButtonSfx();
         }
 
         public void HideOptionsOverlay()
@@ -888,6 +1018,14 @@ namespace Decantra.Presentation.Controller
             }
 
             HideHowToPlayOverlay();
+            if (_privacyPolicyOverlay != null)
+            {
+                _privacyPolicyOverlay.SetActive(false);
+            }
+            if (_termsOverlay != null)
+            {
+                _termsOverlay.SetActive(false);
+            }
         }
 
         public bool IsOptionsOverlayVisible => _optionsOverlay != null && _optionsOverlay.activeSelf;
@@ -898,6 +1036,7 @@ namespace Decantra.Presentation.Controller
             {
                 _howToPlayOverlay.SetActive(true);
             }
+            PlayButtonSfx();
         }
 
         public void HideHowToPlayOverlay()
@@ -906,6 +1045,7 @@ namespace Decantra.Presentation.Controller
             {
                 _howToPlayOverlay.SetActive(false);
             }
+            PlayButtonSfx();
         }
 
         public bool IsHowToPlayOverlayVisible => _howToPlayOverlay != null && _howToPlayOverlay.activeSelf;
@@ -952,6 +1092,11 @@ namespace Decantra.Presentation.Controller
             }
 
             _inputLocked = false;
+
+            if (tutorialManager != null)
+            {
+                tutorialManager.BeginIfFirstLaunch();
+            }
         }
 
         private void PersistCurrentProgress(int levelIndex, int seed)
@@ -990,57 +1135,69 @@ namespace Decantra.Presentation.Controller
 
         private void PlayPourSfx(int targetIndex, int amount)
         {
-            if (!_sfxEnabled || _audioSource == null || _pourClip == null || _state == null) return;
+            if (!_sfxEnabled || _audioManager == null || _state == null) return;
 
             int targetFill = _state.Bottles[targetIndex].Count + amount;
             float ratio = Mathf.Clamp01(targetFill / (float)_state.Bottles[targetIndex].Capacity);
-            _audioSource.pitch = Mathf.Lerp(0.8f, 1.2f, ratio);
-            _audioSource.volume = Mathf.Lerp(0.35f, 0.7f, 1f - ratio);
-            _audioSource.PlayOneShot(_pourClip);
+            _audioManager.PlayPour(ratio);
         }
 
         private void SetupAudio()
         {
-            _audioSource = gameObject.AddComponent<AudioSource>();
-            _audioSource.playOnAwake = false;
-            _audioSource.loop = false;
-            _pourClip = CreatePourClip();
-            if (_pourClip == null)
+            _audioManager = gameObject.GetComponent<AudioManager>() ?? gameObject.AddComponent<AudioManager>();
+            _audioManager.SetEnabled(_sfxEnabled);
+            _audioManager.SetVolume01(_sfxVolume01);
+        }
+
+        private void PlayButtonSfx()
+        {
+            if (!_sfxEnabled || _audioManager == null) return;
+            _audioManager.PlayButtonClick();
+        }
+
+        private void PlayLevelCompleteSfx()
+        {
+            if (!_sfxEnabled || _audioManager == null) return;
+            _audioManager.PlayLevelComplete();
+        }
+
+        private void ApplyAccessibilitySettings()
+        {
+            for (int i = 0; i < bottleViews.Count; i++)
             {
-                Debug.LogWarning("[GameController] Failed to create pour audio clip. Audio may not be available in this environment.");
+                var view = bottleViews[i];
+                if (view == null) continue;
+                view.SetColorBlindMode(_colorBlindAssistEnabled);
+            }
+
+            if (_highContrastOverlay != null)
+            {
+                _highContrastOverlay.SetActive(_highContrastEnabled);
             }
         }
 
-        private AudioClip CreatePourClip()
+        public bool TryGetSinkBottleObjectName(out string objectName)
         {
-            int sampleRate = 44100;
-            float duration = 0.25f;
-            int samples = Mathf.CeilToInt(sampleRate * duration);
-            if (samples <= 0)
+            objectName = null;
+            if (_state == null) return false;
+
+            for (int i = 0; i < _state.Bottles.Count && i < bottleViews.Count; i++)
             {
-                Debug.LogWarning("[GameController] Invalid sample count for audio clip.");
-                return null;
+                var bottle = _state.Bottles[i];
+                if (bottle == null || !bottle.IsSink) continue;
+                var view = bottleViews[i];
+                if (view == null) continue;
+                objectName = view.gameObject.name;
+                return true;
             }
 
-            var clip = AudioClip.Create("Pour", samples, 1, sampleRate, false);
-            if (clip == null)
-            {
-                Debug.LogWarning("[GameController] AudioClip.Create returned null. Audio system may not be available.");
-                return null;
-            }
+            return false;
+        }
 
-            float[] data = new float[samples];
-            float freq = 220f;
-            for (int i = 0; i < samples; i++)
-            {
-                float t = i / (float)sampleRate;
-                float noise = Mathf.PerlinNoise(t * 18f, 0.1f) - 0.5f;
-                float sine = Mathf.Sin(2f * Mathf.PI * freq * t) * 0.15f;
-                float env = Mathf.Exp(-t * 8f);
-                data[i] = (noise * 0.3f + sine) * env;
-            }
-            clip.SetData(data, 0);
-            return clip;
+        public bool IsCurrentLevelCompleted(int levelIndex)
+        {
+            if (_progress?.CompletedLevels == null) return false;
+            return _progress.CompletedLevels.Contains(levelIndex);
         }
 
         private int NextSeed(int level, int previous)
@@ -1220,6 +1377,7 @@ namespace Decantra.Presentation.Controller
                 CurrentSeed = 0,
                 CurrentScore = 0,
                 HighScore = 0,
+                CompletedLevels = new List<int>(),
                 BestPerformances = new List<LevelPerformanceRecord>()
             };
 
