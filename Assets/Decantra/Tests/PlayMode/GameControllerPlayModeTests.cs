@@ -679,6 +679,102 @@ namespace Decantra.Tests.PlayMode
             Assert.GreaterOrEqual(progress.CurrentLevel, 2, "Winning should advance level.");
         }
 
+        [UnityTest]
+        public IEnumerator AccessibleColorsToggle_UpdatesRenderedBottleLiquid()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+            float timeout = 8f;
+            float elapsed = 0f;
+            while (elapsed < timeout && !controller.HasActiveLevel)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            Assert.IsTrue(controller.HasActiveLevel);
+
+            var state = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(state);
+
+            int bottleIndex = -1;
+            ColorId topColor = ColorId.Red;
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                var top = state.Bottles[i].TopColor;
+                if (!top.HasValue) continue;
+                bottleIndex = i;
+                topColor = top.Value;
+                break;
+            }
+
+            Assert.GreaterOrEqual(bottleIndex, 0, "Expected at least one non-empty bottle.");
+
+            var view = GetBottleViewForIndex(controller, bottleIndex);
+            Assert.IsNotNull(view);
+
+            controller.SetAccessibleColorsEnabled(false);
+            yield return null;
+            Color defaultColor = GetVisibleLiquidColor(view);
+            Assert.AreEqual((Color32)BoostForBottleLiquid(ExpectedDefaultColor(topColor)), (Color32)defaultColor);
+
+            controller.SetAccessibleColorsEnabled(true);
+            yield return null;
+            Color accessibleColor = GetVisibleLiquidColor(view);
+            Assert.AreEqual((Color32)BoostForBottleLiquid(ExpectedAccessibleColor(topColor)), (Color32)accessibleColor);
+            Assert.AreNotEqual((Color32)defaultColor, (Color32)accessibleColor);
+        }
+
+        [UnityTest]
+        public IEnumerator AccessibleColorsToggle_MidGame_NoNullReferenceLogs()
+        {
+            bool nullReferenceLogged = false;
+            string nullReferenceLogDetails = null;
+            Application.LogCallback callback = (condition, stackTrace, type) =>
+            {
+                if (type == LogType.Exception && condition != null && condition.Contains("NullReferenceException"))
+                {
+                    nullReferenceLogged = true;
+                    nullReferenceLogDetails = condition + "\n" + stackTrace;
+                }
+            };
+
+            Application.logMessageReceived += callback;
+            try
+            {
+                SceneBootstrap.EnsureScene();
+                yield return null;
+
+                var controller = Object.FindFirstObjectByType<GameController>();
+                Assert.IsNotNull(controller);
+                float timeout = 8f;
+                float elapsed = 0f;
+                while (elapsed < timeout && !controller.HasActiveLevel)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+                Assert.IsTrue(controller.HasActiveLevel);
+
+                for (int i = 0; i < 3; i++)
+                {
+                    controller.SetAccessibleColorsEnabled(true);
+                    yield return null;
+                    controller.SetAccessibleColorsEnabled(false);
+                    yield return null;
+                }
+            }
+            finally
+            {
+                Application.logMessageReceived -= callback;
+            }
+
+            Assert.IsFalse(nullReferenceLogged,
+                $"A NullReferenceException was logged during AccessibleColorsToggle_MidGame_NoNullReferenceLogs.\n{nullReferenceLogDetails}");
+        }
+
         private static void SetPrivateField(object instance, string name, object value)
         {
             var field = instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -732,6 +828,73 @@ namespace Decantra.Tests.PlayMode
             var input = view.GetComponent<Decantra.Presentation.View.BottleInput>();
             Assert.IsNotNull(input);
             return input;
+        }
+
+        private static Decantra.Presentation.View.BottleView GetBottleViewForIndex(GameController controller, int index)
+        {
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field, "bottleViews field not found");
+            var views = field.GetValue(controller) as System.Collections.Generic.List<Decantra.Presentation.View.BottleView>;
+            Assert.IsNotNull(views);
+            Assert.Greater(index, -1);
+            return views[index];
+        }
+
+        private static Color GetVisibleLiquidColor(Decantra.Presentation.View.BottleView view)
+        {
+            var field = typeof(Decantra.Presentation.View.BottleView).GetField("slots", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field, "slots field not found");
+            var slots = field.GetValue(view) as System.Collections.Generic.List<Image>;
+            Assert.IsNotNull(slots);
+
+            for (int i = slots.Count - 1; i >= 0; i--)
+            {
+                if (slots[i] == null || !slots[i].gameObject.activeSelf) continue;
+                return slots[i].color;
+            }
+
+            Assert.Fail("No visible liquid segment found.");
+            return Color.clear;
+        }
+
+        private static Color ExpectedDefaultColor(ColorId colorId)
+        {
+            switch (colorId)
+            {
+                case ColorId.Red: return new Color32(235, 64, 56, 255);
+                case ColorId.Blue: return new Color32(64, 128, 242, 255);
+                case ColorId.Green: return new Color32(51, 199, 99, 255);
+                case ColorId.Yellow: return new Color32(250, 224, 51, 255);
+                case ColorId.Purple: return new Color32(166, 97, 217, 255);
+                case ColorId.Orange: return new Color32(247, 140, 51, 255);
+                case ColorId.Cyan: return new Color32(51, 217, 230, 255);
+                case ColorId.Magenta: return new Color32(235, 92, 199, 255);
+                default: return Color.white;
+            }
+        }
+
+        private static Color ExpectedAccessibleColor(ColorId colorId)
+        {
+            switch (colorId)
+            {
+                case ColorId.Red: return new Color32(0, 114, 178, 255);
+                case ColorId.Blue: return new Color32(230, 159, 0, 255);
+                case ColorId.Green: return new Color32(86, 180, 233, 255);
+                case ColorId.Yellow: return new Color32(0, 158, 115, 255);
+                case ColorId.Purple: return new Color32(240, 228, 66, 255);
+                case ColorId.Orange: return new Color32(213, 94, 0, 255);
+                case ColorId.Cyan: return new Color32(204, 121, 167, 255);
+                case ColorId.Magenta: return new Color32(27, 42, 65, 255);
+                default: return Color.white;
+            }
+        }
+
+        private static Color BoostForBottleLiquid(Color color)
+        {
+            Color.RGBToHSV(color, out float h, out float s, out float v);
+            v = Mathf.Clamp01(v * 1.35f + 0.08f);
+            s = Mathf.Clamp01(Mathf.Lerp(s, 1f, 0.12f));
+            return Color.HSVToRGB(h, s, v);
         }
 
     }

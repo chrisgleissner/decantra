@@ -100,6 +100,7 @@ namespace Decantra.Presentation.Controller
         private GameObject _privacyPolicyOverlay;
         private GameObject _termsOverlay;
         private GameObject _highContrastOverlay;
+        private Toggle _accessibleColorsToggle;
         private AudioManager _audioManager;
 
         private const float TransitionTimeoutSeconds = 2.5f;
@@ -271,6 +272,7 @@ namespace Decantra.Presentation.Controller
         public bool IsSfxEnabled => _sfxEnabled;
         public float SfxVolume01 => _sfxVolume01;
         public bool HighContrastEnabled => _highContrastEnabled;
+        public bool AccessibleColorsEnabled => _colorBlindAssistEnabled;
         public bool ColorBlindAssistEnabled => _colorBlindAssistEnabled;
         public bool HasActiveLevel => _state != null;
 
@@ -294,7 +296,7 @@ namespace Decantra.Presentation.Controller
             _sfxEnabled = _settingsStore.LoadSfxEnabled();
             _sfxVolume01 = _settingsStore.LoadSfxVolume01();
             _highContrastEnabled = _settingsStore.LoadHighContrastEnabled();
-            _colorBlindAssistEnabled = _settingsStore.LoadColorBlindAssistEnabled();
+            _colorBlindAssistEnabled = _settingsStore.LoadAccessibleColorsEnabled();
             _starfieldConfig = _settingsStore.LoadStarfieldConfig();
             ApplyStarfieldConfig();
             SetupAudio();
@@ -919,10 +921,15 @@ namespace Decantra.Presentation.Controller
         public void SetColorBlindAssistEnabled(bool enabled)
         {
             _colorBlindAssistEnabled = enabled;
-            _settingsStore.SaveColorBlindAssistEnabled(enabled);
+            _settingsStore.SaveAccessibleColorsEnabled(enabled);
             ApplyAccessibilitySettings();
             Render();
             PlayButtonSfx();
+        }
+
+        public void SetAccessibleColorsEnabled(bool enabled)
+        {
+            SetColorBlindAssistEnabled(enabled);
         }
 
         public void ReplayTutorial()
@@ -1005,6 +1012,10 @@ namespace Decantra.Presentation.Controller
         {
             if (_optionsOverlay != null)
             {
+                if (_accessibleColorsToggle != null)
+                {
+                    _accessibleColorsToggle.SetIsOnWithoutNotify(_colorBlindAssistEnabled);
+                }
                 _optionsOverlay.SetActive(true);
             }
             PlayButtonSfx();
@@ -1167,7 +1178,7 @@ namespace Decantra.Presentation.Controller
             {
                 var view = bottleViews[i];
                 if (view == null) continue;
-                view.SetColorBlindMode(_colorBlindAssistEnabled);
+                view.SetAccessibleColorsEnabled(_colorBlindAssistEnabled);
             }
 
             if (_highContrastOverlay != null)
