@@ -421,23 +421,30 @@ namespace Decantra.Presentation
 
             for (int channel = 0; channel < channels; channel++)
             {
-                float sum = 0f;
-                for (int frame = 0; frame < frameCount; frame++)
-                {
-                    sum += data[frame * channels + channel];
-                }
-
-                float mean = sum / frameCount;
-                // Mean subtraction removes DC bias and lowers low-frequency thumps.
-                for (int frame = 0; frame < frameCount; frame++)
-                {
-                    int index = frame * channels + channel;
-                    data[index] = Mathf.Clamp(data[index] - mean, -1f, 1f);
-                }
-
                 // Hard-zero boundaries guarantee click-free clip edges.
-                data[channel] = 0f;
-                data[(frameCount - 1) * channels + channel] = 0f;
+                int firstIndex = channel;
+                int lastIndex = (frameCount - 1) * channels + channel;
+                data[firstIndex] = 0f;
+                data[lastIndex] = 0f;
+
+                // Mean subtraction removes DC bias and lowers low-frequency thumps.
+                // Compute and apply DC offset only over interior samples so that
+                // the zeroed boundaries remain unchanged.
+                if (frameCount > 2)
+                {
+                    float sum = 0f;
+                    for (int frame = 1; frame < frameCount - 1; frame++)
+                    {
+                        sum += data[frame * channels + channel];
+                    }
+
+                    float mean = sum / (frameCount - 2);
+                    for (int frame = 1; frame < frameCount - 1; frame++)
+                    {
+                        int index = frame * channels + channel;
+                        data[index] = Mathf.Clamp(data[index] - mean, -1f, 1f);
+                    }
+                }
             }
         }
     }
