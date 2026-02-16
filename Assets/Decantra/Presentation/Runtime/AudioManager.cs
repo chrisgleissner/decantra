@@ -17,6 +17,7 @@ namespace Decantra.Presentation
         private const int PourClipSteps = 12;
 
         private readonly Dictionary<int, AudioClip> _safeClipCache = new Dictionary<int, AudioClip>();
+        private readonly HashSet<int> _internallySafeClipIds = new HashSet<int>();
         private AudioSource[] _sources;
         private AudioClip[] _pourClips;
         private AudioClip _levelCompleteClip;
@@ -59,6 +60,15 @@ namespace Decantra.Presentation
             _pourClips = CreatePourClips();
             _levelCompleteClip = CreateLevelCompleteClip();
             _buttonClickClip = CreateButtonClickClip();
+            RegisterInternallySafeClip(_levelCompleteClip);
+            RegisterInternallySafeClip(_buttonClickClip);
+            if (_pourClips != null)
+            {
+                for (int i = 0; i < _pourClips.Length; i++)
+                {
+                    RegisterInternallySafeClip(_pourClips[i]);
+                }
+            }
 
             ApplyAudioState();
         }
@@ -86,11 +96,13 @@ namespace Decantra.Presentation
 
         public void PlayLevelComplete()
         {
+            if (!_isEnabled || _levelCompleteClip == null) return;
             PlayTransient(_levelCompleteClip, 0.52f, 1f + NextSignedJitter(0.015f));
         }
 
         public void PlayButtonClick()
         {
+            if (!_isEnabled || _buttonClickClip == null) return;
             PlayTransient(_buttonClickClip, 0.56f, 0.96f + NextSignedJitter(0.01f));
         }
 
@@ -128,6 +140,10 @@ namespace Decantra.Presentation
         {
             if (clip == null) return null;
             int id = clip.GetInstanceID();
+            if (_internallySafeClipIds.Contains(id))
+            {
+                return clip;
+            }
             if (_safeClipCache.TryGetValue(id, out var cached) && cached != null)
             {
                 return cached;
@@ -154,6 +170,13 @@ namespace Decantra.Presentation
 
             _safeClipCache[id] = safe;
             return safe;
+        }
+
+        private void RegisterInternallySafeClip(AudioClip clip)
+        {
+            if (clip == null) return;
+            // Generated clips are hardened at creation and should skip EnsureSafeClip reprocessing.
+            _internallySafeClipIds.Add(clip.GetInstanceID());
         }
 
         private bool HasAnySource()

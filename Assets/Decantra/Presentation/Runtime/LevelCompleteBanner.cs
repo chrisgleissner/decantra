@@ -753,6 +753,10 @@ namespace Decantra.Presentation
             float duration = 0.18f;
             int samples = Mathf.CeilToInt(sampleRate * duration);
             var clip = AudioClip.Create("StarChime", samples, 1, sampleRate, false);
+            if (clip == null)
+            {
+                return null;
+            }
 
             float[] data = new float[samples];
             float baseFreq = 640f;
@@ -766,7 +770,10 @@ namespace Decantra.Presentation
             }
 
             AudioManager.HardenSampleData(data, sampleRate, 1, 0.006f, 0.012f);
-            clip.SetData(data, 0);
+            if (!clip.SetData(data, 0))
+            {
+                return null;
+            }
             return clip;
         }
     }
