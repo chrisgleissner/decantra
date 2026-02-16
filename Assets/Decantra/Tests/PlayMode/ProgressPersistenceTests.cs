@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Decantra.App.Services;
 using Decantra.Domain.Persistence;
@@ -31,7 +32,8 @@ namespace Decantra.Tests.PlayMode
                 CurrentLevel = 6,
                 CurrentSeed = 4242,
                 CurrentScore = 1200,
-                HighScore = 2200
+                HighScore = 2200,
+                CompletedLevels = new List<int> { 1, 2, 6 }
             };
 
             store.Save(data);
@@ -42,6 +44,7 @@ namespace Decantra.Tests.PlayMode
             Assert.AreEqual(4242, loaded.CurrentSeed);
             Assert.AreEqual(1200, loaded.CurrentScore);
             Assert.AreEqual(2200, loaded.HighScore);
+            CollectionAssert.AreEquivalent(new[] { 1, 2, 6 }, loaded.CompletedLevels);
         }
 
         [Test]

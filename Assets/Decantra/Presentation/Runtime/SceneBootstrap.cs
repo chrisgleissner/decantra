@@ -91,6 +91,9 @@ namespace Decantra.Presentation
             {
                 EnsureBackgroundRendering(existingController, cameras);
                 EnsureRestartDialog(existingController);
+                EnsureResetLevelDialog(existingController);
+                EnsureTutorialOverlay(existingController);
+                EnsureOptionsOverlays(existingController);
                 EnsureHudSafeLayout();
                 WireResetButton(existingController);
                 WireOptionsButton(existingController);
@@ -162,6 +165,8 @@ namespace Decantra.Presentation
 
             var settings = CreateSettingsPanel(uiCanvas.transform, controller);
             WireResetButton(controller);
+            var resetLevelDialog = CreateResetLevelDialog(uiCanvas.transform);
+            SetPrivateField(controller, "resetLevelDialog", resetLevelDialog);
             var optionsOverlay = CreateOptionsOverlay(uiCanvas.transform, controller);
             SetPrivateField(controller, "_optionsOverlay", optionsOverlay);
             SetPrivateField(controller, "_starfieldMaterial", GetBackgroundStarsMaterial());
@@ -169,6 +174,8 @@ namespace Decantra.Presentation
 
             var restartDialog = CreateRestartDialog(uiCanvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
+            var tutorial = CreateTutorialOverlay(uiCanvas.transform);
+            SetPrivateField(controller, "tutorialManager", tutorial);
             WireLevelJumpOverlay(controller);
 
             var toolsGo = new GameObject("RuntimeTools");
@@ -220,6 +227,143 @@ namespace Decantra.Presentation
             var dialog = restartGo.GetComponent<RestartGameDialog>();
             if (dialog == null) return;
             SetPrivateField(controller, "restartDialog", dialog);
+        }
+
+        private static void EnsureResetLevelDialog(GameController controller)
+        {
+            if (controller == null) return;
+            var existing = GetPrivateField<ResetLevelDialog>(controller, "resetLevelDialog");
+            if (existing != null) return;
+
+            var root = GameObject.Find("ResetLevelDialog");
+            var dialog = root != null ? root.GetComponent<ResetLevelDialog>() : null;
+            if (dialog == null)
+            {
+                var canvas = Object.FindFirstObjectByType<Canvas>();
+                if (canvas == null) return;
+                dialog = CreateResetLevelDialog(canvas.transform);
+            }
+
+            SetPrivateField(controller, "resetLevelDialog", dialog);
+        }
+
+        private static void EnsureTutorialOverlay(GameController controller)
+        {
+            if (controller == null) return;
+            var existing = GetPrivateField<TutorialManager>(controller, "tutorialManager");
+            if (existing != null) return;
+
+            var root = GameObject.Find("TutorialOverlay");
+            var manager = root != null ? root.GetComponent<TutorialManager>() : null;
+            if (manager == null)
+            {
+                var canvas = Object.FindFirstObjectByType<Canvas>();
+                if (canvas == null) return;
+                manager = CreateTutorialOverlay(canvas.transform);
+            }
+
+            SetPrivateField(controller, "tutorialManager", manager);
+        }
+
+        private static void EnsureOptionsOverlays(GameController controller)
+        {
+            if (controller == null) return;
+
+            var options = GetPrivateField<GameObject>(controller, "_optionsOverlay");
+            if (options == null)
+            {
+                var optionsGo = GameObject.Find("OptionsOverlay");
+                if (optionsGo != null)
+                {
+                    SetPrivateField(controller, "_optionsOverlay", optionsGo);
+                }
+                else
+                {
+                    var canvas = Object.FindFirstObjectByType<Canvas>();
+                    if (canvas != null)
+                    {
+                        var created = CreateOptionsOverlay(canvas.transform, controller);
+                        SetPrivateField(controller, "_optionsOverlay", created);
+                    }
+                }
+            }
+
+            var highContrast = GetPrivateField<GameObject>(controller, "_highContrastOverlay");
+            if (highContrast == null)
+            {
+                var existingHighContrast = GameObject.Find("HighContrastOverlay");
+                if (existingHighContrast == null)
+                {
+                    var canvas = Object.FindFirstObjectByType<Canvas>();
+                    if (canvas != null)
+                    {
+                        existingHighContrast = CreateHighContrastOverlay(canvas.transform);
+                    }
+                }
+
+                if (existingHighContrast != null)
+                {
+                    SetPrivateField(controller, "_highContrastOverlay", existingHighContrast);
+                }
+            }
+
+            var privacy = GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay");
+            if (privacy == null)
+            {
+                var existingPrivacy = GameObject.Find("PrivacyPolicyOverlay");
+                if (existingPrivacy == null)
+                {
+                    var parent = options != null ? options.transform : null;
+                    if (parent == null)
+                    {
+                        var canvas = Object.FindFirstObjectByType<Canvas>();
+                        parent = canvas != null ? canvas.transform : null;
+                    }
+
+                    if (parent != null)
+                    {
+                        existingPrivacy = CreateScrollableTextOverlay(
+                            parent,
+                            "PrivacyPolicyOverlay",
+                            "PRIVACY POLICY",
+                            LoadLegalTextAsset("Legal/PrivacyPolicy", "Privacy Policy\n\nNot available."));
+                    }
+                }
+
+                if (existingPrivacy != null)
+                {
+                    SetPrivateField(controller, "_privacyPolicyOverlay", existingPrivacy);
+                }
+            }
+
+            var terms = GetPrivateField<GameObject>(controller, "_termsOverlay");
+            if (terms == null)
+            {
+                var existingTerms = GameObject.Find("TermsOverlay");
+                if (existingTerms == null)
+                {
+                    var parent = options != null ? options.transform : null;
+                    if (parent == null)
+                    {
+                        var canvas = Object.FindFirstObjectByType<Canvas>();
+                        parent = canvas != null ? canvas.transform : null;
+                    }
+
+                    if (parent != null)
+                    {
+                        existingTerms = CreateScrollableTextOverlay(
+                            parent,
+                            "TermsOverlay",
+                            "TERMS OF SERVICE",
+                            LoadLegalTextAsset("Legal/TermsOfService", "Terms of Service\n\nNot available."));
+                    }
+                }
+
+                if (existingTerms != null)
+                {
+                    SetPrivateField(controller, "_termsOverlay", existingTerms);
+                }
+            }
         }
 
         private static void EnsureLevelJumpOverlay(GameController controller)
@@ -305,6 +449,7 @@ namespace Decantra.Presentation
             var background = EnsureCamera("Camera_Background", CameraClearFlags.SolidColor, 0f, backgroundMask, Color.black);
             var game = EnsureCamera("Camera_Game", CameraClearFlags.Depth, 1f, gameMask, Color.black);
             var ui = EnsureCamera("Camera_UI", CameraClearFlags.Depth, 2f, uiMask, Color.black);
+            EnsureAudioListener(game);
 
             return new RenderCameras
             {
@@ -312,6 +457,21 @@ namespace Decantra.Presentation
                 Game = game,
                 UI = ui
             };
+        }
+
+        private static void EnsureAudioListener(Camera preferredCamera)
+        {
+            if (Object.FindFirstObjectByType<AudioListener>() != null)
+            {
+                return;
+            }
+
+            if (preferredCamera == null)
+            {
+                return;
+            }
+
+            preferredCamera.gameObject.AddComponent<AudioListener>();
         }
 
         private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
@@ -1469,6 +1629,361 @@ namespace Decantra.Presentation
             return dialog;
         }
 
+        private static ResetLevelDialog CreateResetLevelDialog(Transform parent)
+        {
+            var root = CreateUiChild(parent, "ResetLevelDialog");
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var dimmer = root.AddComponent<Image>();
+            dimmer.color = new Color(0f, 0f, 0f, 0.84f);
+            dimmer.raycastTarget = true;
+
+            var group = root.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.blocksRaycasts = false;
+            group.interactable = false;
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(900f, 580f);
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = new Color(0.08f, 0.1f, 0.14f, 0.98f);
+
+            var title = CreateHudText(panel.transform, "TitleText");
+            title.text = "RESET LEVEL?";
+            title.fontSize = 62;
+            title.alignment = TextAnchor.UpperCenter;
+            title.color = new Color(1f, 0.98f, 0.92f, 1f);
+            var titleRect = title.GetComponent<RectTransform>();
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.anchoredPosition = new Vector2(0f, -44f);
+            titleRect.sizeDelta = new Vector2(0f, 90f);
+
+            var message = CreateHudText(panel.transform, "MessageText");
+            message.text = "This will reset the current level and lose unsaved moves.";
+            message.fontSize = 42;
+            message.alignment = TextAnchor.MiddleCenter;
+            message.color = new Color(1f, 0.95f, 0.82f, 1f);
+            message.horizontalOverflow = HorizontalWrapMode.Wrap;
+            var msgRect = message.GetComponent<RectTransform>();
+            msgRect.anchorMin = new Vector2(0.08f, 0.35f);
+            msgRect.anchorMax = new Vector2(0.92f, 0.72f);
+            msgRect.offsetMin = Vector2.zero;
+            msgRect.offsetMax = Vector2.zero;
+
+            var buttonsRoot = CreateUiChild(panel.transform, "Buttons");
+            var buttonsRect = buttonsRoot.GetComponent<RectTransform>();
+            buttonsRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonsRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonsRect.pivot = new Vector2(0.5f, 0f);
+            buttonsRect.anchoredPosition = new Vector2(0f, 40f);
+            buttonsRect.sizeDelta = new Vector2(820f, 150f);
+
+            var buttonsLayout = buttonsRoot.AddComponent<HorizontalLayoutGroup>();
+            buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
+            buttonsLayout.childForceExpandWidth = true;
+            buttonsLayout.childForceExpandHeight = false;
+            buttonsLayout.spacing = 24f;
+
+            Button CreateDialogButton(string objectName, string label, Color color)
+            {
+                var buttonRoot = CreateUiChild(buttonsRoot.transform, objectName);
+                var image = buttonRoot.AddComponent<Image>();
+                image.sprite = GetRoundedSprite();
+                image.type = Image.Type.Sliced;
+                image.color = color;
+
+                var element = buttonRoot.AddComponent<LayoutElement>();
+                element.minWidth = 390f;
+                element.minHeight = 130f;
+
+                var button = buttonRoot.AddComponent<Button>();
+                button.targetGraphic = image;
+
+                var text = CreateHudText(buttonRoot.transform, "Label");
+                text.text = label;
+                text.fontSize = 38;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = Color.white;
+                return button;
+            }
+
+            var noButton = CreateDialogButton("NoButton", "NO - CANCEL", new Color(0.3f, 0.36f, 0.48f, 1f));
+            var yesButton = CreateDialogButton("YesButton", "YES - CONFIRM RESET", new Color(0.85f, 0.2f, 0.18f, 1f));
+
+            var dialog = root.AddComponent<ResetLevelDialog>();
+            SetPrivateField(dialog, "panel", panelRect);
+            SetPrivateField(dialog, "messageText", message);
+            SetPrivateField(dialog, "noButton", noButton);
+            SetPrivateField(dialog, "yesButton", yesButton);
+            SetPrivateField(dialog, "canvasGroup", group);
+            dialog.Initialize();
+            return dialog;
+        }
+
+        private static TutorialManager CreateTutorialOverlay(Transform parent)
+        {
+            var root = CreateUiChild(parent, "TutorialOverlay");
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var dimmer = root.AddComponent<Image>();
+            dimmer.color = new Color(0f, 0f, 0f, 0.41f);
+            dimmer.raycastTarget = true;
+
+            var highlight = CreateUiChild(root.transform, "HighlightFrame");
+            var highlightRect = highlight.GetComponent<RectTransform>();
+            var highlightImage = highlight.AddComponent<Image>();
+            highlightImage.sprite = CreateRingSprite();
+            highlightImage.color = new Color(1f, 0.97f, 0.8f, 0.95f);
+            highlightImage.raycastTarget = false;
+
+            var instructionPanel = CreateUiChild(root.transform, "InstructionPanel");
+            var panelRect = instructionPanel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0f);
+            panelRect.anchorMax = new Vector2(0.5f, 0f);
+            panelRect.pivot = new Vector2(0.5f, 0f);
+            panelRect.anchoredPosition = new Vector2(0f, 70f);
+            panelRect.sizeDelta = new Vector2(980f, 390f);
+
+            var panelImage = instructionPanel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = new Color(0.1f, 0.12f, 0.18f, 0.98f);
+
+            var instructionText = CreateHudText(instructionPanel.transform, "InstructionText");
+            instructionText.fontSize = 44;
+            instructionText.alignment = TextAnchor.UpperLeft;
+            instructionText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            instructionText.verticalOverflow = VerticalWrapMode.Overflow;
+            instructionText.text = "Tutorial";
+            var instructionRect = instructionText.GetComponent<RectTransform>();
+            instructionRect.anchorMin = new Vector2(0f, 0.45f);
+            instructionRect.anchorMax = new Vector2(1f, 1f);
+            instructionRect.offsetMin = new Vector2(34f, -8f);
+            instructionRect.offsetMax = new Vector2(-34f, -24f);
+
+            var buttonsRow = CreateUiChild(instructionPanel.transform, "ButtonsRow");
+            var buttonsRect = buttonsRow.GetComponent<RectTransform>();
+            buttonsRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonsRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonsRect.pivot = new Vector2(0.5f, 0f);
+            buttonsRect.anchoredPosition = new Vector2(0f, 24f);
+            buttonsRect.sizeDelta = new Vector2(900f, 140f);
+            var buttonsLayout = buttonsRow.AddComponent<HorizontalLayoutGroup>();
+            buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
+            buttonsLayout.childForceExpandWidth = true;
+            buttonsLayout.childForceExpandHeight = false;
+            buttonsLayout.spacing = 26f;
+
+            Button CreateTutorialButton(string objectName, string label, Color color)
+            {
+                var buttonGo = CreateUiChild(buttonsRow.transform, objectName);
+                var image = buttonGo.AddComponent<Image>();
+                image.sprite = GetRoundedSprite();
+                image.type = Image.Type.Sliced;
+                image.color = color;
+
+                var element = buttonGo.AddComponent<LayoutElement>();
+                element.minWidth = 420f;
+                element.minHeight = 118f;
+
+                var button = buttonGo.AddComponent<Button>();
+                button.targetGraphic = image;
+
+                var text = CreateHudText(buttonGo.transform, "Label");
+                text.text = label;
+                text.fontSize = 40;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = Color.white;
+                return button;
+            }
+
+            var skipButton = CreateTutorialButton("SkipButton", "SKIP TUTORIAL", new Color(0.28f, 0.35f, 0.48f, 1f));
+            var nextButton = CreateTutorialButton("NextButton", "NEXT", new Color(0.2f, 0.58f, 0.32f, 1f));
+
+            var manager = root.AddComponent<TutorialManager>();
+            SetPrivateField(manager, "root", rootRect);
+            SetPrivateField(manager, "highlightFrame", highlightRect);
+            SetPrivateField(manager, "instructionText", instructionText);
+            SetPrivateField(manager, "nextButton", nextButton);
+            SetPrivateField(manager, "skipButton", skipButton);
+
+            root.SetActive(false);
+            return manager;
+        }
+
+        private static GameObject CreateHighContrastOverlay(Transform parent)
+        {
+            var overlay = CreateUiChild(parent, "HighContrastOverlay");
+            var rect = overlay.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            var image = overlay.AddComponent<Image>();
+            image.color = new Color(0f, 0f, 0f, 0.24f);
+            image.raycastTarget = false;
+            overlay.SetActive(false);
+            return overlay;
+        }
+
+        private static GameObject CreateScrollableTextOverlay(Transform parent, string name, string title, string body, bool compact = false)
+        {
+            var root = CreateUiChild(parent, name);
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var dimmer = CreateUiChild(root.transform, "Dimmer");
+            var dimmerRect = dimmer.GetComponent<RectTransform>();
+            dimmerRect.anchorMin = Vector2.zero;
+            dimmerRect.anchorMax = Vector2.one;
+            dimmerRect.offsetMin = Vector2.zero;
+            dimmerRect.offsetMax = Vector2.zero;
+            var dimmerImage = dimmer.AddComponent<Image>();
+            dimmerImage.color = new Color(0f, 0f, 0f, 0.84f);
+            var dimmerButton = dimmer.AddComponent<Button>();
+            dimmerButton.transition = Selectable.Transition.None;
+            dimmerButton.onClick.AddListener(() => root.SetActive(false));
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = compact ? new Vector2(900f, 760f) : new Vector2(920f, 1450f);
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = new Color(0.08f, 0.1f, 0.14f, 0.98f);
+
+            var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+            panelLayout.childAlignment = TextAnchor.UpperCenter;
+            panelLayout.childForceExpandWidth = true;
+            panelLayout.childForceExpandHeight = false;
+            panelLayout.spacing = compact ? 12f : 16f;
+            panelLayout.padding = compact ? new RectOffset(28, 28, 20, 20) : new RectOffset(32, 32, 24, 24);
+
+            var titleText = CreateHudText(panel.transform, "Title");
+            titleText.text = title;
+            titleText.fontSize = compact ? 44 : 52;
+            titleText.alignment = TextAnchor.MiddleCenter;
+            titleText.color = new Color(1f, 0.98f, 0.92f, 1f);
+            var titleElement = titleText.gameObject.AddComponent<LayoutElement>();
+            titleElement.preferredHeight = compact ? 62f : 74f;
+
+            var scrollGo = CreateUiChild(panel.transform, "ScrollView");
+            var scrollImage = scrollGo.AddComponent<Image>();
+            scrollImage.sprite = GetRoundedSprite();
+            scrollImage.type = Image.Type.Sliced;
+            scrollImage.color = new Color(1f, 1f, 1f, 0.06f);
+            var scrollElement = scrollGo.AddComponent<LayoutElement>();
+            scrollElement.preferredHeight = compact ? 440f : 1200f;
+            var scrollRect = scrollGo.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 52f;
+
+            var viewport = CreateUiChild(scrollGo.transform, "Viewport");
+            var viewportRect = viewport.GetComponent<RectTransform>();
+            viewportRect.anchorMin = Vector2.zero;
+            viewportRect.anchorMax = Vector2.one;
+            viewportRect.offsetMin = new Vector2(14f, 14f);
+            viewportRect.offsetMax = new Vector2(-32f, -14f);
+            var viewportImage = viewport.AddComponent<Image>();
+            viewportImage.color = new Color(0f, 0f, 0f, 0.03f);
+            viewportImage.raycastTarget = true;
+            viewport.AddComponent<Mask>().showMaskGraphic = false;
+
+            var content = CreateUiChild(viewport.transform, "Content");
+            var contentRect = content.GetComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0f, 1f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
+            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.anchoredPosition = Vector2.zero;
+            contentRect.sizeDelta = new Vector2(0f, 0f);
+
+            var bodyText = content.AddComponent<Text>();
+            bodyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            bodyText.fontSize = compact ? 32 : 37;
+            bodyText.alignment = TextAnchor.UpperLeft;
+            bodyText.fontStyle = FontStyle.Normal;
+            bodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            bodyText.verticalOverflow = VerticalWrapMode.Overflow;
+            bodyText.lineSpacing = 1.15f;
+            bodyText.color = new Color(1f, 0.98f, 0.92f, 1f);
+            bodyText.text = body;
+            bodyText.supportRichText = false;
+            bodyText.raycastTarget = false;
+            content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.viewport = viewportRect;
+            scrollRect.content = contentRect;
+
+            if (compact)
+            {
+                Canvas.ForceUpdateCanvases();
+                float contentHeight = Mathf.Max(0f, bodyText.preferredHeight + 28f);
+                float compactBodyHeight = Mathf.Clamp(contentHeight, 240f, 460f);
+                scrollElement.preferredHeight = compactBodyHeight;
+                scrollRect.vertical = contentHeight > compactBodyHeight + 0.5f;
+
+                float compactPanelHeight = 20f + titleElement.preferredHeight + panelLayout.spacing
+                    + compactBodyHeight + panelLayout.spacing + 82f + 20f;
+                panelRect.sizeDelta = new Vector2(900f, Mathf.Clamp(compactPanelHeight, 620f, 780f));
+            }
+
+            var backRow = CreateUiChild(panel.transform, "BackRow");
+            var backButtonImage = backRow.AddComponent<Image>();
+            backButtonImage.sprite = GetRoundedSprite();
+            backButtonImage.type = Image.Type.Sliced;
+            backButtonImage.color = new Color(0.18f, 0.24f, 0.36f, 1f);
+            var backElement = backRow.AddComponent<LayoutElement>();
+            backElement.preferredHeight = compact ? 82f : 98f;
+            var backButton = backRow.AddComponent<Button>();
+            backButton.targetGraphic = backButtonImage;
+            backButton.onClick.AddListener(() => root.SetActive(false));
+
+            var backText = CreateHudText(backRow.transform, "Label");
+            backText.text = "BACK";
+            backText.fontSize = compact ? 34 : 42;
+            backText.alignment = TextAnchor.MiddleCenter;
+            backText.color = Color.white;
+
+            root.SetActive(false);
+            return root;
+        }
+
+        private static string LoadLegalTextAsset(string resourcePath, string fallback)
+        {
+            var textAsset = Resources.Load<TextAsset>(resourcePath);
+            if (textAsset == null || string.IsNullOrWhiteSpace(textAsset.text))
+            {
+                return fallback;
+            }
+
+            return textAsset.text;
+        }
+
         private static Text CreateStatPanel(Transform parent, string name, string label, out GameObject panel)
         {
             panel = CreateUiChild(parent, name);
@@ -1743,7 +2258,6 @@ namespace Decantra.Presentation
 
         private static GameObject CreateOptionsOverlay(Transform parent, GameController controller)
         {
-            // Root overlay (full-screen)
             var root = CreateUiChild(parent, "OptionsOverlay");
             var rootRect = root.GetComponent<RectTransform>();
             rootRect.anchorMin = Vector2.zero;
@@ -1751,7 +2265,6 @@ namespace Decantra.Presentation
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
 
-            // Semi-transparent dimmer (tap to dismiss)
             var dimmer = CreateUiChild(root.transform, "Dimmer");
             var dimmerRect = dimmer.GetComponent<RectTransform>();
             dimmerRect.anchorMin = Vector2.zero;
@@ -1759,394 +2272,235 @@ namespace Decantra.Presentation
             dimmerRect.offsetMin = Vector2.zero;
             dimmerRect.offsetMax = Vector2.zero;
             var dimmerImage = dimmer.AddComponent<Image>();
-            dimmerImage.color = new Color(0f, 0f, 0f, 0.70f);
+            dimmerImage.color = new Color(0f, 0f, 0f, 0.78f);
             var dimmerButton = dimmer.AddComponent<Button>();
             dimmerButton.transition = Selectable.Transition.None;
-            dimmerButton.onClick.AddListener(() => { if (controller != null) controller.HideOptionsOverlay(); });
+            dimmerButton.onClick.AddListener(() =>
+            {
+                if (controller != null) controller.HideOptionsOverlay();
+                else root.SetActive(false);
+            });
 
-            // Center panel — dark space-themed card
             var panel = CreateUiChild(root.transform, "Panel");
             var panelRect = panel.GetComponent<RectTransform>();
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(860, 1160);
+            panelRect.sizeDelta = new Vector2(920f, 1540f);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
             panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(0.06f, 0.07f, 0.11f, 0.95f);
+            panelImage.color = new Color(0.06f, 0.07f, 0.11f, 0.97f);
 
-            // Panel shadow
-            var panelShadow = CreateUiChild(panel.transform, "Shadow");
-            var panelShadowImage = panelShadow.AddComponent<Image>();
-            panelShadowImage.sprite = GetRoundedSprite();
-            panelShadowImage.type = Image.Type.Sliced;
-            panelShadowImage.color = new Color(0f, 0f, 0f, 0.5f);
-            panelShadowImage.raycastTarget = false;
-            var panelShadowRect = panelShadow.GetComponent<RectTransform>();
-            panelShadowRect.anchorMin = Vector2.zero;
-            panelShadowRect.anchorMax = Vector2.one;
-            panelShadowRect.offsetMin = new Vector2(-6, -6);
-            panelShadowRect.offsetMax = new Vector2(6, 6);
-            panelShadow.transform.SetAsFirstSibling();
+            var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+            panelLayout.childAlignment = TextAnchor.UpperCenter;
+            panelLayout.childForceExpandWidth = true;
+            panelLayout.childForceExpandHeight = false;
+            panelLayout.spacing = 10f;
+            panelLayout.padding = new RectOffset(24, 24, 18, 18);
 
-            // Glass highlight at top of panel
-            var panelGlass = CreateUiChild(panel.transform, "GlassHighlight");
-            var panelGlassImage = panelGlass.AddComponent<Image>();
-            panelGlassImage.sprite = GetRoundedSprite();
-            panelGlassImage.type = Image.Type.Sliced;
-            panelGlassImage.color = new Color(1f, 1f, 1f, 0.06f);
-            panelGlassImage.raycastTarget = false;
-            var panelGlassRect = panelGlass.GetComponent<RectTransform>();
-            panelGlassRect.anchorMin = new Vector2(0f, 1f);
-            panelGlassRect.anchorMax = new Vector2(1f, 1f);
-            panelGlassRect.pivot = new Vector2(0.5f, 1f);
-            panelGlassRect.sizeDelta = new Vector2(-20, 80);
-            panelGlassRect.anchoredPosition = new Vector2(0f, -10f);
-
-            // Vertical layout for content
-            var content = CreateUiChild(panel.transform, "Content");
-            var contentRect = content.GetComponent<RectTransform>();
-            contentRect.anchorMin = Vector2.zero;
-            contentRect.anchorMax = Vector2.one;
-            contentRect.offsetMin = new Vector2(48, 48);
-            contentRect.offsetMax = new Vector2(-48, -48);
-            var contentLayout = content.AddComponent<VerticalLayoutGroup>();
-            contentLayout.childAlignment = TextAnchor.UpperCenter;
-            contentLayout.childForceExpandWidth = true;
-            contentLayout.childForceExpandHeight = false;
-            contentLayout.spacing = 28f;
-            contentLayout.padding = new RectOffset(0, 0, 16, 0);
-
-            const int labelFontSize = 41;
-            var labelColor = new Color(1f, 0.98f, 0.92f, 0.9f);
-
-            // Title
-            var title = CreateHudText(content.transform, "Title");
-            title.fontSize = 50;
+            var title = CreateHudText(panel.transform, "Title");
             title.text = "OPTIONS";
-            title.color = new Color(1f, 0.98f, 0.92f, 1f);
+            title.fontSize = 42;
             title.alignment = TextAnchor.MiddleCenter;
-            AddTextEffects(title, new Color(0f, 0f, 0f, 0.6f));
+            title.color = new Color(1f, 0.98f, 0.92f, 1f);
             var titleElement = title.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = 72;
+            titleElement.preferredHeight = 58f;
 
-            // Section header: Starfield
-            var sectionHeader = CreateHudText(content.transform, "StarfieldHeader");
-            sectionHeader.fontSize = 47;
-            sectionHeader.text = "STARFIELD";
-            sectionHeader.color = labelColor;
-            sectionHeader.alignment = TextAnchor.MiddleLeft;
-            var sectionElement = sectionHeader.gameObject.AddComponent<LayoutElement>();
-            sectionElement.preferredHeight = 60;
+            var listContainer = CreateUiChild(panel.transform, "ListContainer");
+            var listContainerImage = listContainer.AddComponent<Image>();
+            listContainerImage.sprite = GetRoundedSprite();
+            listContainerImage.type = Image.Type.Sliced;
+            listContainerImage.color = new Color(1f, 1f, 1f, 0.06f);
+            var listContainerElement = listContainer.AddComponent<LayoutElement>();
+            listContainerElement.preferredHeight = 1360f;
 
-            // Enable toggle
-            var toggleRow = CreateOptionsRow(content.transform, "EnableRow");
-            var toggleLabel = CreateHudText(toggleRow.transform, "Label");
-            toggleLabel.fontSize = labelFontSize;
-            toggleLabel.text = "Enabled";
-            toggleLabel.color = labelColor;
-            toggleLabel.alignment = TextAnchor.MiddleLeft;
-            var toggleLabelElement = toggleLabel.gameObject.AddComponent<LayoutElement>();
-            toggleLabelElement.flexibleWidth = 1;
+            var list = CreateUiChild(listContainer.transform, "Content");
+            var listRect = list.GetComponent<RectTransform>();
+            listRect.anchorMin = Vector2.zero;
+            listRect.anchorMax = Vector2.one;
+            listRect.pivot = new Vector2(0.5f, 0.5f);
+            listRect.anchoredPosition = Vector2.zero;
+            listRect.offsetMin = new Vector2(16f, 12f);
+            listRect.offsetMax = new Vector2(-16f, -12f);
+            var listLayout = list.AddComponent<VerticalLayoutGroup>();
+            listLayout.childAlignment = TextAnchor.UpperCenter;
+            listLayout.childForceExpandWidth = true;
+            listLayout.childForceExpandHeight = false;
+            listLayout.spacing = 8f;
+            listLayout.padding = new RectOffset(4, 4, 4, 4);
 
-            var toggleGo = CreateUiChild(toggleRow.transform, "StarfieldToggle");
-            var toggle = toggleGo.AddComponent<Toggle>();
-            toggle.isOn = true;
-            var toggleElement = toggleGo.AddComponent<LayoutElement>();
-            toggleElement.preferredWidth = 80;
-            toggleElement.preferredHeight = 40;
-
-            var toggleBg = CreateUiChild(toggleGo.transform, "Background");
-            var toggleBgImage = toggleBg.AddComponent<Image>();
-            toggleBgImage.sprite = GetRoundedSprite();
-            toggleBgImage.type = Image.Type.Sliced;
-            toggleBgImage.color = new Color(1f, 1f, 1f, 0.18f);
-            var bgRect = toggleBg.GetComponent<RectTransform>();
-            bgRect.anchorMin = new Vector2(0.5f, 0.5f);
-            bgRect.anchorMax = new Vector2(0.5f, 0.5f);
-            bgRect.sizeDelta = new Vector2(70, 36);
-
-            var toggleCheck = CreateUiChild(toggleBg.transform, "Check");
-            var toggleCheckImage = toggleCheck.AddComponent<Image>();
-            toggleCheckImage.color = new Color(1f, 0.98f, 0.92f, 0.95f);
-            var checkRect = toggleCheck.GetComponent<RectTransform>();
-            checkRect.anchorMin = new Vector2(0.5f, 0.5f);
-            checkRect.anchorMax = new Vector2(0.5f, 0.5f);
-            checkRect.sizeDelta = new Vector2(24, 24);
-
-            toggle.targetGraphic = toggleBgImage;
-            toggle.graphic = toggleCheckImage;
-
-            // Density slider
-            var densitySlider = CreateOptionsSlider(content.transform, "DensityRow", "Density",
-                StarfieldConfig.DensityMin, StarfieldConfig.DensityMax, StarfieldConfig.DensityDefault);
-
-            // Speed slider
-            var speedSlider = CreateOptionsSlider(content.transform, "SpeedRow", "Speed",
-                StarfieldConfig.SpeedMin, StarfieldConfig.SpeedMax, StarfieldConfig.SpeedDefault);
-
-            // Brightness slider
-            var brightnessSlider = CreateOptionsSlider(content.transform, "BrightnessRow", "Brightness",
-                StarfieldConfig.BrightnessMin, StarfieldConfig.BrightnessMax, StarfieldConfig.BrightnessDefault);
-
-            var helpRow = CreateUiChild(content.transform, "HelpRow");
-            var helpRowElement = helpRow.AddComponent<LayoutElement>();
-            helpRowElement.preferredHeight = 104;
-            var helpRowLayout = helpRow.AddComponent<HorizontalLayoutGroup>();
-            helpRowLayout.childAlignment = TextAnchor.MiddleCenter;
-            helpRowLayout.childForceExpandWidth = false;
-            helpRowLayout.childForceExpandHeight = false;
-
-            var helpPanel = CreateUiChild(helpRow.transform, "HowToPlayButton");
-            var helpImage = helpPanel.AddComponent<Image>();
-            helpImage.sprite = GetRoundedSprite();
-            helpImage.type = Image.Type.Sliced;
-            helpImage.color = new Color(0.16f, 0.19f, 0.28f, 0.92f);
-            var helpPanelRect = helpPanel.GetComponent<RectTransform>();
-            helpPanelRect.sizeDelta = new Vector2(420, 88);
-            var helpPanelElement = helpPanel.AddComponent<LayoutElement>();
-            helpPanelElement.preferredWidth = 420;
-            helpPanelElement.preferredHeight = 88;
-
-            var helpButton = helpPanel.AddComponent<Button>();
-            helpButton.targetGraphic = helpImage;
-
-            var helpText = CreateHudText(helpPanel.transform, "Label");
-            helpText.fontSize = 43;
-            helpText.text = "HOW TO PLAY";
-            helpText.color = new Color(1f, 0.98f, 0.92f, 1f);
-            helpText.alignment = TextAnchor.MiddleCenter;
-            AddTextEffects(helpText, new Color(0f, 0f, 0f, 0.6f));
-
-            // Close button
-            var closeRow = CreateUiChild(content.transform, "CloseRow");
-            var closeRowElement = closeRow.AddComponent<LayoutElement>();
-            closeRowElement.preferredHeight = 102;
-            var closeRowLayout = closeRow.AddComponent<HorizontalLayoutGroup>();
-            closeRowLayout.childAlignment = TextAnchor.MiddleCenter;
-            closeRowLayout.childForceExpandWidth = false;
-            closeRowLayout.childForceExpandHeight = false;
-
-            var closePanel = CreateUiChild(closeRow.transform, "CloseButton");
-            var closeImage = closePanel.AddComponent<Image>();
-            closeImage.sprite = GetRoundedSprite();
-            closeImage.type = Image.Type.Sliced;
-            closeImage.color = new Color(0.12f, 0.14f, 0.20f, 0.9f);
-            var closePanelRect = closePanel.GetComponent<RectTransform>();
-            closePanelRect.sizeDelta = new Vector2(336, 90);
-            var closePanelElement = closePanel.AddComponent<LayoutElement>();
-            closePanelElement.preferredWidth = 336;
-            closePanelElement.preferredHeight = 90;
-
-            var closeButton = closePanel.AddComponent<Button>();
-            closeButton.targetGraphic = closeImage;
-            closeButton.onClick.AddListener(() => { if (controller != null) controller.HideOptionsOverlay(); });
-
-            var closeText = CreateHudText(closePanel.transform, "Label");
-            closeText.fontSize = 47;
-            closeText.text = "CLOSE";
-            closeText.color = new Color(1f, 0.98f, 0.92f, 1f);
-            closeText.alignment = TextAnchor.MiddleCenter;
-            AddTextEffects(closeText, new Color(0f, 0f, 0f, 0.6f));
-
-            var versionRow = CreateUiChild(content.transform, "VersionRow");
-            var versionRowElement = versionRow.AddComponent<LayoutElement>();
-            versionRowElement.preferredHeight = 62;
-            var versionText = CreateHudText(versionRow.transform, "VersionText");
-            versionText.fontSize = labelFontSize;
-            versionText.alignment = TextAnchor.MiddleCenter;
-            versionText.color = labelColor;
-            versionText.text = BuildVersionFooterText();
-
-            var howToPlayOverlay = CreateUiChild(root.transform, "HowToPlayOverlay");
-            var howToPlayRootRect = howToPlayOverlay.GetComponent<RectTransform>();
-            howToPlayRootRect.anchorMin = Vector2.zero;
-            howToPlayRootRect.anchorMax = Vector2.one;
-            howToPlayRootRect.offsetMin = Vector2.zero;
-            howToPlayRootRect.offsetMax = Vector2.zero;
-
-            var helpDimmer = CreateUiChild(howToPlayOverlay.transform, "Dimmer");
-            var helpDimmerRect = helpDimmer.GetComponent<RectTransform>();
-            helpDimmerRect.anchorMin = Vector2.zero;
-            helpDimmerRect.anchorMax = Vector2.one;
-            helpDimmerRect.offsetMin = Vector2.zero;
-            helpDimmerRect.offsetMax = Vector2.zero;
-            var helpDimmerImage = helpDimmer.AddComponent<Image>();
-            helpDimmerImage.color = new Color(0f, 0f, 0f, 0.82f);
-            var helpDimmerButton = helpDimmer.AddComponent<Button>();
-            helpDimmerButton.transition = Selectable.Transition.None;
-
-            var helpPanelRoot = CreateUiChild(howToPlayOverlay.transform, "Panel");
-            var helpPanelRootRect = helpPanelRoot.GetComponent<RectTransform>();
-            helpPanelRootRect.anchorMin = new Vector2(0.5f, 0.5f);
-            helpPanelRootRect.anchorMax = new Vector2(0.5f, 0.5f);
-            helpPanelRootRect.pivot = new Vector2(0.5f, 0.5f);
-            helpPanelRootRect.sizeDelta = new Vector2(900, 1360);
-
-            var helpPanelRootImage = helpPanelRoot.AddComponent<Image>();
-            helpPanelRootImage.sprite = GetRoundedSprite();
-            helpPanelRootImage.type = Image.Type.Sliced;
-            helpPanelRootImage.color = new Color(0.03f, 0.04f, 0.08f, 0.97f);
-
-            var helpPanelLayout = helpPanelRoot.AddComponent<VerticalLayoutGroup>();
-            helpPanelLayout.childAlignment = TextAnchor.UpperCenter;
-            helpPanelLayout.childForceExpandWidth = true;
-            helpPanelLayout.childForceExpandHeight = false;
-            helpPanelLayout.spacing = 20f;
-            helpPanelLayout.padding = new RectOffset(40, 40, 28, 28);
-
-            var helpTitle = CreateHudText(helpPanelRoot.transform, "Title");
-            helpTitle.text = "How to Play";
-            helpTitle.fontSize = 58;
-            helpTitle.alignment = TextAnchor.MiddleCenter;
-            helpTitle.color = new Color(1f, 0.98f, 0.92f, 1f);
-            var helpTitleElement = helpTitle.gameObject.AddComponent<LayoutElement>();
-            helpTitleElement.preferredHeight = 88;
-
-            var helpScrollGo = CreateUiChild(helpPanelRoot.transform, "ScrollView");
-            var helpScrollElement = helpScrollGo.AddComponent<LayoutElement>();
-            helpScrollElement.flexibleHeight = 0f;
-            helpScrollElement.minHeight = 0f;
-            var helpScrollImage = helpScrollGo.AddComponent<Image>();
-            helpScrollImage.sprite = GetRoundedSprite();
-            helpScrollImage.type = Image.Type.Sliced;
-            helpScrollImage.color = new Color(1f, 1f, 1f, 0.07f);
-            var helpScroll = helpScrollGo.AddComponent<ScrollRect>();
-            helpScroll.horizontal = false;
-            helpScroll.vertical = true;
-            helpScroll.movementType = ScrollRect.MovementType.Clamped;
-            helpScroll.scrollSensitivity = 42f;
-
-            var viewport = CreateUiChild(helpScrollGo.transform, "Viewport");
-            var viewportRect = viewport.GetComponent<RectTransform>();
-            viewportRect.anchorMin = Vector2.zero;
-            viewportRect.anchorMax = Vector2.one;
-            viewportRect.offsetMin = new Vector2(18f, 18f);
-            viewportRect.offsetMax = new Vector2(-34f, -18f);
-            var viewportImage = viewport.AddComponent<Image>();
-            viewportImage.color = new Color(0f, 0f, 0f, 0.05f);
-            viewportImage.raycastTarget = true;
-            viewport.AddComponent<Mask>().showMaskGraphic = false;
-
-            var contentRoot = CreateUiChild(viewport.transform, "Content");
-            var helpBodyRect = contentRoot.GetComponent<RectTransform>();
-            helpBodyRect.anchorMin = new Vector2(0f, 1f);
-            helpBodyRect.anchorMax = new Vector2(1f, 1f);
-            helpBodyRect.pivot = new Vector2(0.5f, 1f);
-            helpBodyRect.anchoredPosition = Vector2.zero;
-            helpBodyRect.sizeDelta = new Vector2(0f, 0f);
-
-            var helpBody = contentRoot.AddComponent<Text>();
-            helpBody.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            helpBody.fontSize = 46;
-            helpBody.alignment = TextAnchor.UpperLeft;
-            helpBody.fontStyle = FontStyle.Normal;
-            helpBody.horizontalOverflow = HorizontalWrapMode.Wrap;
-            helpBody.verticalOverflow = VerticalWrapMode.Overflow;
-            helpBody.lineSpacing = 1.15f;
-            helpBody.color = new Color(1f, 0.98f, 0.92f, 1f);
-            helpBody.supportRichText = false;
-            helpBody.text = BuildHowToPlayBodyText();
-            helpBody.raycastTarget = false;
-            contentRoot.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            Canvas.ForceUpdateCanvases();
-            float helpBodyHeight = Mathf.Max(0f, helpBody.preferredHeight);
-            float desiredScrollHeight = helpBodyHeight + 48f;
-            float maxScrollHeight = 980f;
-            float minScrollHeight = 240f;
-            float clampedScrollHeight = Mathf.Clamp(desiredScrollHeight, minScrollHeight, maxScrollHeight);
-            helpScrollElement.preferredHeight = clampedScrollHeight;
-            helpScroll.vertical = desiredScrollHeight > clampedScrollHeight + 0.5f;
-
-            helpScroll.viewport = viewportRect;
-            helpScroll.content = helpBodyRect;
-
-            var helpCloseRow = CreateUiChild(helpPanelRoot.transform, "CloseRow");
-            var helpCloseRowElement = helpCloseRow.AddComponent<LayoutElement>();
-            helpCloseRowElement.preferredHeight = 96;
-            var helpCloseRowLayout = helpCloseRow.AddComponent<HorizontalLayoutGroup>();
-            helpCloseRowLayout.childAlignment = TextAnchor.MiddleCenter;
-            helpCloseRowLayout.childForceExpandWidth = false;
-            helpCloseRowLayout.childForceExpandHeight = false;
-
-            var helpClosePanel = CreateUiChild(helpCloseRow.transform, "CloseButton");
-            var helpCloseImage = helpClosePanel.AddComponent<Image>();
-            helpCloseImage.sprite = GetRoundedSprite();
-            helpCloseImage.type = Image.Type.Sliced;
-            helpCloseImage.color = new Color(0.16f, 0.19f, 0.28f, 0.92f);
-            var helpCloseRect = helpClosePanel.GetComponent<RectTransform>();
-            helpCloseRect.sizeDelta = new Vector2(260, 82);
-            var helpCloseElement = helpClosePanel.AddComponent<LayoutElement>();
-            helpCloseElement.preferredWidth = 260;
-            helpCloseElement.preferredHeight = 82;
-
-            var helpCloseButton = helpClosePanel.AddComponent<Button>();
-            helpCloseButton.targetGraphic = helpCloseImage;
-
-            var helpCloseText = CreateHudText(helpClosePanel.transform, "Label");
-            helpCloseText.fontSize = 43;
-            helpCloseText.text = "BACK";
-            helpCloseText.color = new Color(1f, 0.98f, 0.92f, 1f);
-            helpCloseText.alignment = TextAnchor.MiddleCenter;
-            AddTextEffects(helpCloseText, new Color(0f, 0f, 0f, 0.6f));
-
-            // Wire controls to controller
-            if (controller != null)
+            Button CreateActionButton(Transform buttonParent, string rowName, string label, Color color)
             {
-                var config = controller.StarfieldConfiguration ?? StarfieldConfig.Default;
-                toggle.isOn = config.Enabled;
-                densitySlider.value = config.Density;
-                speedSlider.value = config.Speed;
-                brightnessSlider.value = config.Brightness;
+                var row = CreateOptionsRow(buttonParent, rowName);
+                var panelGo = CreateUiChild(row.transform, "Button");
+                var image = panelGo.AddComponent<Image>();
+                image.sprite = GetRoundedSprite();
+                image.type = Image.Type.Sliced;
+                image.color = color;
+                var button = panelGo.AddComponent<Button>();
+                button.targetGraphic = image;
 
-                toggle.onValueChanged.AddListener(value => controller.SetStarfieldEnabled(value));
-                densitySlider.onValueChanged.AddListener(value => controller.SetStarfieldDensity(value));
-                speedSlider.onValueChanged.AddListener(value => controller.SetStarfieldSpeed(value));
-                brightnessSlider.onValueChanged.AddListener(value => controller.SetStarfieldBrightness(value));
-                SetPrivateField(controller, "_howToPlayOverlay", howToPlayOverlay);
+                var element = panelGo.AddComponent<LayoutElement>();
+                element.flexibleWidth = 1f;
+                element.preferredHeight = 72f;
+
+                var text = CreateHudText(panelGo.transform, "Label");
+                text.fontSize = 29;
+                text.text = label;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = new Color(1f, 0.98f, 0.92f, 1f);
+                return button;
             }
 
-            helpButton.onClick.AddListener(() =>
+            Toggle CreateToggleRow(Transform rowParent, string rowName, string label, bool initial)
             {
-                if (controller != null)
-                {
-                    controller.ShowHowToPlayOverlay();
-                }
-                else
-                {
-                    howToPlayOverlay.SetActive(true);
-                }
+                var row = CreateOptionsRow(rowParent, rowName);
+
+                var rowLabel = CreateHudText(row.transform, "Label");
+                rowLabel.fontSize = 28;
+                rowLabel.text = label;
+                rowLabel.alignment = TextAnchor.MiddleLeft;
+                rowLabel.color = new Color(1f, 0.98f, 0.92f, 0.95f);
+                var rowLabelElement = rowLabel.gameObject.AddComponent<LayoutElement>();
+                rowLabelElement.flexibleWidth = 1f;
+
+                var toggleGo = CreateUiChild(row.transform, "Toggle");
+                var toggle = toggleGo.AddComponent<Toggle>();
+                var toggleElement = toggleGo.AddComponent<LayoutElement>();
+                toggleElement.preferredWidth = 98;
+                toggleElement.preferredHeight = 52;
+
+                var bg = CreateUiChild(toggleGo.transform, "Background");
+                var bgImage = bg.AddComponent<Image>();
+                bgImage.sprite = GetRoundedSprite();
+                bgImage.type = Image.Type.Sliced;
+                bgImage.color = new Color(1f, 1f, 1f, 0.2f);
+                var bgRect = bg.GetComponent<RectTransform>();
+                bgRect.anchorMin = new Vector2(0.5f, 0.5f);
+                bgRect.anchorMax = new Vector2(0.5f, 0.5f);
+                bgRect.sizeDelta = new Vector2(96, 52);
+
+                var check = CreateUiChild(bg.transform, "Check");
+                var checkImage = check.AddComponent<Image>();
+                checkImage.sprite = GetSoftCircleSprite();
+                checkImage.color = new Color(1f, 0.98f, 0.92f, 0.96f);
+                var checkRect = check.GetComponent<RectTransform>();
+                checkRect.anchorMin = new Vector2(0.5f, 0.5f);
+                checkRect.anchorMax = new Vector2(0.5f, 0.5f);
+                checkRect.sizeDelta = new Vector2(30f, 30f);
+
+                toggle.targetGraphic = bgImage;
+                toggle.graphic = checkImage;
+                toggle.isOn = initial;
+                return toggle;
+            }
+
+            var replayTutorialButton = CreateActionButton(list.transform, "ReplayTutorialRow", "REPLAY TUTORIAL", new Color(0.2f, 0.34f, 0.54f, 0.95f));
+
+            var sfxToggle = CreateToggleRow(list.transform, "SfxRow", "SOUND EFFECTS", controller != null && controller.IsSfxEnabled);
+            var sfxVolumeSlider = CreateOptionsSlider(list.transform, "SfxVolumeRow", "VOLUME",
+                0f, 1f, controller != null ? controller.SfxVolume01 : 1f);
+
+            var sectionHeader = CreateHudText(list.transform, "StarfieldHeader");
+            sectionHeader.fontSize = 32;
+            sectionHeader.text = "STARFIELD";
+            sectionHeader.alignment = TextAnchor.MiddleLeft;
+            sectionHeader.color = new Color(1f, 0.98f, 0.92f, 0.92f);
+            var sectionElement = sectionHeader.gameObject.AddComponent<LayoutElement>();
+            sectionElement.preferredHeight = 40f;
+
+            var sectionHint = CreateHudText(list.transform, "StarfieldHint");
+            sectionHint.fontSize = 24;
+            sectionHint.text = "Density, Speed, and Brightness control only the starfield background effect.";
+            sectionHint.alignment = TextAnchor.MiddleLeft;
+            sectionHint.color = new Color(1f, 0.98f, 0.92f, 0.75f);
+            sectionHint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            sectionHint.verticalOverflow = VerticalWrapMode.Overflow;
+            var sectionHintElement = sectionHint.gameObject.AddComponent<LayoutElement>();
+            sectionHintElement.preferredHeight = 62f;
+
+            var starfieldGroup = CreateUiChild(list.transform, "StarfieldGroup");
+            var starfieldGroupImage = starfieldGroup.AddComponent<Image>();
+            starfieldGroupImage.sprite = GetRoundedSprite();
+            starfieldGroupImage.type = Image.Type.Sliced;
+            starfieldGroupImage.color = new Color(1f, 1f, 1f, 0.055f);
+            var starfieldGroupElement = starfieldGroup.AddComponent<LayoutElement>();
+            starfieldGroupElement.preferredHeight = 374f;
+            var starfieldGroupLayout = starfieldGroup.AddComponent<VerticalLayoutGroup>();
+            starfieldGroupLayout.childAlignment = TextAnchor.UpperCenter;
+            starfieldGroupLayout.childForceExpandWidth = true;
+            starfieldGroupLayout.childForceExpandHeight = false;
+            starfieldGroupLayout.spacing = 8f;
+            starfieldGroupLayout.padding = new RectOffset(14, 14, 10, 10);
+
+            bool starfieldEnabled = controller != null && controller.StarfieldConfiguration != null && controller.StarfieldConfiguration.Enabled;
+            var starfieldToggle = CreateToggleRow(starfieldGroup.transform, "StarfieldEnabledRow", "ENABLED", starfieldEnabled);
+            var densitySlider = CreateOptionsSlider(starfieldGroup.transform, "DensityRow", "DENSITY",
+                StarfieldConfig.DensityMin, StarfieldConfig.DensityMax,
+                controller != null && controller.StarfieldConfiguration != null ? controller.StarfieldConfiguration.Density : StarfieldConfig.DensityDefault);
+            var speedSlider = CreateOptionsSlider(starfieldGroup.transform, "SpeedRow", "SPEED",
+                StarfieldConfig.SpeedMin, StarfieldConfig.SpeedMax,
+                controller != null && controller.StarfieldConfiguration != null ? controller.StarfieldConfiguration.Speed : StarfieldConfig.SpeedDefault);
+            var brightnessSlider = CreateOptionsSlider(starfieldGroup.transform, "BrightnessRow", "BRIGHTNESS",
+                StarfieldConfig.BrightnessMin, StarfieldConfig.BrightnessMax,
+                controller != null && controller.StarfieldConfiguration != null ? controller.StarfieldConfiguration.Brightness : StarfieldConfig.BrightnessDefault);
+
+            var howToPlayButton = CreateActionButton(list.transform, "HowToPlayRow", "HOW TO PLAY", new Color(0.18f, 0.24f, 0.36f, 0.95f));
+            var privacyButton = CreateActionButton(list.transform, "PrivacyRow", "PRIVACY POLICY", new Color(0.16f, 0.2f, 0.3f, 0.95f));
+            var termsButton = CreateActionButton(list.transform, "TermsRow", "TERMS OF SERVICE", new Color(0.16f, 0.2f, 0.3f, 0.95f));
+
+            var versionRow = CreateUiChild(list.transform, "VersionRow");
+            var versionElement = versionRow.AddComponent<LayoutElement>();
+            versionElement.preferredHeight = 50f;
+            var versionText = CreateHudText(versionRow.transform, "VersionText");
+            versionText.fontSize = 30;
+            versionText.alignment = TextAnchor.MiddleCenter;
+            versionText.color = new Color(1f, 0.98f, 0.92f, 0.8f);
+            versionText.text = BuildVersionFooterText();
+
+            var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", new Color(0.12f, 0.14f, 0.2f, 0.95f));
+            closeButton.onClick.AddListener(() =>
+            {
+                if (controller != null) controller.HideOptionsOverlay();
+                else root.SetActive(false);
             });
 
-            helpDimmerButton.onClick.AddListener(() =>
-            {
-                if (controller != null)
-                {
-                    controller.HideHowToPlayOverlay();
-                }
-                else
-                {
-                    howToPlayOverlay.SetActive(false);
-                }
-            });
+            var howToPlayOverlay = CreateScrollableTextOverlay(root.transform, "HowToPlayOverlay", "HOW TO PLAY", BuildHowToPlayBodyText(), compact: true);
+            var privacyOverlay = CreateScrollableTextOverlay(root.transform, "PrivacyPolicyOverlay", "PRIVACY POLICY", LoadLegalTextAsset("Legal/PrivacyPolicy", "Privacy Policy\n\nNot available."));
+            var termsOverlay = CreateScrollableTextOverlay(root.transform, "TermsOverlay", "TERMS OF SERVICE", LoadLegalTextAsset("Legal/TermsOfService", "Terms of Service\n\nNot available."));
 
-            helpCloseButton.onClick.AddListener(() =>
-            {
-                if (controller != null)
-                {
-                    controller.HideHowToPlayOverlay();
-                }
-                else
-                {
-                    howToPlayOverlay.SetActive(false);
-                }
-            });
+            var highContrastOverlay = CreateHighContrastOverlay(parent);
 
-            // Start hidden
-            howToPlayOverlay.SetActive(false);
+            if (controller != null)
+            {
+                replayTutorialButton.onClick.AddListener(controller.ReplayTutorial);
+                sfxToggle.onValueChanged.AddListener(controller.SetSfxEnabled);
+                sfxVolumeSlider.onValueChanged.AddListener(controller.SetSfxVolume01);
+
+                starfieldToggle.onValueChanged.AddListener(controller.SetStarfieldEnabled);
+                densitySlider.onValueChanged.AddListener(controller.SetStarfieldDensity);
+                speedSlider.onValueChanged.AddListener(controller.SetStarfieldSpeed);
+                brightnessSlider.onValueChanged.AddListener(controller.SetStarfieldBrightness);
+
+                howToPlayButton.onClick.AddListener(controller.ShowHowToPlayOverlay);
+                privacyButton.onClick.AddListener(controller.ShowPrivacyPolicyOverlay);
+                termsButton.onClick.AddListener(controller.ShowTermsOverlay);
+
+                SetPrivateField(controller, "_howToPlayOverlay", howToPlayOverlay);
+                SetPrivateField(controller, "_privacyPolicyOverlay", privacyOverlay);
+                SetPrivateField(controller, "_termsOverlay", termsOverlay);
+                SetPrivateField(controller, "_highContrastOverlay", highContrastOverlay);
+            }
+            else
+            {
+                replayTutorialButton.onClick.AddListener(() => root.SetActive(false));
+                howToPlayButton.onClick.AddListener(() => howToPlayOverlay.SetActive(true));
+                privacyButton.onClick.AddListener(() => privacyOverlay.SetActive(true));
+                termsButton.onClick.AddListener(() => termsOverlay.SetActive(true));
+            }
+
             root.SetActive(false);
             return root;
         }
@@ -2219,12 +2573,12 @@ namespace Decantra.Presentation
             var row = CreateOptionsRow(parent, rowName);
 
             var label = CreateHudText(row.transform, "Label");
-            label.fontSize = 41;
+            label.fontSize = 28;
             label.text = labelText;
             label.color = new Color(1f, 0.98f, 0.92f, 0.9f);
             label.alignment = TextAnchor.MiddleLeft;
             var labelElement = label.gameObject.AddComponent<LayoutElement>();
-            labelElement.preferredWidth = 220;
+            labelElement.preferredWidth = 210;
 
             var sliderGo = CreateUiChild(row.transform, labelText + "Slider");
             var sliderElement = sliderGo.AddComponent<LayoutElement>();
@@ -3124,7 +3478,20 @@ namespace Decantra.Presentation
                 new ColorPalette.Entry { ColorId = ColorId.Magenta, Color = new Color(0.92f, 0.36f, 0.78f) }
             };
 
+            var colorBlindEntries = new List<ColorPalette.Entry>
+            {
+                new ColorPalette.Entry { ColorId = ColorId.Red, Color = new Color(0.84f, 0.47f, 0.1f) },
+                new ColorPalette.Entry { ColorId = ColorId.Blue, Color = new Color(0.18f, 0.46f, 0.92f) },
+                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.18f, 0.74f, 0.66f) },
+                new ColorPalette.Entry { ColorId = ColorId.Yellow, Color = new Color(0.95f, 0.85f, 0.2f) },
+                new ColorPalette.Entry { ColorId = ColorId.Purple, Color = new Color(0.55f, 0.45f, 0.9f) },
+                new ColorPalette.Entry { ColorId = ColorId.Orange, Color = new Color(0.95f, 0.62f, 0.18f) },
+                new ColorPalette.Entry { ColorId = ColorId.Cyan, Color = new Color(0.12f, 0.78f, 0.88f) },
+                new ColorPalette.Entry { ColorId = ColorId.Magenta, Color = new Color(0.88f, 0.38f, 0.72f) }
+            };
+
             SetPrivateField(palette, "entries", entries);
+            SetPrivateField(palette, "colorBlindEntries", colorBlindEntries);
             return palette;
         }
 

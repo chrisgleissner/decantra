@@ -81,6 +81,14 @@ namespace Decantra.Presentation.View
             _levelMaxCapacity = Mathf.Max(1, maxCapacity);
         }
 
+        public void SetColorBlindMode(bool enabled)
+        {
+            if (palette != null)
+            {
+                palette.SetColorBlindMode(enabled);
+            }
+        }
+
         private void Awake()
         {
             if (outline != null)

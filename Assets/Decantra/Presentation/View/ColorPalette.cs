@@ -24,17 +24,29 @@ namespace Decantra.Presentation.View
         }
 
         [SerializeField] private List<Entry> entries = new List<Entry>();
+        [SerializeField] private List<Entry> colorBlindEntries = new List<Entry>();
+
+        private bool _colorBlindMode;
 
         public Color GetColor(ColorId colorId)
         {
-            for (int i = 0; i < entries.Count; i++)
+            var source = _colorBlindMode && colorBlindEntries != null && colorBlindEntries.Count > 0
+                ? colorBlindEntries
+                : entries;
+
+            for (int i = 0; i < source.Count; i++)
             {
-                if (entries[i].ColorId == colorId)
+                if (source[i].ColorId == colorId)
                 {
-                    return entries[i].Color;
+                    return source[i].Color;
                 }
             }
             return Color.white;
+        }
+
+        public void SetColorBlindMode(bool enabled)
+        {
+            _colorBlindMode = enabled;
         }
     }
 }
