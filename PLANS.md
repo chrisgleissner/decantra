@@ -1,5 +1,13 @@
 # Decantra Feature Implementation Plan
 
+## 2026-02-16 Tutorial LEVEL/MOVES Separation
+
+- [x] Locate tutorial steps and current LEVEL/MOVES messaging.
+- [x] Split LEVEL and MOVES into separate tutorial steps with required wording.
+- [x] Keep highlight targets scoped to `LevelPanel` and `MovesPanel` respectively.
+- [x] Add focused PlayMode coverage for step content/targets and tutorial text fitting container bounds.
+- [ ] Run targeted tests and capture a tutorial screenshot for visual verification (blocked in this environment: Unity executable unavailable).
+
 ## Milestone 1: Architecture
 
 - [x] Introduce modular managers/services for tutorial, audio, options navigation, accessibility, legal content, and progression persistence.
