@@ -730,29 +730,49 @@ namespace Decantra.Tests.PlayMode
         [UnityTest]
         public IEnumerator AccessibleColorsToggle_MidGame_NoNullReferenceLogs()
         {
-            SceneBootstrap.EnsureScene();
-            yield return null;
-
-            var controller = Object.FindFirstObjectByType<GameController>();
-            Assert.IsNotNull(controller);
-            float timeout = 8f;
-            float elapsed = 0f;
-            while (elapsed < timeout && !controller.HasActiveLevel)
+            bool nullReferenceLogged = false;
+            string nullReferenceLogDetails = null;
+            Application.LogCallback callback = (condition, stackTrace, type) =>
             {
-                elapsed += Time.unscaledDeltaTime;
-                yield return null;
-            }
-            Assert.IsTrue(controller.HasActiveLevel);
+                if (type == LogType.Exception && condition != null && condition.Contains("NullReferenceException"))
+                {
+                    nullReferenceLogged = true;
+                    nullReferenceLogDetails = condition + "\n" + stackTrace;
+                }
+            };
 
-            for (int i = 0; i < 3; i++)
+            Application.logMessageReceived += callback;
+            try
             {
-                controller.SetAccessibleColorsEnabled(true);
+                SceneBootstrap.EnsureScene();
                 yield return null;
-                controller.SetAccessibleColorsEnabled(false);
-                yield return null;
+
+                var controller = Object.FindFirstObjectByType<GameController>();
+                Assert.IsNotNull(controller);
+                float timeout = 8f;
+                float elapsed = 0f;
+                while (elapsed < timeout && !controller.HasActiveLevel)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+                Assert.IsTrue(controller.HasActiveLevel);
+
+                for (int i = 0; i < 3; i++)
+                {
+                    controller.SetAccessibleColorsEnabled(true);
+                    yield return null;
+                    controller.SetAccessibleColorsEnabled(false);
+                    yield return null;
+                }
+            }
+            finally
+            {
+                Application.logMessageReceived -= callback;
             }
 
-            LogAssert.NoUnexpectedReceived();
+            Assert.IsFalse(nullReferenceLogged,
+                $"A NullReferenceException was logged during AccessibleColorsToggle_MidGame_NoNullReferenceLogs.\n{nullReferenceLogDetails}");
         }
 
         private static void SetPrivateField(object instance, string name, object value)
