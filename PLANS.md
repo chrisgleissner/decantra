@@ -5,8 +5,8 @@
 - [x] Inventory recent failed `main` workflow runs and isolate test-related failures.
 - [x] Extract exact failing test cases and stack traces from CI logs.
 - [x] Classify each failure root cause (incorrect/brittle test vs production defect vs nondeterminism).
-- [ ] Apply minimal deterministic fixes.
-- [ ] Verify fixes with available local non-Unity checks and repeated deterministic analysis from CI evidence.
+- [x] Apply minimal deterministic fixes.
+- [x] Verify fixes with available local non-Unity checks and repeated deterministic analysis from CI evidence.
 - [ ] Finalize risk review and Definition of Done validation.
 
 ## 1) Inventory of failing CI runs on `main`
@@ -50,7 +50,9 @@ Recent failed `Build Decantra` runs on `main`:
 ## 4) Proposed fix strategy
 
 - Failure A: minimally increase available tutorial instruction text area in `SceneBootstrap.CreateTutorialOverlay` so required text fits container.
+  - ✅ Implemented: `InstructionPanel` height changed from `390f` to `530f`.
 - Failure B: make test assertion deterministic but tolerant to 1-step channel rounding drift (bounded per-channel tolerance), while still verifying palette switch and distinct colors.
+  - ✅ Implemented: replaced strict `Color32` equality with `AssertColorApproximately(..., channelTolerance: 1)`.
 
 ## 5) Verification steps
 
@@ -58,6 +60,11 @@ Recent failed `Build Decantra` runs on `main`:
 2. Apply minimal code/test changes for Failures A and B.
 3. Run available non-Unity validation commands (repository does not provide non-Unity executable tests; record limitation).
 4. Re-check changed tests/logic statically against CI stack traces and failure conditions for deterministic resolution.
+
+Execution notes:
+
+- Baseline command before changes: `./scripts/test.sh` → `Unity not found. Set UNITY_PATH to the Unity editor executable.`
+- Post-change command: `./scripts/test.sh` → same environment limitation, no additional failures observable without Unity.
 
 ## 6) Risk assessment
 

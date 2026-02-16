@@ -718,12 +718,12 @@ namespace Decantra.Tests.PlayMode
             controller.SetAccessibleColorsEnabled(false);
             yield return null;
             Color defaultColor = GetVisibleLiquidColor(view);
-            Assert.AreEqual((Color32)BoostForBottleLiquid(ExpectedDefaultColor(topColor)), (Color32)defaultColor);
+            AssertColorApproximately((Color32)BoostForBottleLiquid(ExpectedDefaultColor(topColor)), (Color32)defaultColor, 1);
 
             controller.SetAccessibleColorsEnabled(true);
             yield return null;
             Color accessibleColor = GetVisibleLiquidColor(view);
-            Assert.AreEqual((Color32)BoostForBottleLiquid(ExpectedAccessibleColor(topColor)), (Color32)accessibleColor);
+            AssertColorApproximately((Color32)BoostForBottleLiquid(ExpectedAccessibleColor(topColor)), (Color32)accessibleColor, 1);
             Assert.AreNotEqual((Color32)defaultColor, (Color32)accessibleColor);
         }
 
@@ -887,6 +887,14 @@ namespace Decantra.Tests.PlayMode
                 case ColorId.Magenta: return new Color32(27, 42, 65, 255);
                 default: return Color.white;
             }
+        }
+
+        private static void AssertColorApproximately(Color32 expected, Color32 actual, byte channelTolerance)
+        {
+            Assert.LessOrEqual(Mathf.Abs(expected.r - actual.r), channelTolerance, "Red channel mismatch.");
+            Assert.LessOrEqual(Mathf.Abs(expected.g - actual.g), channelTolerance, "Green channel mismatch.");
+            Assert.LessOrEqual(Mathf.Abs(expected.b - actual.b), channelTolerance, "Blue channel mismatch.");
+            Assert.AreEqual(expected.a, actual.a, "Alpha channel mismatch.");
         }
 
         private static Color BoostForBottleLiquid(Color color)
