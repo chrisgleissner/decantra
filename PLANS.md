@@ -1,6 +1,14 @@
 # Sound Effects Subsystem Hardening Plan
 
-## 1) System-wide problem summary
+## 2026-02-16 Tutorial LEVEL/MOVES Separation
+
+- [x] Locate tutorial steps and current LEVEL/MOVES messaging.
+- [x] Split LEVEL and MOVES into separate tutorial steps with required wording.
+- [x] Keep highlight targets scoped to `LevelPanel` and `MovesPanel` respectively.
+- [x] Add focused PlayMode coverage for step content/targets and tutorial text fitting container bounds.
+- [ ] Run targeted tests and capture a tutorial screenshot for visual verification (blocked in this environment: Unity executable unavailable).
+
+## Milestone 1: Architecture
 
 The project had multiple independent SFX playback paths with abrupt start/stop behavior. Procedural clip generation existed in runtime code, while UI/celebration paths also played clips directly. This allowed discontinuities and repeated transients to surface as audible pops/clicks and increased listener fatigue under rapid repetition.
 

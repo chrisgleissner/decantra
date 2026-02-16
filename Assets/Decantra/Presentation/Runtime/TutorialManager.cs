@@ -120,7 +120,12 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "goal",
                 "LevelPanel",
-                "Circles indicate difficulty. More filled means harder levels. MOVES shows used vs. allowed. Fewer moves give a higher score."
+                "LEVEL & Difficulty\nDisplays the current level.\nThe three circles show difficulty. The more filled they are, the harder the level."
+            ));
+            _steps.Add(new TutorialStepData(
+                "moves",
+                "MovesPanel",
+                "MOVES\nCurrent moves versus allowed moves.\nFewer moves give a higher score."
             ));
             _steps.Add(new TutorialStepData(
                 "reset",
