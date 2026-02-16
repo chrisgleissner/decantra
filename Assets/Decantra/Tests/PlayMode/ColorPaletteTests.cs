@@ -14,7 +14,7 @@ using Decantra.Presentation.View;
 using NUnit.Framework;
 using UnityEngine;
 
-namespace Decantra.Tests.EditMode
+namespace Decantra.Tests.PlayMode
 {
     public class ColorPaletteTests
     {
