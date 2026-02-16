@@ -1759,7 +1759,7 @@ namespace Decantra.Presentation
             panelRect.anchorMax = new Vector2(0.5f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
             panelRect.anchoredPosition = new Vector2(0f, 70f);
-            panelRect.sizeDelta = new Vector2(980f, 390f);
+            panelRect.sizeDelta = new Vector2(980f, 560f);
 
             var panelImage = instructionPanel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
