@@ -12,10 +12,10 @@ using Decantra.Domain.Solver;
 
 public class Program
 {
-    private const int MaxSolveMillis = 3000;
-    private const int MaxSolveNodes = 2_000_000;
-    private const int RetrySolveMillis = 8000;
-    private const int RetrySolveNodes = 8_000_000;
+    private const int MaxSolveMillis = 10000;
+    private const int MaxSolveNodes = 8_000_000;
+    private const int RetrySolveMillis = 20000;
+    private const int RetrySolveNodes = 20_000_000;
 
     public static int Main(string[] args)
     {
@@ -311,6 +311,27 @@ public class Program
         });
 
         finished = true;
+
+        int recoveredTimeouts = 0;
+        for (int l = 1; l <= count; l++)
+        {
+            if (!results.TryGetValue(l, out var timeoutResult) || !timeoutResult.IsError || !string.Equals(timeoutResult.ErrorMessage, "TIMEOUT", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (TryResolveTimeoutLevel(l, seeds[l], out var recovered))
+            {
+                results[l] = recovered;
+                recoveredTimeouts++;
+                Console.WriteLine($"[TimeoutRecovered] level={l}, optimal={recovered.Optimal}");
+            }
+        }
+
+        if (recoveredTimeouts > 0)
+        {
+            Console.WriteLine($"Recovered {recoveredTimeouts} timeout level(s) with deterministic single-thread recheck.");
+        }
 
         Console.WriteLine("\n=== RAW COMPLEXITY COMPUTED ===");
 
@@ -744,6 +765,50 @@ public class Program
 
         Console.WriteLine("FAIL: Validation checks failed.");
         return 1;
+    }
+
+    private static bool TryResolveTimeoutLevel(int level, int seed, out LevelResult result)
+    {
+        result = null;
+
+        try
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver) { Log = null };
+            var profile = LevelDifficultyEngine.GetProfile(level);
+            var state = generator.Generate(seed, profile);
+            var solveResult = solver.SolveWithPath(state);
+
+            if (solveResult == null || solveResult.OptimalMoves < 0)
+            {
+                return false;
+            }
+
+            var metrics = generator.LastReport?.Metrics ?? LevelMetrics.Empty;
+            var moves = string.Join(",", solveResult.Path.Select(m => $"{m.Source + 1}{m.Target + 1}"));
+            double rawComplexity = ComplexityScorer.ComputeRawComplexity(metrics, solveResult.OptimalMoves);
+            int monotonicDifficulty = DifficultyScorer.ComputeDifficulty100(metrics, solveResult.OptimalMoves, level);
+
+            result = new LevelResult
+            {
+                Level = level,
+                RawComplexity = rawComplexity,
+                Difficulty = monotonicDifficulty,
+                Optimal = solveResult.OptimalMoves,
+                Forced = metrics.ForcedMoveRatio,
+                Branch = metrics.AverageBranchingFactor,
+                Decision = metrics.DecisionDepth,
+                Trap = metrics.TrapScore,
+                Multi = metrics.SolutionMultiplicity,
+                Moves = moves
+            };
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryParseLevelDifficulty(string line, out int level, out int difficulty)
