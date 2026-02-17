@@ -1380,6 +1380,7 @@ namespace Decantra.Presentation.Controller
                 bool started = TryStartMove(move.Source, move.Target, out _);
                 if (!started)
                 {
+                    RefundStars(cost);
                     _autoSolvePlaybackActive = false;
                     RestartCurrentLevel();
                     _isAutoSolving = false;

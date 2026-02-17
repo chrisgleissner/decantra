@@ -2,6 +2,7 @@
 
 Date: 2026-02-17
 Scope: deterministic sink count and structural role class over levels 1-1000.
+This report is intentionally bounded to levels 1-1000 (inclusive) and is not a global sink-count proof for all future levels.
 
 ## Deterministic sink histogram (levels 1-1000)
 
@@ -15,6 +16,7 @@ Scope: deterministic sink count and structural role class over levels 1-1000.
 | 5 | 0 |
 
 Computed from `LevelDifficultyEngine.DetermineSinkCount(levelNumber)`.
+Note: `sinkCount=5` may appear at sufficiently high levels beyond this analyzed range.
 
 ## Structural class distribution (sink levels only)
 

@@ -223,7 +223,10 @@ namespace Decantra.Domain.Generation
                                 Log?.Invoke($"LevelGenerator.SinkClassCap level={profile.LevelIndex} seed={seed} cap={sinkClassRetryCap} class={(requiresSinkUsageClass ? "required" : "avoidable")} lastFailure={sinkClassFailure}");
                                 enforceSinkClass = false;
                             }
-                            continue;
+                            else
+                            {
+                                continue;
+                            }
                         }
                     }
 
@@ -311,7 +314,21 @@ namespace Decantra.Domain.Generation
 
             if (bestCandidate == null)
             {
-                throw new InvalidOperationException($"Failed to scramble a valid level state ({lastFailure ?? "unknown"})");
+                if (!TryGenerateEmergencyCandidate(profile, seed, solved, out var emergencyState, out var emergencyOptimal, out var emergencyMovesAllowed, out var emergencyScrambleMoves, out var emergencySolveMs))
+                {
+                    throw new InvalidOperationException($"Failed to scramble a valid level state ({lastFailure ?? "unknown"})");
+                }
+
+                bestCandidate = emergencyState;
+                optimal = emergencyOptimal;
+                movesAllowed = emergencyMovesAllowed;
+                scrambleMoves = emergencyScrambleMoves;
+                solveMs = emergencySolveMs;
+                metricsMs = 0;
+                qualityGatesApplied = false;
+                lastFailure = $"{lastFailure ?? "unknown"}; emergency_relaxed";
+                bestScore = 0f;
+                bestDifficulty100 = Math.Max(1, DifficultyScorer.ComputeDifficulty100(LevelMetrics.Empty, optimal));
             }
 
             overallTimer.Stop();
@@ -344,11 +361,77 @@ namespace Decantra.Domain.Generation
             Log?.Invoke($"LevelGenerator.Reject level={levelIndex} seed={seed} attempt={attempt} reason={reason}");
         }
 
+        private bool TryGenerateEmergencyCandidate(
+            DifficultyProfile profile,
+            int seed,
+            List<Bottle> solved,
+            out LevelState state,
+            out int optimal,
+            out int movesAllowed,
+            out int scrambleMoves,
+            out long solveMs)
+        {
+            state = null;
+            optimal = -1;
+            movesAllowed = 0;
+            scrambleMoves = 0;
+            solveMs = 0;
+
+            int scrambleTarget = Math.Max(4, profile.ReverseMoves / 2);
+            for (int emergencyAttempt = 0; emergencyAttempt < 8; emergencyAttempt++)
+            {
+                int emergencySeed = seed + emergencyAttempt * 15485863;
+                var emergencyRng = new Random(emergencySeed);
+                var candidate = new LevelState(CloneBottles(solved), 0, 0, 0, profile.LevelIndex, seed);
+
+                int appliedMoves = ScrambleState(
+                    candidate,
+                    emergencyRng,
+                    scrambleTarget,
+                    minEmptyCount: 0,
+                    maxEmptyCount: Math.Max(profile.EmptyBottleCount + 2, profile.EmptyBottleCount),
+                    preventEmptySource: profile.LevelIndex <= 6);
+
+                if (appliedMoves <= 0)
+                {
+                    continue;
+                }
+
+                if (!LevelIntegrity.TryValidate(candidate, out _))
+                {
+                    continue;
+                }
+
+                if (!LevelStartValidator.TryValidate(candidate, out _))
+                {
+                    continue;
+                }
+
+                var solveTimer = Stopwatch.StartNew();
+                var solvedResult = _solver.SolveWithPath(candidate, 250_000, 300, allowSinkMoves: true);
+                solveTimer.Stop();
+                if (solvedResult == null || solvedResult.OptimalMoves < 2)
+                {
+                    continue;
+                }
+
+                int allowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, solvedResult.OptimalMoves));
+                state = new LevelState(candidate.Bottles, 0, allowed, solvedResult.OptimalMoves, profile.LevelIndex, seed, appliedMoves);
+                optimal = solvedResult.OptimalMoves;
+                movesAllowed = allowed;
+                scrambleMoves = appliedMoves;
+                solveMs = solveTimer.ElapsedMilliseconds;
+                return true;
+            }
+
+            return false;
+        }
+
         private static int ResolveMaxAttempts(int levelIndex)
         {
             if (levelIndex <= 6) return 6;
-            if (levelIndex >= 100) return 6;
-            if (levelIndex >= 60) return 8;
+            if (levelIndex >= 100) return 4;
+            if (levelIndex >= 60) return 6;
             return 12;
         }
 
@@ -370,15 +453,15 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveSolveTimeLimitMs(int levelIndex)
         {
-            if (levelIndex >= 100) return 1200;
-            if (levelIndex >= 60) return 1500;
+            if (levelIndex >= 100) return 900;
+            if (levelIndex >= 60) return 1200;
             return 2000;
         }
 
         private static int ResolveSolveNodeLimit(int levelIndex)
         {
-            if (levelIndex >= 100) return 500_000;
-            if (levelIndex >= 60) return 800_000;
+            if (levelIndex >= 100) return 350_000;
+            if (levelIndex >= 60) return 600_000;
             return 1_200_000;
         }
 
@@ -417,6 +500,7 @@ namespace Decantra.Domain.Generation
                 allowSinkMoves: false);
 
             bool noSinkSolved = noSinkSolve != null && noSinkSolve.OptimalMoves >= 0;
+
             if (requiresSinkUsageClass)
             {
                 if (noSinkSolved)

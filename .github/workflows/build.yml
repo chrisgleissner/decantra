@@ -85,11 +85,6 @@ jobs:
           rm -f solver-solutions-debug-sinks.txt
           rm -f doc/sink-bottles-levels-1-1000.csv
 
-      - name: Remove solvability output after assertion
-        if: ${{ always() }}
-        run: |
-          rm -f solver-solutions-debug.txt
-
   # ============================================================================
   # TIER 1: Tests
   # ============================================================================
