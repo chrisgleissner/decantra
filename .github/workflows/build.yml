@@ -71,6 +71,8 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Regenerate solvability artifact and run gates
+        env:
+          DECANTRA_EXPECTED_LEVELS: "1000"
         run: |
           ./build --generate-solutions --skip-tests --skip-build
 
