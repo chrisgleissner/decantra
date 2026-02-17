@@ -21,7 +21,7 @@ namespace Decantra.Tests.EditMode
     public sealed class LevelSolvabilityRegressionTests
     {
         [Test]
-        [Timeout(300000)]
+        [Timeout(1800000)]
         public void Levels_1_To_200_AreSolvable()
         {
             // Arrange

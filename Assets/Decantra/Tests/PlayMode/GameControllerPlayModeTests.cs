@@ -435,7 +435,21 @@ namespace Decantra.Tests.PlayMode
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);
 
-            controller.LoadLevel(24, 901);
+            // Scan levels 20+ to find one that deterministically has a sink bottle.
+            // DetermineSinkCount is hash-based; level 25 has sinkCount=1 with
+            // the current hash, but we scan to be resilient if the hash changes.
+            int sinkLevel = -1;
+            for (int candidate = 20; candidate <= 99; candidate++)
+            {
+                if (LevelDifficultyEngine.DetermineSinkCount(candidate) > 0)
+                {
+                    sinkLevel = candidate;
+                    break;
+                }
+            }
+            Assert.GreaterOrEqual(sinkLevel, 0, "Expected at least one level 20-99 with sinks.");
+
+            controller.LoadLevel(sinkLevel, 901);
             yield return null;
 
             var state = GetPrivateField(controller, "_state") as LevelState;
@@ -455,7 +469,7 @@ namespace Decantra.Tests.PlayMode
                 }
             }
 
-            Assert.GreaterOrEqual(sinkIndex, 0, "Expected a sink bottle by level 24.");
+            Assert.GreaterOrEqual(sinkIndex, 0, $"Expected a sink bottle at level {sinkLevel}.");
             Assert.GreaterOrEqual(normalIndex, 0, "Expected a normal bottle.");
 
             var sinkInput = GetBottleInputForIndex(controller, sinkIndex);

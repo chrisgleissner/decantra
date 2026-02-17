@@ -17,6 +17,10 @@ UserSettings/
 
 # Compiled files
 Reproduction/bin/
+Reproduction/obj/
+
+# Track Reproduction project file (override *.csproj ignore)
+!Reproduction/Reproduction.csproj
 
 # Code Coverage reports
 Coverage

@@ -1199,21 +1199,12 @@ namespace Decantra.Presentation.Controller
 
         private int ResolveAwardedStars(int baseStars)
         {
-            if (_isCurrentLevelAssisted)
-            {
-                return 0;
-            }
-
-            float multiplier = ResolveResetMultiplier(_levelResetCount);
-            return Mathf.FloorToInt(baseStars * multiplier);
+            return StarEconomy.ResolveAwardedStars(baseStars, _levelResetCount, _isCurrentLevelAssisted);
         }
 
         private static float ResolveResetMultiplier(int resetCount)
         {
-            if (resetCount <= 0) return 1f;
-            if (resetCount == 1) return 0.75f;
-            if (resetCount == 2) return 0.5f;
-            return 0.25f;
+            return StarEconomy.ResolveResetMultiplier(resetCount);
         }
 
         private bool HasAnySinkBottle()
@@ -1229,26 +1220,21 @@ namespace Decantra.Presentation.Controller
 
         private int ResolveAutoSolveCost()
         {
-            int tier = ResolveDifficultyTier();
-            if (tier <= 1) return 15;
-            if (tier == 2) return 25;
-            return 35;
+            return StarEconomy.ResolveAutoSolveCost(_currentDifficulty100);
         }
 
         private int ResolveDifficultyTier()
         {
-            if (_currentDifficulty100 <= 65) return 1;
-            if (_currentDifficulty100 <= 85) return 2;
-            return 3;
+            return StarEconomy.ResolveDifficultyTier(_currentDifficulty100);
         }
 
         private bool TrySpendStars(int cost)
         {
             if (_progress == null || cost <= 0) return false;
-            int current = Math.Max(0, _progress.StarBalance);
-            if (current < cost) return false;
+            if (!StarEconomy.TrySpend(_progress.StarBalance, cost, out int newBalance))
+                return false;
 
-            _progress.StarBalance = current - cost;
+            _progress.StarBalance = newBalance;
             _progressStore.Save(_progress);
             Render();
             return true;
@@ -1257,7 +1243,7 @@ namespace Decantra.Presentation.Controller
         private void RefundStars(int stars)
         {
             if (_progress == null || stars <= 0) return;
-            _progress.StarBalance = Math.Max(0, _progress.StarBalance + stars);
+            _progress.StarBalance = StarEconomy.Refund(_progress.StarBalance, stars);
             _progressStore.Save(_progress);
             Render();
         }
