@@ -23,10 +23,12 @@ namespace Decantra.Domain.Background
         {
             GeneratorArchetype.DomainWarpedClouds,
             GeneratorArchetype.CurlFlowAdvection,
+            GeneratorArchetype.AtmosphericWash,
             GeneratorArchetype.NebulaGlow,
             GeneratorArchetype.MarbledFlow,
             GeneratorArchetype.ConcentricRipples,
             GeneratorArchetype.ImplicitBlobHaze,
+            GeneratorArchetype.OrganicCells,
             GeneratorArchetype.BotanicalIFS,
             GeneratorArchetype.BranchingTree,
             GeneratorArchetype.RootNetwork,
@@ -109,37 +111,78 @@ namespace Decantra.Domain.Background
 
         /// <summary>
         /// Selects an archetype for a specific level index.
-        /// Levels 1-24 always use DomainWarpedClouds for a modern introduction.
+        /// All levels within a 10-level zone share the same archetype.
+        /// The globalSeed produces a deterministic shuffled ordering of all 16
+        /// archetypes per cycle. No two consecutive zones ever share the same
+        /// archetype, including at cycle boundaries.
         /// </summary>
         public static GeneratorArchetype SelectArchetypeForLevel(int levelIndex, int globalSeed)
         {
-            if (levelIndex <= 24)
-            {
+            int zoneIndex = BackgroundRules.GetZoneIndex(levelIndex);
+
+            // Zone 0 (levels 1-9) is always the intro theme.
+            if (zoneIndex == 0)
                 return GeneratorArchetype.DomainWarpedClouds;
+
+            // Remaining zones use a shuffled cycle over all archetypes.
+            // Subtract 1 so the shuffle starts fresh at zone 1.
+            int shuffleIndex = zoneIndex - 1;
+            int count = AllowedArchetypesOrdered.Length;
+            int cycleIndex = shuffleIndex / count;
+            int posInCycle = shuffleIndex % count;
+
+            var perm = ShuffleForCycle(globalSeed, cycleIndex, count);
+
+            // Determine what the previous zone's archetype index was.
+            int prevArchetypeIndex;
+            if (cycleIndex == 0)
+            {
+                // Zone 0 is always DomainWarpedClouds (index 0 in AllowedArchetypesOrdered).
+                prevArchetypeIndex = 0;
+            }
+            else
+            {
+                var prevPerm = ShuffleForCycle(globalSeed, cycleIndex - 1, count);
+                prevArchetypeIndex = prevPerm[count - 1];
             }
 
-            int remainingCount = AllowedArchetypesOrdered.Length - 1;
-            int offset = (int)((uint)globalSeed % (uint)remainingCount);
-            int index = (levelIndex - 2 + offset) % remainingCount;
-            return AllowedArchetypesOrdered[1 + index];
+            // Ensure no repeat at the boundary (zone 0→1 or cycle N→N+1).
+            if (perm[0] == prevArchetypeIndex)
+            {
+                for (int i = 1; i < count; i++)
+                {
+                    if (perm[i] != prevArchetypeIndex)
+                    {
+                        (perm[0], perm[i]) = (perm[i], perm[0]);
+                        break;
+                    }
+                }
+            }
+
+            return AllowedArchetypesOrdered[perm[posInCycle]];
         }
 
         /// <summary>
-        /// Selects an appropriate archetype for a zone based on zone index.
-        /// Ensures visual variety across zones while maintaining determinism.
+        /// Deterministic Fisher-Yates shuffle of indices [0..count-1] for a
+        /// given cycle, seeded from globalSeed and cycleIndex.
         /// </summary>
-        /// <param name="zoneIndex">The zone index (0 = levels 1-9, 1 = levels 10-19, etc.)</param>
-        /// <param name="seed">Deterministic seed for variation within archetype selection.</param>
-        public static GeneratorArchetype SelectArchetypeForZone(int zoneIndex, ulong seed)
+        private static int[] ShuffleForCycle(int globalSeed, int cycleIndex, int count)
         {
-            _ = seed;
-            if (zoneIndex <= 2)
+            // Mix seed and cycle via Knuth multiplicative hash
+            uint state = (uint)globalSeed ^ ((uint)cycleIndex * 2654435761u);
+
+            var perm = new int[count];
+            for (int i = 0; i < count; i++) perm[i] = i;
+
+            // Fisher-Yates
+            for (int i = count - 1; i > 0; i--)
             {
-                return GeneratorArchetype.DomainWarpedClouds;
+                state = state * 1664525u + 1013904223u;
+                int j = (int)(state % (uint)(i + 1));
+                (perm[i], perm[j]) = (perm[j], perm[i]);
             }
 
-            int index = zoneIndex % AllowedArchetypesOrdered.Length;
-            return AllowedArchetypesOrdered[index];
+            return perm;
         }
 
         /// <summary>

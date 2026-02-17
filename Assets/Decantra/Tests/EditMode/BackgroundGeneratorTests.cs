@@ -99,41 +99,70 @@ namespace Decantra.Domain.Tests
         }
 
         [Test]
-        public void Registry_SelectsEarlyLevelsAsDomainWarpedClouds()
+        public void Registry_SameArchetypeWithinZone()
         {
-            for (int level = 1; level <= 24; level++)
+            int seed = unchecked((int)TestSeed);
+            // Zone 0: levels 1-9, Zone 1: 10-19, Zone 2: 20-29 ...
+            for (int zone = 0; zone <= 20; zone++)
             {
-                var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, unchecked((int)TestSeed));
-                Assert.AreEqual(GeneratorArchetype.DomainWarpedClouds, archetype, $"Level {level} should use DomainWarpedClouds");
+                int first = zone == 0 ? 1 : 10 + (zone - 1) * 10;
+                int last = zone == 0 ? 9 : first + 9;
+                var expected = BackgroundGeneratorRegistry.SelectArchetypeForLevel(first, seed);
+                for (int level = first; level <= last; level++)
+                {
+                    var actual = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, seed);
+                    Assert.AreEqual(expected, actual,
+                        $"Level {level} (zone {zone}) should use {expected} but got {actual}");
+                }
             }
         }
 
         [Test]
-        public void Registry_LevelProgressionMatchesAllowedOrder()
+        public void Registry_ArchetypeChangesAtEveryZoneBoundary()
         {
+            int seed = unchecked((int)TestSeed);
             var allowed = BackgroundGeneratorRegistry.GetAllowedArchetypes();
-            int remainingCount = allowed.Count - 1;
-            int offset = (int)(unchecked((uint)TestSeed) % (uint)remainingCount);
-
-            for (int i = 0; i < allowed.Count; i++)
+            // Check across 3 full cycles to cover cross-cycle boundaries
+            int totalZones = allowed.Count * 3;
+            for (int zone = 0; zone < totalZones - 1; zone++)
             {
-                int level = i + 25;
-                var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, unchecked((int)TestSeed));
-                GeneratorArchetype expected = allowed[1 + ((level - 2 + offset) % remainingCount)];
-                Assert.AreEqual(expected, archetype, $"Level {level} should use {expected}");
+                int lastOfZone = zone == 0 ? 9 : 10 + (zone - 1) * 10 + 9;
+                int firstOfNext = lastOfZone + 1;
+                var prev = BackgroundGeneratorRegistry.SelectArchetypeForLevel(lastOfZone, seed);
+                var next = BackgroundGeneratorRegistry.SelectArchetypeForLevel(firstOfNext, seed);
+                Assert.AreNotEqual(prev, next,
+                    $"Archetype should change at boundary {lastOfZone}->{firstOfNext} (zones {zone}->{zone + 1})");
             }
         }
 
         [Test]
-        public void Registry_AdjacentLevelsAreDifferentInFirstCycle()
+        public void Registry_AllArchetypesReachableInOneCycle()
         {
+            int seed = unchecked((int)TestSeed);
             var allowed = BackgroundGeneratorRegistry.GetAllowedArchetypes();
-
-            for (int i = 25; i < 25 + allowed.Count - 1; i++)
+            var seen = new System.Collections.Generic.HashSet<GeneratorArchetype>();
+            // Zone 0 is pinned; zones 1-16 are the first full shuffle cycle
+            for (int zone = 0; zone <= allowed.Count; zone++)
             {
-                var prev = BackgroundGeneratorRegistry.SelectArchetypeForLevel(i, unchecked((int)TestSeed));
-                var curr = BackgroundGeneratorRegistry.SelectArchetypeForLevel(i + 1, unchecked((int)TestSeed));
-                Assert.AreNotEqual(prev, curr, $"Level {i + 1} should differ from level {i}");
+                int level = zone == 0 ? 1 : 10 + (zone - 1) * 10;
+                seen.Add(BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, seed));
+            }
+            Assert.AreEqual(allowed.Count, seen.Count,
+                $"All {allowed.Count} archetypes should be reachable in one cycle");
+        }
+
+        [Test]
+        public void Registry_Zone0AlwaysDomainWarpedClouds()
+        {
+            // Zone 0 (levels 1-9) must always be DomainWarpedClouds regardless of seed
+            for (int seed = 0; seed < 100; seed++)
+            {
+                for (int level = 1; level <= 9; level++)
+                {
+                    var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(level, seed);
+                    Assert.AreEqual(GeneratorArchetype.DomainWarpedClouds, archetype,
+                        $"Level {level} (seed {seed}) should always be DomainWarpedClouds");
+                }
             }
         }
 
