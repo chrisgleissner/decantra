@@ -35,7 +35,7 @@ public class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: run [analyze <level> | bulk <count> | monotonic <count> | sinkanalysis <count>]");
+            Console.WriteLine("Usage: run [analyze <level> | bulk <count> | monotonic <count> | sinkanalysis <count> | transitionbench <count>]");
             return 1;
         }
 
@@ -60,6 +60,11 @@ public class Program
         {
             int count = args.Length > 1 ? int.Parse(args[1]) : 1000;
             return SinkAnalysis(count);
+        }
+        else if (mode == "transitionbench")
+        {
+            int count = args.Length > 1 ? int.Parse(args[1]) : 1000;
+            return TransitionBenchmark(count);
         }
         else
         {
@@ -430,6 +435,180 @@ public class Program
         Console.WriteLine("Refreshed solver-solutions-debug.txt");
 
         return ValidateDifficultyInvariantFromFile("solver-solutions-debug.txt", count);
+    }
+
+    private static int TransitionBenchmark(int count)
+    {
+        Console.WriteLine($"=== TRANSITION BENCHMARK: Levels 1..{count} ===");
+        Console.WriteLine("Measures generation latency on next-level handoff path (core generator cost).");
+
+        var solver = new BfsSolver();
+        var generator = new LevelGenerator(solver);
+
+        var allTimes = new List<double>(count);
+        var byBand = new Dictionary<LevelBand, List<double>>();
+        var rows = new List<string>(count + 1)
+        {
+            "level,band,bottle_count,color_count,empty_count,sink_count,generation_ms"
+        };
+
+        int seed = 0;
+        int instant50Count = 0;
+        int instant100Count = 0;
+        int instant200Count = 0;
+
+        for (int level = 1; level <= count; level++)
+        {
+            seed = NextSeed(level, seed);
+            var profile = LevelDifficultyEngine.GetProfile(level);
+
+            var stopwatch = Stopwatch.StartNew();
+            bool generated = TryGenerateWithRetryForBenchmark(generator, level, seed, out string error);
+            stopwatch.Stop();
+
+            if (!generated)
+            {
+                Console.WriteLine($"FAIL: level={level} generation error: {error}");
+                return 1;
+            }
+
+            double elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
+            allTimes.Add(elapsedMs);
+
+            if (elapsedMs <= 50.0) instant50Count++;
+            if (elapsedMs <= 100.0) instant100Count++;
+            if (elapsedMs <= 200.0) instant200Count++;
+
+            if (!byBand.TryGetValue(profile.Band, out var bandTimes))
+            {
+                bandTimes = new List<double>();
+                byBand[profile.Band] = bandTimes;
+            }
+            bandTimes.Add(elapsedMs);
+
+            int sinkCount = LevelDifficultyEngine.DetermineSinkCount(level);
+            rows.Add($"{level},{profile.Band},{profile.BottleCount},{profile.ColorCount},{profile.EmptyBottleCount},{sinkCount},{elapsedMs.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+            if (level % 100 == 0 || level == count)
+            {
+                Console.WriteLine($"Progress: {level}/{count}");
+            }
+        }
+
+        string outputPath = $"doc/transition-benchmark-levels-1-{count}.csv";
+        File.WriteAllLines(outputPath, rows);
+        Console.WriteLine($"Wrote {outputPath}");
+
+        Console.WriteLine();
+        Console.WriteLine("=== OVERALL ===");
+        PrintTimingStats("all", allTimes);
+        Console.WriteLine($"instant<=50ms:  {instant50Count}/{count} ({(100.0 * instant50Count / count):F1}%)");
+        Console.WriteLine($"instant<=100ms: {instant100Count}/{count} ({(100.0 * instant100Count / count):F1}%)");
+        Console.WriteLine($"instant<=200ms: {instant200Count}/{count} ({(100.0 * instant200Count / count):F1}%)");
+
+        Console.WriteLine();
+        Console.WriteLine("=== BY BAND ===");
+        foreach (var pair in byBand.OrderBy(kvp => kvp.Key))
+        {
+            PrintTimingStats(pair.Key.ToString(), pair.Value);
+        }
+
+        return 0;
+    }
+
+    private static bool TryGenerateWithRetryForBenchmark(LevelGenerator generator, int level, int seed, out string error)
+    {
+        error = string.Empty;
+        var profile = LevelDifficultyEngine.GetProfile(level);
+        int seedCandidate = seed;
+
+        for (int seedSweep = 0; seedSweep < 24; seedSweep++)
+        {
+            const int maxAttempts = 8;
+            int attempt = 0;
+            int currentSeed = seedCandidate;
+
+            while (attempt < maxAttempts)
+            {
+                try
+                {
+                    _ = generator.Generate(currentSeed, profile);
+                    return true;
+                }
+                catch
+                {
+                    attempt++;
+                    currentSeed = NextSeed(level, currentSeed + 31);
+                }
+            }
+
+            int fallbackReverse = Math.Max(6, profile.ReverseMoves - 6);
+            int fallbackAttempts = 0;
+            int fallbackSeed = seedCandidate;
+
+            while (fallbackAttempts < 3)
+            {
+                try
+                {
+                    var fallbackProfile = LevelDifficultyEngine.GetProfile(level);
+                    var adjustedProfile = new DifficultyProfile(level,
+                        fallbackProfile.Band,
+                        fallbackProfile.BottleCount,
+                        fallbackProfile.ColorCount,
+                        fallbackProfile.EmptyBottleCount,
+                        fallbackReverse,
+                        fallbackProfile.ThemeId,
+                        fallbackProfile.DifficultyRating);
+
+                    _ = generator.Generate(fallbackSeed, adjustedProfile);
+                    return true;
+                }
+                catch
+                {
+                    fallbackAttempts++;
+                    fallbackSeed = NextSeed(level, fallbackSeed + 31);
+                    fallbackReverse = Math.Max(4, fallbackReverse - 1);
+                }
+            }
+
+            seedCandidate = NextSeed(level, seedCandidate + 97);
+        }
+
+        error = "all retries exhausted (24 seed sweeps)";
+        return false;
+    }
+
+    private static void PrintTimingStats(string label, List<double> samples)
+    {
+        if (samples == null || samples.Count == 0)
+        {
+            Console.WriteLine($"{label}: no samples");
+            return;
+        }
+
+        samples.Sort();
+        double mean = samples.Average();
+        double p50 = Percentile(samples, 0.50);
+        double p90 = Percentile(samples, 0.90);
+        double p95 = Percentile(samples, 0.95);
+        double p99 = Percentile(samples, 0.99);
+        double max = samples[samples.Count - 1];
+
+        Console.WriteLine($"{label}: n={samples.Count}, mean={mean:F1}ms, p50={p50:F1}ms, p90={p90:F1}ms, p95={p95:F1}ms, p99={p99:F1}ms, max={max:F1}ms");
+    }
+
+    private static double Percentile(List<double> sorted, double quantile)
+    {
+        if (sorted.Count == 0) return 0;
+        if (sorted.Count == 1) return sorted[0];
+
+        double index = (sorted.Count - 1) * quantile;
+        int lower = (int)Math.Floor(index);
+        int upper = (int)Math.Ceiling(index);
+        if (lower == upper) return sorted[lower];
+
+        double fraction = index - lower;
+        return sorted[lower] + (sorted[upper] - sorted[lower]) * fraction;
     }
 
     private static double ComputeCorrelation(double[] scores)
