@@ -759,6 +759,7 @@ namespace Decantra.Presentation.Controller
 
             int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
             if (sessionId != _levelSessionId) yield break;
+            TryPlayStageUnlockedTransitionSfx(nextLevel);
             yield return TransitionToLevel(nextLevel, targetSeed);
         }
 
@@ -1461,12 +1462,17 @@ namespace Decantra.Presentation.Controller
             if (_audioManager == null) return;
 
             _audioManager.SelectPourClipForLevel(levelIndex, seed);
+        }
+
+        private void TryPlayStageUnlockedTransitionSfx(int nextLevel)
+        {
+            if (_audioManager == null) return;
 
             if (!_sfxEnabled) return;
-            if (levelIndex <= 0 || levelIndex % 10 != 0) return;
-            if (_lastStageUnlockSfxLevel == levelIndex) return;
+            if (nextLevel <= 0 || nextLevel % 10 != 0) return;
+            if (_lastStageUnlockSfxLevel == nextLevel) return;
 
-            _lastStageUnlockSfxLevel = levelIndex;
+            _lastStageUnlockSfxLevel = nextLevel;
             _audioManager.PlayStageUnlocked();
         }
 
