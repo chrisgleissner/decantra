@@ -37,6 +37,7 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private OutOfMovesBanner outOfMovesBanner;
         [SerializeField] private RestartGameDialog restartDialog;
         [SerializeField] private ResetLevelDialog resetLevelDialog;
+        [SerializeField] private StarTradeInDialog starTradeInDialog;
         [SerializeField] private TutorialManager tutorialManager;
         [SerializeField] private Image backgroundImage;
         [SerializeField] private Image backgroundDetail;
@@ -59,6 +60,9 @@ namespace Decantra.Presentation.Controller
         private bool _isCompleting;
         private bool _isFailing;
         private bool _isResetting;
+        private bool _isAutoSolving;
+        private bool _autoSolvePlaybackActive;
+        private float _autoSolveMoveDuration = 1f;
         private int _levelSessionId;
         private int _currentLevel = 1;
         private int _currentSeed;
@@ -88,6 +92,8 @@ namespace Decantra.Presentation.Controller
         private bool _usedUndo;
         private bool _usedHints;
         private bool _usedRestart;
+        private bool _isCurrentLevelAssisted;
+        private int _levelResetCount;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
         private float _sfxVolume01 = 1f;
@@ -353,6 +359,10 @@ namespace Decantra.Presentation.Controller
             _usedUndo = false;
             _usedHints = false;
             _usedRestart = false;
+            _isCurrentLevelAssisted = false;
+            _levelResetCount = 0;
+            _isAutoSolving = false;
+            _autoSolvePlaybackActive = false;
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
@@ -446,6 +456,7 @@ namespace Decantra.Presentation.Controller
             _selectedIndex = -1;
             _isFailing = false;
             _isCompleting = false;
+            _levelResetCount++;
 
             RestartCurrentLevel();
             _usedRestart = true;
@@ -657,10 +668,11 @@ namespace Decantra.Presentation.Controller
                 // Requirement #5: Score applies at specific moment in interstitial.
                 // We show only TotalScore during gameplay (Provisional hidden).
                 int displayScore = total;
+                int starBalance = _progress?.StarBalance ?? 0;
                 int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
                 bool levelCompleted = IsCurrentLevelCompleted(_state.LevelIndex);
-                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel, _currentDifficulty100, levelCompleted);
+                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, starBalance, highScore, maxLevel, _currentDifficulty100, levelCompleted);
             }
 
             if (_state.IsWin() && !_isCompleting)
@@ -688,10 +700,19 @@ namespace Decantra.Presentation.Controller
             int nextLevel = _currentLevel + 1;
             float efficiency = ScoreCalculator.CalculateEfficiency(_state.OptimalMoves, _state.MovesUsed);
             _lastGrade = ScoreCalculator.CalculateGrade(_state.OptimalMoves, _state.MovesUsed);
-            _lastStars = CalculateStars(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed);
+            int baseStars = CalculateStars(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed);
+            _lastStars = ResolveAwardedStars(baseStars);
 
-            _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
-            int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
+            if (_isCurrentLevelAssisted)
+            {
+                _scoreSession?.ResetAttempt();
+            }
+            else
+            {
+                _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
+            }
+
+            int awardedScore = _isCurrentLevelAssisted ? 0 : (_scoreSession?.ProvisionalScore ?? 0);
             // CommitLevel delayed to onScoreApply
             _completionStreak++;
 
@@ -699,9 +720,18 @@ namespace Decantra.Presentation.Controller
 
             Action onScoreApply = () =>
             {
-                _scoreSession?.CommitLevel();
+                if (!_isCurrentLevelAssisted)
+                {
+                    _scoreSession?.CommitLevel();
+                }
+                else
+                {
+                    _scoreSession?.ResetAttempt();
+                }
+
                 if (_progress != null)
                 {
+                    _progress.StarBalance = Math.Max(0, _progress.StarBalance + _lastStars);
                     _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
                     _progress.CurrentLevel = nextLevel;
                     _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
@@ -1058,6 +1088,38 @@ namespace Decantra.Presentation.Controller
 
         public bool IsOptionsOverlayVisible => _optionsOverlay != null && _optionsOverlay.activeSelf;
 
+        public void ShowStarTradeInDialog()
+        {
+            if (_state == null || starTradeInDialog == null || _isAutoSolving) return;
+
+            int starBalance = Math.Max(0, _progress?.StarBalance ?? 0);
+            int convertCost = 10;
+            int autoSolveCost = ResolveAutoSolveCost();
+            bool hasSink = HasAnySinkBottle();
+            bool canConvert = hasSink && starBalance >= convertCost;
+            bool canAutoSolve = starBalance >= autoSolveCost;
+
+            starTradeInDialog.Show(
+                starBalance,
+                convertCost,
+                canConvert,
+                autoSolveCost,
+                canAutoSolve,
+                ExecuteConvertSinksTradeIn,
+                ExecuteAutoSolveTradeIn,
+                HideStarTradeInDialog);
+            PlayButtonSfx();
+        }
+
+        public void HideStarTradeInDialog()
+        {
+            if (starTradeInDialog != null)
+            {
+                starTradeInDialog.Hide();
+            }
+            PlayButtonSfx();
+        }
+
         public void ShowHowToPlayOverlay()
         {
             if (_howToPlayOverlay != null)
@@ -1135,6 +1197,222 @@ namespace Decantra.Presentation.Controller
             _progressStore.Save(_progress);
         }
 
+        private int ResolveAwardedStars(int baseStars)
+        {
+            if (_isCurrentLevelAssisted)
+            {
+                return 0;
+            }
+
+            float multiplier = ResolveResetMultiplier(_levelResetCount);
+            return Mathf.FloorToInt(baseStars * multiplier);
+        }
+
+        private static float ResolveResetMultiplier(int resetCount)
+        {
+            if (resetCount <= 0) return 1f;
+            if (resetCount == 1) return 0.75f;
+            if (resetCount == 2) return 0.5f;
+            return 0.25f;
+        }
+
+        private bool HasAnySinkBottle()
+        {
+            if (_state == null) return false;
+            for (int i = 0; i < _state.Bottles.Count; i++)
+            {
+                if (_state.Bottles[i].IsSink) return true;
+            }
+
+            return false;
+        }
+
+        private int ResolveAutoSolveCost()
+        {
+            int tier = ResolveDifficultyTier();
+            if (tier <= 1) return 15;
+            if (tier == 2) return 25;
+            return 35;
+        }
+
+        private int ResolveDifficultyTier()
+        {
+            if (_currentDifficulty100 <= 65) return 1;
+            if (_currentDifficulty100 <= 85) return 2;
+            return 3;
+        }
+
+        private bool TrySpendStars(int cost)
+        {
+            if (_progress == null || cost <= 0) return false;
+            int current = Math.Max(0, _progress.StarBalance);
+            if (current < cost) return false;
+
+            _progress.StarBalance = current - cost;
+            _progressStore.Save(_progress);
+            Render();
+            return true;
+        }
+
+        private void RefundStars(int stars)
+        {
+            if (_progress == null || stars <= 0) return;
+            _progress.StarBalance = Math.Max(0, _progress.StarBalance + stars);
+            _progressStore.Save(_progress);
+            Render();
+        }
+
+        private void ExecuteConvertSinksTradeIn()
+        {
+            const int convertCost = 10;
+            if (_state == null) return;
+            if (!HasAnySinkBottle()) return;
+            if (!TrySpendStars(convertCost)) return;
+
+            _isCurrentLevelAssisted = true;
+            ConvertAllSinksToNormalBottles();
+            HideStarTradeInDialog();
+        }
+
+        private void ConvertAllSinksToNormalBottles()
+        {
+            if (_state == null) return;
+
+            var converted = new List<Bottle>(_state.Bottles.Count);
+            for (int i = 0; i < _state.Bottles.Count; i++)
+            {
+                var bottle = _state.Bottles[i];
+                var slots = new ColorId?[bottle.Slots.Count];
+                for (int s = 0; s < bottle.Slots.Count; s++)
+                {
+                    slots[s] = bottle.Slots[s];
+                }
+
+                converted.Add(new Bottle(slots, isSink: false));
+            }
+
+            _state = new LevelState(
+                converted,
+                _state.MovesUsed,
+                _state.MovesAllowed,
+                _state.OptimalMoves,
+                _state.LevelIndex,
+                _state.Seed,
+                _state.ScrambleMoves,
+                _state.BackgroundPaletteIndex);
+
+            if (_initialState != null)
+            {
+                var initialConverted = new List<Bottle>(_initialState.Bottles.Count);
+                for (int i = 0; i < _initialState.Bottles.Count; i++)
+                {
+                    var bottle = _initialState.Bottles[i];
+                    var slots = new ColorId?[bottle.Slots.Count];
+                    for (int s = 0; s < bottle.Slots.Count; s++)
+                    {
+                        slots[s] = bottle.Slots[s];
+                    }
+
+                    initialConverted.Add(new Bottle(slots, isSink: false));
+                }
+
+                _initialState = new LevelState(
+                    initialConverted,
+                    0,
+                    _initialState.MovesAllowed,
+                    _initialState.OptimalMoves,
+                    _initialState.LevelIndex,
+                    _initialState.Seed,
+                    _initialState.ScrambleMoves,
+                    _initialState.BackgroundPaletteIndex);
+            }
+
+            Render();
+        }
+
+        private void ExecuteAutoSolveTradeIn()
+        {
+            if (_state == null || _isAutoSolving) return;
+            StartCoroutine(RunAutoSolveTradeIn());
+        }
+
+        private IEnumerator RunAutoSolveTradeIn()
+        {
+            if (_state == null || _isAutoSolving) yield break;
+
+            int cost = ResolveAutoSolveCost();
+            if (!TrySpendStars(cost))
+            {
+                yield break;
+            }
+
+            _isCurrentLevelAssisted = true;
+            _isAutoSolving = true;
+            _inputLocked = true;
+            _levelResetCount++;
+
+            HideStarTradeInDialog();
+            RestartCurrentLevel();
+
+            var solveResult = _solver.SolveWithPath(_state, 8_000_000, 8_000, allowSinkMoves: true);
+            if (solveResult == null || solveResult.OptimalMoves < 0 || solveResult.Path == null || solveResult.Path.Count == 0)
+            {
+                RefundStars(cost);
+                _isAutoSolving = false;
+                _inputLocked = false;
+                yield break;
+            }
+
+            for (int i = 0; i < solveResult.Path.Count; i++)
+            {
+                if (_state == null)
+                {
+                    RefundStars(cost);
+                    _isAutoSolving = false;
+                    _autoSolvePlaybackActive = false;
+                    yield break;
+                }
+
+                _autoSolveMoveDuration = ResolveAutoSolveMoveDuration(_state.LevelIndex, i);
+                _autoSolvePlaybackActive = true;
+
+                var move = solveResult.Path[i];
+                bool started = TryStartMove(move.Source, move.Target, out _);
+                if (!started)
+                {
+                    _autoSolvePlaybackActive = false;
+                    RestartCurrentLevel();
+                    _isAutoSolving = false;
+                    _inputLocked = false;
+                    yield break;
+                }
+
+                float timeout = 6f;
+                float elapsed = 0f;
+                while (_inputLocked && elapsed < timeout)
+                {
+                    elapsed += Time.deltaTime;
+                    yield return null;
+                }
+
+                _autoSolvePlaybackActive = false;
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            _isAutoSolving = false;
+            _inputLocked = false;
+        }
+
+        private static float ResolveAutoSolveMoveDuration(int levelIndex, int moveIndex)
+        {
+            unchecked
+            {
+                int hash = levelIndex * 73856093 ^ moveIndex * 19349663;
+                int bucket = Math.Abs(hash % 5);
+                return 0.8f + bucket * 0.1f;
+            }
+        }
+
         private int CalculateStars(int optimalMoves, int movesUsed, int movesAllowed)
         {
             return ScoreCalculator.CalculateStars(optimalMoves, movesUsed, movesAllowed);
@@ -1169,6 +1447,11 @@ namespace Decantra.Presentation.Controller
 
         private float ResolvePourWindowDuration(float previousFillRatio, float newFillRatio, int poured)
         {
+            if (_autoSolvePlaybackActive)
+            {
+                return Mathf.Clamp(_autoSolveMoveDuration, 0.8f, 1.2f);
+            }
+
             if (_audioManager == null)
             {
                 return Mathf.Max(0.2f, 0.12f * poured);
@@ -1417,6 +1700,7 @@ namespace Decantra.Presentation.Controller
                 CurrentLevel = 1,
                 CurrentSeed = 0,
                 CurrentScore = 0,
+                StarBalance = 0,
                 HighScore = 0,
                 CompletedLevels = new List<int>(),
                 BestPerformances = new List<LevelPerformanceRecord>()
@@ -1443,6 +1727,10 @@ namespace Decantra.Presentation.Controller
             _usedUndo = false;
             _usedHints = false;
             _usedRestart = false;
+            _isCurrentLevelAssisted = false;
+            _levelResetCount = 0;
+            _isAutoSolving = false;
+            _autoSolvePlaybackActive = false;
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;

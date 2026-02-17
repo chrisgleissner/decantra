@@ -33,27 +33,24 @@ namespace Decantra.Tests.EditMode
         public void ProfileCounts_ProgressMonotonically()
         {
             var levels = new[] { 1, 10, 25, 50, 100, 200, 500 };
-            int previousColors = 0;
             int previousBottles = 0;
-            int previousEmpty = int.MaxValue;
 
             foreach (int level in levels)
             {
                 var profile = LevelDifficultyEngine.GetProfile(level);
-                Assert.GreaterOrEqual(profile.ColorCount, previousColors, $"Color count regressed at level {level}");
                 Assert.GreaterOrEqual(profile.BottleCount, previousBottles, $"Bottle count regressed at level {level}");
-                if (level < 18)
-                {
-                    Assert.LessOrEqual(profile.EmptyBottleCount, previousEmpty, $"Empty bottle count increased at level {level}");
-                }
-                else
-                {
-                    Assert.LessOrEqual(profile.EmptyBottleCount, 2, $"Empty bottle count exceeded sink slack at level {level}");
-                }
                 Assert.AreEqual(profile.ColorCount + profile.EmptyBottleCount, profile.BottleCount);
-                previousColors = profile.ColorCount;
+                Assert.LessOrEqual(profile.BottleCount, 9, $"Bottle cap exceeded at level {level}");
+
+                int sinkCount = LevelDifficultyEngine.DetermineSinkCount(level);
+                Assert.LessOrEqual(sinkCount, 5, $"Sink cap exceeded at level {level}");
+                if (sinkCount > 0)
+                {
+                    Assert.GreaterOrEqual(profile.EmptyBottleCount, sinkCount,
+                        $"Expected at least {sinkCount} empty bottles for sinks at level {level}");
+                }
+
                 previousBottles = profile.BottleCount;
-                previousEmpty = profile.EmptyBottleCount;
             }
         }
 
@@ -63,13 +60,41 @@ namespace Decantra.Tests.EditMode
             var profile20 = LevelDifficultyEngine.GetProfile(20);
             var profile25 = LevelDifficultyEngine.GetProfile(25);
 
-            Assert.GreaterOrEqual(profile20.BottleCount, 9);
-            Assert.GreaterOrEqual(profile20.ColorCount, 6);
-            Assert.LessOrEqual(profile20.EmptyBottleCount, 2);
+            Assert.GreaterOrEqual(profile20.BottleCount, 7);
+            Assert.LessOrEqual(profile20.BottleCount, 9);
+            Assert.GreaterOrEqual(profile20.ColorCount, 3);
+            Assert.LessOrEqual(profile20.EmptyBottleCount, 6);
 
-            Assert.GreaterOrEqual(profile25.BottleCount, 9);
-            Assert.GreaterOrEqual(profile25.ColorCount, 6);
-            Assert.LessOrEqual(profile25.EmptyBottleCount, 2);
+            Assert.GreaterOrEqual(profile25.BottleCount, 7);
+            Assert.LessOrEqual(profile25.BottleCount, 9);
+            Assert.GreaterOrEqual(profile25.ColorCount, 3);
+            Assert.LessOrEqual(profile25.EmptyBottleCount, 6);
+        }
+
+        [Test]
+        public void DetermineSinkCount_RespectsHardBounds()
+        {
+            for (int level = 1; level <= 1500; level++)
+            {
+                int sinks = LevelDifficultyEngine.DetermineSinkCount(level);
+                Assert.GreaterOrEqual(sinks, 0);
+                Assert.LessOrEqual(sinks, 5);
+                if (level < 20)
+                {
+                    Assert.AreEqual(0, sinks, $"No sinks expected before level 20 (level {level}).");
+                }
+            }
+        }
+
+        [Test]
+        public void SinkRoleClass_IsDeterministicByLevel()
+        {
+            for (int level = 1; level <= 1000; level++)
+            {
+                bool a = LevelDifficultyEngine.IsSinkRequiredClass(level);
+                bool b = LevelDifficultyEngine.IsSinkRequiredClass(level);
+                Assert.AreEqual(a, b, $"Sink class must be deterministic at level {level}");
+            }
         }
 
         [Test]

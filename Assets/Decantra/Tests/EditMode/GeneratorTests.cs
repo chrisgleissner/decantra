@@ -164,14 +164,14 @@ namespace Decantra.Tests.EditMode
                 }
             }
 
-            bool expectedSink = profile.LevelIndex >= 18 && profile.EmptyBottleCount >= 2;
+            bool expectedSink = LevelDifficultyEngine.DetermineSinkCount(profile.LevelIndex) > 0;
             if (expectedSink)
             {
                 Assert.IsTrue(hasSink, "Expected at least one sink bottle when profile allows it.");
             }
             else
             {
-                Assert.IsFalse(hasSink, "Did not expect sink bottle when profile has fewer than two empties.");
+                Assert.IsFalse(hasSink, "Did not expect sink bottle when sink count resolves to zero.");
             }
         }
 

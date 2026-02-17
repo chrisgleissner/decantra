@@ -97,6 +97,8 @@ namespace Decantra.Presentation
                 EnsureHudSafeLayout();
                 WireResetButton(existingController);
                 WireOptionsButton(existingController);
+                EnsureStarTradeInDialog(existingController);
+                WireStarsButton(existingController);
                 EnsureLevelJumpOverlay(existingController);
                 WireLevelJumpOverlay(existingController);
                 return;
@@ -167,10 +169,13 @@ namespace Decantra.Presentation
             WireResetButton(controller);
             var resetLevelDialog = CreateResetLevelDialog(uiCanvas.transform);
             SetPrivateField(controller, "resetLevelDialog", resetLevelDialog);
+            var starTradeInDialog = CreateStarTradeInDialog(uiCanvas.transform);
+            SetPrivateField(controller, "starTradeInDialog", starTradeInDialog);
             var optionsOverlay = CreateOptionsOverlay(uiCanvas.transform, controller);
             SetPrivateField(controller, "_optionsOverlay", optionsOverlay);
             SetPrivateField(controller, "_starfieldMaterial", GetBackgroundStarsMaterial());
             WireOptionsButton(controller);
+            WireStarsButton(controller);
 
             var restartDialog = CreateRestartDialog(uiCanvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
@@ -366,6 +371,24 @@ namespace Decantra.Presentation
             }
         }
 
+        private static void EnsureStarTradeInDialog(GameController controller)
+        {
+            if (controller == null) return;
+            var existing = GetPrivateField<StarTradeInDialog>(controller, "starTradeInDialog");
+            if (existing != null) return;
+
+            var root = GameObject.Find("StarTradeInDialog");
+            var dialog = root != null ? root.GetComponent<StarTradeInDialog>() : null;
+            if (dialog == null)
+            {
+                var canvas = FindOrCreateUiCanvas();
+                if (canvas == null) return;
+                dialog = CreateStarTradeInDialog(canvas.transform);
+            }
+
+            SetPrivateField(controller, "starTradeInDialog", dialog);
+        }
+
         private static void EnsureLevelJumpOverlay(GameController controller)
         {
             if (controller == null) return;
@@ -472,6 +495,21 @@ namespace Decantra.Presentation
             }
 
             preferredCamera.gameObject.AddComponent<AudioListener>();
+        }
+
+        private static Canvas FindOrCreateUiCanvas()
+        {
+            var uiGo = GameObject.Find("Canvas_UI");
+            if (uiGo != null)
+            {
+                var canvas = uiGo.GetComponent<Canvas>();
+                if (canvas != null)
+                {
+                    return canvas;
+                }
+            }
+
+            return Object.FindFirstObjectByType<Canvas>();
         }
 
         private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
@@ -950,10 +988,12 @@ namespace Decantra.Presentation
             secondaryLayout.childAlignment = TextAnchor.MiddleCenter;
             secondaryLayout.childForceExpandWidth = false;
             secondaryLayout.childForceExpandHeight = false;
-            secondaryLayout.spacing = 32f;
+            secondaryLayout.spacing = 16f;
+            secondaryRect.sizeDelta = new Vector2(1000, 150);
 
             var resetButton = CreateResetButton(secondaryHud.transform);
             var optionsButton = CreateOptionsButton(secondaryHud.transform);
+            var starsButton = CreateStarsButton(secondaryHud.transform);
             var resetButtonRect = resetButton != null ? resetButton.GetComponent<RectTransform>() : null;
             if (resetButton != null)
             {
@@ -990,6 +1030,7 @@ namespace Decantra.Presentation
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
             SetPrivateField(hudView, "scoreText", scoreText);
+            SetPrivateField(hudView, "starsText", starsButton != null ? starsButton.transform.Find("Label")?.GetComponent<Text>() : null);
             SetPrivateField(hudView, "highScoreText", highScoreText);
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
             SetPrivateField<Text>(hudView, "titleText", null);
@@ -1733,6 +1774,138 @@ namespace Decantra.Presentation
             return dialog;
         }
 
+        private static StarTradeInDialog CreateStarTradeInDialog(Transform parent)
+        {
+            var root = CreateUiChild(parent, "StarTradeInDialog");
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var overlay = root.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.56f);
+            overlay.raycastTarget = true;
+
+            var canvasGroup = root.AddComponent<CanvasGroup>();
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(820f, 760f);
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = new Color(0.08f, 0.1f, 0.14f, 0.96f);
+
+            var layout = panel.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+            layout.spacing = 14f;
+            layout.padding = new RectOffset(28, 28, 24, 24);
+
+            var title = CreateHudText(panel.transform, "Title");
+            title.text = "Star Trade-In";
+            title.fontSize = 42;
+            title.alignment = TextAnchor.MiddleCenter;
+            title.color = new Color(1f, 0.98f, 0.92f, 1f);
+            var titleElement = title.gameObject.AddComponent<LayoutElement>();
+            titleElement.preferredHeight = 70f;
+
+            var currentStarsText = CreateHudText(panel.transform, "CurrentStarsText");
+            currentStarsText.fontSize = 30;
+            currentStarsText.alignment = TextAnchor.MiddleCenter;
+            currentStarsText.text = "Current Stars: 0";
+            currentStarsText.color = new Color(1f, 0.98f, 0.92f, 0.92f);
+            var currentStarsElement = currentStarsText.gameObject.AddComponent<LayoutElement>();
+            currentStarsElement.preferredHeight = 52f;
+
+            Button CreateRowButton(string objectName, string label, Color color)
+            {
+                var row = CreateUiChild(panel.transform, objectName);
+                var image = row.AddComponent<Image>();
+                image.sprite = GetRoundedSprite();
+                image.type = Image.Type.Sliced;
+                image.color = color;
+                var button = row.AddComponent<Button>();
+                button.targetGraphic = image;
+                var element = row.AddComponent<LayoutElement>();
+                element.preferredHeight = 98f;
+
+                var text = CreateHudText(row.transform, "Label");
+                text.text = label;
+                text.fontSize = 30;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = new Color(1f, 0.98f, 0.92f, 1f);
+                return button;
+            }
+
+            var convertButton = CreateRowButton("ConvertButton", "Convert All Sinks (10)", new Color(0.2f, 0.34f, 0.54f, 0.95f));
+            var autoSolveButton = CreateRowButton("AutoSolveButton", "Auto-Solve Level (15)", new Color(0.36f, 0.24f, 0.5f, 0.95f));
+
+            var messageText = CreateHudText(panel.transform, "MessageText");
+            messageText.fontSize = 24;
+            messageText.alignment = TextAnchor.MiddleCenter;
+            messageText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            messageText.verticalOverflow = VerticalWrapMode.Overflow;
+            messageText.text = "Choose an option below. Confirmation is required before spending stars.";
+            messageText.color = new Color(1f, 0.98f, 0.92f, 0.9f);
+            var messageElement = messageText.gameObject.AddComponent<LayoutElement>();
+            messageElement.preferredHeight = 70f;
+
+            var confirmRow = CreateUiChild(panel.transform, "ConfirmRow");
+            var confirmLayout = confirmRow.AddComponent<HorizontalLayoutGroup>();
+            confirmLayout.childAlignment = TextAnchor.MiddleCenter;
+            confirmLayout.childForceExpandWidth = true;
+            confirmLayout.childForceExpandHeight = false;
+            confirmLayout.spacing = 14f;
+            var confirmRowElement = confirmRow.AddComponent<LayoutElement>();
+            confirmRowElement.preferredHeight = 84f;
+
+            Button CreateSmallButton(Transform parentTransform, string objectName, string label, Color color)
+            {
+                var go = CreateUiChild(parentTransform, objectName);
+                var image = go.AddComponent<Image>();
+                image.sprite = GetRoundedSprite();
+                image.type = Image.Type.Sliced;
+                image.color = color;
+                var button = go.AddComponent<Button>();
+                button.targetGraphic = image;
+                var element = go.AddComponent<LayoutElement>();
+                element.preferredHeight = 84f;
+                element.flexibleWidth = 1f;
+                var text = CreateHudText(go.transform, "Label");
+                text.text = label;
+                text.fontSize = 28;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = new Color(1f, 0.98f, 0.92f, 1f);
+                return button;
+            }
+
+            var confirmButton = CreateSmallButton(confirmRow.transform, "ConfirmButton", "Confirm", new Color(0.16f, 0.45f, 0.2f, 0.95f));
+            var cancelButton = CreateSmallButton(confirmRow.transform, "CancelButton", "Cancel", new Color(0.24f, 0.26f, 0.34f, 0.95f));
+            var closeButton = CreateSmallButton(panel.transform, "CloseButton", "Close", new Color(0.18f, 0.2f, 0.3f, 0.95f));
+
+            var dialog = root.AddComponent<StarTradeInDialog>();
+            SetPrivateField(dialog, "panel", panelRect);
+            SetPrivateField(dialog, "canvasGroup", canvasGroup);
+            SetPrivateField(dialog, "currentStarsText", currentStarsText);
+            SetPrivateField(dialog, "messageText", messageText);
+            SetPrivateField(dialog, "convertButton", convertButton);
+            SetPrivateField(dialog, "convertLabel", convertButton.transform.Find("Label")?.GetComponent<Text>());
+            SetPrivateField(dialog, "autoSolveButton", autoSolveButton);
+            SetPrivateField(dialog, "autoSolveLabel", autoSolveButton.transform.Find("Label")?.GetComponent<Text>());
+            SetPrivateField(dialog, "closeButton", closeButton);
+            SetPrivateField(dialog, "confirmButton", confirmButton);
+            SetPrivateField(dialog, "cancelButton", cancelButton);
+            dialog.Initialize();
+            return dialog;
+        }
+
         private static TutorialManager CreateTutorialOverlay(Transform parent)
         {
             var root = CreateUiChild(parent, "TutorialOverlay");
@@ -2245,6 +2418,59 @@ namespace Decantra.Presentation
             return button;
         }
 
+        private static Button CreateStarsButton(Transform parent)
+        {
+            var panel = CreateUiChild(parent, "StarsButton");
+            var image = panel.AddComponent<Image>();
+            image.sprite = GetRoundedSprite();
+            image.type = Image.Type.Sliced;
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(308, 148);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(292, 64);
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
+
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(300, 140);
+            var element = panel.AddComponent<LayoutElement>();
+            element.minWidth = 300;
+            element.minHeight = 140;
+
+            var button = panel.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var labelText = CreateHudText(panel.transform, "Label");
+            labelText.fontSize = 36;
+            labelText.alignment = TextAnchor.MiddleCenter;
+            labelText.text = "STARS\n0";
+            labelText.color = new Color(1f, 0.98f, 0.92f, 1f);
+            AddTextEffects(labelText, new Color(0f, 0f, 0f, 0.75f));
+            return button;
+        }
+
         private static void WireOptionsButton(GameController controller)
         {
             if (controller == null) return;
@@ -2254,6 +2480,17 @@ namespace Decantra.Presentation
             if (button == null) return;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.ShowOptionsOverlay);
+        }
+
+        private static void WireStarsButton(GameController controller)
+        {
+            if (controller == null) return;
+            var starsGo = GameObject.Find("StarsButton");
+            if (starsGo == null) return;
+            var button = starsGo.GetComponent<Button>();
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(controller.ShowStarTradeInDialog);
         }
 
         private static GameObject CreateOptionsOverlay(Transform parent, GameController controller)

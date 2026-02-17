@@ -18,6 +18,7 @@ namespace Decantra.Presentation.View
         [SerializeField] private Text movesText;
         [SerializeField] private Text optimalText;
         [SerializeField] private Text scoreText;
+        [SerializeField] private Text starsText;
         [SerializeField] private Text highScoreText;
         [SerializeField] private Text maxLevelText;
         [SerializeField] private Text titleText;
@@ -30,6 +31,7 @@ namespace Decantra.Presentation.View
             int movesAllowed,
             int optimalMoves,
             int score,
+            int starBalance,
             int highScore,
             int maxLevel,
             int difficulty100,
@@ -68,6 +70,11 @@ namespace Decantra.Presentation.View
             if (scoreText != null)
             {
                 scoreText.text = $"SCORE\n{score}";
+            }
+
+            if (starsText != null)
+            {
+                starsText.text = $"STARS\n{Mathf.Max(0, starBalance)}";
             }
 
             if (highScoreText != null)

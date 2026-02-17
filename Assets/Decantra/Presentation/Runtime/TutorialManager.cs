@@ -137,6 +137,11 @@ namespace Decantra.Presentation
                 "OptionsButton",
                 "Open OPTIONS to replay this tutorial, adjust sound, modify video effects, and read the documentation."
             ));
+            _steps.Add(new TutorialStepData(
+                "stars",
+                "StarsButton",
+                "Earn stars by solving levels.\nTrade them for help when needed."
+            ));
         }
 
         private void ShowStep(int index)

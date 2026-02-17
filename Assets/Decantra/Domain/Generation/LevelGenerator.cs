@@ -43,6 +43,12 @@ namespace Decantra.Domain.Generation
             var plans = CreateBottlePlans(profile, rng);
             var solved = CreateSolvedBottles(plans);
             int scrambleMovesTarget = profile.ReverseMoves;
+            int sinkCount = LevelDifficultyEngine.DetermineSinkCount(profile.LevelIndex);
+            bool hasSinks = sinkCount > 0;
+            bool requiresSinkUsageClass = hasSinks && LevelDifficultyEngine.IsSinkRequiredClass(profile.LevelIndex);
+            bool enforceSinkClass = hasSinks;
+            const int sinkClassRetryCap = 8;
+            int sinkClassMismatchCount = 0;
 
             var scrambleTimer = Stopwatch.StartNew();
             LevelState bestCandidate = null;
@@ -158,7 +164,7 @@ namespace Decantra.Domain.Generation
                     if (solveResult.OptimalMoves < 0)
                     {
                         // Handle timeout case
-                        if (solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
+                        if (!hasSinks && solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
                         {
                             int estimatedOptimal = (int)(appliedMoves * 0.7f);
                             if (estimatedOptimal < minOptimalForAttempt)
@@ -204,6 +210,21 @@ namespace Decantra.Domain.Generation
                     {
                         lastFailure = "min_optimal_floor";
                         continue;
+                    }
+
+                    if (enforceSinkClass)
+                    {
+                        if (!ValidateSinkClassCandidate(attemptState, solveResult, requiresSinkUsageClass, out string sinkClassFailure))
+                        {
+                            sinkClassMismatchCount++;
+                            lastFailure = $"sink_class:{sinkClassFailure}";
+                            if (sinkClassMismatchCount >= sinkClassRetryCap)
+                            {
+                                Log?.Invoke($"LevelGenerator.SinkClassCap level={profile.LevelIndex} seed={seed} cap={sinkClassRetryCap} class={(requiresSinkUsageClass ? "required" : "avoidable")} lastFailure={sinkClassFailure}");
+                                enforceSinkClass = false;
+                            }
+                            continue;
+                        }
                     }
 
                     // Compute metrics (Requirements A, B, C)
@@ -326,36 +347,32 @@ namespace Decantra.Domain.Generation
         private static int ResolveMaxAttempts(int levelIndex)
         {
             if (levelIndex <= 6) return 6;
-            if (levelIndex >= 100) return 10;
-            if (levelIndex >= 60) return 14;
-            return 20;
+            if (levelIndex >= 100) return 6;
+            if (levelIndex >= 60) return 8;
+            return 12;
         }
 
         private static int ResolveCandidatesPerAttempt(int levelIndex)
         {
             if (levelIndex <= 6) return 1;
             if (levelIndex >= 100) return 1;
-            if (levelIndex >= 60) return 2;
-            return 3;
+            if (levelIndex >= 60) return 1;
+            return 2;
         }
 
         private static int ResolveRelaxedAttempt(int levelIndex, int maxAttempts)
         {
             if (levelIndex <= 6) return Math.Min(3, maxAttempts - 1);
-            if (levelIndex >= 100) return Math.Min(5, maxAttempts - 1);
-            if (levelIndex >= 60) return Math.Min(8, maxAttempts - 1);
-            return Math.Min(12, maxAttempts - 1);
+            if (levelIndex >= 100) return Math.Min(3, maxAttempts - 1);
+            if (levelIndex >= 60) return Math.Min(4, maxAttempts - 1);
+            return Math.Min(8, maxAttempts - 1);
         }
 
         private static int ResolveSolveTimeLimitMs(int levelIndex)
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            return int.MaxValue;
-#else
             if (levelIndex >= 100) return 1200;
             if (levelIndex >= 60) return 1500;
             return 2000;
-#endif
         }
 
         private static int ResolveSolveNodeLimit(int levelIndex)
@@ -363,6 +380,63 @@ namespace Decantra.Domain.Generation
             if (levelIndex >= 100) return 500_000;
             if (levelIndex >= 60) return 800_000;
             return 1_200_000;
+        }
+
+        private static int ResolveSinkClassNodeLimit(int levelIndex)
+        {
+            if (levelIndex >= 100) return 120_000;
+            if (levelIndex >= 60) return 180_000;
+            return 260_000;
+        }
+
+        private static int ResolveSinkClassTimeLimitMs(int levelIndex)
+        {
+            if (levelIndex >= 100) return 250;
+            if (levelIndex >= 60) return 350;
+            return 500;
+        }
+
+        private bool ValidateSinkClassCandidate(LevelState state, SolverResult normalSolveResult, bool requiresSinkUsageClass, out string failure)
+        {
+            if (state == null)
+            {
+                failure = "state_null";
+                return false;
+            }
+
+            if (normalSolveResult == null || normalSolveResult.OptimalMoves < 0)
+            {
+                failure = "normal_unsolved";
+                return false;
+            }
+
+            var noSinkSolve = _solver.Solve(
+                state,
+                ResolveSinkClassNodeLimit(state.LevelIndex),
+                ResolveSinkClassTimeLimitMs(state.LevelIndex),
+                allowSinkMoves: false);
+
+            bool noSinkSolved = noSinkSolve != null && noSinkSolve.OptimalMoves >= 0;
+            if (requiresSinkUsageClass)
+            {
+                if (noSinkSolved)
+                {
+                    failure = "required_but_avoidable";
+                    return false;
+                }
+
+                failure = string.Empty;
+                return true;
+            }
+
+            if (!noSinkSolved)
+            {
+                failure = $"avoidable_but_nosink_{noSinkSolve?.Status.ToString() ?? "unknown"}";
+                return false;
+            }
+
+            failure = string.Empty;
+            return true;
         }
 
         private static int ResolveTrapSampleCount(int levelIndex)
@@ -392,12 +466,8 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveMultiplicityTimeLimitMs(int levelIndex)
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            return int.MaxValue;
-#else
             if (levelIndex >= 50) return 30;
             return 60;
-#endif
         }
 
         /// <summary>
