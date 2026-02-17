@@ -35,8 +35,6 @@ namespace Decantra.Presentation
         [SerializeField] private int maxSparkles = 12;
         [SerializeField] private int maxFlyingStars = 8;
 
-        private readonly float[] starPitches = { 0.9f, 1.0f, 1.08f, 1.16f, 1.24f };
-        private AudioClip _starClip;
         private AudioManager _audioManager;
         private int _lastStarCount;
         private RectTransform _effectsRoot;
@@ -126,7 +124,6 @@ namespace Decantra.Presentation
 
         private void Awake()
         {
-            _starClip = CreateStarClip();
             _audioManager = FindFirstObjectByType<AudioManager>();
         }
 
@@ -731,7 +728,6 @@ namespace Decantra.Presentation
 
         private void PlayStarLayers(int stars)
         {
-            if (_starClip == null) return;
             if (stars <= 0) return;
             if (_audioManager == null)
             {
@@ -739,42 +735,7 @@ namespace Decantra.Presentation
             }
 
             if (_audioManager == null) return;
-            int layers = Mathf.Min(stars, starPitches.Length);
-            for (int i = 0; i < layers; i++)
-            {
-                float pitch = starPitches[Mathf.Min(i, starPitches.Length - 1)];
-                _audioManager.PlayTransient(_starClip, 0.45f, pitch);
-            }
-        }
-
-        private AudioClip CreateStarClip()
-        {
-            int sampleRate = 44100;
-            float duration = 0.18f;
-            int samples = Mathf.CeilToInt(sampleRate * duration);
-            var clip = AudioClip.Create("StarChime", samples, 1, sampleRate, false);
-            if (clip == null)
-            {
-                return null;
-            }
-
-            float[] data = new float[samples];
-            float baseFreq = 640f;
-            for (int i = 0; i < samples; i++)
-            {
-                float t = i / (float)sampleRate;
-                float env = Mathf.Exp(-t * 10f);
-                float sine = Mathf.Sin(2f * Mathf.PI * baseFreq * t) * 0.4f;
-                float shimmer = Mathf.Sin(2f * Mathf.PI * (baseFreq * 2.01f) * t) * 0.2f;
-                data[i] = (sine + shimmer) * env;
-            }
-
-            AudioManager.HardenSampleData(data, sampleRate, 1, 0.006f, 0.012f);
-            if (!clip.SetData(data, 0))
-            {
-                return null;
-            }
-            return clip;
+            _audioManager.PlayLevelComplete();
         }
     }
 }

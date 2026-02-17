@@ -102,11 +102,13 @@ namespace Decantra.Presentation.Controller
         private GameObject _highContrastOverlay;
         private Toggle _accessibleColorsToggle;
         private AudioManager _audioManager;
+        private int _lastStageUnlockSfxLevel = int.MinValue;
 
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
         private const float StartupVisualSettleSeconds = 0.9f;
+        private static readonly bool EnablePourDiagnostics = false;
 
         private readonly struct GeneratedLevel
         {
@@ -357,6 +359,7 @@ namespace Decantra.Presentation.Controller
             ApplyBackgroundVariation(_currentLevel, _currentSeed, _state?.BackgroundPaletteIndex ?? -1);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
+            InitializeLevelAudio(_currentLevel, _currentSeed);
             Render();
             _inputLocked = false;
         }
@@ -544,14 +547,23 @@ namespace Decantra.Presentation.Controller
             int poured = GetPourAmount(sourceIndex, targetIndex);
             if (poured <= 0) return false;
 
-            duration = Mathf.Max(0.2f, 0.12f * poured);
+            var targetBottle = _state.Bottles[targetIndex];
+            float previousFillRatio = Mathf.Clamp01(targetBottle.Count / (float)targetBottle.Capacity);
+            float newFillRatio = Mathf.Clamp01((targetBottle.Count + poured) / (float)targetBottle.Capacity);
+
+            duration = ResolvePourWindowDuration(previousFillRatio, newFillRatio, poured);
             _inputLocked = true;
 
             var sourceView = GetBottleView(sourceIndex);
             var targetView = GetBottleView(targetIndex);
             var color = _state.Bottles[sourceIndex].TopColor;
 
-            PlayPourSfx(targetIndex, poured);
+            PlayPourSfx(previousFillRatio, newFillRatio);
+
+            if (EnablePourDiagnostics)
+            {
+                Debug.Log($"Decantra PourWindow start={Time.realtimeSinceStartup:0.000}s end~={Time.realtimeSinceStartup + duration:0.000}s startFill={previousFillRatio:0.###} endFill={newFillRatio:0.###} delta={(newFillRatio - previousFillRatio):0.###} duration={duration:0.###}");
+            }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra PourStart level={_state.LevelIndex} source={sourceIndex} target={targetIndex} poured={poured} color={(color.HasValue ? color.Value.ToString() : "none")}");
@@ -591,6 +603,10 @@ namespace Decantra.Presentation.Controller
 
             int applied;
             TryApplyMoveAndScore(sourceIndex, targetIndex, out applied);
+            if (_state != null && targetIndex >= 0 && targetIndex < _state.Bottles.Count && _state.Bottles[targetIndex].IsSolvedBottle())
+            {
+                PlayBottleFullSfx();
+            }
             Render();
             sourceView?.ClearOutgoing();
             targetView?.ClearIncoming();
@@ -743,6 +759,7 @@ namespace Decantra.Presentation.Controller
 
             int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
             if (sessionId != _levelSessionId) yield break;
+            TryPlayStageUnlockedTransitionSfx(nextLevel);
             yield return TransitionToLevel(nextLevel, targetSeed);
         }
 
@@ -1144,13 +1161,20 @@ namespace Decantra.Presentation.Controller
 
         private bool IsCleanSolve => !_usedUndo && !_usedHints && !_usedRestart;
 
-        private void PlayPourSfx(int targetIndex, int amount)
+        private void PlayPourSfx(float previousFillRatio, float newFillRatio)
         {
             if (!_sfxEnabled || _audioManager == null || _state == null) return;
+            _audioManager.PlayPourSegment(previousFillRatio, newFillRatio);
+        }
 
-            int targetFill = _state.Bottles[targetIndex].Count + amount;
-            float ratio = Mathf.Clamp01(targetFill / (float)_state.Bottles[targetIndex].Capacity);
-            _audioManager.PlayPour(ratio);
+        private float ResolvePourWindowDuration(float previousFillRatio, float newFillRatio, int poured)
+        {
+            if (_audioManager == null)
+            {
+                return Mathf.Max(0.2f, 0.12f * poured);
+            }
+
+            return _audioManager.CalculatePourWindowDuration(previousFillRatio, newFillRatio);
         }
 
         private void SetupAudio()
@@ -1170,6 +1194,12 @@ namespace Decantra.Presentation.Controller
         {
             if (!_sfxEnabled || _audioManager == null) return;
             _audioManager.PlayLevelComplete();
+        }
+
+        private void PlayBottleFullSfx()
+        {
+            if (!_sfxEnabled || _audioManager == null) return;
+            _audioManager.PlayBottleFull();
         }
 
         private void ApplyAccessibilitySettings()
@@ -1419,11 +1449,31 @@ namespace Decantra.Presentation.Controller
             ApplyBackgroundVariation(_currentLevel, _currentSeed, _state?.BackgroundPaletteIndex ?? -1);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
+            InitializeLevelAudio(_currentLevel, _currentSeed);
             Render();
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra LevelLoaded level={_currentLevel} seed={_currentSeed}");
 #endif
+        }
+
+        private void InitializeLevelAudio(int levelIndex, int seed)
+        {
+            if (_audioManager == null) return;
+
+            _audioManager.SelectPourClipForLevel(levelIndex, seed);
+        }
+
+        private void TryPlayStageUnlockedTransitionSfx(int nextLevel)
+        {
+            if (_audioManager == null) return;
+
+            if (!_sfxEnabled) return;
+            if (nextLevel <= 0 || nextLevel % 10 != 0) return;
+            if (_lastStageUnlockSfxLevel == nextLevel) return;
+
+            _lastStageUnlockSfxLevel = nextLevel;
+            _audioManager.PlayStageUnlocked();
         }
 
         private void ApplyBackgroundVariation(int levelIndex, int seed, int backgroundPaletteIndex)

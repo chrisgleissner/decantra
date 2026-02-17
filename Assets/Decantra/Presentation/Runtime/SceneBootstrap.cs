@@ -2402,7 +2402,16 @@ namespace Decantra.Presentation
             var sfxToggle = CreateToggleRow(list.transform, "SfxRow", "SOUND EFFECTS", controller != null && controller.IsSfxEnabled);
             var sfxVolumeSlider = CreateOptionsSlider(list.transform, "SfxVolumeRow", "VOLUME",
                 0f, 1f, controller != null ? controller.SfxVolume01 : 1f);
-            var accessibleColorsToggle = CreateToggleRow(list.transform, "AccessibleColorsRow", "Accessible Colors", controller != null && controller.AccessibleColorsEnabled);
+            var accessibleColorsToggle = CreateToggleRow(list.transform, "AccessibleColorsRow", "ACCESSIBLE COLORS", controller != null && controller.AccessibleColorsEnabled);
+            var accessibleColorsLabelTransform = accessibleColorsToggle.transform.parent.Find("Label");
+            if (accessibleColorsLabelTransform != null)
+            {
+                var accessibleColorsLabel = accessibleColorsLabelTransform.GetComponent<Text>();
+                if (accessibleColorsLabel != null)
+                {
+                    accessibleColorsLabel.fontSize = 32;
+                }
+            }
 
             var sectionHeader = CreateHudText(list.transform, "StarfieldHeader");
             sectionHeader.fontSize = 32;
