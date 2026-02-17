@@ -1,77 +1,150 @@
-# Decantra Pour SFX Short-Clip Alignment Plan
+# PLANS — Procedural Background Stage System Audit & Fix
 
 Last updated: 2026-02-17
 
-## Goal
+## Objective
+Audit the procedural background stage system, fix defects, and ensure:
+- A new background archetype activates every 10 levels (10, 20, 30, …).
+- Slight color/parameter variation within each 10-level block.
+- All 16 generator archetypes are reachable and wired.
 
-Align pour SFX playback to the short pour assets and required behavior:
+---
 
-- Use only `liquid-pour-short.mp3` and `liquid-pour2-short.mp3` for pour playback.
-- Tie audio window exactly to pour window timing.
-- Select segment by fill interval.
-- Enforce minimum audible duration rule (0.4s) with clamped expansion.
-- Apply deterministic pop-safe fades.
-- Keep changes minimal and localized.
+## 1. Stage Logic Summary
 
-## Current-state findings checklist
+### Level Progression
+- `_currentLevel` starts at 1, increments by 1 on each completion.
+- Set in `ApplyLoadedState()` at `GameController.cs:1436`.
 
-- [x] Located primary pour SFX path in `Assets/Decantra/Presentation/Runtime/AudioManager.cs` and trigger path in `Assets/Decantra/Presentation/Controller/GameController.cs`.
-- [x] Confirmed pour clips currently loaded via long assets:
-  - `Resources.Load<AudioClip>("Sound/liquid-pour")`
-  - `Resources.Load<AudioClip>("Sound/liquid-pour2")`
-- [x] Confirmed pour duration currently uses gameplay formula `Mathf.Max(0.2f, 0.12f * poured)`.
-- [x] Confirmed current segment playback stop/fade control is coroutine + `Time.unscaledDeltaTime` (frame-driven).
-- [x] Confirmed no minimum 0.4s expansion logic exists.
+### Zone Formula (`BackgroundRules.GetZoneIndex`)
+```
+levels  1-9  → zone 0
+levels 10-19 → zone 1
+levels 20-29 → zone 2
+levels 30-39 → zone 3  …etc (10 levels per zone after zone 0)
+```
+File: `Assets/Decantra/Domain/Rules/BackgroundRules.cs:56-62`
 
-## Concrete tasks
+### Archetype Selection (`SelectArchetypeForLevel`) — **BEFORE FIX**
+```csharp
+if (levelIndex <= 24) return DomainWarpedClouds;
+int remainingCount = AllowedArchetypesOrdered.Length - 1; // 13
+int offset = (uint)globalSeed % (uint)remainingCount;
+int index = (levelIndex - 2 + offset) % remainingCount;
+return AllowedArchetypesOrdered[1 + index];
+```
+**Defect:** Archetype changes EVERY LEVEL (not every 10). Levels 1-24 are
+hardcoded to `DomainWarpedClouds` with no archetype transition at level 10 or 20.
 
-1. Replace pour clip loads with short variants only.
-2. Implement deterministic segment window computation:
-   - start/end from fill fractions
-   - min duration expansion to 0.4s
-   - clamped shift preserving 0.4s when possible
-3. Replace frame-driven fade/stop with deterministic sample-domain envelope in the played segment.
-4. Expose a single duration calculator in `AudioManager` and use it in `GameController` pour animation timing.
-5. Add optional guarded diagnostics for pour timing/segment values.
-6. Update tests for short-clip loading expectations and pool stability.
-7. Verify with searches that long pour clips are not referenced for pour playback.
+---
 
-## Risks and mitigations
+## 2. Theme Inventory (Pre-fix)
 
-- Risk: short clips import/runtime length differs from expected 0.8s.
-  - Mitigation: compute duration from runtime `clip.length`; error+fallback when `< 0.4s`.
-- Risk: per-pour clip slicing causes allocations.
-  - Mitigation: keep existing fixed source pool and keep helper localized; avoid system-wide refactor.
-- Risk: audio/animation desync.
-  - Mitigation: `GameController` uses `AudioManager` duration calculator for pour window duration.
+16 distinct generator archetypes exist in the enum. All 16 have unique
+implementations in `Assets/Decantra/Domain/Background/`.
 
-## Verification steps
+| # | Theme Name | File | Type | Was Reachable |
+|---|------------|------|------|---------------|
+| 0 | DomainWarpedClouds | DomainWarpedCloudsGenerator.cs | Procedural | Levels 1-24 only |
+| 1 | CurlFlowAdvection | CurlFlowAdvectionGenerator.cs | Procedural | Yes (post-24) |
+| 2 | **AtmosphericWash** | AtmosphericWashGenerator.cs | Procedural | **NO — dead code** |
+| 3 | FractalEscapeDensity | FractalEscapeDensityGenerator.cs | Procedural | Yes (post-24) |
+| 4 | BotanicalIFS | BotanicalIFSGenerator.cs | Procedural | Yes (post-24) |
+| 5 | ImplicitBlobHaze | ImplicitBlobHazeGenerator.cs | Procedural | Yes (post-24) |
+| 6 | MarbledFlow | MarbledFlowGenerator.cs | Procedural | Yes (post-24) |
+| 7 | ConcentricRipples | ConcentricRipplesGenerator.cs | Procedural | Yes (post-24) |
+| 8 | NebulaGlow | NebulaGlowGenerator.cs | Procedural | Yes (post-24) |
+| 9 | **OrganicCells** | OrganicCellsGenerator.cs | Procedural | **NO — dead code** |
+| 10 | CrystallineFrost | CrystallineFrostGenerator.cs | Procedural | Yes (post-24) |
+| 11 | BranchingTree | BranchingTreeGenerator.cs | Procedural | Yes (post-24) |
+| 12 | VineTendrils | VineTendrilsGenerator.cs | Procedural | Yes (post-24) |
+| 13 | RootNetwork | RootNetworkGenerator.cs | Procedural | Yes (post-24) |
+| 14 | CanopyDapple | CanopyDappleGenerator.cs | Procedural | Yes (post-24) |
+| 15 | FloralMandala | FloralMandalaGenerator.cs | Procedural | Yes (post-24) |
 
-- [x] Compile/error check for touched files.
-- [x] EditMode tests (existing workspace task).
-- [x] Search confirms no long pour clip references used for playback path.
-- [ ] Manual behavior checklist prepared:
-  - [ ] 0%→50% maps first half acoustic segment.
-  - [ ] 50%→100% maps last half acoustic segment.
-  - [ ] tiny deltas enforce >=0.4s window.
-  - [ ] no pops/clicks on start/stop.
-  - [ ] start/end aligns with visible pour window.
+### Dead Code
+- `AtmosphericWash` and `OrganicCells`: registered in generator dict but missing
+  from `AllowedArchetypesOrdered` → never selected.
+- `SelectArchetypeForZone()`: declared but never called anywhere.
+- `DomainWarpedClouds` never reused post-24 (`AllowedArchetypesOrdered[0]`
+  skipped by `1 + index`).
 
-## Progress log
+---
 
-### 2026-02-17
+## 3. Defects Found
 
-- Replaced prior plan with this task-specific authoritative plan.
-- Completed code discovery and requirement verification.
-- Implemented short-clip switch in `AudioManager`:
-  - `Sound/liquid-pour-short`
-  - `Sound/liquid-pour2-short`
-- Implemented deterministic segment bounds with 0.4s minimum duration expansion and clamped shifting.
-- Implemented deterministic pop-safe fades in sample domain for pour segments (8ms in / 20ms out).
-- Aligned `GameController` pour animation duration with `AudioManager.CalculatePourWindowDuration(...)` so audio and pour window use the same duration source.
-- Added optional pour diagnostics (guarded flags) in `GameController` + `AudioManager`.
-- Updated PlayMode audio tests for short clips and minimum duration behavior.
-- Verification:
-  - Code errors check: clean for touched files.
-  - Android build: `./scripts/build_android.sh` succeeds after lock cleanup.
-  - Search confirms no `liquid-pour` / `liquid-pour2` long-asset references in runtime pour playback path.
+### D1: Archetype changes every level, not every 10
+- **Root cause:** `SelectArchetypeForLevel` uses `(levelIndex - 2 + offset) % 13`
+  with no grouping by zone/stage.
+- **Fix:** Use `zoneIndex` (from `GetZoneIndex`) to select archetype, so all
+  levels within a 10-level block share the same theme.
+
+### D2: Levels 1-24 hardcoded to single archetype
+- **Root cause:** `if (levelIndex <= 24) return DomainWarpedClouds;`
+- **Fix:** Remove the hardcoded intro range, let zone logic apply from level 1.
+
+### D3: AtmosphericWash and OrganicCells unreachable
+- **Root cause:** Missing from `AllowedArchetypesOrdered` array.
+- **Fix:** Add both to the array → 16 allowed archetypes.
+
+### D4: Dead method `SelectArchetypeForZone`
+- **Fix:** Remove it.
+
+### D5: No intra-block variation
+- **Root cause:** When archetype is the same for a 10-level block, the visual
+  difference between levels comes only from palette/seed jitter, which is subtle.
+- **Fix:** Already handled by `LevelVariant` (hue shift, saturation, value,
+  gradient direction, accent strength). Verify it provides sufficient variation.
+
+---
+
+## 4. Validation Result (Pre-fix)
+
+| Question | Answer |
+|----------|--------|
+| New theme every 10 levels? | **NO** — changes every level post-24, never pre-24 |
+| ≥15 distinct themes? | **YES** — 16 exist, but only 14 reachable |
+| All themes reachable? | **NO** — AtmosphericWash and OrganicCells dead |
+| Repetition patterns? | Cycle of 13 repeats post level 24 |
+
+## 5. Final Verdict (Pre-fix): **FAIL**
+
+---
+
+## 6. Fix Plan
+
+1. Add `AtmosphericWash` + `OrganicCells` to `AllowedArchetypesOrdered` (16 total).
+2. Rewrite `SelectArchetypeForLevel` to use zone-based selection: same archetype
+   for all levels in a 10-level zone, cycling through all 16.
+3. Remove hardcoded `levelIndex <= 24` guard in archetype selection.
+4. Remove dead `SelectArchetypeForZone` method.
+5. Update `GameController.ApplyBackgroundVariation` levels ≤ 24 special colors:
+   keep per-zone color theming but derive it from the shared zone system.
+6. Starfield visibility: enable stars on all cosmic/hazy/cloud-like archetypes
+   (majority: 9 of 16). Disable only on clearly terrestrial/botanical/crystalline
+   themes (7 of 16). Simplify from three-category system to binary.
+   Stars YES: DomainWarpedClouds, CurlFlowAdvection, AtmosphericWash, NebulaGlow,
+              MarbledFlow, ConcentricRipples, ImplicitBlobHaze, OrganicCells,
+              FractalEscapeDensity.
+   Stars NO:  BotanicalIFS, BranchingTree, RootNetwork, VineTendrils,
+              CanopyDapple, FloralMandala, CrystallineFrost.
+7. **Deterministic shuffle**: The 16 archetypes are shuffled per cycle using a
+   seeded Fisher-Yates (Knuth) shuffle so the progression order varies by seed.
+   - The shuffle is fully deterministic: given the same seed, every replay from
+     level 1 produces the exact same background for every level.
+   - No two consecutive zones ever share the same archetype, including at the
+     boundary between cycles (e.g. zone 15 → zone 16).
+8. **Intro theme (levels 1-9)**: Apply a fixed "Midnight Ocean" deep blue/indigo
+   color palette for levels 1-9 (zone 0). This is a targeted color override in
+   `ApplyBackgroundVariation` that sets the gradient and layer tints to specific
+   deep indigo values. The archetype itself is still selected by the shuffle —
+   only the colors are overridden to ensure a consistent first impression.
+9. Add/update tests verifying:
+   - Same archetype within each 10-level block
+   - Different archetype at each 10-level boundary (up to cycle length)
+   - All 16 archetypes reachable
+   - Determinism for same seed
+   - No consecutive zones share the same archetype (including cross-cycle)
+   - Different seeds produce different orderings
+   - Starfield enabled on 9 cosmic archetypes, disabled on 7 terrestrial
+9. Run tests, build, push.

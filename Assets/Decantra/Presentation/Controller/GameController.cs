@@ -1525,68 +1525,17 @@ namespace Decantra.Presentation.Controller
             Color bubbleTint = Color.HSVToRGB(Mathf.Repeat(hue + 0.12f, 1f), palette.DetailSaturation * 0.9f, Mathf.Clamp01(palette.DetailValue + 0.02f));
             bubbleTint.a = Mathf.Lerp(palette.FlowAlpha * 0.4f, palette.FlowAlpha * 0.9f, colorJitter2) * family.BubbleAlphaScale;
 
-            if (levelIndex <= 24)
+            // Levels 1-9: "Midnight Ocean" — deep blue/indigo intro theme
+            if (levelIndex <= 9)
             {
-                // STARFIELD VISIBILITY FIX:
-                // Stars are behind all UI layers. For stars to be visible:
-                // - Gradient must be highly translucent (alpha 0.25-0.40)
-                // - Overlay layers should create texture but remain dark
-                // - baseTint must be white (neutral) to not brighten gradient colors
-                //
-                // Layer stack (front to back):
-                //   Detail → Flow → Shapes → Bubbles → Large → Gradient → Stars
-
-                // Theme colors - VERY distinct per 10-level bucket for Gate D separation
-                // Using higher saturation differences and more visible overlay alphas
-                Color deepTop, deepBottom;
-
-                if (levelIndex <= 9)
-                {
-                    // Theme 0 (levels 1-9): Deep blue/indigo - "Midnight Ocean"
-                    deepTop = new Color(0.04f, 0.08f, 0.22f, 0.24f);
-                    deepBottom = new Color(0.015f, 0.03f, 0.14f, 0.18f);
-
-                    // Blue-tinted cloud overlays with higher alpha for texture visibility
-                    detailTint = new Color(0.10f, 0.18f, 0.34f, 0.30f);
-                    flowTint = new Color(0.08f, 0.14f, 0.30f, 0.26f);
-                    shapeTint = new Color(0.10f, 0.18f, 0.32f, 0.22f);
-                    macroTint = new Color(0.08f, 0.14f, 0.26f, 0.20f);
-                    bubbleTint = new Color(0.08f, 0.16f, 0.28f, 0.16f);
-                }
-                else if (levelIndex <= 19)
-                {
-                    // Theme 1 (levels 10-19): Deep magenta/violet - "Cosmic Nebula"
-                    deepTop = new Color(0.22f, 0.06f, 0.26f, 0.28f);
-                    deepBottom = new Color(0.12f, 0.03f, 0.18f, 0.22f);
-
-                    // Magenta-tinted cloud overlays
-                    detailTint = new Color(0.30f, 0.10f, 0.36f, 0.34f);
-                    flowTint = new Color(0.26f, 0.08f, 0.32f, 0.30f);
-                    shapeTint = new Color(0.28f, 0.10f, 0.34f, 0.26f);
-                    macroTint = new Color(0.22f, 0.08f, 0.28f, 0.22f);
-                    bubbleTint = new Color(0.24f, 0.08f, 0.30f, 0.18f);
-                }
-                else
-                {
-                    // Theme 2 (levels 20-24): Deep teal/emerald - "Deep Space"
-                    deepTop = new Color(0.04f, 0.22f, 0.18f, 0.26f);
-                    deepBottom = new Color(0.015f, 0.12f, 0.10f, 0.20f);
-
-                    // Teal-tinted cloud overlays
-                    detailTint = new Color(0.10f, 0.30f, 0.26f, 0.32f);
-                    flowTint = new Color(0.08f, 0.24f, 0.20f, 0.28f);
-                    shapeTint = new Color(0.10f, 0.28f, 0.24f, 0.24f);
-                    macroTint = new Color(0.08f, 0.20f, 0.18f, 0.20f);
-                    bubbleTint = new Color(0.08f, 0.24f, 0.20f, 0.16f);
-                }
-
-                // baseTint is multiplied with gradient - use white (1,1,1) to not alter gradient colors
-                // Alpha of 1.0 is required for proper blending
-                baseTint = Color.white;
-
-                family.GradientTop = deepTop;
-                family.GradientBottom = deepBottom;
-                family.GradientDirection = zoneLayout.GradientDirection;
+                baseTint = new Color(0.03f, 0.06f, 0.18f, 1f);
+                family.GradientTop = new Color(0.04f, 0.08f, 0.22f, 0.24f);
+                family.GradientBottom = new Color(0.015f, 0.03f, 0.14f, 0.18f);
+                detailTint = new Color(0.10f, 0.18f, 0.34f, 0.30f);
+                flowTint = new Color(0.08f, 0.14f, 0.30f, 0.26f);
+                shapeTint = new Color(0.10f, 0.18f, 0.32f, 0.22f);
+                macroTint = new Color(0.08f, 0.14f, 0.26f, 0.20f);
+                bubbleTint = new Color(0.08f, 0.16f, 0.28f, 0.16f);
             }
 
             // Vignette effect completely disabled
@@ -1648,71 +1597,35 @@ namespace Decantra.Presentation.Controller
             }
         }
 
+        /// <summary>
+        /// Stars are shown on cosmic / hazy / cloud-like archetypes and hidden on
+        /// clearly terrestrial / botanical / crystalline ones.
+        /// </summary>
         private static bool ShouldEnableStars(int levelIndex, GeneratorArchetype archetype)
         {
-            if (IsNeverStarTheme(archetype))
-            {
-                return false;
-            }
-
-            if (levelIndex == 1)
-            {
-                return true;
-            }
-
-            if (IsAllowedStarTheme(archetype))
-            {
-                return true;
-            }
-
-            if (IsOptionalStarTheme(archetype))
-            {
-                return BackgroundRules.GetZoneIndex(levelIndex) == 1;
-            }
-
-            return false;
+            _ = levelIndex;
+            return IsStarfieldTheme(archetype);
         }
 
-        private static bool IsAllowedStarTheme(GeneratorArchetype archetype)
+        /// <summary>
+        /// Returns true for archetypes whose visual character is cloud-like, hazy,
+        /// or could be associated with cosmic/universe imagery.  Majority of
+        /// archetypes (9 of 16) qualify; the remaining 7 are clearly terrestrial
+        /// (botanical, crystalline, floral).
+        /// </summary>
+        internal static bool IsStarfieldTheme(GeneratorArchetype archetype)
         {
             switch (archetype)
             {
-                case GeneratorArchetype.AtmosphericWash:
                 case GeneratorArchetype.DomainWarpedClouds:
-                case GeneratorArchetype.NebulaGlow:
-                case GeneratorArchetype.ImplicitBlobHaze:
-                case GeneratorArchetype.FractalEscapeDensity:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        private static bool IsOptionalStarTheme(GeneratorArchetype archetype)
-        {
-            switch (archetype)
-            {
-                case GeneratorArchetype.OrganicCells:
-                case GeneratorArchetype.CanopyDapple:
-                case GeneratorArchetype.BotanicalIFS:
-                case GeneratorArchetype.VineTendrils:
-                case GeneratorArchetype.RootNetwork:
-                case GeneratorArchetype.BranchingTree:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        private static bool IsNeverStarTheme(GeneratorArchetype archetype)
-        {
-            switch (archetype)
-            {
-                case GeneratorArchetype.ConcentricRipples:
-                case GeneratorArchetype.CrystallineFrost:
-                case GeneratorArchetype.FloralMandala:
-                case GeneratorArchetype.MarbledFlow:
                 case GeneratorArchetype.CurlFlowAdvection:
+                case GeneratorArchetype.AtmosphericWash:
+                case GeneratorArchetype.NebulaGlow:
+                case GeneratorArchetype.MarbledFlow:
+                case GeneratorArchetype.ConcentricRipples:
+                case GeneratorArchetype.ImplicitBlobHaze:
+                case GeneratorArchetype.OrganicCells:
+                case GeneratorArchetype.FractalEscapeDensity:
                     return true;
                 default:
                     return false;

@@ -52,11 +52,6 @@ namespace Decantra.Presentation
                 ? request.LevelSeed
                 : BackgroundRules.GetLevelSeed(request.GlobalSeed, request.LevelIndex);
 
-            if (request.LevelIndex <= 24)
-            {
-                levelSeed ^= 0xC3D2E1F0A5B49786ul;
-                levelSeed = (levelSeed << 7) | (levelSeed >> 57);
-            }
 
             // Select archetype based on level progression
             var archetype = BackgroundGeneratorRegistry.SelectArchetypeForLevel(request.LevelIndex, request.GlobalSeed);
@@ -79,14 +74,6 @@ namespace Decantra.Presentation
                 mesoParams.Octaves = Mathf.Min(6, mesoParams.Octaves + 1);
             }
 
-            if (request.LevelIndex <= 24)
-            {
-                macroParams.Softness = Mathf.Clamp01(macroParams.Softness * 0.45f);
-                mesoParams.Softness = Mathf.Clamp01(mesoParams.Softness * 0.5f);
-                accentParams.Softness = Mathf.Clamp01(accentParams.Softness * 0.55f);
-                microParams.Softness = Mathf.Clamp01(microParams.Softness * 0.6f);
-            }
-
             // Vary seeds for each layer
             ulong macroSeed = levelSeed ^ 0xA13F2B19ul;
             ulong mesoSeed = levelSeed ^ 0xB24E3C28ul;
@@ -100,7 +87,7 @@ namespace Decantra.Presentation
             var microField = GenerateMicroField(MicroResolution, MicroResolution, microSeed);
 
             // Create sprites
-            float edgeFeather = request.LevelIndex <= 24 ? 0.18f : 0.12f;
+            float edgeFeather = 0.12f;
 
             var macroSprite = CreateSpriteFromField(macroField, MacroResolution, MacroResolution, TextureWrapMode.Clamp, 256f, edgeFeather, 0.45f, 0.55f, 0.6f, 1.15f);
             var mesoSprite = CreateSpriteFromField(mesoField, MesoResolution, MesoResolution, TextureWrapMode.Clamp, 256f, edgeFeather, 0.42f, 0.58f, 0.65f, 1.12f);
