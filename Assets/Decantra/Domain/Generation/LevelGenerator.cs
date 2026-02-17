@@ -397,7 +397,7 @@ namespace Decantra.Domain.Generation
             solveMs = 0;
 
             int scrambleTarget = Math.Max(4, profile.ReverseMoves / 2);
-            for (int emergencyAttempt = 0; emergencyAttempt < 16; emergencyAttempt++)
+            for (int emergencyAttempt = 0; emergencyAttempt < 40; emergencyAttempt++)
             {
                 int emergencySeed = seed + emergencyAttempt * 15485863;
                 var emergencyRng = new Random(emergencySeed);
@@ -427,7 +427,7 @@ namespace Decantra.Domain.Generation
                 }
 
                 var solveTimer = Stopwatch.StartNew();
-                var solvedResult = _solver.SolveWithPath(candidate, 2_000_000, 3000, allowSinkMoves: true);
+                var solvedResult = _solver.SolveWithPath(candidate, 8_000_000, 8000, allowSinkMoves: true);
                 solveTimer.Stop();
                 if (solvedResult == null || solvedResult.OptimalMoves < 2)
                 {
@@ -449,7 +449,7 @@ namespace Decantra.Domain.Generation
         private static int ResolveMaxAttempts(int levelIndex)
         {
             if (levelIndex <= 6) return 6;
-            if (levelIndex >= 100) return 10;
+            if (levelIndex >= 100) return 14;
             if (levelIndex >= 60) return 10;
             return 12;
         }
@@ -457,7 +457,7 @@ namespace Decantra.Domain.Generation
         private static int ResolveCandidatesPerAttempt(int levelIndex)
         {
             if (levelIndex <= 6) return 1;
-            if (levelIndex >= 100) return 2;
+            if (levelIndex >= 100) return 3;
             if (levelIndex >= 60) return 2;
             return 2;
         }
@@ -472,29 +472,29 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveSolveTimeLimitMs(int levelIndex)
         {
-            if (levelIndex >= 100) return 2000;
-            if (levelIndex >= 60) return 2500;
+            if (levelIndex >= 100) return 3000;
+            if (levelIndex >= 60) return 3000;
             return 2000;
         }
 
         private static int ResolveSolveNodeLimit(int levelIndex)
         {
-            if (levelIndex >= 100) return 1_200_000;
-            if (levelIndex >= 60) return 1_500_000;
+            if (levelIndex >= 100) return 2_000_000;
+            if (levelIndex >= 60) return 2_000_000;
             return 1_200_000;
         }
 
         private static int ResolveSinkClassNodeLimit(int levelIndex)
         {
-            if (levelIndex >= 100) return 500_000;
-            if (levelIndex >= 60) return 700_000;
+            if (levelIndex >= 100) return 900_000;
+            if (levelIndex >= 60) return 900_000;
             return 260_000;
         }
 
         private static int ResolveSinkClassTimeLimitMs(int levelIndex)
         {
-            if (levelIndex >= 100) return 1200;
-            if (levelIndex >= 60) return 1800;
+            if (levelIndex >= 100) return 2000;
+            if (levelIndex >= 60) return 2000;
             return 500;
         }
 

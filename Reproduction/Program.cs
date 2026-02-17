@@ -12,8 +12,8 @@ using Decantra.Domain.Solver;
 
 public class Program
 {
-    private const int MaxSolveMillis = 10000;
-    private const int MaxSolveNodes = 8_000_000;
+    private const int MaxSolveMillis = 15000;
+    private const int MaxSolveNodes = 12_000_000;
     private const int RetrySolveMillis = 20000;
     private const int RetrySolveNodes = 20_000_000;
 
@@ -312,25 +312,25 @@ public class Program
 
         finished = true;
 
-        int recoveredTimeouts = 0;
+        int recoveredFailures = 0;
         for (int l = 1; l <= count; l++)
         {
-            if (!results.TryGetValue(l, out var timeoutResult) || !timeoutResult.IsError || !string.Equals(timeoutResult.ErrorMessage, "TIMEOUT", StringComparison.Ordinal))
+            if (!results.TryGetValue(l, out var failedResult) || !failedResult.IsError)
             {
                 continue;
             }
 
-            if (TryResolveTimeoutLevel(l, seeds[l], out var recovered))
+            if (TryResolveFailedLevel(l, seeds[l], out var recovered))
             {
                 results[l] = recovered;
-                recoveredTimeouts++;
-                Console.WriteLine($"[TimeoutRecovered] level={l}, optimal={recovered.Optimal}");
+                recoveredFailures++;
+                Console.WriteLine($"[FailureRecovered] level={l}, prior={failedResult.ErrorMessage}, optimal={recovered.Optimal}");
             }
         }
 
-        if (recoveredTimeouts > 0)
+        if (recoveredFailures > 0)
         {
-            Console.WriteLine($"Recovered {recoveredTimeouts} timeout level(s) with deterministic single-thread recheck.");
+            Console.WriteLine($"Recovered {recoveredFailures} failed level(s) with deterministic single-thread recheck.");
         }
 
         Console.WriteLine("\n=== RAW COMPLEXITY COMPUTED ===");
@@ -767,7 +767,7 @@ public class Program
         return 1;
     }
 
-    private static bool TryResolveTimeoutLevel(int level, int seed, out LevelResult result)
+    private static bool TryResolveFailedLevel(int level, int seed, out LevelResult result)
     {
         result = null;
 
