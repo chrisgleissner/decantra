@@ -3483,14 +3483,14 @@ namespace Decantra.Presentation
 
             var colorBlindEntries = new List<ColorPalette.Entry>
             {
-                new ColorPalette.Entry { ColorId = ColorId.Red, Color = new Color(0.84f, 0.47f, 0.1f) },
-                new ColorPalette.Entry { ColorId = ColorId.Blue, Color = new Color(0.18f, 0.46f, 0.92f) },
-                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.18f, 0.74f, 0.66f) },
-                new ColorPalette.Entry { ColorId = ColorId.Yellow, Color = new Color(0.95f, 0.85f, 0.2f) },
-                new ColorPalette.Entry { ColorId = ColorId.Purple, Color = new Color(0.55f, 0.45f, 0.9f) },
-                new ColorPalette.Entry { ColorId = ColorId.Orange, Color = new Color(0.95f, 0.62f, 0.18f) },
-                new ColorPalette.Entry { ColorId = ColorId.Cyan, Color = new Color(0.12f, 0.78f, 0.88f) },
-                new ColorPalette.Entry { ColorId = ColorId.Magenta, Color = new Color(0.88f, 0.38f, 0.72f) }
+                new ColorPalette.Entry { ColorId = ColorId.Red, Color = new Color(0f, 0.44705883f, 0.69803923f) },
+                new ColorPalette.Entry { ColorId = ColorId.Blue, Color = new Color(0.9019608f, 0.62352943f, 0f) },
+                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.3372549f, 0.7058824f, 0.9137255f) },
+                new ColorPalette.Entry { ColorId = ColorId.Yellow, Color = new Color(0f, 0.61960787f, 0.4509804f) },
+                new ColorPalette.Entry { ColorId = ColorId.Purple, Color = new Color(0.9411765f, 0.89411765f, 0.25882354f) },
+                new ColorPalette.Entry { ColorId = ColorId.Orange, Color = new Color(0.8352941f, 0.36862746f, 0f) },
+                new ColorPalette.Entry { ColorId = ColorId.Cyan, Color = new Color(0.8f, 0.4745098f, 0.654902f) },
+                new ColorPalette.Entry { ColorId = ColorId.Magenta, Color = new Color(0.105882354f, 0.16470589f, 0.25490198f) }
             };
 
             SetPrivateField(palette, "entries", entries);
