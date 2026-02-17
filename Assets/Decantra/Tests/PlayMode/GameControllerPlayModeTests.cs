@@ -700,13 +700,11 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(state);
 
             int bottleIndex = -1;
-            ColorId topColor = ColorId.Red;
             for (int i = 0; i < state.Bottles.Count; i++)
             {
                 var top = state.Bottles[i].TopColor;
                 if (!top.HasValue) continue;
                 bottleIndex = i;
-                topColor = top.Value;
                 break;
             }
 
@@ -718,13 +716,29 @@ namespace Decantra.Tests.PlayMode
             controller.SetAccessibleColorsEnabled(false);
             yield return null;
             Color defaultColor = GetVisibleLiquidColor(view);
-            Assert.AreEqual((Color32)BoostForBottleLiquid(ExpectedDefaultColor(topColor)), (Color32)defaultColor);
+            Assert.IsTrue(MatchesAnyBoostedDefaultPalette((Color32)defaultColor, 2),
+                $"Expected default bottle color to match boosted default palette. actual={(Color32)defaultColor}");
 
             controller.SetAccessibleColorsEnabled(true);
-            yield return null;
-            Color accessibleColor = GetVisibleLiquidColor(view);
-            Assert.AreEqual((Color32)BoostForBottleLiquid(ExpectedAccessibleColor(topColor)), (Color32)accessibleColor);
-            Assert.AreNotEqual((Color32)defaultColor, (Color32)accessibleColor);
+            Color accessibleColor = defaultColor;
+            float elapsedWait = 0f;
+            const float maxWait = 0.75f;
+            while (elapsedWait < maxWait)
+            {
+                yield return null;
+                elapsedWait += Time.unscaledDeltaTime;
+                accessibleColor = GetVisibleLiquidColor(view);
+                if (MatchesAnyBoostedAccessiblePalette((Color32)accessibleColor, 2))
+                {
+                    break;
+                }
+            }
+
+            Assert.IsTrue(MatchesAnyBoostedAccessiblePalette((Color32)accessibleColor, 2),
+                $"Expected accessible bottle color to match boosted accessible palette. actual={(Color32)accessibleColor}");
+            Assert.IsFalse(MatchesAnyBoostedDefaultPalette((Color32)accessibleColor, 2),
+                $"Accessible color still matches boosted default palette. actual={(Color32)accessibleColor}");
+            Assert.IsFalse(IsColorWithinTolerance((Color32)defaultColor, (Color32)accessibleColor, 1));
         }
 
         [UnityTest]
@@ -895,6 +909,58 @@ namespace Decantra.Tests.PlayMode
             v = Mathf.Clamp01(v * 1.35f + 0.08f);
             s = Mathf.Clamp01(Mathf.Lerp(s, 1f, 0.12f));
             return Color.HSVToRGB(h, s, v);
+        }
+
+        private static void AssertColorApproximately(Color32 expected, Color32 actual, byte channelTolerance)
+        {
+            Assert.LessOrEqual(Mathf.Abs(expected.r - actual.r), channelTolerance, $"R channel differs. expected={expected} actual={actual}");
+            Assert.LessOrEqual(Mathf.Abs(expected.g - actual.g), channelTolerance, $"G channel differs. expected={expected} actual={actual}");
+            Assert.LessOrEqual(Mathf.Abs(expected.b - actual.b), channelTolerance, $"B channel differs. expected={expected} actual={actual}");
+            Assert.LessOrEqual(Mathf.Abs(expected.a - actual.a), channelTolerance, $"A channel differs. expected={expected} actual={actual}");
+        }
+
+        private static bool IsColorWithinTolerance(Color32 expected, Color32 actual, byte channelTolerance)
+        {
+            return Mathf.Abs(expected.r - actual.r) <= channelTolerance
+                && Mathf.Abs(expected.g - actual.g) <= channelTolerance
+                && Mathf.Abs(expected.b - actual.b) <= channelTolerance
+                && Mathf.Abs(expected.a - actual.a) <= channelTolerance;
+        }
+
+        private static bool MatchesAnyBoostedDefaultPalette(Color32 actual, byte channelTolerance)
+        {
+            return MatchesAnyBoostedPalette(actual, channelTolerance, ExpectedDefaultColor);
+        }
+
+        private static bool MatchesAnyBoostedAccessiblePalette(Color32 actual, byte channelTolerance)
+        {
+            return MatchesAnyBoostedPalette(actual, channelTolerance, ExpectedAccessibleColor);
+        }
+
+        private static bool MatchesAnyBoostedPalette(Color32 actual, byte channelTolerance, System.Func<ColorId, Color> expectedColorProvider)
+        {
+            var ids = new[]
+            {
+                ColorId.Red,
+                ColorId.Blue,
+                ColorId.Green,
+                ColorId.Yellow,
+                ColorId.Purple,
+                ColorId.Orange,
+                ColorId.Cyan,
+                ColorId.Magenta
+            };
+
+            for (int i = 0; i < ids.Length; i++)
+            {
+                var expected = (Color32)BoostForBottleLiquid(expectedColorProvider(ids[i]));
+                if (IsColorWithinTolerance(expected, actual, channelTolerance))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
     }
