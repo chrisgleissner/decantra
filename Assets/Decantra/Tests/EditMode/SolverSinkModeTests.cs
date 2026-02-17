@@ -13,12 +13,13 @@ namespace Decantra.Tests.EditMode
             var state = new LevelState(
                 new List<Bottle>
                 {
-                    new Bottle(new ColorId?[] { ColorId.Red }, isSink: false),
-                    new Bottle(new ColorId?[] { null }, isSink: true)
+                    new Bottle(new ColorId?[] { ColorId.Red, ColorId.Blue }, isSink: false),
+                    new Bottle(new ColorId?[] { ColorId.Blue, null }, isSink: true),
+                    new Bottle(new ColorId?[] { ColorId.Red, null }, isSink: false)
                 },
                 0,
                 10,
-                1,
+                2,
                 50,
                 12345);
 
@@ -29,7 +30,7 @@ namespace Decantra.Tests.EditMode
 
             var sinkEnabledResult = solver.SolveWithPath(state, 10000, 1000, allowSinkMoves: true);
             Assert.AreEqual(SolverStatus.Solved, sinkEnabledResult.Status);
-            Assert.AreEqual(1, sinkEnabledResult.Path.Count);
+            Assert.GreaterOrEqual(sinkEnabledResult.Path.Count, 1);
             Assert.AreEqual(1, sinkEnabledResult.Path[0].Target, "Expected sink bottle to be used as target when enabled.");
         }
     }

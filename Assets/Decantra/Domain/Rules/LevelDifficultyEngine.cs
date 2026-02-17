@@ -315,16 +315,9 @@ namespace Decantra.Domain.Rules
 
         private static int ComputeDifficultyRating(int levelIndex, LevelBand band, int colorCount, int emptyCount, int bottleCount, int reverseMoves)
         {
-            // This is the PROFILE difficulty rating, not the actual intrinsic difficulty.
-            // Actual difficulty is computed by DifficultyScorer from solver metrics.
-            int eff = GetEffectiveLevel(levelIndex);
-
-            int bandScore = ((int)band) * 900;
-            int levelScore = eff * 25;
-            int colorScore = colorCount * 70;
-            int bottleScore = bottleCount * 30;
-            int emptyScore = emptyCount * 50;
-            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyScore);
+            // Keep profile rating strictly deterministic and monotonic through linear difficulty progression.
+            // Intrinsic difficulty is scored separately from solver-derived metrics.
+            return GetDifficultyForLevel(levelIndex) * 100;
         }
     }
 }

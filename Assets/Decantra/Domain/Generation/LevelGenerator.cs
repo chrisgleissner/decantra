@@ -331,6 +331,25 @@ namespace Decantra.Domain.Generation
                 bestDifficulty100 = Math.Max(1, DifficultyScorer.ComputeDifficulty100(LevelMetrics.Empty, optimal));
             }
 
+            if (profile.LevelIndex <= 200)
+            {
+                var verifiedOptimalResult = _solver.SolveOptimal(bestCandidate, allowSinkMoves: true);
+                if (verifiedOptimalResult != null && verifiedOptimalResult.OptimalMoves > 0)
+                {
+                    optimal = verifiedOptimalResult.OptimalMoves;
+                    movesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimal));
+                    bestCandidate = new LevelState(
+                        bestCandidate.Bottles,
+                        0,
+                        movesAllowed,
+                        optimal,
+                        profile.LevelIndex,
+                        seed,
+                        bestCandidate.ScrambleMoves,
+                        bestCandidate.BackgroundPaletteIndex);
+                }
+            }
+
             overallTimer.Stop();
 
             // Create generation report (Requirement F)
