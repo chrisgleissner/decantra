@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,18 +15,33 @@ namespace Decantra.Presentation
     public sealed class AudioManager : MonoBehaviour
     {
         private const int SourcePoolSize = 8;
-        private const int PourClipSteps = 12;
+        private const float SegmentFadeSeconds = 0.01f;
+        private const float SegmentFadeMinSeconds = 0.005f;
+        private const float SegmentFadeMaxSeconds = 0.015f;
 
         private readonly Dictionary<int, AudioClip> _safeClipCache = new Dictionary<int, AudioClip>();
-        private readonly HashSet<int> _internallySafeClipIds = new HashSet<int>();
+        private readonly Dictionary<int, ClipSampleData> _clipSampleCache = new Dictionary<int, ClipSampleData>();
+        private readonly Dictionary<AudioSource, Coroutine> _segmentRoutines = new Dictionary<AudioSource, Coroutine>();
+
         private AudioSource[] _sources;
         private AudioClip[] _pourClips;
+        private AudioClip _selectedPourClip;
+        private int _selectedPourClipIndex = -1;
         private AudioClip _levelCompleteClip;
         private AudioClip _buttonClickClip;
+        private AudioClip _bottleFullClip;
+        private AudioClip _stageUnlockedClip;
+
         private bool _isEnabled = true;
         private float _volume01 = 1f;
         private int _nextSourceIndex;
-        private uint _variationState = 0x9E3779B9u;
+
+        private struct ClipSampleData
+        {
+            public float[] Samples;
+            public int Channels;
+            public int Frequency;
+        }
 
         public bool IsEnabled => _isEnabled;
         public float Volume01 => _volume01;
@@ -57,20 +73,43 @@ namespace Decantra.Presentation
                 return;
             }
 
-            _pourClips = CreatePourClips();
-            _levelCompleteClip = CreateLevelCompleteClip();
-            _buttonClickClip = CreateButtonClickClip();
-            RegisterInternallySafeClip(_levelCompleteClip);
-            RegisterInternallySafeClip(_buttonClickClip);
-            if (_pourClips != null)
-            {
-                for (int i = 0; i < _pourClips.Length; i++)
-                {
-                    RegisterInternallySafeClip(_pourClips[i]);
-                }
-            }
+            _buttonClickClip = LoadClip("Sound/button-click");
+            _levelCompleteClip = LoadClip("Sound/level-complete");
+            _bottleFullClip = LoadClip("Sound/bottle-full");
+            _stageUnlockedClip = LoadClip("Sound/stage-unlocked");
+
+            var pours = new List<AudioClip>(2);
+            var pourA = LoadClip("Sound/liquid-pour");
+            var pourB = LoadClip("Sound/liquid-pour2");
+            if (pourA != null) pours.Add(pourA);
+            if (pourB != null) pours.Add(pourB);
+            _pourClips = pours.ToArray();
+            _selectedPourClip = _pourClips.Length > 0 ? _pourClips[0] : null;
+            _selectedPourClipIndex = _selectedPourClip != null ? 0 : -1;
 
             ApplyAudioState();
+        }
+
+        private void OnDestroy()
+        {
+            foreach (var pair in _segmentRoutines)
+            {
+                if (pair.Value != null)
+                {
+                    StopCoroutine(pair.Value);
+                }
+            }
+            _segmentRoutines.Clear();
+
+            foreach (var pair in _safeClipCache)
+            {
+                if (pair.Value != null)
+                {
+                    Destroy(pair.Value);
+                }
+            }
+            _safeClipCache.Clear();
+            _clipSampleCache.Clear();
         }
 
         public void SetEnabled(bool enabled)
@@ -85,25 +124,65 @@ namespace Decantra.Presentation
             ApplyAudioState();
         }
 
+        public void SelectPourClipForLevel(int levelIndex, int seed)
+        {
+            if (_pourClips == null || _pourClips.Length == 0)
+            {
+                _selectedPourClip = null;
+                _selectedPourClipIndex = -1;
+                return;
+            }
+
+            var previousState = Random.state;
+            Random.InitState(HashLevelSeed(levelIndex, seed));
+            int selected = Random.Range(0, _pourClips.Length);
+            Random.state = previousState;
+
+            _selectedPourClipIndex = selected;
+            _selectedPourClip = _pourClips[selected];
+        }
+
         public void PlayPour(float fillRatio)
         {
-            if (!_isEnabled || _pourClips == null || _pourClips.Length == 0) return;
-            float clampedFill = Mathf.Clamp01(fillRatio);
-            int index = Mathf.Clamp(Mathf.RoundToInt(clampedFill * (_pourClips.Length - 1)), 0, _pourClips.Length - 1);
-            float gain = 0.55f + (1f - clampedFill) * 0.25f;
-            PlayTransient(_pourClips[index], gain, 1f + NextSignedJitter(0.02f));
+            PlayPourSegment(0f, Mathf.Clamp01(fillRatio));
+        }
+
+        public void PlayPourSegment(float previousFillRatio, float newFillRatio)
+        {
+            if (!_isEnabled) return;
+
+            var clip = _selectedPourClip != null ? _selectedPourClip : (_pourClips != null && _pourClips.Length > 0 ? _pourClips[0] : null);
+            if (clip == null) return;
+
+            float start = Mathf.Clamp01(previousFillRatio);
+            float end = Mathf.Clamp01(newFillRatio);
+            if (end <= start) return;
+
+            PlayTransientSegment(clip, start, end, 0.55f);
         }
 
         public void PlayLevelComplete()
         {
             if (!_isEnabled || _levelCompleteClip == null) return;
-            PlayTransient(_levelCompleteClip, 0.52f, 1f + NextSignedJitter(0.015f));
+            PlayTransient(_levelCompleteClip, 0.52f, 1f);
         }
 
         public void PlayButtonClick()
         {
             if (!_isEnabled || _buttonClickClip == null) return;
-            PlayTransient(_buttonClickClip, 0.56f, 0.96f + NextSignedJitter(0.01f));
+            PlayTransient(_buttonClickClip, 0.56f, 1f);
+        }
+
+        public void PlayBottleFull()
+        {
+            if (!_isEnabled || _bottleFullClip == null) return;
+            PlayTransient(_bottleFullClip, 0.56f, 1f);
+        }
+
+        public void PlayStageUnlocked()
+        {
+            if (!_isEnabled || _stageUnlockedClip == null) return;
+            PlayTransient(_stageUnlockedClip, 0.56f, 1f);
         }
 
         public void PlayTransient(AudioClip clip, float gain, float pitch = 1f)
@@ -116,12 +195,93 @@ namespace Decantra.Presentation
             var safeClip = EnsureSafeClip(clip);
             if (safeClip == null) return;
 
+            if (_segmentRoutines.TryGetValue(source, out var existingRoutine) && existingRoutine != null)
+            {
+                StopCoroutine(existingRoutine);
+                _segmentRoutines.Remove(source);
+            }
+
             source.Stop();
             source.clip = safeClip;
-            source.pitch = pitch;
+            source.pitch = Mathf.Max(0.01f, pitch);
             source.volume = Mathf.Clamp01(gain) * _volume01;
             source.mute = !_isEnabled || _volume01 <= 0.0001f;
+            source.time = 0f;
             source.Play();
+        }
+
+        private void PlayTransientSegment(AudioClip clip, float startRatio, float endRatio, float gain)
+        {
+            if (!_isEnabled || clip == null || !HasAnySource()) return;
+
+            var source = GetNextSource();
+            if (source == null) return;
+
+            var safeClip = EnsureSafeClip(clip);
+            if (safeClip == null || safeClip.length <= 0f) return;
+
+            float clampedStartRatio = Mathf.Clamp01(startRatio);
+            float clampedEndRatio = Mathf.Clamp01(endRatio);
+            if (clampedEndRatio <= clampedStartRatio) return;
+
+            float startTime = clampedStartRatio * safeClip.length;
+            float endTime = clampedEndRatio * safeClip.length;
+            if (endTime <= startTime) return;
+
+            startTime = FindNearZeroStartTime(safeClip, startTime);
+            float duration = Mathf.Max(0.001f, endTime - startTime);
+
+            if (_segmentRoutines.TryGetValue(source, out var existingRoutine) && existingRoutine != null)
+            {
+                StopCoroutine(existingRoutine);
+                _segmentRoutines.Remove(source);
+            }
+
+            source.Stop();
+            source.clip = safeClip;
+            source.pitch = 1f;
+            source.volume = 0f;
+            source.mute = !_isEnabled || _volume01 <= 0.0001f;
+            source.time = Mathf.Clamp(startTime, 0f, Mathf.Max(0f, safeClip.length - 0.0001f));
+            source.Play();
+
+            var routine = StartCoroutine(PlaySegmentRoutine(source, Mathf.Clamp01(gain) * _volume01, duration));
+            _segmentRoutines[source] = routine;
+        }
+
+        private IEnumerator PlaySegmentRoutine(AudioSource source, float targetVolume, float duration)
+        {
+            float clampedDuration = Mathf.Max(0.001f, duration);
+            float fade = Mathf.Clamp(SegmentFadeSeconds, SegmentFadeMinSeconds, SegmentFadeMaxSeconds);
+            fade = Mathf.Min(fade, clampedDuration * 0.5f);
+
+            float elapsed = 0f;
+            while (elapsed < clampedDuration)
+            {
+                if (source == null || !source.isPlaying)
+                {
+                    break;
+                }
+
+                float remaining = clampedDuration - elapsed;
+                float inGain = fade > 0f ? Mathf.Clamp01(elapsed / fade) : 1f;
+                float outGain = fade > 0f ? Mathf.Clamp01(remaining / fade) : 1f;
+                source.volume = targetVolume * Mathf.Min(inGain, outGain);
+
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (source != null)
+            {
+                source.volume = 0f;
+                source.Stop();
+            }
+
+            if (source != null)
+            {
+                _segmentRoutines.Remove(source);
+            }
         }
 
         private void ApplyAudioState()
@@ -139,11 +299,8 @@ namespace Decantra.Presentation
         private AudioClip EnsureSafeClip(AudioClip clip)
         {
             if (clip == null) return null;
+
             int id = clip.GetInstanceID();
-            if (_internallySafeClipIds.Contains(id))
-            {
-                return clip;
-            }
             if (_safeClipCache.TryGetValue(id, out var cached) && cached != null)
             {
                 return cached;
@@ -172,11 +329,91 @@ namespace Decantra.Presentation
             return safe;
         }
 
-        private void RegisterInternallySafeClip(AudioClip clip)
+        private float FindNearZeroStartTime(AudioClip clip, float startTime)
         {
-            if (clip == null) return;
-            // Generated clips are hardened at creation and should skip EnsureSafeClip reprocessing.
-            _internallySafeClipIds.Add(clip.GetInstanceID());
+            if (clip == null || clip.frequency <= 0 || clip.samples <= 0)
+            {
+                return Mathf.Max(0f, startTime);
+            }
+
+            var data = GetClipSampleData(clip);
+            if (data.Samples == null || data.Samples.Length == 0 || data.Channels <= 0)
+            {
+                return Mathf.Max(0f, startTime);
+            }
+
+            int startFrame = Mathf.Clamp(Mathf.RoundToInt(startTime * data.Frequency), 0, clip.samples - 1);
+            int maxForwardFrames = Mathf.Max(1, Mathf.RoundToInt(data.Frequency * SegmentFadeMaxSeconds));
+            int endFrame = Mathf.Min(clip.samples - 1, startFrame + maxForwardFrames);
+
+            int bestFrame = startFrame;
+            float bestAmplitude = float.MaxValue;
+            for (int frame = startFrame; frame <= endFrame; frame++)
+            {
+                float amplitude = AverageAbsAmplitudeAtFrame(data.Samples, frame, data.Channels);
+                if (amplitude < bestAmplitude)
+                {
+                    bestAmplitude = amplitude;
+                    bestFrame = frame;
+                }
+
+                if (amplitude <= 0.0015f)
+                {
+                    return frame / (float)data.Frequency;
+                }
+            }
+
+            return bestFrame / (float)data.Frequency;
+        }
+
+        private ClipSampleData GetClipSampleData(AudioClip clip)
+        {
+            int id = clip.GetInstanceID();
+            if (_clipSampleCache.TryGetValue(id, out var cached) && cached.Samples != null)
+            {
+                return cached;
+            }
+
+            int sampleCount = clip.samples * clip.channels;
+            if (sampleCount <= 0)
+            {
+                return default;
+            }
+
+            var samples = new float[sampleCount];
+            if (!clip.GetData(samples, 0))
+            {
+                return default;
+            }
+
+            var data = new ClipSampleData
+            {
+                Samples = samples,
+                Channels = clip.channels,
+                Frequency = clip.frequency
+            };
+
+            _clipSampleCache[id] = data;
+            return data;
+        }
+
+        private static float AverageAbsAmplitudeAtFrame(float[] samples, int frame, int channels)
+        {
+            int offset = frame * channels;
+            if (offset < 0 || offset >= samples.Length) return 0f;
+
+            float sum = 0f;
+            int count = 0;
+            for (int i = 0; i < channels; i++)
+            {
+                int index = offset + i;
+                if (index >= samples.Length) break;
+                sum += Mathf.Abs(samples[index]);
+                count++;
+            }
+
+            if (count <= 0) return 0f;
+            return sum / count;
         }
 
         private bool HasAnySource()
@@ -207,210 +444,21 @@ namespace Decantra.Presentation
             return null;
         }
 
-        private AudioClip[] CreatePourClips()
+        private static AudioClip LoadClip(string resourcePath)
         {
-            var clips = new AudioClip[PourClipSteps];
-            for (int i = 0; i < clips.Length; i++)
-            {
-                float fillRatio = i / (float)(clips.Length - 1);
-                clips[i] = CreatePourClip(fillRatio, i);
-            }
-            return clips;
+            if (string.IsNullOrWhiteSpace(resourcePath)) return null;
+            return Resources.Load<AudioClip>(resourcePath);
         }
 
-        private static float NextNoiseSample(ref uint state)
+        private static int HashLevelSeed(int levelIndex, int seed)
         {
-            state = state * 1664525u + 1013904223u;
-            return ((state >> 8) * (1f / 8388608f)) * 2f - 1f;
-        }
-
-        private static float OnePoleCoefficient(float cutoffHz, int sampleRate)
-        {
-            float clampedCutoff = Mathf.Clamp(cutoffHz, 10f, sampleRate * 0.45f);
-            return 1f - Mathf.Exp(-2f * Mathf.PI * clampedCutoff / sampleRate);
-        }
-
-        private static void GetBandPassCoefficients(float centerFrequency, float q, int sampleRate, out float b0, out float b1, out float b2, out float a1, out float a2)
-        {
-            float clampedFrequency = Mathf.Clamp(centerFrequency, 30f, sampleRate * 0.45f);
-            float clampedQ = Mathf.Clamp(q, 1f, 8f);
-            float omega = 2f * Mathf.PI * clampedFrequency / sampleRate;
-            float sin = Mathf.Sin(omega);
-            float cos = Mathf.Cos(omega);
-            float alpha = sin / (2f * clampedQ);
-
-            float a0 = 1f + alpha;
-            b0 = alpha / a0;
-            b1 = 0f;
-            b2 = -alpha / a0;
-            a1 = -2f * cos / a0;
-            a2 = (1f - alpha) / a0;
-        }
-
-        private AudioClip CreatePourClip(float fillRatio, int variant)
-        {
-            const int sampleRate = 44100;
-            const float duration = 0.24f;
-            int samples = Mathf.CeilToInt(sampleRate * duration);
-            if (samples <= 0)
+            unchecked
             {
-                return null;
+                int hash = 17;
+                hash = hash * 31 + Mathf.Max(1, levelIndex);
+                hash = hash * 31 + seed;
+                return hash;
             }
-
-            var clip = AudioClip.Create("Pour", samples, 1, sampleRate, false);
-            if (clip == null)
-            {
-                return null;
-            }
-
-            var data = new float[samples];
-            float clampedFill = Mathf.Clamp01(fillRatio);
-            float airRatio = 1f - clampedFill;
-            // Hollow cavity resonance rises as the target bottle fills up.
-            float resonanceFrequency = Mathf.Lerp(240f, 1050f, clampedFill);
-            float noiseGain = 0.8f - 0.3f * clampedFill;
-            float resonanceGain = airRatio * 0.6f;
-
-            float lpFast = 0f;
-            float lpSlow = 0f;
-            float fastCoeff = OnePoleCoefficient(2500f, sampleRate);
-            float slowCoeff = OnePoleCoefficient(300f, sampleRate);
-
-            float b0 = 0f;
-            float b1 = 0f;
-            float b2 = 0f;
-            float a1 = 0f;
-            float a2 = 0f;
-            float x1 = 0f;
-            float x2 = 0f;
-            float y1 = 0f;
-            float y2 = 0f;
-
-            uint noiseState = 0xA511E9B3u + (uint)variant * 1103515245u;
-            float phaseA = 0.47f + variant * 0.31f;
-            float phaseB = 1.29f + variant * 0.23f;
-
-            for (int i = 0; i < samples; i++)
-            {
-                float t = i / (float)sampleRate;
-                if ((i & 127) == 0)
-                {
-                    // Deterministic ±2% center-frequency modulation to avoid tonal fatigue.
-                    float jitter = 1f + 0.02f * Mathf.Sin(2f * Mathf.PI * 2.1f * t + phaseA);
-                    GetBandPassCoefficients(resonanceFrequency * jitter, 3f, sampleRate, out b0, out b1, out b2, out a1, out a2);
-                }
-
-                float white = NextNoiseSample(ref noiseState);
-                lpFast += fastCoeff * (white - lpFast);
-                lpSlow += slowCoeff * (white - lpSlow);
-                float turbulence = lpFast - lpSlow;
-
-                float y = b0 * white + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-                x2 = x1;
-                x1 = white;
-                y2 = y1;
-                y1 = y;
-
-                float ampJitter = 1f + 0.05f * Mathf.Sin(2f * Mathf.PI * 3.1f * t + phaseB);
-                data[i] = (turbulence * noiseGain + y * resonanceGain) * 0.62f * ampJitter;
-            }
-
-            HardenSampleData(data, sampleRate, 1, 0.007f, 0.015f);
-
-            if (!clip.SetData(data, 0))
-            {
-                return null;
-            }
-            return clip;
-        }
-
-        private static AudioClip CreateLevelCompleteClip()
-        {
-            const int sampleRate = 44100;
-            const float duration = 0.18f;
-            int samples = Mathf.CeilToInt(sampleRate * duration);
-            if (samples <= 0)
-            {
-                return null;
-            }
-
-            var clip = AudioClip.Create("LevelComplete", samples, 1, sampleRate, false);
-            if (clip == null)
-            {
-                return null;
-            }
-
-            var data = new float[samples];
-            uint noiseState = 0xC0FFEE12u;
-            for (int i = 0; i < samples; i++)
-            {
-                float t = i / (float)sampleRate;
-                float attack = 1f - Mathf.Exp(-t * 120f);
-                float decay = Mathf.Exp(-t * 22f);
-                float env = attack * decay;
-                float noise = NextNoiseSample(ref noiseState);
-                float shimmerA = Mathf.Sin(2f * Mathf.PI * 760f * t) * 0.12f;
-                float shimmerB = Mathf.Sin(2f * Mathf.PI * 1140f * t) * 0.08f;
-                data[i] = (noise * 0.2f + shimmerA + shimmerB) * 0.35f * env;
-            }
-
-            HardenSampleData(data, sampleRate, 1, 0.006f, 0.012f);
-
-            if (!clip.SetData(data, 0))
-            {
-                return null;
-            }
-            return clip;
-        }
-
-        private static AudioClip CreateButtonClickClip()
-        {
-            const int sampleRate = 44100;
-            const float duration = 0.11f;
-            int samples = Mathf.CeilToInt(sampleRate * duration);
-            if (samples <= 0)
-            {
-                return null;
-            }
-
-            var clip = AudioClip.Create("ButtonClick", samples, 1, sampleRate, false);
-            if (clip == null)
-            {
-                return null;
-            }
-
-            var data = new float[samples];
-            const float baseFreq = 210f;
-            const float bodyFreq = 290f;
-            uint noiseState = 0x1BADB002u;
-            for (int i = 0; i < samples; i++)
-            {
-                float t = i / (float)sampleRate;
-                float fastAttack = 1f - Mathf.Exp(-t * 180f);
-                float decay = Mathf.Exp(-t * 22f);
-                float env = fastAttack * decay;
-
-                float thump = Mathf.Sin(2f * Mathf.PI * baseFreq * t);
-                float body = Mathf.Sin(2f * Mathf.PI * bodyFreq * t) * 0.45f;
-                float texture = NextNoiseSample(ref noiseState) * 0.05f;
-
-                data[i] = (thump * 0.72f + body * 0.28f + texture) * 0.2f * env;
-            }
-
-            HardenSampleData(data, sampleRate, 1, 0.005f, 0.01f);
-
-            if (!clip.SetData(data, 0))
-            {
-                return null;
-            }
-            return clip;
-        }
-
-        private float NextSignedJitter(float amount)
-        {
-            _variationState = _variationState * 1664525u + 1013904223u;
-            float normalized = ((_variationState >> 8) * (1f / 8388608f)) * 2f - 1f;
-            return normalized * amount;
         }
 
         public static void HardenSampleData(float[] data, int sampleRate, int channels, float attackDuration, float releaseDuration)
@@ -429,7 +477,6 @@ namespace Decantra.Presentation
             int attackSamples = Mathf.Max(1, Mathf.RoundToInt(sampleRate * Mathf.Clamp(attackDuration, 0.005f, 0.01f)));
             int releaseSamples = Mathf.Max(1, Mathf.RoundToInt(sampleRate * Mathf.Clamp(releaseDuration, 0.005f, 0.02f)));
 
-            // Attack/release envelope suppresses start/end discontinuities that cause clicks.
             for (int frame = 0; frame < frameCount; frame++)
             {
                 float attack = Mathf.Clamp01(frame / (float)attackSamples);
@@ -444,15 +491,11 @@ namespace Decantra.Presentation
 
             for (int channel = 0; channel < channels; channel++)
             {
-                // Hard-zero boundaries guarantee click-free clip edges.
                 int firstIndex = channel;
                 int lastIndex = (frameCount - 1) * channels + channel;
                 data[firstIndex] = 0f;
                 data[lastIndex] = 0f;
 
-                // Mean subtraction removes DC bias and lowers low-frequency thumps.
-                // Compute and apply DC offset only over interior samples so that
-                // the zeroed boundaries remain unchanged.
                 if (frameCount > 2)
                 {
                     float sum = 0f;

@@ -18,7 +18,7 @@ namespace Decantra.PlayMode.Tests
     public sealed class AudioManagerPlayModeTests
     {
         [UnityTest]
-        public IEnumerator GeneratedClips_AreHardenedAgainstClicksAndBias()
+        public IEnumerator AssetClips_AreLoaded()
         {
             var host = new GameObject("AudioManagerTestHost");
             var manager = host.AddComponent<AudioManager>();
@@ -26,15 +26,38 @@ namespace Decantra.PlayMode.Tests
 
             var buttonClip = (AudioClip)GetPrivateField(manager, "_buttonClickClip");
             var levelCompleteClip = (AudioClip)GetPrivateField(manager, "_levelCompleteClip");
+            var bottleFullClip = (AudioClip)GetPrivateField(manager, "_bottleFullClip");
+            var stageUnlockedClip = (AudioClip)GetPrivateField(manager, "_stageUnlockedClip");
             var pourClips = (AudioClip[])GetPrivateField(manager, "_pourClips");
 
-            AssertClipIsSafe(buttonClip);
-            AssertClipIsSafe(levelCompleteClip);
+            Assert.NotNull(buttonClip, "Expected button-click clip to load.");
+            Assert.NotNull(levelCompleteClip, "Expected level-complete clip to load.");
+            Assert.NotNull(bottleFullClip, "Expected bottle-full clip to load.");
+            Assert.NotNull(stageUnlockedClip, "Expected stage-unlocked clip to load.");
             Assert.NotNull(pourClips);
-            Assert.Greater(pourClips.Length, 0);
-            AssertClipIsSafe(pourClips[0]);
-            AssertClipIsSafe(pourClips[pourClips.Length / 2]);
-            AssertClipIsSafe(pourClips[pourClips.Length - 1]);
+            Assert.AreEqual(2, pourClips.Length, "Expected exactly two pour clip variants.");
+            Assert.NotNull(pourClips[0]);
+            Assert.NotNull(pourClips[1]);
+
+            Object.Destroy(host);
+        }
+
+        [UnityTest]
+        public IEnumerator PourSelection_IsDeterministicPerLevelSeed()
+        {
+            var host = new GameObject("AudioManagerSelectionHost");
+            var manager = host.AddComponent<AudioManager>();
+            yield return null;
+
+            manager.SelectPourClipForLevel(12, 34567);
+            var first = (AudioClip)GetPrivateField(manager, "_selectedPourClip");
+
+            manager.SelectPourClipForLevel(12, 34567);
+            var second = (AudioClip)GetPrivateField(manager, "_selectedPourClip");
+
+            Assert.NotNull(first);
+            Assert.NotNull(second);
+            Assert.AreEqual(first, second, "Pour clip selection must be stable for the same level/seed.");
 
             Object.Destroy(host);
         }
@@ -49,11 +72,15 @@ namespace Decantra.PlayMode.Tests
             int initialSources = host.GetComponents<AudioSource>().Length;
             Assert.Greater(initialSources, 0);
 
+            manager.SelectPourClipForLevel(3, 1001);
+
             for (int i = 0; i < 24; i++)
             {
                 manager.PlayButtonClick();
-                manager.PlayPour(i / 23f);
+                manager.PlayPourSegment(i / 24f, (i + 1) / 24f);
                 manager.PlayLevelComplete();
+                manager.PlayBottleFull();
+                manager.PlayStageUnlocked();
             }
 
             int finalSources = host.GetComponents<AudioSource>().Length;
@@ -70,28 +97,5 @@ namespace Decantra.PlayMode.Tests
             return field.GetValue(instance);
         }
 
-        private static void AssertClipIsSafe(AudioClip clip)
-        {
-            Assert.NotNull(clip, "Expected clip to be generated.");
-            int totalSamples = clip.samples * clip.channels;
-            Assert.Greater(totalSamples, 2);
-            var data = new float[totalSamples];
-            Assert.IsTrue(clip.GetData(data, 0), $"Failed reading clip data for '{clip.name}'.");
-
-            Assert.AreEqual(0f, data[0], 1e-6f, $"Clip '{clip.name}' must start at zero.");
-            Assert.AreEqual(0f, data[data.Length - 1], 1e-6f, $"Clip '{clip.name}' must end at zero.");
-
-            float mean = 0f;
-            float peak = 0f;
-            for (int i = 0; i < data.Length; i++)
-            {
-                mean += data[i];
-                peak = Mathf.Max(peak, Mathf.Abs(data[i]));
-            }
-
-            mean /= data.Length;
-            Assert.Less(Mathf.Abs(mean), 0.002f, $"Clip '{clip.name}' has DC offset {mean}.");
-            Assert.LessOrEqual(peak, 1f, $"Clip '{clip.name}' clips at peak {peak}.");
-        }
     }
 }

@@ -102,6 +102,7 @@ namespace Decantra.Presentation.Controller
         private GameObject _highContrastOverlay;
         private Toggle _accessibleColorsToggle;
         private AudioManager _audioManager;
+        private int _lastStageUnlockSfxLevel = int.MinValue;
 
         private const float TransitionTimeoutSeconds = 2.5f;
         private const float BannerTimeoutSeconds = 5.5f;
@@ -357,6 +358,7 @@ namespace Decantra.Presentation.Controller
             ApplyBackgroundVariation(_currentLevel, _currentSeed, _state?.BackgroundPaletteIndex ?? -1);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
+            InitializeLevelAudio(_currentLevel, _currentSeed);
             Render();
             _inputLocked = false;
         }
@@ -591,6 +593,10 @@ namespace Decantra.Presentation.Controller
 
             int applied;
             TryApplyMoveAndScore(sourceIndex, targetIndex, out applied);
+            if (_state != null && targetIndex >= 0 && targetIndex < _state.Bottles.Count && _state.Bottles[targetIndex].IsSolvedBottle())
+            {
+                PlayBottleFullSfx();
+            }
             Render();
             sourceView?.ClearOutgoing();
             targetView?.ClearIncoming();
@@ -1148,9 +1154,10 @@ namespace Decantra.Presentation.Controller
         {
             if (!_sfxEnabled || _audioManager == null || _state == null) return;
 
-            int targetFill = _state.Bottles[targetIndex].Count + amount;
-            float ratio = Mathf.Clamp01(targetFill / (float)_state.Bottles[targetIndex].Capacity);
-            _audioManager.PlayPour(ratio);
+            var targetBottle = _state.Bottles[targetIndex];
+            float previousFillRatio = Mathf.Clamp01(targetBottle.Count / (float)targetBottle.Capacity);
+            float newFillRatio = Mathf.Clamp01((targetBottle.Count + amount) / (float)targetBottle.Capacity);
+            _audioManager.PlayPourSegment(previousFillRatio, newFillRatio);
         }
 
         private void SetupAudio()
@@ -1170,6 +1177,12 @@ namespace Decantra.Presentation.Controller
         {
             if (!_sfxEnabled || _audioManager == null) return;
             _audioManager.PlayLevelComplete();
+        }
+
+        private void PlayBottleFullSfx()
+        {
+            if (!_sfxEnabled || _audioManager == null) return;
+            _audioManager.PlayBottleFull();
         }
 
         private void ApplyAccessibilitySettings()
@@ -1419,11 +1432,26 @@ namespace Decantra.Presentation.Controller
             ApplyBackgroundVariation(_currentLevel, _currentSeed, _state?.BackgroundPaletteIndex ?? -1);
             StartPrecomputeNextLevel();
             PersistCurrentProgress(_currentLevel, _currentSeed);
+            InitializeLevelAudio(_currentLevel, _currentSeed);
             Render();
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra LevelLoaded level={_currentLevel} seed={_currentSeed}");
 #endif
+        }
+
+        private void InitializeLevelAudio(int levelIndex, int seed)
+        {
+            if (_audioManager == null) return;
+
+            _audioManager.SelectPourClipForLevel(levelIndex, seed);
+
+            if (!_sfxEnabled) return;
+            if (levelIndex <= 0 || levelIndex % 10 != 0) return;
+            if (_lastStageUnlockSfxLevel == levelIndex) return;
+
+            _lastStageUnlockSfxLevel = levelIndex;
+            _audioManager.PlayStageUnlocked();
         }
 
         private void ApplyBackgroundVariation(int levelIndex, int seed, int backgroundPaletteIndex)
