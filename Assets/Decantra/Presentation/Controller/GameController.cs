@@ -108,6 +108,7 @@ namespace Decantra.Presentation.Controller
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
         private const float StartupVisualSettleSeconds = 0.9f;
+        private static readonly bool EnablePourDiagnostics = false;
 
         private readonly struct GeneratedLevel
         {
@@ -546,14 +547,23 @@ namespace Decantra.Presentation.Controller
             int poured = GetPourAmount(sourceIndex, targetIndex);
             if (poured <= 0) return false;
 
-            duration = Mathf.Max(0.2f, 0.12f * poured);
+            var targetBottle = _state.Bottles[targetIndex];
+            float previousFillRatio = Mathf.Clamp01(targetBottle.Count / (float)targetBottle.Capacity);
+            float newFillRatio = Mathf.Clamp01((targetBottle.Count + poured) / (float)targetBottle.Capacity);
+
+            duration = ResolvePourWindowDuration(previousFillRatio, newFillRatio, poured);
             _inputLocked = true;
 
             var sourceView = GetBottleView(sourceIndex);
             var targetView = GetBottleView(targetIndex);
             var color = _state.Bottles[sourceIndex].TopColor;
 
-            PlayPourSfx(targetIndex, poured);
+            PlayPourSfx(previousFillRatio, newFillRatio);
+
+            if (EnablePourDiagnostics)
+            {
+                Debug.Log($"Decantra PourWindow start={Time.realtimeSinceStartup:0.000}s end~={Time.realtimeSinceStartup + duration:0.000}s startFill={previousFillRatio:0.###} endFill={newFillRatio:0.###} delta={(newFillRatio - previousFillRatio):0.###} duration={duration:0.###}");
+            }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra PourStart level={_state.LevelIndex} source={sourceIndex} target={targetIndex} poured={poured} color={(color.HasValue ? color.Value.ToString() : "none")}");
@@ -1150,14 +1160,20 @@ namespace Decantra.Presentation.Controller
 
         private bool IsCleanSolve => !_usedUndo && !_usedHints && !_usedRestart;
 
-        private void PlayPourSfx(int targetIndex, int amount)
+        private void PlayPourSfx(float previousFillRatio, float newFillRatio)
         {
             if (!_sfxEnabled || _audioManager == null || _state == null) return;
-
-            var targetBottle = _state.Bottles[targetIndex];
-            float previousFillRatio = Mathf.Clamp01(targetBottle.Count / (float)targetBottle.Capacity);
-            float newFillRatio = Mathf.Clamp01((targetBottle.Count + amount) / (float)targetBottle.Capacity);
             _audioManager.PlayPourSegment(previousFillRatio, newFillRatio);
+        }
+
+        private float ResolvePourWindowDuration(float previousFillRatio, float newFillRatio, int poured)
+        {
+            if (_audioManager == null)
+            {
+                return Mathf.Max(0.2f, 0.12f * poured);
+            }
+
+            return _audioManager.CalculatePourWindowDuration(previousFillRatio, newFillRatio);
         }
 
         private void SetupAudio()

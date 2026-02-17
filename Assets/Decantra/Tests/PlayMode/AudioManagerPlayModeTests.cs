@@ -38,6 +38,8 @@ namespace Decantra.PlayMode.Tests
             Assert.AreEqual(2, pourClips.Length, "Expected exactly two pour clip variants.");
             Assert.NotNull(pourClips[0]);
             Assert.NotNull(pourClips[1]);
+            StringAssert.Contains("short", pourClips[0].name.ToLowerInvariant());
+            StringAssert.Contains("short", pourClips[1].name.ToLowerInvariant());
 
             Object.Destroy(host);
         }
@@ -85,6 +87,21 @@ namespace Decantra.PlayMode.Tests
 
             int finalSources = host.GetComponents<AudioSource>().Length;
             Assert.AreEqual(initialSources, finalSources, "Audio source pool size changed during repeated playback.");
+
+            Object.Destroy(host);
+        }
+
+        [UnityTest]
+        public IEnumerator PourWindowDuration_EnforcesMinimumAudibleLength()
+        {
+            var host = new GameObject("AudioManagerDurationHost");
+            var manager = host.AddComponent<AudioManager>();
+            yield return null;
+
+            manager.SelectPourClipForLevel(1, 1);
+            float duration = manager.CalculatePourWindowDuration(0.1f, 0.2f);
+
+            Assert.GreaterOrEqual(duration, 0.4f);
 
             Object.Destroy(host);
         }

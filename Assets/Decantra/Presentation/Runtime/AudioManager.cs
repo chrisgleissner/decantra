@@ -15,13 +15,13 @@ namespace Decantra.Presentation
     public sealed class AudioManager : MonoBehaviour
     {
         private const int SourcePoolSize = 8;
-        private const float SegmentFadeSeconds = 0.01f;
-        private const float SegmentFadeMinSeconds = 0.005f;
-        private const float SegmentFadeMaxSeconds = 0.015f;
+        private const float MinAudiblePourSeconds = 0.4f;
+        private const float FadeInSeconds = 0.008f;
+        private const float FadeOutSeconds = 0.02f;
+        private static readonly bool EnablePourSfxDiagnostics = false;
 
         private readonly Dictionary<int, AudioClip> _safeClipCache = new Dictionary<int, AudioClip>();
         private readonly Dictionary<int, ClipSampleData> _clipSampleCache = new Dictionary<int, ClipSampleData>();
-        private readonly Dictionary<AudioSource, Coroutine> _segmentRoutines = new Dictionary<AudioSource, Coroutine>();
 
         private AudioSource[] _sources;
         private AudioClip[] _pourClips;
@@ -79,8 +79,8 @@ namespace Decantra.Presentation
             _stageUnlockedClip = LoadClip("Sound/stage-unlocked");
 
             var pours = new List<AudioClip>(2);
-            var pourA = LoadClip("Sound/liquid-pour");
-            var pourB = LoadClip("Sound/liquid-pour2");
+            var pourA = LoadClip("Sound/liquid-pour-short");
+            var pourB = LoadClip("Sound/liquid-pour2-short");
             if (pourA != null) pours.Add(pourA);
             if (pourB != null) pours.Add(pourB);
             _pourClips = pours.ToArray();
@@ -92,15 +92,6 @@ namespace Decantra.Presentation
 
         private void OnDestroy()
         {
-            foreach (var pair in _segmentRoutines)
-            {
-                if (pair.Value != null)
-                {
-                    StopCoroutine(pair.Value);
-                }
-            }
-            _segmentRoutines.Clear();
-
             foreach (var pair in _safeClipCache)
             {
                 if (pair.Value != null)
@@ -133,10 +124,10 @@ namespace Decantra.Presentation
                 return;
             }
 
-            var previousState = Random.state;
-            Random.InitState(HashLevelSeed(levelIndex, seed));
-            int selected = Random.Range(0, _pourClips.Length);
-            Random.state = previousState;
+            var previousState = UnityEngine.Random.state;
+            UnityEngine.Random.InitState(HashLevelSeed(levelIndex, seed));
+            int selected = UnityEngine.Random.Range(0, _pourClips.Length);
+            UnityEngine.Random.state = previousState;
 
             _selectedPourClipIndex = selected;
             _selectedPourClip = _pourClips[selected];
@@ -145,6 +136,25 @@ namespace Decantra.Presentation
         public void PlayPour(float fillRatio)
         {
             PlayPourSegment(0f, Mathf.Clamp01(fillRatio));
+        }
+
+        public float GetSelectedPourClipLengthSeconds()
+        {
+            var clip = _selectedPourClip != null ? _selectedPourClip : (_pourClips != null && _pourClips.Length > 0 ? _pourClips[0] : null);
+            if (clip == null) return 0.8f;
+            return Mathf.Max(0.0001f, clip.length);
+        }
+
+        public float CalculatePourWindowDuration(float startFillRatio, float endFillRatio)
+        {
+            var clip = _selectedPourClip != null ? _selectedPourClip : (_pourClips != null && _pourClips.Length > 0 ? _pourClips[0] : null);
+            if (clip == null)
+            {
+                return MinAudiblePourSeconds;
+            }
+
+            ComputeSegmentBounds(clip.length, Mathf.Clamp01(startFillRatio), Mathf.Clamp01(endFillRatio), out float segmentStart, out float segmentEnd);
+            return Mathf.Max(0.0001f, segmentEnd - segmentStart);
         }
 
         public void PlayPourSegment(float previousFillRatio, float newFillRatio)
@@ -195,12 +205,6 @@ namespace Decantra.Presentation
             var safeClip = EnsureSafeClip(clip);
             if (safeClip == null) return;
 
-            if (_segmentRoutines.TryGetValue(source, out var existingRoutine) && existingRoutine != null)
-            {
-                StopCoroutine(existingRoutine);
-                _segmentRoutines.Remove(source);
-            }
-
             source.Stop();
             source.clip = safeClip;
             source.pitch = Mathf.Max(0.01f, pitch);
@@ -224,63 +228,149 @@ namespace Decantra.Presentation
             float clampedEndRatio = Mathf.Clamp01(endRatio);
             if (clampedEndRatio <= clampedStartRatio) return;
 
-            float startTime = clampedStartRatio * safeClip.length;
-            float endTime = clampedEndRatio * safeClip.length;
-            if (endTime <= startTime) return;
+            ComputeSegmentBounds(safeClip.length, clampedStartRatio, clampedEndRatio, out float segmentStart, out float segmentEnd);
+            float segmentLen = Mathf.Max(0.0001f, segmentEnd - segmentStart);
 
-            startTime = FindNearZeroStartTime(safeClip, startTime);
-            float duration = Mathf.Max(0.001f, endTime - startTime);
-
-            if (_segmentRoutines.TryGetValue(source, out var existingRoutine) && existingRoutine != null)
+            if (EnablePourSfxDiagnostics)
             {
-                StopCoroutine(existingRoutine);
-                _segmentRoutines.Remove(source);
+                Debug.Log($"Decantra PourSfx clip={safeClip.name} startFill={clampedStartRatio:0.###} endFill={clampedEndRatio:0.###} delta={clampedEndRatio - clampedStartRatio:0.###} segStart={segmentStart:0.###} segEnd={segmentEnd:0.###} segLen={segmentLen:0.###} fadeIn={FadeInSeconds:0.###} fadeOut={FadeOutSeconds:0.###} dsp={AudioSettings.dspTime:0.000}");
+            }
+
+            AudioClip playbackClip = BuildSegmentClip(safeClip, segmentStart, segmentEnd);
+            if (playbackClip == null)
+            {
+                playbackClip = safeClip;
             }
 
             source.Stop();
-            source.clip = safeClip;
+            source.clip = playbackClip;
             source.pitch = 1f;
-            source.volume = 0f;
+            source.volume = Mathf.Clamp01(gain) * _volume01;
             source.mute = !_isEnabled || _volume01 <= 0.0001f;
-            source.time = Mathf.Clamp(startTime, 0f, Mathf.Max(0f, safeClip.length - 0.0001f));
+            source.time = 0f;
             source.Play();
 
-            var routine = StartCoroutine(PlaySegmentRoutine(source, Mathf.Clamp01(gain) * _volume01, duration));
-            _segmentRoutines[source] = routine;
+            if (playbackClip != null && playbackClip != safeClip)
+            {
+                StartCoroutine(DestroyWhenFinished(playbackClip, playbackClip.length + 0.05f));
+            }
         }
 
-        private IEnumerator PlaySegmentRoutine(AudioSource source, float targetVolume, float duration)
+        private static void ComputeSegmentBounds(float clipLengthSeconds, float startFillRatio, float endFillRatio, out float segmentStart, out float segmentEnd)
         {
-            float clampedDuration = Mathf.Max(0.001f, duration);
-            float fade = Mathf.Clamp(SegmentFadeSeconds, SegmentFadeMinSeconds, SegmentFadeMaxSeconds);
-            fade = Mathf.Min(fade, clampedDuration * 0.5f);
+            float clampedClipLength = Mathf.Max(0f, clipLengthSeconds);
+            float clampedStartFill = Mathf.Clamp01(startFillRatio);
+            float clampedEndFill = Mathf.Clamp01(endFillRatio);
 
-            float elapsed = 0f;
-            while (elapsed < clampedDuration)
+            segmentStart = clampedClipLength * clampedStartFill;
+            segmentEnd = clampedClipLength * clampedEndFill;
+
+            if (segmentEnd < segmentStart)
             {
-                if (source == null || !source.isPlaying)
+                float temp = segmentStart;
+                segmentStart = segmentEnd;
+                segmentEnd = temp;
+            }
+
+            float segmentLength = segmentEnd - segmentStart;
+            if (clampedClipLength < MinAudiblePourSeconds)
+            {
+                Debug.LogError($"Decantra PourSfx short clip too short ({clampedClipLength:0.###}s). Falling back to full clip.");
+                segmentStart = 0f;
+                segmentEnd = clampedClipLength;
+                return;
+            }
+
+            if (segmentLength >= MinAudiblePourSeconds)
+            {
+                return;
+            }
+
+            float mid = (segmentStart + segmentEnd) * 0.5f;
+            segmentStart = mid - (MinAudiblePourSeconds * 0.5f);
+            segmentEnd = mid + (MinAudiblePourSeconds * 0.5f);
+
+            if (segmentStart < 0f)
+            {
+                float shift = -segmentStart;
+                segmentStart += shift;
+                segmentEnd += shift;
+            }
+
+            if (segmentEnd > clampedClipLength)
+            {
+                float shift = segmentEnd - clampedClipLength;
+                segmentStart -= shift;
+                segmentEnd -= shift;
+            }
+
+            segmentStart = Mathf.Clamp(segmentStart, 0f, clampedClipLength);
+            segmentEnd = Mathf.Clamp(segmentEnd, 0f, clampedClipLength);
+        }
+
+        private AudioClip BuildSegmentClip(AudioClip clip, float segmentStartSeconds, float segmentEndSeconds)
+        {
+            if (clip == null) return null;
+
+            var data = GetClipSampleData(clip);
+            if (data.Samples == null || data.Samples.Length == 0 || data.Channels <= 0 || data.Frequency <= 0)
+            {
+                return null;
+            }
+
+            int startFrame = Mathf.Clamp(Mathf.FloorToInt(segmentStartSeconds * data.Frequency), 0, clip.samples - 1);
+            int endFrame = Mathf.Clamp(Mathf.CeilToInt(segmentEndSeconds * data.Frequency), startFrame + 1, clip.samples);
+            int frameCount = Mathf.Max(1, endFrame - startFrame);
+            int sampleCount = frameCount * data.Channels;
+
+            var segmentSamples = new float[sampleCount];
+            System.Array.Copy(data.Samples, startFrame * data.Channels, segmentSamples, 0, sampleCount);
+
+            int fadeInFrames = Mathf.Clamp(Mathf.RoundToInt(data.Frequency * FadeInSeconds), 1, frameCount);
+            int fadeOutFrames = Mathf.Clamp(Mathf.RoundToInt(data.Frequency * FadeOutSeconds), 1, frameCount);
+
+            for (int frame = 0; frame < frameCount; frame++)
+            {
+                float gain = 1f;
+                if (frame < fadeInFrames)
                 {
-                    break;
+                    gain = Mathf.Min(gain, frame / (float)fadeInFrames);
                 }
 
-                float remaining = clampedDuration - elapsed;
-                float inGain = fade > 0f ? Mathf.Clamp01(elapsed / fade) : 1f;
-                float outGain = fade > 0f ? Mathf.Clamp01(remaining / fade) : 1f;
-                source.volume = targetVolume * Mathf.Min(inGain, outGain);
+                int framesToEnd = frameCount - 1 - frame;
+                if (framesToEnd < fadeOutFrames)
+                {
+                    gain = Mathf.Min(gain, framesToEnd / (float)fadeOutFrames);
+                }
 
-                elapsed += Time.unscaledDeltaTime;
-                yield return null;
+                int offset = frame * data.Channels;
+                for (int channel = 0; channel < data.Channels; channel++)
+                {
+                    segmentSamples[offset + channel] *= Mathf.Clamp01(gain);
+                }
             }
 
-            if (source != null)
+            for (int channel = 0; channel < data.Channels; channel++)
             {
-                source.volume = 0f;
-                source.Stop();
+                segmentSamples[channel] = 0f;
+                segmentSamples[(frameCount - 1) * data.Channels + channel] = 0f;
             }
 
-            if (source != null)
+            var segmentClip = AudioClip.Create($"{clip.name}_Segment", frameCount, data.Channels, data.Frequency, false);
+            if (segmentClip == null || !segmentClip.SetData(segmentSamples, 0))
             {
-                _segmentRoutines.Remove(source);
+                return null;
+            }
+
+            return segmentClip;
+        }
+
+        private IEnumerator DestroyWhenFinished(AudioClip clip, float waitSeconds)
+        {
+            yield return new WaitForSecondsRealtime(Mathf.Max(0.01f, waitSeconds));
+            if (clip != null)
+            {
+                Destroy(clip);
             }
         }
 
@@ -327,43 +417,6 @@ namespace Decantra.Presentation
 
             _safeClipCache[id] = safe;
             return safe;
-        }
-
-        private float FindNearZeroStartTime(AudioClip clip, float startTime)
-        {
-            if (clip == null || clip.frequency <= 0 || clip.samples <= 0)
-            {
-                return Mathf.Max(0f, startTime);
-            }
-
-            var data = GetClipSampleData(clip);
-            if (data.Samples == null || data.Samples.Length == 0 || data.Channels <= 0)
-            {
-                return Mathf.Max(0f, startTime);
-            }
-
-            int startFrame = Mathf.Clamp(Mathf.RoundToInt(startTime * data.Frequency), 0, clip.samples - 1);
-            int maxForwardFrames = Mathf.Max(1, Mathf.RoundToInt(data.Frequency * SegmentFadeMaxSeconds));
-            int endFrame = Mathf.Min(clip.samples - 1, startFrame + maxForwardFrames);
-
-            int bestFrame = startFrame;
-            float bestAmplitude = float.MaxValue;
-            for (int frame = startFrame; frame <= endFrame; frame++)
-            {
-                float amplitude = AverageAbsAmplitudeAtFrame(data.Samples, frame, data.Channels);
-                if (amplitude < bestAmplitude)
-                {
-                    bestAmplitude = amplitude;
-                    bestFrame = frame;
-                }
-
-                if (amplitude <= 0.0015f)
-                {
-                    return frame / (float)data.Frequency;
-                }
-            }
-
-            return bestFrame / (float)data.Frequency;
         }
 
         private ClipSampleData GetClipSampleData(AudioClip clip)

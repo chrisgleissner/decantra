@@ -1,61 +1,77 @@
-# Decantra Audio Replacement Plan
+# Decantra Pour SFX Short-Clip Alignment Plan
 
 Last updated: 2026-02-17
 
-## Objective
+## Goal
 
-Deterministically replace existing in-game SFX with the provided assets in `Assets/Sound` and implement level-scoped pour selection plus safe segmented pour playback.
+Align pour SFX playback to the short pour assets and required behavior:
 
-## Required mappings
+- Use only `liquid-pour-short.mp3` and `liquid-pour2-short.mp3` for pour playback.
+- Tie audio window exactly to pour window timing.
+- Select segment by fill interval.
+- Enforce minimum audible duration rule (0.4s) with clamped expansion.
+- Apply deterministic pop-safe fades.
+- Keep changes minimal and localized.
 
-- `bottle-full.mp3` → bottle becomes solved (single color + full).
-- `button-click.mp3` → UI button click SFX path.
-- `level-complete.mp3` → level completion.
-- `stage-unlocked.mp3` → entering milestone levels (10, 20, 30, ...).
-- `liquid-pour.mp3` / `liquid-pour2.mp3` → per-level selected pour clip, reused for all pours in that level.
+## Current-state findings checklist
 
-## Determinism constraints
+- [x] Located primary pour SFX path in `Assets/Decantra/Presentation/Runtime/AudioManager.cs` and trigger path in `Assets/Decantra/Presentation/Controller/GameController.cs`.
+- [x] Confirmed pour clips currently loaded via long assets:
+  - `Resources.Load<AudioClip>("Sound/liquid-pour")`
+  - `Resources.Load<AudioClip>("Sound/liquid-pour2")`
+- [x] Confirmed pour duration currently uses gameplay formula `Mathf.Max(0.2f, 0.12f * poured)`.
+- [x] Confirmed current segment playback stop/fade control is coroutine + `Time.unscaledDeltaTime` (frame-driven).
+- [x] Confirmed no minimum 0.4s expansion logic exists.
 
-- Single pour clip selection point at level initialization.
-- No per-pour re-randomization.
-- Selection is deterministic from level context (`levelIndex`, `seed`) and uses `UnityEngine.Random` only at level init.
+## Concrete tasks
 
-## Segmented pour playback constraints
+1. Replace pour clip loads with short variants only.
+2. Implement deterministic segment window computation:
+   - start/end from fill fractions
+   - min duration expansion to 0.4s
+   - clamped shift preserving 0.4s when possible
+3. Replace frame-driven fade/stop with deterministic sample-domain envelope in the played segment.
+4. Expose a single duration calculator in `AudioManager` and use it in `GameController` pour animation timing.
+5. Add optional guarded diagnostics for pour timing/segment values.
+6. Update tests for short-clip loading expectations and pool stability.
+7. Verify with searches that long pour clips are not referenced for pour playback.
 
-- Map fill delta to clip segment:
-  - `startTime = previousFillRatio * clip.length`
-  - `endTime = newFillRatio * clip.length`
-- Play only `[startTime, endTime]`.
-- Apply short fade-in/out (~10ms target, clamped 5–15ms) to prevent clicks/pops.
-- No looping, no pitch modulation.
-- Preserve overlap safety via pooled `AudioSource` usage.
+## Risks and mitigations
 
-## Execution checklist
+- Risk: short clips import/runtime length differs from expected 0.8s.
+  - Mitigation: compute duration from runtime `clip.length`; error+fallback when `< 0.4s`.
+- Risk: per-pour clip slicing causes allocations.
+  - Mitigation: keep existing fixed source pool and keep helper localized; avoid system-wide refactor.
+- Risk: audio/animation desync.
+  - Mitigation: `GameController` uses `AudioManager` duration calculator for pour window duration.
 
-- [x] Replace `PLANS.md` with this authoritative plan.
-- [x] Identify central SFX handling and trigger points.
-- [ ] Replace clip sources with `Assets/Sound` assets.
-- [ ] Add deterministic level-scoped pour clip selection.
-- [ ] Add segmented pour playback with safety fades.
-- [ ] Wire bottle-full and stage-unlocked triggers.
-- [ ] Update/adjust tests for new audio behavior.
-- [ ] Run EditMode/PlayMode checks as available and verify no missing refs.
-- [ ] Confirm no legacy generated SFX references remain in code.
+## Verification steps
+
+- [x] Compile/error check for touched files.
+- [x] EditMode tests (existing workspace task).
+- [x] Search confirms no long pour clip references used for playback path.
+- [ ] Manual behavior checklist prepared:
+  - [ ] 0%→50% maps first half acoustic segment.
+  - [ ] 50%→100% maps last half acoustic segment.
+  - [ ] tiny deltas enforce >=0.4s window.
+  - [ ] no pops/clicks on start/stop.
+  - [ ] start/end aligns with visible pour window.
 
 ## Progress log
 
-### 2026-02-17 00:00 (workspace local time)
+### 2026-02-17
 
-- Replaced prior CI-focused `PLANS.md` with this audio migration plan.
-- Located audio flow in:
-  - `Assets/Decantra/Presentation/Runtime/AudioManager.cs`
-  - `Assets/Decantra/Presentation/Controller/GameController.cs`
-  - `Assets/Decantra/Tests/PlayMode/AudioManagerPlayModeTests.cs`
-- Confirmed required files exist under `Assets/Sound`:
-  - `bottle-full.mp3`
-  - `button-click.mp3`
-  - `level-complete.mp3`
-  - `liquid-pour.mp3`
-  - `liquid-pour2.mp3`
-  - `stage-unlocked.mp3`
-- Next: implement runtime clip loading and deterministic per-level pour clip selection, then wire new trigger methods.
+- Replaced prior plan with this task-specific authoritative plan.
+- Completed code discovery and requirement verification.
+- Implemented short-clip switch in `AudioManager`:
+  - `Sound/liquid-pour-short`
+  - `Sound/liquid-pour2-short`
+- Implemented deterministic segment bounds with 0.4s minimum duration expansion and clamped shifting.
+- Implemented deterministic pop-safe fades in sample domain for pour segments (8ms in / 20ms out).
+- Aligned `GameController` pour animation duration with `AudioManager.CalculatePourWindowDuration(...)` so audio and pour window use the same duration source.
+- Added optional pour diagnostics (guarded flags) in `GameController` + `AudioManager`.
+- Updated PlayMode audio tests for short clips and minimum duration behavior.
+- Verification:
+  - Code errors check: clean for touched files.
+  - Android build: `./scripts/build_android.sh` succeeds after lock cleanup.
+  - Search confirms no `liquid-pour` / `liquid-pour2` long-asset references in runtime pour playback path.
