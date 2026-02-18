@@ -261,21 +261,21 @@ namespace Decantra.Domain.Rules
         {
             int eff = GetEffectiveLevel(levelIndex);
 
-            // Linear scaling: 6 reverse moves at level 1, 30 at level 100
+            // Keep scramble depth bounded to preserve generation/solve latency guarantees.
             float t = GetLinearProgress(levelIndex);
-            int baseMoves = 6 + (int)Math.Round(t * 24);
+            int baseMoves = 4 + (int)Math.Round(t * 12);
 
-            // Color complexity bonus
-            int colorBonus = (colorCount - 3) * 1;
+            // Color complexity bonus (bounded).
+            int colorBonus = Math.Max(0, (colorCount - 3) / 2);
 
-            // Sink level bonus (levels 18+): deeper scrambling needed
-            int sinkBonus = (eff >= 18) ? 4 : 0;
+            // Sink levels get a modest bump without exploding search cost.
+            int sinkBonus = (eff >= 18) ? 1 : 0;
 
             int result = baseMoves + colorBonus + sinkBonus;
 
             // Clamp to valid range
-            result = Math.Max(8, result);
-            result = Math.Min(30, result);
+            result = Math.Max(6, result);
+            result = Math.Min(18, result);
 
             return result;
         }

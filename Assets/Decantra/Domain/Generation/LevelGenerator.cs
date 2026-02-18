@@ -163,40 +163,6 @@ namespace Decantra.Domain.Generation
 
                     if (solveResult.OptimalMoves < 0)
                     {
-                        // Handle timeout case
-                        if (!hasSinks && solveResult.Status == SolverStatus.Timeout && appliedMoves >= minOptimalMoves)
-                        {
-                            int estimatedOptimal = (int)(appliedMoves * 0.7f);
-                            if (estimatedOptimal < minOptimalForAttempt)
-                            {
-                                lastFailure = "min_optimal_est";
-                                continue;
-                            }
-                            int estMovesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, estimatedOptimal));
-
-                            // For timeout cases, use estimated metrics
-                            var timeoutMetrics = new LevelMetrics(0.5f, 1.5f, 1, 0.5f, 0.1f, 1,
-                                CountMixedBottles(attemptState.Bottles),
-                                CountDistinctSignatures(attemptState.Bottles),
-                                CountTopColorVariety(attemptState.Bottles));
-
-                            float timeoutScore = _difficultyObjective.Score(timeoutMetrics)
-                                + 0.25f * Clamp01((estimatedOptimal - minOptimalForAttempt) / (float)Math.Max(1, minOptimalForAttempt));
-
-                            if (timeoutScore > bestScore)
-                            {
-                                bestScore = timeoutScore;
-                                bestMetrics = timeoutMetrics;
-                                bestDifficulty100 = DifficultyScorer.ComputeDifficulty100(timeoutMetrics, estimatedOptimal);
-                                bestCandidate = new LevelState(attemptState.Bottles, 0, estMovesAllowed, estimatedOptimal, profile.LevelIndex, seed, appliedMoves);
-                                optimal = estimatedOptimal;
-                                movesAllowed = estMovesAllowed;
-                                scrambleMoves = appliedMoves;
-                                solveMs = candidateSolveMs;
-                            }
-                            continue;
-                        }
-
                         lastFailure = solveResult.Status == SolverStatus.Timeout ? "solver_timeout" : "solver_unsolvable";
                         continue;
                     }
@@ -237,7 +203,7 @@ namespace Decantra.Domain.Generation
 
                     // Compute trap score (Requirement C) - budget-limited for performance
                     float trapScore = 0f;
-                    if (!relaxedMode && solveResult.Path.Count > 0)
+                    if (!relaxedMode && profile.LevelIndex <= 60 && solveResult.Path.Count > 0)
                     {
                         trapScore = MetricsComputer.ComputeTrapScore(
                             attemptState,
@@ -304,8 +270,8 @@ namespace Decantra.Domain.Generation
                     }
                 }
 
-                // If we have a passing candidate, use it
-                if (bestCandidate != null && qualityGatesApplied)
+                // Always stop once we have a valid candidate to keep generation latency bounded.
+                if (bestCandidate != null)
                 {
                     break;
                 }
@@ -329,25 +295,6 @@ namespace Decantra.Domain.Generation
                 lastFailure = $"{lastFailure ?? "unknown"}; emergency_relaxed";
                 bestScore = 0f;
                 bestDifficulty100 = Math.Max(1, DifficultyScorer.ComputeDifficulty100(LevelMetrics.Empty, optimal));
-            }
-
-            if (profile.LevelIndex <= 200)
-            {
-                var verifiedOptimalResult = _solver.SolveOptimal(bestCandidate, allowSinkMoves: true);
-                if (verifiedOptimalResult != null && verifiedOptimalResult.OptimalMoves > 0)
-                {
-                    optimal = verifiedOptimalResult.OptimalMoves;
-                    movesAllowed = Math.Max(2, MoveAllowanceCalculator.ComputeMovesAllowed(profile, optimal));
-                    bestCandidate = new LevelState(
-                        bestCandidate.Bottles,
-                        0,
-                        movesAllowed,
-                        optimal,
-                        profile.LevelIndex,
-                        seed,
-                        bestCandidate.ScrambleMoves,
-                        bestCandidate.BackgroundPaletteIndex);
-                }
             }
 
             overallTimer.Stop();
@@ -397,7 +344,7 @@ namespace Decantra.Domain.Generation
             solveMs = 0;
 
             int scrambleTarget = Math.Max(4, profile.ReverseMoves / 2);
-            for (int emergencyAttempt = 0; emergencyAttempt < 40; emergencyAttempt++)
+            for (int emergencyAttempt = 0; emergencyAttempt < 12; emergencyAttempt++)
             {
                 int emergencySeed = seed + emergencyAttempt * 15485863;
                 var emergencyRng = new Random(emergencySeed);
@@ -427,7 +374,7 @@ namespace Decantra.Domain.Generation
                 }
 
                 var solveTimer = Stopwatch.StartNew();
-                var solvedResult = _solver.SolveWithPath(candidate, 8_000_000, 8000, allowSinkMoves: true);
+                var solvedResult = _solver.SolveWithPath(candidate, 2_000_000, 2500, allowSinkMoves: true);
                 solveTimer.Stop();
                 if (solvedResult == null || solvedResult.OptimalMoves < 2)
                 {
@@ -448,54 +395,52 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveMaxAttempts(int levelIndex)
         {
-            if (levelIndex <= 6) return 6;
-            if (levelIndex >= 100) return 14;
-            if (levelIndex >= 60) return 10;
-            return 12;
+            if (levelIndex <= 6) return 4;
+            if (levelIndex >= 100) return 5;
+            if (levelIndex >= 60) return 4;
+            return 5;
         }
 
         private static int ResolveCandidatesPerAttempt(int levelIndex)
         {
             if (levelIndex <= 6) return 1;
-            if (levelIndex >= 100) return 3;
-            if (levelIndex >= 60) return 2;
-            return 2;
+            if (levelIndex >= 100) return 2;
+            return 1;
         }
 
         private static int ResolveRelaxedAttempt(int levelIndex, int maxAttempts)
         {
-            if (levelIndex <= 6) return Math.Min(3, maxAttempts - 1);
-            if (levelIndex >= 100) return Math.Min(3, maxAttempts - 1);
-            if (levelIndex >= 60) return Math.Min(4, maxAttempts - 1);
-            return Math.Min(8, maxAttempts - 1);
+            if (maxAttempts <= 1) return 0;
+            if (levelIndex <= 6) return Math.Min(2, maxAttempts - 1);
+            return Math.Min(1, maxAttempts - 1);
         }
 
         private static int ResolveSolveTimeLimitMs(int levelIndex)
         {
-            if (levelIndex >= 100) return 3000;
-            if (levelIndex >= 60) return 3000;
-            return 2000;
+            if (levelIndex >= 100) return 1200;
+            if (levelIndex >= 60) return 1000;
+            return 800;
         }
 
         private static int ResolveSolveNodeLimit(int levelIndex)
         {
-            if (levelIndex >= 100) return 2_000_000;
-            if (levelIndex >= 60) return 2_000_000;
-            return 1_200_000;
+            if (levelIndex >= 100) return 600_000;
+            if (levelIndex >= 60) return 450_000;
+            return 300_000;
         }
 
         private static int ResolveSinkClassNodeLimit(int levelIndex)
         {
-            if (levelIndex >= 100) return 900_000;
-            if (levelIndex >= 60) return 900_000;
-            return 260_000;
+            if (levelIndex >= 100) return 220_000;
+            if (levelIndex >= 60) return 160_000;
+            return 120_000;
         }
 
         private static int ResolveSinkClassTimeLimitMs(int levelIndex)
         {
-            if (levelIndex >= 100) return 2000;
-            if (levelIndex >= 60) return 2000;
-            return 500;
+            if (levelIndex >= 100) return 450;
+            if (levelIndex >= 60) return 350;
+            return 250;
         }
 
         private bool ValidateSinkClassCandidate(LevelState state, SolverResult normalSolveResult, bool requiresSinkUsageClass, out string failure)
@@ -544,33 +489,33 @@ namespace Decantra.Domain.Generation
 
         private static int ResolveTrapSampleCount(int levelIndex)
         {
-            if (levelIndex >= 100) return 4;
-            if (levelIndex >= 60) return 6;
-            return 10;
+            if (levelIndex >= 100) return 2;
+            if (levelIndex >= 60) return 3;
+            return 4;
         }
 
         private static int ResolveTrapNodeBudget(int levelIndex)
         {
-            if (levelIndex >= 100) return 500;
-            if (levelIndex >= 60) return 900;
-            return 1500;
+            if (levelIndex >= 100) return 250;
+            if (levelIndex >= 60) return 350;
+            return 500;
         }
 
         private static bool ShouldEstimateMultiplicity(int levelIndex)
         {
-            return levelIndex < 60;
+            return levelIndex < 10;
         }
 
         private static int ResolveMultiplicityNodeLimit(int levelIndex)
         {
-            if (levelIndex >= 50) return 2000;
-            return 5000;
+            if (levelIndex >= 50) return 400;
+            return 800;
         }
 
         private static int ResolveMultiplicityTimeLimitMs(int levelIndex)
         {
-            if (levelIndex >= 50) return 30;
-            return 60;
+            if (levelIndex >= 50) return 10;
+            return 15;
         }
 
         /// <summary>
