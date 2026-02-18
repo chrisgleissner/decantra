@@ -1,6 +1,6 @@
 # PLANS
 
-Last updated: 2026-02-18
+Last updated: 2026-02-18 (screenshot regression pass 2)
 Owner: GitHub Copilot (GPT-5.3-Codex)
 
 ## Mission
@@ -56,6 +56,9 @@ Validate and fix regressions end-to-end: prove screenshot provenance from the la
 - [x] Run clean build then install fresh APK.
 - [x] Regenerate all screenshot artifacts from runtime capture.
 - [x] Add explicit Star Trade-In screenshot capture artifact for regression proof.
+- [x] Suppress tutorial overlays during screenshot automation to prevent highlight bleed-through.
+- [x] Add dedicated per-step tutorial screenshots (`how_to_play_tutorial_page_XX.png`).
+- [x] Re-capture `help_overlay.png`, `options_panel_typography.png`, and all level screenshots without tutorial overlay artifacts.
 - [x] Verify captured screenshots show redesigned Star Trade-In and modal consistency.
 - [x] Confirm no screenshot contains outdated parenthesized-cost UI.
 
@@ -75,4 +78,4 @@ Validate and fix regressions end-to-end: prove screenshot provenance from the la
 - [x] Disabled states and confirmation flow behave as specified.
 - [x] All modal families are visually and behaviorally consistent.
 - [x] Fresh screenshots are generated from latest APK and verified.
-- [ ] Local tests and CI are green.
+- [ ] Local tests and CI are green. (Local green; CI pending after push)

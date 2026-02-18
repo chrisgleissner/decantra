@@ -35,15 +35,14 @@ namespace Decantra.Presentation
             public const string Prompt = "Choose an option below";
             public const string CurrentStarsFormat = "Current Stars: {0}";
             public const string ConvertTitle = "Convert All Sink Bottles";
-            public const string ConvertSubtitle = "Turns all sink bottles into normal bottles.";
+            public const string ConvertSubtitle = "Sink bottles have dark bases: they can receive liquid but cannot pour.";
             public const string AutoSolveTitle = "Auto-Solve Level";
             public const string AutoSolveSubtitle = "Plays a full solution for the current level.";
-            public const string CostLabel = "Costs";
+            public const string CostLabel = "Price";
             public const string StarsSuffix = "stars";
             public const string NotEnoughStars = "Not enough stars";
             public const string NoSinkBottles = "No sink bottles in this level";
             public const string Ready = "Ready";
-            public const string SinkDefinition = "Sink bottles have dark bases: they can receive liquid but cannot pour.";
             public const string ConfirmFormat = "Spend {0} stars to {1}?";
         }
 
@@ -274,8 +273,24 @@ namespace Decantra.Presentation
 
             if (sinkDefinitionText != null)
             {
-                sinkDefinitionText.text = StarTradeInUiConfig.Copy.SinkDefinition;
+                sinkDefinitionText.text = string.Empty;
+                sinkDefinitionText.gameObject.SetActive(false);
             }
+
+            ApplyWrapping(convertSubtitleText);
+            ApplyWrapping(autoSolveSubtitleText);
+        }
+
+        private static void ApplyWrapping(Text text)
+        {
+            if (text == null)
+            {
+                return;
+            }
+
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.resizeTextForBestFit = false;
         }
 
         private void ConfigureCard(

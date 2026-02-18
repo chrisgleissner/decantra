@@ -32,6 +32,8 @@ namespace Decantra.Presentation
         private RectTransform _activeTarget;
 
         public bool IsRunning => _running;
+        public int StepCount => _steps.Count;
+        public int CurrentStepIndex => _stepIndex;
 
         public void Initialize(GameController controller, SettingsStore settingsStore)
         {
@@ -66,6 +68,28 @@ namespace Decantra.Presentation
         {
             if (!_initialized) return;
             BeginTutorial();
+        }
+
+        public bool AdvanceStepForAutomation()
+        {
+            if (!_running)
+            {
+                return false;
+            }
+
+            NextStep();
+            return _running;
+        }
+
+        public void SuppressForAutomation(bool markCompleted = false)
+        {
+            _running = false;
+            if (markCompleted && _settingsStore != null)
+            {
+                _settingsStore.SaveTutorialCompleted(true);
+            }
+
+            HideImmediate();
         }
 
         private void LateUpdate()

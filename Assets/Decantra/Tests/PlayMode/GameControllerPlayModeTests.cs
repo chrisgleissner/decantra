@@ -575,20 +575,32 @@ namespace Decantra.Tests.PlayMode
             var autoSolveButton = GetPrivateField(dialog, "autoSolveButton") as Button;
             var convertStatusText = GetPrivateField(dialog, "convertStatusText") as Text;
             var autoSolveStatusText = GetPrivateField(dialog, "autoSolveStatusText") as Text;
+            var convertSubtitleText = GetPrivateField(dialog, "convertSubtitleText") as Text;
+            var convertCostLabelText = GetPrivateField(dialog, "convertCostLabelText") as Text;
+            var autoSolveCostLabelText = GetPrivateField(dialog, "autoSolveCostLabelText") as Text;
             var convertCostValueText = GetPrivateField(dialog, "convertCostValueText") as Text;
             var autoSolveCostValueText = GetPrivateField(dialog, "autoSolveCostValueText") as Text;
+            var sinkDefinitionText = GetPrivateField(dialog, "sinkDefinitionText") as Text;
 
             Assert.IsNotNull(convertButton);
             Assert.IsNotNull(autoSolveButton);
             Assert.IsNotNull(convertStatusText);
             Assert.IsNotNull(autoSolveStatusText);
+            Assert.IsNotNull(convertSubtitleText);
+            Assert.IsNotNull(convertCostLabelText);
+            Assert.IsNotNull(autoSolveCostLabelText);
             Assert.IsNotNull(convertCostValueText);
             Assert.IsNotNull(autoSolveCostValueText);
+            Assert.IsNotNull(sinkDefinitionText);
 
             Assert.IsFalse(convertButton.interactable, "Convert card should be disabled when stars are insufficient.");
             Assert.IsFalse(autoSolveButton.interactable, "Auto-solve card should be disabled when stars are insufficient.");
             Assert.AreEqual("Not enough stars", convertStatusText.text);
             Assert.AreEqual("Not enough stars", autoSolveStatusText.text);
+            Assert.AreEqual("Price", convertCostLabelText.text);
+            Assert.AreEqual("Price", autoSolveCostLabelText.text);
+            Assert.AreEqual("Sink bottles have dark bases: they can receive liquid but cannot pour.", convertSubtitleText.text);
+            Assert.IsFalse(sinkDefinitionText.gameObject.activeSelf, "Sink definition helper text should not render as a separate row.");
             StringAssert.Contains("stars", convertCostValueText.text);
             StringAssert.Contains("stars", autoSolveCostValueText.text);
         }

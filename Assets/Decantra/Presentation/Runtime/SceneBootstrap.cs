@@ -2213,7 +2213,7 @@ namespace Decantra.Presentation
                 subtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
                 subtitleText.verticalOverflow = VerticalWrapMode.Overflow;
                 var subtitleElement = subtitleText.gameObject.AddComponent<LayoutElement>();
-                subtitleElement.preferredHeight = 70f;
+                subtitleElement.preferredHeight = 98f;
 
                 var costRow = CreateUiChild(card.transform, "CostRow");
                 var costRowLayout = costRow.AddComponent<HorizontalLayoutGroup>();
@@ -2275,9 +2275,11 @@ namespace Decantra.Presentation
             helperText.color = StarTradeInUiConfig.TertiaryTextColor;
             helperText.horizontalOverflow = HorizontalWrapMode.Wrap;
             helperText.verticalOverflow = VerticalWrapMode.Overflow;
-            helperText.text = StarTradeInUiConfig.Copy.SinkDefinition;
+            helperText.text = string.Empty;
             var helperElement = helperText.gameObject.AddComponent<LayoutElement>();
-            helperElement.preferredHeight = 66f;
+            helperElement.preferredHeight = 0f;
+            helperElement.minHeight = 0f;
+            helperText.gameObject.SetActive(false);
 
             var confirmationRoot = CreateUiChild(panel.transform, "ConfirmationRoot");
             var confirmationLayout = confirmationRoot.AddComponent<VerticalLayoutGroup>();
@@ -2562,7 +2564,7 @@ namespace Decantra.Presentation
 
             var titleText = CreateHudText(panel.transform, "Title");
             titleText.text = title;
-            titleText.fontSize = ModalDesignTokens.Typography.ModalHeader;
+            titleText.fontSize = compact ? ModalDesignTokens.Typography.ModalHeader + 4 : ModalDesignTokens.Typography.ModalHeader;
             titleText.fontStyle = FontStyle.Bold;
             titleText.alignment = TextAnchor.MiddleCenter;
             titleText.color = ModalDesignTokens.Colors.PrimaryText;
@@ -2605,12 +2607,12 @@ namespace Decantra.Presentation
 
             var bodyText = content.AddComponent<Text>();
             bodyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            bodyText.fontSize = compact ? ModalDesignTokens.Typography.BodyText : ModalDesignTokens.Typography.BodyText + 2;
+            bodyText.fontSize = compact ? ModalDesignTokens.Typography.BodyText + 8 : ModalDesignTokens.Typography.BodyText + 2;
             bodyText.alignment = TextAnchor.UpperLeft;
             bodyText.fontStyle = FontStyle.Normal;
             bodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
             bodyText.verticalOverflow = VerticalWrapMode.Overflow;
-            bodyText.lineSpacing = 1.18f;
+            bodyText.lineSpacing = compact ? 1.22f : 1.18f;
             bodyText.color = ModalDesignTokens.Colors.PrimaryText;
             bodyText.text = body;
             bodyText.supportRichText = false;

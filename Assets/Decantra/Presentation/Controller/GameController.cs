@@ -319,6 +319,7 @@ namespace Decantra.Presentation.Controller
             }
 
             ResolveOverlayReferencesIfMissing();
+            ApplyHowToPlayOverlayTypography();
             HideModal(_optionsOverlay);
             HideModal(_howToPlayOverlay);
             HideModal(_privacyPolicyOverlay);
@@ -1005,6 +1006,21 @@ namespace Decantra.Presentation.Controller
             PlayButtonSfx();
         }
 
+        public void SuppressTutorialOverlayForAutomation()
+        {
+            ResolveTutorialManagerIfMissing();
+            if (tutorialManager != null)
+            {
+                tutorialManager.SuppressForAutomation();
+            }
+
+            var tutorialOverlay = GameObject.Find("TutorialOverlay");
+            if (tutorialOverlay != null)
+            {
+                HideModal(tutorialOverlay);
+            }
+        }
+
         public void ShowPrivacyPolicyOverlay()
         {
             ResolveOverlayReferencesIfMissing();
@@ -1132,6 +1148,7 @@ namespace Decantra.Presentation.Controller
         public void ShowHowToPlayOverlay()
         {
             ResolveOverlayReferencesIfMissing();
+            ApplyHowToPlayOverlayTypography();
             ShowModal(_howToPlayOverlay);
             PlayButtonSfx();
         }
@@ -1144,6 +1161,49 @@ namespace Decantra.Presentation.Controller
         }
 
         public bool IsHowToPlayOverlayVisible => IsModalVisible(_howToPlayOverlay);
+
+        private void ApplyHowToPlayOverlayTypography()
+        {
+            if (_howToPlayOverlay == null)
+            {
+                return;
+            }
+
+            var texts = _howToPlayOverlay.GetComponentsInChildren<Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                var text = texts[i];
+                if (text == null)
+                {
+                    continue;
+                }
+
+                text.resizeTextForBestFit = false;
+                text.horizontalOverflow = HorizontalWrapMode.Wrap;
+                text.verticalOverflow = VerticalWrapMode.Overflow;
+
+                if (string.Equals(text.name, "Title", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.ModalHeader + 4);
+                    continue;
+                }
+
+                if (string.Equals(text.name, "Label", StringComparison.OrdinalIgnoreCase)
+                    && text.transform.parent != null
+                    && string.Equals(text.transform.parent.name, "BackRow", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.ButtonText);
+                    continue;
+                }
+
+                if (text.transform.parent != null
+                    && string.Equals(text.transform.parent.name, "Content", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.BodyText + 8);
+                    text.lineSpacing = Mathf.Max(text.lineSpacing, 1.22f);
+                }
+            }
+        }
 
         private static void ShowModal(GameObject modalRoot)
         {
@@ -1197,19 +1257,26 @@ namespace Decantra.Presentation.Controller
 
         private static bool ShouldSuppressAutoTutorialForAutomation()
         {
-#if UNITY_EDITOR
             if (Application.isBatchMode)
             {
                 return true;
             }
 
-            string commandLine = Environment.CommandLine ?? string.Empty;
-            return commandLine.IndexOf("-runTests", StringComparison.OrdinalIgnoreCase) >= 0
-                || commandLine.IndexOf("-testPlatform", StringComparison.OrdinalIgnoreCase) >= 0
-                || commandLine.IndexOf("-testResults", StringComparison.OrdinalIgnoreCase) >= 0;
-#else
-            return false;
-#endif
+            if (UnityEngine.Object.FindFirstObjectByType<RuntimeScreenshot>() != null)
+            {
+                return true;
+            }
+
+            return HasLaunchFlag("-runTests")
+                || HasLaunchFlag("-testPlatform")
+                || HasLaunchFlag("-testResults")
+                || HasLaunchFlag("decantra_screenshots")
+                || HasLaunchFlag("decantra_screenshots_only")
+                || HasLaunchFlag("decantra_motion_capture")
+                || HasLaunchFlag("--screenshots")
+                || HasLaunchFlag("--screenshots-only")
+                || HasLaunchFlag("--motion-capture")
+                || HasLaunchFlag(QuietAutomationFlag);
         }
 
         private void ApplyQuietAudioOverridesForAutomation()

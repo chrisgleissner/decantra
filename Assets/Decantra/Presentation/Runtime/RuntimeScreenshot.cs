@@ -29,6 +29,8 @@ namespace Decantra.Presentation
         private const string MotionDirectoryName = "motion";
         private const string InitialRenderFileName = "initial_render.png";
         private const string AfterFirstMoveFileName = "after_first_move.png";
+        private const string TutorialPageFilePrefix = "how_to_play_tutorial_page_";
+        private const int MaxTutorialPagesToCapture = 12;
         private const int MotionFrameCount = 6;
         private const float MotionFrameIntervalMs = 600f;
 
@@ -84,6 +86,7 @@ namespace Decantra.Presentation
             }
 
             yield return WaitForControllerReady(controller);
+            yield return EnsureTutorialOverlaySuppressed();
 
             string outputDir = Path.Combine(Application.persistentDataPath, OutputDirectoryName);
             Directory.CreateDirectory(outputDir);
@@ -93,6 +96,7 @@ namespace Decantra.Presentation
             yield return CaptureStartupFadeMidpoint(outputDir, ScreenshotFiles[0]);
             yield return CaptureLaunchScreenshot(outputDir);
             yield return CaptureIntroScreenshot(outputDir);
+            yield return CaptureTutorialPages(controller, outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[6]);
             yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[7]);
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[8]);
@@ -779,6 +783,7 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            yield return EnsureTutorialOverlaySuppressed();
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
             controller.LoadLevel(levelIndex, seed);
@@ -795,6 +800,7 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            yield return EnsureTutorialOverlaySuppressed();
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
 
@@ -824,6 +830,7 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            yield return EnsureTutorialOverlaySuppressed();
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
 
@@ -903,6 +910,7 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            yield return EnsureTutorialOverlaySuppressed();
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
 
@@ -937,6 +945,7 @@ namespace Decantra.Presentation
 
         private IEnumerator CaptureStartupFadeMidpoint(string outputDir, string fileName)
         {
+            yield return EnsureTutorialOverlaySuppressed();
             var intro = UnityEngine.Object.FindFirstObjectByType<IntroBanner>();
             if (intro == null)
             {
@@ -963,6 +972,111 @@ namespace Decantra.Presentation
             {
                 banner.HideImmediate();
             }
+        }
+
+        private IEnumerator CaptureTutorialPages(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+            controller.HideOptionsOverlay();
+            controller.HideHowToPlayOverlay();
+            controller.HideStarTradeInDialog();
+            yield return EnsureTutorialOverlaySuppressed();
+
+            var tutorialManager = UnityEngine.Object.FindFirstObjectByType<TutorialManager>(FindObjectsInactive.Include);
+            if (tutorialManager == null)
+            {
+                Debug.LogError("RuntimeScreenshot: TutorialManager not found; unable to capture tutorial pages.");
+                _failed = true;
+                yield break;
+            }
+
+            controller.ReplayTutorial();
+
+            float beginTimeout = 2f;
+            float beginElapsed = 0f;
+            while (!tutorialManager.IsRunning && beginElapsed < beginTimeout)
+            {
+                beginElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (!tutorialManager.IsRunning)
+            {
+                Debug.LogError("RuntimeScreenshot: tutorial did not start for page capture.");
+                _failed = true;
+                yield break;
+            }
+
+            int page = 1;
+            while (tutorialManager.IsRunning && page <= MaxTutorialPagesToCapture)
+            {
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForSeconds(0.16f);
+                string pagePath = Path.Combine(outputDir, $"{TutorialPageFilePrefix}{page:D2}.png");
+                yield return CaptureScreenshot(pagePath);
+
+                tutorialManager.AdvanceStepForAutomation();
+                page++;
+                yield return null;
+            }
+
+            if (page <= 2)
+            {
+                Debug.LogError("RuntimeScreenshot: tutorial page capture produced too few pages.");
+                _failed = true;
+            }
+
+            if (tutorialManager.IsRunning)
+            {
+                Debug.LogWarning("RuntimeScreenshot: tutorial capture reached max page limit; forcing dismiss.");
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+        }
+
+        private IEnumerator EnsureTutorialOverlaySuppressed()
+        {
+            var controller = FindController();
+            if (controller != null)
+            {
+                controller.SuppressTutorialOverlayForAutomation();
+                controller.HideHowToPlayOverlay();
+            }
+
+            var tutorialManager = UnityEngine.Object.FindFirstObjectByType<TutorialManager>(FindObjectsInactive.Include);
+            if (tutorialManager != null)
+            {
+                tutorialManager.SuppressForAutomation();
+
+                var rootField = typeof(TutorialManager).GetField("root", BindingFlags.Instance | BindingFlags.NonPublic);
+                var rootRect = rootField?.GetValue(tutorialManager) as RectTransform;
+                if (rootRect != null)
+                {
+                    rootRect.gameObject.SetActive(false);
+                }
+
+                var highlightField = typeof(TutorialManager).GetField("highlightFrame", BindingFlags.Instance | BindingFlags.NonPublic);
+                var highlightRect = highlightField?.GetValue(tutorialManager) as RectTransform;
+                if (highlightRect != null)
+                {
+                    highlightRect.gameObject.SetActive(false);
+                }
+            }
+
+            var tutorialOverlay = GameObject.Find("TutorialOverlay");
+            if (tutorialOverlay != null)
+            {
+                tutorialOverlay.SetActive(false);
+            }
+
+            yield return null;
         }
 
         private static StarTradeInDialog FindStarTradeInDialog(GameController controller)
