@@ -13,6 +13,7 @@ using System.Reflection;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
+using Decantra.Domain.Solver;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
 using UnityEngine;
@@ -36,6 +37,13 @@ namespace Decantra.Presentation
         private const string OptionsStarfieldControlsFileName = "options_starfield_controls.png";
         private const string OptionsLegalPrivacyTermsFileName = "options_legal_privacy_terms.png";
         private const string StarTradeInLowStarsFileName = "star_trade_in_low_stars.png";
+        private const string SinkIndicatorLightFileName = "sink_indicator_light.png";
+        private const string SinkIndicatorDarkFileName = "sink_indicator_dark.png";
+        private const string SinkIndicatorComparisonFileName = "sink_indicator_comparison.png";
+        private const string AutoSolveStartFileName = "auto_solve_start.png";
+        private const string AutoSolveStepPrefix = "auto_solve_step_";
+        private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
+        private const int AutoSolveStepFrameCount = 4;
         private const string LaunchFileName = "screenshot-01-launch.png";
         private const string IntroFileName = "screenshot-02-intro.png";
         private const string Level01FileName = "screenshot-03-level-01.png";
@@ -101,6 +109,8 @@ namespace Decantra.Presentation
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, Level24FileName);
+            yield return CaptureSinkIndicatorScreenshots(controller, outputDir);
+            yield return CaptureAutoSolveEvidence(controller, outputDir);
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, Level36FileName);
             yield return CaptureOptionsScreenshot(controller, outputDir, OptionsPanelTypographyFileName);
@@ -900,6 +910,184 @@ namespace Decantra.Presentation
 
             controller.HideStarTradeInDialog();
             yield return null;
+        }
+
+        private IEnumerator CaptureSinkIndicatorScreenshots(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.LoadLevel(20, 682415);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.25f);
+
+            var background = TryGetBackgroundImage();
+            Color originalBackground = background != null ? background.color : Color.black;
+
+            try
+            {
+                if (background != null)
+                {
+                    background.color = new Color(0.92f, 0.95f, 1f, 1f);
+                    background.SetAllDirty();
+                }
+                Canvas.ForceUpdateCanvases();
+                yield return new WaitForEndOfFrame();
+                yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorLightFileName));
+
+                if (background != null)
+                {
+                    background.color = new Color(0.08f, 0.11f, 0.18f, 1f);
+                    background.SetAllDirty();
+                }
+                Canvas.ForceUpdateCanvases();
+                yield return new WaitForEndOfFrame();
+                yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorDarkFileName));
+
+                if (background != null)
+                {
+                    background.color = originalBackground;
+                    background.SetAllDirty();
+                }
+                Canvas.ForceUpdateCanvases();
+                yield return new WaitForEndOfFrame();
+                yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorComparisonFileName));
+            }
+            finally
+            {
+                if (background != null)
+                {
+                    background.color = originalBackground;
+                    background.SetAllDirty();
+                }
+            }
+        }
+
+        private IEnumerator CaptureAutoSolveEvidence(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.HideOptionsOverlay();
+            controller.HideHowToPlayOverlay();
+            controller.HideStarTradeInDialog();
+
+            controller.LoadLevel(24, 873193);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.25f);
+
+            yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveStartFileName));
+
+            if (!TryGetCurrentStateSnapshot(controller, out var solveState))
+            {
+                Debug.LogError("RuntimeScreenshot: Could not access level state for auto-solve evidence capture.");
+                _failed = true;
+                yield break;
+            }
+
+            var solver = new BfsSolver();
+            var result = solver.SolveWithPath(solveState, 8_000_000, 8_000, allowSinkMoves: true);
+            if (result == null || result.Path == null || result.Path.Count == 0)
+            {
+                Debug.LogError("RuntimeScreenshot: Solver returned no path for auto-solve evidence capture.");
+                _failed = true;
+                yield break;
+            }
+
+            int capturedSteps = 0;
+            int successfulMoves = 0;
+
+            for (int i = 0; i < result.Path.Count; i++)
+            {
+                var move = result.Path[i];
+                if (!controller.TryStartMove(move.Source, move.Target, out _))
+                {
+                    Debug.LogError($"RuntimeScreenshot: Failed to start auto-solve move {i} ({move.Source}->{move.Target}).");
+                    _failed = true;
+                    yield break;
+                }
+                successfulMoves++;
+
+                if (capturedSteps < AutoSolveStepFrameCount)
+                {
+                    yield return new WaitForSeconds(0.12f);
+                    yield return CaptureScreenshot(Path.Combine(outputDir, $"{AutoSolveStepPrefix}{capturedSteps + 1:D2}.png"));
+                    capturedSteps++;
+                }
+
+                float timeout = 8f;
+                float elapsed = 0f;
+                while (controller.IsInputLocked && elapsed < timeout)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+
+                if (elapsed >= timeout)
+                {
+                    Debug.LogError("RuntimeScreenshot: Timed out waiting for auto-solve move animation to finish.");
+                    _failed = true;
+                    yield break;
+                }
+
+                yield return new WaitForSeconds(0.06f);
+            }
+
+            if (successfulMoves <= 0 || capturedSteps <= 0)
+            {
+                Debug.LogError("RuntimeScreenshot: Auto-solve evidence capture did not record move playback frames.");
+                _failed = true;
+                yield break;
+            }
+
+            yield return new WaitForSeconds(0.15f);
+            yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
+        }
+
+        private static bool TryGetCurrentStateSnapshot(GameController controller, out LevelState snapshot)
+        {
+            snapshot = null;
+            if (controller == null)
+            {
+                return false;
+            }
+
+            var stateField = typeof(GameController).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (stateField == null)
+            {
+                return false;
+            }
+
+            var levelState = stateField.GetValue(controller) as LevelState;
+            if (levelState == null)
+            {
+                return false;
+            }
+
+            snapshot = new LevelState(
+                levelState.Bottles,
+                levelState.MovesUsed,
+                levelState.MovesAllowed,
+                levelState.OptimalMoves,
+                levelState.LevelIndex,
+                levelState.Seed,
+                levelState.ScrambleMoves,
+                levelState.BackgroundPaletteIndex);
+            return true;
         }
 
         private IEnumerator CaptureOptionsCoverageScreenshots(GameController controller, string outputDir)

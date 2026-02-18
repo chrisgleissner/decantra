@@ -137,7 +137,7 @@ namespace Decantra.Presentation
                 _steps.Add(new TutorialStepData(
                     "sink-only",
                     sinkBottleName,
-                    "Dark-base sink bottles can receive liquid but cannot be picked as sources."
+                    "Sink bottles are marked by a dark bottom stripe. They can receive liquid but cannot be picked as sources."
                 ));
             }
 

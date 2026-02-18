@@ -568,7 +568,7 @@ namespace Decantra.Presentation.Controller
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
         {
             duration = 0f;
-            if (_inputLocked || _state == null) return false;
+            if ((_inputLocked && !_isAutoSolving) || _state == null) return false;
             if (sourceIndex == targetIndex) return false;
 
             int poured = GetPourAmount(sourceIndex, targetIndex);

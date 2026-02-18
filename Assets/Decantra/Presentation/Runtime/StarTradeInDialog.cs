@@ -35,7 +35,7 @@ namespace Decantra.Presentation
             public const string Prompt = "Choose an option below";
             public const string CurrentStarsFormat = "Current Stars: {0}";
             public const string ConvertTitle = "Convert All Sink Bottles";
-            public const string ConvertSubtitle = "Sink bottles have dark bases: they can receive liquid but cannot pour.";
+            public const string ConvertSubtitle = "Sink bottles have a dark bottom stripe: they can receive liquid but cannot pour.";
             public const string AutoSolveTitle = "Auto-Solve Level";
             public const string AutoSolveSubtitle = "Plays a full solution for the current level.";
             public const string CostLabel = "Price";

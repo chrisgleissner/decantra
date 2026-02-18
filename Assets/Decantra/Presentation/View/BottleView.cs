@@ -16,9 +16,6 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
-        private const float BaseHeightRatio = 0.42f;
-        private const float BaseWidthRatio = 1.1f;
-
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
         private const float RefOutlineHeight = 372f;
         private const float RefSlotRootHeight = 320f;
@@ -389,15 +386,20 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
-            // Sink marker: pure black for maximum visual distinction
-            Color sinkMarkerColor = new Color(0f, 0f, 0f, 0.7f);
-
             if (bottle.IsSink)
             {
                 if (basePlate != null)
                 {
                     basePlate.gameObject.SetActive(true);
-                    basePlate.color = sinkMarkerColor;
+                    basePlate.color = SinkIndicatorDesignTokens.EdgeColor;
+                    basePlate.raycastTarget = false;
+                }
+
+                if (anchorCollar != null)
+                {
+                    anchorCollar.gameObject.SetActive(true);
+                    anchorCollar.color = SinkIndicatorDesignTokens.CoreColor;
+                    anchorCollar.raycastTarget = false;
                 }
 
                 if (body != null)
@@ -416,6 +418,8 @@ namespace Decantra.Presentation.View
                 {
                     normalShadow.gameObject.SetActive(false);
                 }
+
+                UpdateSinkIndicatorLayout();
             }
             else
             {
@@ -455,86 +459,96 @@ namespace Decantra.Presentation.View
                     shadowRect.anchoredPosition = new Vector2(0f, outlineBottom);
                 }
             }
-
-            UpdateBaseLayout();
         }
 
         /// <summary>
-        /// Positions the anchorCollar (marker band) so that it is vertically centered
-        /// within the first slot of liquid. When 1 unit of liquid is poured in, the
-        /// liquid above and below the band will have equal height.
-        /// Re-parents the collar into slotRoot and places it last in sibling order
-        /// so it renders on top of any liquid (it represents a marking in the glass).
+        /// Positions sink indicator visuals inside the bottle bounds as a dual-tone stripe:
+        /// - outer light edge (basePlate)
+        /// - inner darker core (anchorCollar)
+        /// The marker is bottom-anchored, width-clamped to the liquid body, and height-clamped
+        /// to a fixed ratio band to avoid overlap with adjacent bottles.
         /// </summary>
-        private void UpdateCollarLayout(int capacity)
+        private void UpdateSinkIndicatorLayout()
         {
-            if (anchorCollar == null || slotRoot == null) return;
+            if (slotRoot == null || outline == null)
+            {
+                return;
+            }
 
-            // Re-parent into slotRoot if not already there, so coordinates match liquid
-            if (anchorCollar.rectTransform.parent != slotRoot)
+            if (basePlate == null && anchorCollar == null)
+            {
+                return;
+            }
+
+            if (basePlate != null && basePlate.rectTransform.parent != slotRoot)
+            {
+                basePlate.rectTransform.SetParent(slotRoot, false);
+            }
+
+            if (anchorCollar != null && anchorCollar.rectTransform.parent != slotRoot)
             {
                 anchorCollar.rectTransform.SetParent(slotRoot, false);
             }
 
-            // Ensure collar renders on top of liquid segments (glass marking)
-            anchorCollar.rectTransform.SetAsLastSibling();
+            if (basePlate != null)
+            {
+                basePlate.rectTransform.SetAsLastSibling();
+            }
+            if (anchorCollar != null)
+            {
+                anchorCollar.rectTransform.SetAsLastSibling();
+            }
 
             float height = slotRoot.rect.height;
-            if (height <= 0f) height = RefSlotRootHeight;
+            if (height <= 0f)
+            {
+                height = RefSlotRootHeight;
+            }
+
             float width = slotRoot.rect.width;
-            if (width <= 0f) width = 112f;
-
-            // Height of 1 slot in local space
-            float oneSlotHeight = capacity > 0 ? height / capacity : height;
-
-            // Collar height is ~40% of one slot so liquid is visible above and below
-            float collarHeight = oneSlotHeight * 0.4f;
-            // Center the collar vertically within the first slot
-            float collarCenterY = oneSlotHeight * 0.5f;
-
-            var collarRect = anchorCollar.rectTransform;
-            collarRect.anchorMin = new Vector2(0.5f, 0f);
-            collarRect.anchorMax = new Vector2(0.5f, 0f);
-            collarRect.pivot = new Vector2(0.5f, 0.5f);
-            collarRect.sizeDelta = new Vector2(width, collarHeight);
-            collarRect.anchoredPosition = new Vector2(0f, collarCenterY);
-        }
-
-        /// <summary>
-        /// Positions the basePlate as a subtle foot beneath the bottle for sink bottles.
-        /// Directly attached (no gap), slightly wider than the bottle, height ≤ 10% of bottle.
-        /// For non-sink bottles, resets basePlate to default.
-        /// </summary>
-        private void UpdateBaseLayout()
-        {
-            if (basePlate == null || outline == null) return;
-            if (!isSink) return; // Non-sink bottles keep default basePlate
-
-            var outlineRect = outline.rectTransform;
-            float outlineHeight = outlineRect.rect.height;
-            float outlineWidth = outlineRect.rect.width;
-            if (outlineHeight <= 0f || outlineWidth <= 0f) return;
-
-            float baseHeight = ResolveSinkBaseHeight(outline);
-            if (baseHeight <= 0f)
+            if (width <= 0f)
             {
-                baseHeight = outlineHeight * BaseHeightRatio;
+                width = 112f;
             }
-            else
+
+            float bottleHeight = outline.rectTransform.rect.height;
+            if (bottleHeight <= 0f)
             {
-                baseHeight = Mathf.Max(baseHeight, outlineHeight * 0.03f);
+                bottleHeight = RefOutlineHeight;
             }
-            baseHeight *= 2.5f;
-            float baseWidth = outlineWidth * BaseWidthRatio;
 
-            var baseRect = basePlate.rectTransform;
-            baseRect.anchorMin = new Vector2(0.5f, 0.5f);
-            baseRect.anchorMax = new Vector2(0.5f, 0.5f);
-            baseRect.pivot = new Vector2(0.5f, 1f);
-            baseRect.sizeDelta = new Vector2(baseWidth, baseHeight);
+            float baselineHeight = ResolveSinkBaseHeight(outline);
+            float markerHeight = SinkIndicatorDesignTokens.ResolveIndicatorHeight(bottleHeight, baselineHeight);
 
-            float outlineBottom = outlineRect.anchoredPosition.y - outlineHeight * outlineRect.pivot.y;
-            baseRect.anchoredPosition = new Vector2(0f, outlineBottom);
+            float safeWidth = Mathf.Min(width, outline.rectTransform.rect.width);
+            if (safeWidth <= 0f)
+            {
+                safeWidth = width;
+            }
+
+            float markerCenterY = markerHeight * 0.5f;
+
+            if (basePlate != null)
+            {
+                var edgeRect = basePlate.rectTransform;
+                edgeRect.anchorMin = new Vector2(0.5f, 0f);
+                edgeRect.anchorMax = new Vector2(0.5f, 0f);
+                edgeRect.pivot = new Vector2(0.5f, 0.5f);
+                edgeRect.sizeDelta = new Vector2(safeWidth, markerHeight);
+                edgeRect.anchoredPosition = new Vector2(0f, markerCenterY);
+            }
+
+            if (anchorCollar != null)
+            {
+                var coreRect = anchorCollar.rectTransform;
+                coreRect.anchorMin = new Vector2(0.5f, 0f);
+                coreRect.anchorMax = new Vector2(0.5f, 0f);
+                coreRect.pivot = new Vector2(0.5f, 0.5f);
+                coreRect.sizeDelta = new Vector2(
+                    safeWidth,
+                    markerHeight * SinkIndicatorDesignTokens.InnerStripeHeightRatio);
+                coreRect.anchoredPosition = new Vector2(0f, markerCenterY);
+            }
         }
 
         private static float ResolveSinkBaseHeight(Image outlineImage)
@@ -546,8 +560,8 @@ namespace Decantra.Presentation.View
             if (bottomBorderPx <= 0f) return 0f;
             float ppu = sprite.pixelsPerUnit;
             if (ppu <= 0f) return 0f;
-            // Base height is exactly 2x the bottom border thickness of the bottle body.
-            return 2f * (bottomBorderPx / ppu);
+            // Base height from bottle border thickness for deterministic scaling.
+            return bottomBorderPx / ppu;
         }
 
         private void EnsureColorsInitialized()

@@ -599,7 +599,7 @@ namespace Decantra.Tests.PlayMode
             Assert.AreEqual("Not enough stars", autoSolveStatusText.text);
             Assert.AreEqual("Price", convertCostLabelText.text);
             Assert.AreEqual("Price", autoSolveCostLabelText.text);
-            Assert.AreEqual("Sink bottles have dark bases: they can receive liquid but cannot pour.", convertSubtitleText.text);
+            Assert.AreEqual("Sink bottles have a dark bottom stripe: they can receive liquid but cannot pour.", convertSubtitleText.text);
             Assert.IsFalse(sinkDefinitionText.gameObject.activeSelf, "Sink definition helper text should not render as a separate row.");
             StringAssert.Contains("stars", convertCostValueText.text);
             StringAssert.Contains("stars", autoSolveCostValueText.text);
