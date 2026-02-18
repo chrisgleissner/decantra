@@ -93,6 +93,7 @@ jobs:
   test:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: check-license
     if: needs.check-license.outputs.is_unity_license_set == 'true'
     env:
@@ -141,6 +142,7 @@ jobs:
   build-android:
     name: Build Android APK/AAB
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: [check-license, test, solvability]
     if: |
       needs.check-license.outputs.is_unity_license_set == 'true' &&

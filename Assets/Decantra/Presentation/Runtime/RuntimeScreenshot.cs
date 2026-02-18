@@ -45,6 +45,10 @@ namespace Decantra.Presentation
         private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
         private const float AutoSolveMinDragSeconds = 0.35f;
         private const float AutoSolveMaxDragSeconds = 1.0f;
+        private const float AutoSolveDragSlowdownMultiplier = 1.5f;
+        private const float AutoSolveDragTiltDegrees = 30f;
+        private const float AutoSolveTiltStartNormalized = 0.62f;
+        private const float AutoSolveReturnMinSeconds = 0.2f;
         private const string LaunchFileName = "screenshot-01-launch.png";
         private const string IntroFileName = "screenshot-02-intro.png";
         private const string Level01FileName = "screenshot-03-level-01.png";
@@ -61,6 +65,10 @@ namespace Decantra.Presentation
         private const float MotionFrameIntervalMs = 600f;
 
         private bool _failed;
+        private RectTransform _dragCaptureRect;
+        private Vector2 _dragCaptureStartAnchoredPosition;
+        private Quaternion _dragCaptureStartRotation;
+        private bool _dragCaptureActive;
 
         private void Start()
         {
@@ -1035,6 +1043,8 @@ namespace Decantra.Presentation
                 }
                 successfulMoves++;
 
+                Coroutine returnRoutine = StartCoroutine(AnimateDragReturnForCapture(pourDuration));
+
                 float pourCaptureDelay = Mathf.Clamp(pourDuration * 0.5f, 0.12f, 0.65f);
                 yield return new WaitForSeconds(pourCaptureDelay);
                 yield return CaptureScreenshot(pourPath);
@@ -1053,6 +1063,11 @@ namespace Decantra.Presentation
                     Debug.LogError("RuntimeScreenshot: Timed out waiting for auto-solve move animation to finish.");
                     _failed = true;
                     yield break;
+                }
+
+                if (returnRoutine != null)
+                {
+                    yield return returnRoutine;
                 }
 
                 yield return new WaitForSeconds(0.06f);
@@ -1123,8 +1138,15 @@ namespace Decantra.Presentation
             float maxDistance = Mathf.Max(1f, ResolveMaxBottleDistance(controller));
             float distance = Vector2.Distance(start, end);
             float normalizedDistance = Mathf.Clamp01(distance / maxDistance);
-            float duration = Mathf.Lerp(AutoSolveMinDragSeconds, AutoSolveMaxDragSeconds, normalizedDistance);
+            float duration = Mathf.Lerp(AutoSolveMinDragSeconds, AutoSolveMaxDragSeconds, normalizedDistance)
+                             * AutoSolveDragSlowdownMultiplier;
             float lift = Mathf.Lerp(22f, 62f, normalizedDistance);
+            Quaternion startRotation = sourceRect.localRotation;
+
+            _dragCaptureRect = sourceRect;
+            _dragCaptureStartAnchoredPosition = start;
+            _dragCaptureStartRotation = startRotation;
+            _dragCaptureActive = true;
 
             bool captured = false;
             float elapsed = 0f;
@@ -1134,7 +1156,10 @@ namespace Decantra.Presentation
                 float t = Mathf.Clamp01(elapsed / duration);
                 Vector2 planar = Vector2.Lerp(start, end, t);
                 float arc = Mathf.Sin(t * Mathf.PI) * lift;
+                float tiltProgress = Mathf.Clamp01((t - AutoSolveTiltStartNormalized) / (1f - AutoSolveTiltStartNormalized));
+                float tiltAngle = Mathf.Lerp(0f, AutoSolveDragTiltDegrees, tiltProgress);
                 sourceRect.anchoredPosition = planar + Vector2.up * arc;
+                sourceRect.localRotation = Quaternion.Euler(0f, 0f, -tiltAngle);
 
                 if (!captured && t >= 0.5f)
                 {
@@ -1152,8 +1177,57 @@ namespace Decantra.Presentation
                 onDragCaptured?.Invoke();
             }
 
-            sourceRect.anchoredPosition = start;
+            sourceRect.anchoredPosition = end;
+            sourceRect.localRotation = Quaternion.Euler(0f, 0f, -AutoSolveDragTiltDegrees);
             yield return null;
+        }
+
+        private IEnumerator AnimateDragReturnForCapture(float duration)
+        {
+            if (!_dragCaptureActive || _dragCaptureRect == null)
+            {
+                yield break;
+            }
+
+            RectTransform rect = _dragCaptureRect;
+            Vector2 fromPosition = rect.anchoredPosition;
+            Quaternion fromRotation = rect.localRotation;
+            Vector2 toPosition = _dragCaptureStartAnchoredPosition;
+            Quaternion toRotation = _dragCaptureStartRotation;
+            float returnDuration = Mathf.Max(AutoSolveReturnMinSeconds, duration);
+
+            float elapsed = 0f;
+            while (elapsed < returnDuration)
+            {
+                if (rect == null)
+                {
+                    ClearDragCaptureState();
+                    yield break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / returnDuration);
+                float eased = t * t * (3f - 2f * t);
+                rect.anchoredPosition = Vector2.Lerp(fromPosition, toPosition, eased);
+                rect.localRotation = Quaternion.Slerp(fromRotation, toRotation, eased);
+                yield return null;
+            }
+
+            if (rect != null)
+            {
+                rect.anchoredPosition = toPosition;
+                rect.localRotation = toRotation;
+            }
+
+            ClearDragCaptureState();
+        }
+
+        private void ClearDragCaptureState()
+        {
+            _dragCaptureRect = null;
+            _dragCaptureStartAnchoredPosition = Vector2.zero;
+            _dragCaptureStartRotation = Quaternion.identity;
+            _dragCaptureActive = false;
         }
 
         private static bool TryGetBottleRect(GameController controller, int index, out RectTransform rect)

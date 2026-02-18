@@ -12,7 +12,9 @@ namespace Decantra.Presentation.View
 {
     public static class SinkIndicatorDesignTokens
     {
-        // Thickness strategy: increase baseline marker thickness by a controlled multiplier.
+        // Canonical sink-indicator dimensions (based on approved medium / second-sink sizing).
+        public const float CanonicalWidth = 112f;
+        public const float CanonicalHeight = 5.02f;
         public const float ThicknessScale = 2.4f;
         public const float MinHeightRatio = 0.018f;
         public const float MaxHeightRatio = 0.065f;
@@ -24,12 +26,12 @@ namespace Decantra.Presentation.View
 
         public static float ResolveIndicatorHeight(float bottleHeight, float baselineHeight)
         {
-            float safeBottleHeight = Mathf.Max(1f, bottleHeight);
-            float clampedBaseline = Mathf.Max(0.5f, baselineHeight);
-            float target = clampedBaseline * ThicknessScale;
-            float minHeight = safeBottleHeight * MinHeightRatio;
-            float maxHeight = safeBottleHeight * MaxHeightRatio;
-            return Mathf.Clamp(target, minHeight, maxHeight);
+            return CanonicalHeight;
+        }
+
+        public static float ResolveIndicatorWidth(float bottleWidth)
+        {
+            return CanonicalWidth;
         }
     }
 }

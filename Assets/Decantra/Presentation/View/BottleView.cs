@@ -499,32 +499,8 @@ namespace Decantra.Presentation.View
                 anchorCollar.rectTransform.SetAsLastSibling();
             }
 
-            float height = slotRoot.rect.height;
-            if (height <= 0f)
-            {
-                height = RefSlotRootHeight;
-            }
-
-            float width = slotRoot.rect.width;
-            if (width <= 0f)
-            {
-                width = 112f;
-            }
-
-            float bottleHeight = outline.rectTransform.rect.height;
-            if (bottleHeight <= 0f)
-            {
-                bottleHeight = RefOutlineHeight;
-            }
-
-            float baselineHeight = ResolveSinkBaseHeight(outline);
-            float markerHeight = SinkIndicatorDesignTokens.ResolveIndicatorHeight(bottleHeight, baselineHeight);
-
-            float safeWidth = Mathf.Min(width, outline.rectTransform.rect.width);
-            if (safeWidth <= 0f)
-            {
-                safeWidth = width;
-            }
+            float markerHeight = SinkIndicatorDesignTokens.ResolveIndicatorHeight(RefOutlineHeight, 0f);
+            float markerWidth = SinkIndicatorDesignTokens.ResolveIndicatorWidth(0f);
 
             float markerCenterY = markerHeight * 0.5f;
 
@@ -534,7 +510,7 @@ namespace Decantra.Presentation.View
                 edgeRect.anchorMin = new Vector2(0.5f, 0f);
                 edgeRect.anchorMax = new Vector2(0.5f, 0f);
                 edgeRect.pivot = new Vector2(0.5f, 0.5f);
-                edgeRect.sizeDelta = new Vector2(safeWidth, markerHeight);
+                edgeRect.sizeDelta = new Vector2(markerWidth, markerHeight);
                 edgeRect.anchoredPosition = new Vector2(0f, markerCenterY);
             }
 
@@ -545,7 +521,7 @@ namespace Decantra.Presentation.View
                 coreRect.anchorMax = new Vector2(0.5f, 0f);
                 coreRect.pivot = new Vector2(0.5f, 0.5f);
                 coreRect.sizeDelta = new Vector2(
-                    safeWidth,
+                    markerWidth,
                     markerHeight * SinkIndicatorDesignTokens.InnerStripeHeightRatio);
                 coreRect.anchoredPosition = new Vector2(0f, markerCenterY);
             }

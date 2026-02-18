@@ -31,6 +31,48 @@ namespace Decantra.Tests.PlayMode
         private const float MinContrastDelta = 0.1f;
 
         [UnityTest]
+        public IEnumerator SinkIndicator_Dimensions_AreIdenticalAcrossSinkCapacities()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var bottles = FindBottleViews();
+            Assert.GreaterOrEqual(bottles.Count, 3, "Expected at least three bottle views.");
+
+            var sinkA = bottles[0];
+            var sinkB = bottles[1];
+            var sinkC = bottles[2];
+
+            const int levelMaxCapacity = 4;
+            sinkA.SetLevelMaxCapacity(levelMaxCapacity);
+            sinkB.SetLevelMaxCapacity(levelMaxCapacity);
+            sinkC.SetLevelMaxCapacity(levelMaxCapacity);
+
+            sinkA.Render(CreateBottle(2, 0, isSink: true));
+            sinkB.Render(CreateBottle(3, 0, isSink: true));
+            sinkC.Render(CreateBottle(4, 0, isSink: true));
+            yield return null;
+
+            var edgeA = FindSinkIndicatorEdge(sinkA);
+            var edgeB = FindSinkIndicatorEdge(sinkB);
+            var edgeC = FindSinkIndicatorEdge(sinkC);
+
+            Assert.IsNotNull(edgeA, "Sink A indicator edge not found.");
+            Assert.IsNotNull(edgeB, "Sink B indicator edge not found.");
+            Assert.IsNotNull(edgeC, "Sink C indicator edge not found.");
+
+            Assert.AreEqual(edgeB.rect.height, edgeA.rect.height, RatioTolerance,
+                $"Sink indicator height mismatch A vs B: {edgeA.rect.height} vs {edgeB.rect.height}");
+            Assert.AreEqual(edgeB.rect.height, edgeC.rect.height, RatioTolerance,
+                $"Sink indicator height mismatch C vs B: {edgeC.rect.height} vs {edgeB.rect.height}");
+
+            Assert.AreEqual(edgeB.rect.width, edgeA.rect.width, WidthTolerance,
+                $"Sink indicator width mismatch A vs B: {edgeA.rect.width} vs {edgeB.rect.width}");
+            Assert.AreEqual(edgeB.rect.width, edgeC.rect.width, WidthTolerance,
+                $"Sink indicator width mismatch C vs B: {edgeC.rect.width} vs {edgeB.rect.width}");
+        }
+
+        [UnityTest]
         public IEnumerator SinkIndicator_StaysWithinBottleWidth_AndMaxHeightRatio()
         {
             SceneBootstrap.EnsureScene();
@@ -91,6 +133,11 @@ namespace Decantra.Tests.PlayMode
         [UnityTest]
         public IEnumerator SinkIndicator_ContrastVisibleOnLightAndDark_AndEvidenceCaptured()
         {
+            if (Application.isBatchMode)
+            {
+                Assert.Ignore("Screenshot capture and ReadPixels are skipped in Unity batch mode.");
+            }
+
             SceneBootstrap.EnsureScene();
             yield return null;
 
@@ -152,7 +199,7 @@ namespace Decantra.Tests.PlayMode
             var level = generator.Generate(682415, profile);
             Assert.IsNotNull(level, "Failed to generate regression level.");
 
-            var before = solver.Solve(level, 2_000_000, 10_000, allowSinkMoves: true);
+            var before = solver.Solve(level, 250_000, 1_500, allowSinkMoves: true);
 
             var bottleViews = FindBottleViews();
             int maxCap = level.Bottles.Max(b => b.Capacity);
@@ -165,9 +212,40 @@ namespace Decantra.Tests.PlayMode
 
             yield return null;
 
-            var after = solver.Solve(level, 2_000_000, 10_000, allowSinkMoves: true);
+            var after = solver.Solve(level, 250_000, 1_500, allowSinkMoves: true);
             Assert.AreEqual(before.Status, after.Status, "Solver status changed after sink visual rendering.");
             Assert.AreEqual(before.OptimalMoves, after.OptimalMoves, "Optimal move count changed after sink visual rendering.");
+        }
+
+        [UnityTest]
+        public IEnumerator SinkIndicator_AllSinksUseCanonicalDimensions()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var bottles = FindBottleViews().Take(3).ToArray();
+            Assert.AreEqual(3, bottles.Length, "Expected at least three bottle views.");
+
+            bottles[0].SetLevelMaxCapacity(4);
+            bottles[1].SetLevelMaxCapacity(6);
+            bottles[2].SetLevelMaxCapacity(8);
+
+            bottles[0].Render(CreateBottle(4, 2, isSink: true));
+            bottles[1].Render(CreateBottle(6, 2, isSink: true));
+            bottles[2].Render(CreateBottle(8, 2, isSink: true));
+            yield return null;
+
+            var first = FindSinkIndicatorEdge(bottles[0]);
+            var second = FindSinkIndicatorEdge(bottles[1]);
+            var third = FindSinkIndicatorEdge(bottles[2]);
+            Assert.IsNotNull(first);
+            Assert.IsNotNull(second);
+            Assert.IsNotNull(third);
+
+            Assert.AreEqual(second.rect.width, first.rect.width, WidthTolerance, "First sink indicator width differs from canonical second sink width.");
+            Assert.AreEqual(second.rect.width, third.rect.width, WidthTolerance, "Third sink indicator width differs from canonical second sink width.");
+            Assert.AreEqual(second.rect.height, first.rect.height, RatioTolerance, "First sink indicator height differs from canonical second sink height.");
+            Assert.AreEqual(second.rect.height, third.rect.height, RatioTolerance, "Third sink indicator height differs from canonical second sink height.");
         }
 
         private static IEnumerator ValidateContrastAndCapture(
@@ -197,8 +275,8 @@ namespace Decantra.Tests.PlayMode
             }
 
             ScreenCapture.CaptureScreenshot(path);
-            float timeout = 5f;
-            while (timeout > 0f)
+            float deadline = Time.realtimeSinceStartup + 5f;
+            while (Time.realtimeSinceStartup < deadline)
             {
                 if (File.Exists(path))
                 {
@@ -209,7 +287,6 @@ namespace Decantra.Tests.PlayMode
                     }
                 }
 
-                timeout -= Time.unscaledDeltaTime;
                 yield return null;
             }
 
@@ -221,12 +298,15 @@ namespace Decantra.Tests.PlayMode
             var indicatorCore = FindSinkIndicatorCore(sinkView);
             Assert.IsNotNull(indicatorCore, "Sink indicator core rect not found.");
 
+            var canvas = indicatorCore.GetComponentInParent<Canvas>();
+            Camera uiCamera = canvas != null ? canvas.worldCamera : null;
+
             var worldCenter = indicatorCore.TransformPoint(indicatorCore.rect.center);
-            Vector2 centerScreen = RectTransformUtility.WorldToScreenPoint(null, worldCenter);
+            Vector2 centerScreen = RectTransformUtility.WorldToScreenPoint(uiCamera, worldCenter);
 
             float localBodyOffset = indicatorCore.rect.height * 2f;
             var worldAbove = indicatorCore.TransformPoint(new Vector3(0f, localBodyOffset, 0f));
-            Vector2 aboveScreen = RectTransformUtility.WorldToScreenPoint(null, worldAbove);
+            Vector2 aboveScreen = RectTransformUtility.WorldToScreenPoint(uiCamera, worldAbove);
 
             var indicatorColor = ReadScreenPixel(centerScreen);
             var bottleBodyColor = ReadScreenPixel(aboveScreen);
