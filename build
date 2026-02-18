@@ -9,6 +9,8 @@ DECANTRA_ANDROID_SERIAL="${DECANTRA_ANDROID_SERIAL:-${ANDROID_SERIAL:-}}"
 UNITY_PATH_OVERRIDE="${UNITY_PATH:-}"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
+export UNITY_DISABLE_AUDIO=1
+export SDL_AUDIODRIVER=dummy
 
 # Load .env if present (for keystore configuration)
 if [[ -f "${ROOT_DIR}/.env" ]]; then
@@ -731,6 +733,9 @@ if [[ "${GENERATE_BACKGROUND_SAMPLES}" == "true" ]]; then
   log "Running Unity batchmode to generate background samples"
   "${UNITY_PATH_FOUND}" \
     -batchmode \
+    -nographics \
+    -noaudio \
+    -disable-audio \
     -quit \
     -projectPath "${ROOT_DIR}" \
     -executeMethod "Decantra.Presentation.Editor.BackgroundSampleGenerator.GenerateSamplesBatchmode" \

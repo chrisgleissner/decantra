@@ -115,6 +115,7 @@ namespace Decantra.Presentation.Controller
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
         private const float StartupVisualSettleSeconds = 0.9f;
+        private const string QuietAutomationFlag = "decantra_quiet";
         private static readonly bool EnablePourDiagnostics = false;
 
         private readonly struct GeneratedLevel
@@ -307,6 +308,7 @@ namespace Decantra.Presentation.Controller
             _highContrastEnabled = _settingsStore.LoadHighContrastEnabled();
             _colorBlindAssistEnabled = _settingsStore.LoadAccessibleColorsEnabled();
             _starfieldConfig = _settingsStore.LoadStarfieldConfig();
+            ApplyQuietAudioOverridesForAutomation();
             ApplyStarfieldConfig();
             SetupAudio();
             ApplyAccessibilitySettings();
@@ -1208,6 +1210,100 @@ namespace Decantra.Presentation.Controller
 #else
             return false;
 #endif
+        }
+
+        private void ApplyQuietAudioOverridesForAutomation()
+        {
+            if (!ShouldForceQuietAudioForAutomation())
+            {
+                return;
+            }
+
+            _sfxEnabled = false;
+            _sfxVolume01 = 0f;
+            AudioListener.pause = true;
+            AudioListener.volume = 0f;
+        }
+
+        private static bool ShouldForceQuietAudioForAutomation()
+        {
+            if (Application.isBatchMode)
+            {
+                return true;
+            }
+
+            if (IsTruthyEnvironmentFlag(Environment.GetEnvironmentVariable("UNITY_DISABLE_AUDIO")))
+            {
+                return true;
+            }
+
+            return HasLaunchFlag("-noaudio")
+                || HasLaunchFlag("-disable-audio")
+                || HasLaunchFlag("-runTests")
+                || HasLaunchFlag("-testPlatform")
+                || HasLaunchFlag("-testResults")
+                || HasLaunchFlag("decantra_screenshots")
+                || HasLaunchFlag("decantra_screenshots_only")
+                || HasLaunchFlag("decantra_motion_capture")
+                || HasLaunchFlag("--screenshots")
+                || HasLaunchFlag("--screenshots-only")
+                || HasLaunchFlag("--motion-capture")
+                || HasLaunchFlag(QuietAutomationFlag);
+        }
+
+        private static bool IsTruthyEnvironmentFlag(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "on", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool HasLaunchFlag(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var intent = activity.Call<AndroidJavaObject>("getIntent"))
+                {
+                    if (intent == null || !intent.Call<bool>("hasExtra", key))
+                    {
+                        return false;
+                    }
+
+                    return intent.Call<bool>("getBooleanExtra", key, false)
+                           || string.Equals(intent.Call<string>("getStringExtra", key), "true", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(intent.Call<string>("getStringExtra", key), "1", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+#endif
+
+            return false;
         }
 
         private void ResolveOverlayReferencesIfMissing()

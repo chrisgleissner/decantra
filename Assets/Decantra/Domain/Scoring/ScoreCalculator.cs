@@ -75,7 +75,8 @@ namespace Decantra.Domain.Scoring
             int slack = movesAllowed - optimalMoves;
             int delta = movesUsed - optimalMoves;
 
-            if (delta == 0) return 5;
+            // Treat equal-or-better-than-optimal solves as a perfect 5-star result.
+            if (delta <= 0) return 5;
             if (slack <= 0) return 0;
 
             // Star thresholds per spec: 20% bands of slack from 4 -> 0 stars.

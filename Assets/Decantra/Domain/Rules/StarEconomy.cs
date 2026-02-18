@@ -61,8 +61,9 @@ namespace Decantra.Domain.Rules
         public static int ResolveAwardedStars(int baseStars, int resetCount, bool isAssisted)
         {
             if (isAssisted) return 0;
+            int clampedBaseStars = Math.Max(0, Math.Min(5, baseStars));
             float multiplier = ResolveResetMultiplier(resetCount);
-            return (int)Math.Floor(baseStars * multiplier);
+            return (int)Math.Floor(clampedBaseStars * multiplier);
         }
 
         /// <summary>

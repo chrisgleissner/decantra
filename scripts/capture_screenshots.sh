@@ -110,6 +110,8 @@ rm -f "${OUTPUT_DIR}"/*.png || true
 adb -s "${DEVICE_ID}" shell pm clear "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 adb -s "${DEVICE_ID}" shell rm -rf "/sdcard/Android/data/${PACKAGE_NAME}/files/DecantraScreenshots" >/dev/null 2>&1 || true
 adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+adb -s "${DEVICE_ID}" shell media volume --stream 3 --set 0 >/dev/null 2>&1 || true
+adb -s "${DEVICE_ID}" shell cmd media_session volume --stream 3 --set 0 >/dev/null 2>&1 || true
 
 install_output=""
 install_status=0
@@ -129,7 +131,7 @@ if [[ ${install_status} -ne 0 ]]; then
 fi
 adb -s "${DEVICE_ID}" shell pm enable "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 
-extras=(--ez decantra_screenshots true)
+extras=(--ez decantra_screenshots true --ez decantra_quiet true)
 if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
   extras+=(--ez decantra_screenshots_only true)
 fi

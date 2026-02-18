@@ -13,6 +13,8 @@ DECANTRA_BUILD_FORMAT="${DECANTRA_BUILD_FORMAT:-apk}"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
+export UNITY_DISABLE_AUDIO=1
+export SDL_AUDIODRIVER=dummy
 
 # Load .env if present (for keystore configuration)
 if [[ -f "${PROJECT_PATH}/.env" ]]; then
@@ -79,6 +81,8 @@ echo "========================================"
 timeout "${UNITY_BUILD_TIMEOUT}" "${UNITY_PATH}" \
   -batchmode \
   -nographics \
+  -noaudio \
+  -disable-audio \
   -projectPath "${PROJECT_PATH}" \
   -executeMethod "${UNITY_BUILD_METHOD}" \
   -logFile "${LOG_PATH}" \

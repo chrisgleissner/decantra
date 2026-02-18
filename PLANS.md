@@ -49,7 +49,7 @@ Owner: Codex
 - [x] Run PlayMode tests locally.
 - [x] Run coverage gate locally.
 - [x] Confirm no regressions/soft-locks from overlay lifecycle changes.
-- [ ] Confirm CI status is green.
+- [x] Confirm CI status is green.
 
 ## Production-Grade Modal UX System
 ### Phase 1: Full Modal Audit
@@ -98,4 +98,16 @@ Owner: Codex
 - [x] Add/update tests for required layout components (scroll/layout groups) where feasible.
 - [x] Run local EditMode and PlayMode suites.
 - [x] Run coverage gate (>=80% domain coverage).
-- [ ] Confirm CI is green.
+- [x] Confirm CI is green.
+
+## Star Awarding and Quiet Automation (2026-02-18)
+- [x] Audit level-completion star pipeline (`ScoreCalculator` + `StarEconomy` + `GameController`).
+- [x] Fix perfect-solve star cap so equal-or-better optimal performance can award 5 stars.
+- [x] Enforce awarded star output range to `0..5` after reset multipliers.
+- [x] Add/update EditMode tests for star thresholds and reset-adjusted 5-star outcomes.
+- [x] Enforce quiet automation mode in runtime controller when running tests/screenshots/quiet flag.
+- [x] Ensure Android screenshot capture launches app in explicit quiet mode.
+- [x] Ensure build/test scripts consistently run Unity with audio disabled.
+- [x] Run full local test pipeline and verify green.
+- [x] Recreate required screenshot set and verify artifacts.
+- [x] Confirm CI is green.

@@ -64,7 +64,7 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void AwardedStars_AssistedLevel_AlwaysZero()
         {
-            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(10, 0, isAssisted: true));
+            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(5, 0, isAssisted: true));
             Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(100, 0, isAssisted: true));
             Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(5, 3, isAssisted: true));
         }
@@ -72,25 +72,25 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void AwardedStars_NoResets_FullValue()
         {
-            Assert.AreEqual(10, StarEconomy.ResolveAwardedStars(10, 0, false));
+            Assert.AreEqual(5, StarEconomy.ResolveAwardedStars(5, 0, false));
         }
 
         [Test]
         public void AwardedStars_OneReset_75Percent()
         {
-            Assert.AreEqual(7, StarEconomy.ResolveAwardedStars(10, 1, false));
+            Assert.AreEqual(3, StarEconomy.ResolveAwardedStars(5, 1, false));
         }
 
         [Test]
         public void AwardedStars_TwoResets_50Percent()
         {
-            Assert.AreEqual(5, StarEconomy.ResolveAwardedStars(10, 2, false));
+            Assert.AreEqual(2, StarEconomy.ResolveAwardedStars(5, 2, false));
         }
 
         [Test]
         public void AwardedStars_ThreeResets_25Percent()
         {
-            Assert.AreEqual(2, StarEconomy.ResolveAwardedStars(10, 3, false));
+            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(5, 3, false));
         }
 
         [Test]
@@ -107,6 +107,14 @@ namespace Decantra.Tests.EditMode
         {
             Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(0, 0, false));
             Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(0, 2, false));
+        }
+
+        [Test]
+        public void AwardedStars_AlwaysClampedToZeroToFive()
+        {
+            Assert.AreEqual(5, StarEconomy.ResolveAwardedStars(99, 0, false));
+            Assert.AreEqual(3, StarEconomy.ResolveAwardedStars(99, 1, false));
+            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(-3, 0, false));
         }
 
         // ── TrySpend ──────────────────────────────────────────────────
