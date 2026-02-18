@@ -3068,6 +3068,18 @@ namespace Decantra.Presentation
             titleElement.preferredHeight = 74f;
             titleElement.minHeight = 74f;
 
+            var scrollHint = CreateHudText(panel.transform, "ScrollHint");
+            scrollHint.text = "Scroll for more options";
+            scrollHint.fontSize = ModalDesignTokens.Typography.HelperText;
+            scrollHint.fontStyle = FontStyle.Normal;
+            scrollHint.alignment = TextAnchor.MiddleCenter;
+            scrollHint.color = ModalDesignTokens.Colors.HelperText;
+            scrollHint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            scrollHint.verticalOverflow = VerticalWrapMode.Overflow;
+            var scrollHintElement = scrollHint.gameObject.AddComponent<LayoutElement>();
+            scrollHintElement.preferredHeight = 44f;
+            scrollHintElement.minHeight = 44f;
+
             var listContainer = CreateUiChild(panel.transform, "ListContainer");
             var listContainerImage = listContainer.AddComponent<Image>();
             listContainerImage.sprite = GetRoundedSprite();
@@ -3087,11 +3099,49 @@ namespace Decantra.Presentation
             viewportRect.anchorMin = Vector2.zero;
             viewportRect.anchorMax = Vector2.one;
             viewportRect.offsetMin = new Vector2(12f, 12f);
-            viewportRect.offsetMax = new Vector2(-12f, -12f);
+            viewportRect.offsetMax = new Vector2(-44f, -12f);
             var viewportImage = viewport.AddComponent<Image>();
             viewportImage.color = new Color(0f, 0f, 0f, 0.02f);
             viewportImage.raycastTarget = true;
             viewport.AddComponent<Mask>().showMaskGraphic = false;
+
+            var scrollbarRoot = CreateUiChild(listContainer.transform, "VerticalScrollbar");
+            var scrollbarRect = scrollbarRoot.GetComponent<RectTransform>();
+            scrollbarRect.anchorMin = new Vector2(1f, 0f);
+            scrollbarRect.anchorMax = new Vector2(1f, 1f);
+            scrollbarRect.pivot = new Vector2(1f, 1f);
+            scrollbarRect.offsetMin = new Vector2(-24f, 12f);
+            scrollbarRect.offsetMax = new Vector2(-12f, -12f);
+
+            var scrollbarBackground = scrollbarRoot.AddComponent<Image>();
+            scrollbarBackground.sprite = GetRoundedSprite();
+            scrollbarBackground.type = Image.Type.Sliced;
+            scrollbarBackground.color = new Color(1f, 1f, 1f, 0.14f);
+
+            var handleSlideArea = CreateUiChild(scrollbarRoot.transform, "SlidingArea");
+            var handleSlideRect = handleSlideArea.GetComponent<RectTransform>();
+            handleSlideRect.anchorMin = Vector2.zero;
+            handleSlideRect.anchorMax = Vector2.one;
+            handleSlideRect.offsetMin = new Vector2(1f, 1f);
+            handleSlideRect.offsetMax = new Vector2(-1f, -1f);
+
+            var handle = CreateUiChild(handleSlideArea.transform, "Handle");
+            var handleRect = handle.GetComponent<RectTransform>();
+            handleRect.anchorMin = new Vector2(0f, 1f);
+            handleRect.anchorMax = new Vector2(1f, 1f);
+            handleRect.pivot = new Vector2(0.5f, 1f);
+            handleRect.sizeDelta = new Vector2(0f, 132f);
+
+            var handleImage = handle.AddComponent<Image>();
+            handleImage.sprite = GetRoundedSprite();
+            handleImage.type = Image.Type.Sliced;
+            handleImage.color = new Color(1f, 0.98f, 0.92f, 0.8f);
+
+            var scrollbar = scrollbarRoot.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollbar.size = 0.25f;
+            scrollbar.targetGraphic = handleImage;
+            scrollbar.handleRect = handleRect;
 
             var list = CreateUiChild(viewport.transform, "Content");
             var listRect = list.GetComponent<RectTransform>();
@@ -3111,6 +3161,8 @@ namespace Decantra.Presentation
 
             listScrollRect.viewport = viewportRect;
             listScrollRect.content = listRect;
+            listScrollRect.verticalScrollbar = scrollbar;
+            listScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
 
             Text CreateSectionTitle(Transform parentTransform, string objectName, string label)
             {

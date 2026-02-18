@@ -8,7 +8,7 @@ OUTPUT_DIR="${PROJECT_ROOT}/doc/play-store-assets/screenshots/phone"
 DEVICE_ID=""
 SCREENSHOTS_ONLY=false
 CAPTURE_MOTION=false
-DECANTRA_SCREENSHOT_TIMEOUT="${DECANTRA_SCREENSHOT_TIMEOUT:-120}"
+DECANTRA_SCREENSHOT_TIMEOUT="${DECANTRA_SCREENSHOT_TIMEOUT:-240}"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
@@ -23,7 +23,7 @@ Options:
   --output-dir <path>    Output directory for screenshots
   --screenshots-only     Pass screenshots-only flag to the app
   --motion-capture       Capture starfield motion frames after screenshots
-  --timeout <seconds>    Capture timeout (default: 120)
+  --timeout <seconds>    Capture timeout (default: 240)
   -h, --help             Show help
 EOF
 }
@@ -144,6 +144,9 @@ expected=(
   "startup_fade_in_midpoint.png"
   "help_overlay.png"
   "options_panel_typography.png"
+  "options_audio_accessibility.png"
+  "options_starfield_controls.png"
+  "options_legal_privacy_terms.png"
   "star_trade_in_low_stars.png"
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"

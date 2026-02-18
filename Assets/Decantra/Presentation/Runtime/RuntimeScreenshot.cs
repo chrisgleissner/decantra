@@ -29,28 +29,27 @@ namespace Decantra.Presentation
         private const string MotionDirectoryName = "motion";
         private const string InitialRenderFileName = "initial_render.png";
         private const string AfterFirstMoveFileName = "after_first_move.png";
+        private const string StartupFadeMidpointFileName = "startup_fade_in_midpoint.png";
+        private const string HelpOverlayFileName = "help_overlay.png";
+        private const string OptionsPanelTypographyFileName = "options_panel_typography.png";
+        private const string OptionsAudioAccessibilityFileName = "options_audio_accessibility.png";
+        private const string OptionsStarfieldControlsFileName = "options_starfield_controls.png";
+        private const string OptionsLegalPrivacyTermsFileName = "options_legal_privacy_terms.png";
+        private const string StarTradeInLowStarsFileName = "star_trade_in_low_stars.png";
+        private const string LaunchFileName = "screenshot-01-launch.png";
+        private const string IntroFileName = "screenshot-02-intro.png";
+        private const string Level01FileName = "screenshot-03-level-01.png";
+        private const string Level10FileName = "screenshot-08-level-10.png";
+        private const string Level12FileName = "screenshot-04-level-12.png";
+        private const string Level20FileName = "screenshot-09-level-20.png";
+        private const string Level24FileName = "screenshot-05-level-24.png";
+        private const string InterstitialFileName = "screenshot-06-interstitial.png";
+        private const string Level36FileName = "screenshot-07-level-36.png";
+        private const string OptionsLegacyFileName = "screenshot-10-options.png";
         private const string TutorialPageFilePrefix = "how_to_play_tutorial_page_";
         private const int MaxTutorialPagesToCapture = 12;
         private const int MotionFrameCount = 6;
         private const float MotionFrameIntervalMs = 600f;
-
-        private static readonly string[] ScreenshotFiles =
-        {
-            "startup_fade_in_midpoint.png",
-            "help_overlay.png",
-            "options_panel_typography.png",
-            "star_trade_in_low_stars.png",
-            "screenshot-01-launch.png",
-            "screenshot-02-intro.png",
-            "screenshot-03-level-01.png",
-            "screenshot-08-level-10.png",
-            "screenshot-04-level-12.png",
-            "screenshot-09-level-20.png",
-            "screenshot-05-level-24.png",
-            "screenshot-06-interstitial.png",
-            "screenshot-07-level-36.png",
-            "screenshot-10-options.png"
-        };
 
         private bool _failed;
 
@@ -93,24 +92,25 @@ namespace Decantra.Presentation
 
             yield return CaptureFirstMoveShiftEvidence(controller, outputDir);
 
-            yield return CaptureStartupFadeMidpoint(outputDir, ScreenshotFiles[0]);
+            yield return CaptureStartupFadeMidpoint(outputDir, StartupFadeMidpointFileName);
             yield return CaptureLaunchScreenshot(outputDir);
             yield return CaptureIntroScreenshot(outputDir);
             yield return CaptureTutorialPages(controller, outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[6]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[7]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[8]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, ScreenshotFiles[9]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[10]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, Level01FileName);
+            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, Level10FileName);
+            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
+            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
+            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, Level24FileName);
             yield return CaptureInterstitialScreenshot(outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[12]);
-            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[2]);
-            yield return CaptureStarTradeInScreenshot(controller, outputDir, ScreenshotFiles[3]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, Level36FileName);
+            yield return CaptureOptionsScreenshot(controller, outputDir, OptionsPanelTypographyFileName);
+            yield return CaptureOptionsCoverageScreenshots(controller, outputDir);
+            yield return CaptureStarTradeInScreenshot(controller, outputDir, StarTradeInLowStarsFileName);
             // Capture the options overlay twice: once with the new descriptive filename
             // ("options_panel_typography.png") and once with the legacy numbered filename
             // ("screenshot-10-options.png") to preserve backward compatibility with existing assets.
-            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[13]);
-            yield return CaptureHelpOverlayScreenshot(controller, outputDir, ScreenshotFiles[1]);
+            yield return CaptureOptionsScreenshot(controller, outputDir, OptionsLegacyFileName);
+            yield return CaptureHelpOverlayScreenshot(controller, outputDir, HelpOverlayFileName);
 
             yield return new WaitForEndOfFrame();
             WriteCompletionMarker(outputDir);
@@ -726,7 +726,7 @@ namespace Decantra.Presentation
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
             yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[4]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, LaunchFileName));
         }
 
         private IEnumerator CaptureIntroScreenshot(string outputDir)
@@ -744,7 +744,7 @@ namespace Decantra.Presentation
             intro.EnableScreenshotMode();
             StartCoroutine(intro.Play());
             yield return new WaitForSeconds(intro.GetCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[5]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, IntroFileName));
             intro.DismissEarly();
             yield return new WaitForSeconds(0.5f);
         }
@@ -763,7 +763,7 @@ namespace Decantra.Presentation
             banner.Show(2, 4, 280, false, () => { }, () => complete = true);
             yield return WaitForInterstitialVisible();
             yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[11]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, InterstitialFileName));
             float timeout = 4f;
             float elapsed = 0f;
             while (!complete && elapsed < timeout)
@@ -900,6 +900,61 @@ namespace Decantra.Presentation
 
             controller.HideStarTradeInDialog();
             yield return null;
+        }
+
+        private IEnumerator CaptureOptionsCoverageScreenshots(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.HideOptionsOverlay();
+            yield return null;
+
+            controller.ShowOptionsOverlay();
+            yield return WaitForOptionsOverlayVisible(controller);
+            if (_failed)
+            {
+                controller.HideOptionsOverlay();
+                yield break;
+            }
+
+            var optionsScroll = FindOptionsScrollRect();
+            if (optionsScroll == null)
+            {
+                Debug.LogError("RuntimeScreenshot: Options ScrollRect not found for coverage captures.");
+                _failed = true;
+                controller.HideOptionsOverlay();
+                yield break;
+            }
+
+            yield return CaptureOptionsAtScrollPosition(optionsScroll, outputDir, OptionsAudioAccessibilityFileName, 0.72f);
+            yield return CaptureOptionsAtScrollPosition(optionsScroll, outputDir, OptionsStarfieldControlsFileName, 0.42f);
+            yield return CaptureOptionsAtScrollPosition(optionsScroll, outputDir, OptionsLegalPrivacyTermsFileName, 0.04f);
+
+            controller.HideOptionsOverlay();
+            yield return null;
+        }
+
+        private IEnumerator CaptureOptionsAtScrollPosition(ScrollRect scrollRect, string outputDir, string fileName, float normalizedPosition)
+        {
+            if (scrollRect == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            scrollRect.verticalNormalizedPosition = Mathf.Clamp01(normalizedPosition);
+            Canvas.ForceUpdateCanvases();
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForSeconds(0.15f);
+            yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
         }
 
         private IEnumerator CaptureHelpOverlayScreenshot(GameController controller, string outputDir, string fileName)
@@ -1093,6 +1148,23 @@ namespace Decantra.Presentation
             }
 
             return field.GetValue(controller) as StarTradeInDialog;
+        }
+
+        private static ScrollRect FindOptionsScrollRect()
+        {
+            var optionsOverlay = GameObject.Find("OptionsOverlay");
+            if (optionsOverlay == null)
+            {
+                return null;
+            }
+
+            var listContainer = optionsOverlay.transform.Find("Panel/ListContainer");
+            if (listContainer == null)
+            {
+                return null;
+            }
+
+            return listContainer.GetComponent<ScrollRect>();
         }
 
         private static int ResolveAutoSolveCost(GameController controller)

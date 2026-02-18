@@ -136,6 +136,34 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(termsScroll, "Terms overlay should contain a ScrollRect.");
         }
 
+        [UnityTest]
+        public IEnumerator Options_ContainsAudioAccessibilityStarfieldAndLegalControls()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            controller.ShowOptionsOverlay();
+            yield return null;
+
+            var optionsOverlay = GameObject.Find("OptionsOverlay");
+            Assert.IsNotNull(optionsOverlay);
+
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer"), "Options list container should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/VerticalScrollbar"), "Options should expose a visible vertical scrollbar for deep sections.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/AudioSection/SfxRow"), "SFX toggle row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/AudioSection/SfxVolumeRow"), "SFX volume row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/AccessibilitySection/AccessibleColorsRow"), "Accessible colors row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/VisualSection/StarfieldGroup/StarfieldEnabledRow"), "Starfield enabled row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/VisualSection/StarfieldGroup/DensityRow"), "Starfield density row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/VisualSection/StarfieldGroup/SpeedRow"), "Starfield speed row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/VisualSection/StarfieldGroup/BrightnessRow"), "Starfield brightness row should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/LegalSection/PrivacyRow"), "Privacy policy button should exist.");
+            Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/LegalSection/TermsRow"), "Terms of service button should exist.");
+        }
+
         private static GameObject FindGameObjectByNameIncludingInactive(string name)
         {
             var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
