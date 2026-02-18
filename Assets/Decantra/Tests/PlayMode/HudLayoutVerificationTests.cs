@@ -620,8 +620,8 @@ namespace Decantra.Tests.PlayMode
 
         private static List<RectTransform> ResolveTopControlRects(GameController controller)
         {
-            var names = new[] { "ResetButton", "OptionsButton" };
-            var result = new List<RectTransform>(2);
+            var names = new[] { "ResetButton", "OptionsButton", "StarsButton" };
+            var result = new List<RectTransform>(3);
             var hudRoot = ResolveHudRoot(controller);
             if (hudRoot == null) return result;
 

@@ -19,6 +19,7 @@ namespace Decantra.Domain.Persistence
         public int CurrentSeed;
         public int CurrentScore;
         public int HighScore;
+        public int StarBalance;
         public List<int> CompletedLevels;
         public List<LevelPerformanceRecord> BestPerformances;
     }

@@ -1,150 +1,81 @@
-# PLANS — Procedural Background Stage System Audit & Fix
+# PLANS
 
-Last updated: 2026-02-17
+Last updated: 2026-02-18 (screenshot regression pass 3)
+Owner: GitHub Copilot (GPT-5.3-Codex)
 
-## Objective
-Audit the procedural background stage system, fix defects, and ensure:
-- A new background archetype activates every 10 levels (10, 20, 30, …).
-- Slight color/parameter variation within each 10-level block.
-- All 16 generator archetypes are reachable and wired.
+## Mission
 
----
+Validate and fix regressions end-to-end: prove screenshot provenance from the latest APK, remove startup overlay auto-show risk, enforce Star Trade-In UX requirements, validate modal consistency and tutorial highlights, regenerate screenshots, and ensure local + CI green.
 
-## 1. Stage Logic Summary
+## Phase 1 - Build Verification & Provenance
 
-### Level Progression
-- `_currentLevel` starts at 1, increments by 1 on each completion.
-- Set in `ApplyLoadedState()` at `GameController.cs:1436`.
+- [x] Confirm active branch and clean working tree.
+- [x] Perform clean Android build from local branch.
+- [x] Record APK path, modification timestamp, and package/version metadata.
+- [x] Verify screenshot automation consumes the freshly built APK artifact.
+- [x] Ensure install flow clears prior app state and handles uninstall/reinstall when needed.
+- [x] Capture evidence trail: build time, install time, screenshot output times.
 
-### Zone Formula (`BackgroundRules.GetZoneIndex`)
-```
-levels  1-9  → zone 0
-levels 10-19 → zone 1
-levels 20-29 → zone 2
-levels 30-39 → zone 3  …etc (10 levels per zone after zone 0)
-```
-File: `Assets/Decantra/Domain/Rules/BackgroundRules.cs:56-62`
+## Phase 2 - Startup Overlay Regression
 
-### Archetype Selection (`SelectArchetypeForLevel`) — **BEFORE FIX**
-```csharp
-if (levelIndex <= 24) return DomainWarpedClouds;
-int remainingCount = AllowedArchetypesOrdered.Length - 1; // 13
-int offset = (uint)globalSeed % (uint)remainingCount;
-int index = (levelIndex - 2 + offset) % remainingCount;
-return AllowedArchetypesOrdered[1 + index];
-```
-**Defect:** Archetype changes EVERY LEVEL (not every 10). Levels 1-24 are
-hardcoded to `DomainWarpedClouds` with no archetype transition at level 10 or 20.
+- [x] Trace all startup lifecycle paths (`Awake`, `Start`, `OnEnable`, bootstrap wiring) for overlay activation.
+- [x] Remove/guard any automatic Star Trade-In or modal activation at startup.
+- [x] Verify overlay visibility defaults and non-blocking raycast state.
+- [x] Verify tutorial flow remains unobstructed at first launch and replay.
 
----
+## Phase 3 - Star Trade-In Redesign Compliance
 
-## 2. Theme Inventory (Pre-fix)
+- [x] Validate action cards include title, subtitle, and explicit `Price` + `N stars` section.
+- [x] Ensure no parenthesized cost indicators remain in UI copy/layout.
+- [x] Ensure disabled state: greyed card, `Not enough stars`, non-clickable, cost still visible.
+- [x] Ensure enabled state remains clearly interactive.
+- [x] Validate confirm/cancel flow text and behavior (`Spend X stars to [action]?`).
 
-16 distinct generator archetypes exist in the enum. All 16 have unique
-implementations in `Assets/Decantra/Domain/Background/`.
+## Phase 4 - Tutorial Highlight Validation
 
-| # | Theme Name | File | Type | Was Reachable |
-|---|------------|------|------|---------------|
-| 0 | DomainWarpedClouds | DomainWarpedCloudsGenerator.cs | Procedural | Levels 1-24 only |
-| 1 | CurlFlowAdvection | CurlFlowAdvectionGenerator.cs | Procedural | Yes (post-24) |
-| 2 | **AtmosphericWash** | AtmosphericWashGenerator.cs | Procedural | **NO — dead code** |
-| 3 | FractalEscapeDensity | FractalEscapeDensityGenerator.cs | Procedural | Yes (post-24) |
-| 4 | BotanicalIFS | BotanicalIFSGenerator.cs | Procedural | Yes (post-24) |
-| 5 | ImplicitBlobHaze | ImplicitBlobHazeGenerator.cs | Procedural | Yes (post-24) |
-| 6 | MarbledFlow | MarbledFlowGenerator.cs | Procedural | Yes (post-24) |
-| 7 | ConcentricRipples | ConcentricRipplesGenerator.cs | Procedural | Yes (post-24) |
-| 8 | NebulaGlow | NebulaGlowGenerator.cs | Procedural | Yes (post-24) |
-| 9 | **OrganicCells** | OrganicCellsGenerator.cs | Procedural | **NO — dead code** |
-| 10 | CrystallineFrost | CrystallineFrostGenerator.cs | Procedural | Yes (post-24) |
-| 11 | BranchingTree | BranchingTreeGenerator.cs | Procedural | Yes (post-24) |
-| 12 | VineTendrils | VineTendrilsGenerator.cs | Procedural | Yes (post-24) |
-| 13 | RootNetwork | RootNetworkGenerator.cs | Procedural | Yes (post-24) |
-| 14 | CanopyDapple | CanopyDappleGenerator.cs | Procedural | Yes (post-24) |
-| 15 | FloralMandala | FloralMandalaGenerator.cs | Procedural | Yes (post-24) |
+- [x] Validate highlight targets for bottles, HUD buttons, and stars/options references.
+- [x] Validate highlight ring position/size mapping on scaled canvases.
+- [x] Verify no modal/overlay obscures active tutorial highlight.
 
-### Dead Code
-- `AtmosphericWash` and `OrganicCells`: registered in generator dict but missing
-  from `AllowedArchetypesOrdered` → never selected.
-- `SelectArchetypeForZone()`: declared but never called anywhere.
-- `DomainWarpedClouds` never reused post-24 (`AllowedArchetypesOrdered[0]`
-  skipped by `1 + index`).
+## Phase 5 - Global Modal Consistency
 
----
+- [x] Validate typography roles (`ModalHeader`, `SectionTitle`, `BodyText`, `HelperText`, `ButtonText`, `CostText`) across all modals.
+- [x] Validate modal responsiveness, padding rhythm, and scroll usage for long content.
+- [x] Validate CTA grouping and primary/secondary separation.
+- [x] Validate lifecycle: hidden by default, explicitly invoked, dismissible, no stale raycast blockers.
 
-## 3. Defects Found
+## Phase 6 - Multi-Resolution Validation
 
-### D1: Archetype changes every level, not every 10
-- **Root cause:** `SelectArchetypeForLevel` uses `(levelIndex - 2 + offset) % 13`
-  with no grouping by zone/stage.
-- **Fix:** Use `zoneIndex` (from `GetZoneIndex`) to select archetype, so all
-  levels within a 10-level block share the same theme.
+- [x] Validate 5.5-inch equivalent layout for tutorial and modals.
+- [x] Validate standard modern Android layout.
+- [x] Validate low-star/high-star states with Star Trade-In open.
+- [x] Check for clipping, overlap, truncation, and anchor/scale drift.
 
-### D2: Levels 1-24 hardcoded to single archetype
-- **Root cause:** `if (levelIndex <= 24) return DomainWarpedClouds;`
-- **Fix:** Remove the hardcoded intro range, let zone logic apply from level 1.
+## Phase 7 - Screenshot Regeneration
 
-### D3: AtmosphericWash and OrganicCells unreachable
-- **Root cause:** Missing from `AllowedArchetypesOrdered` array.
-- **Fix:** Add both to the array → 16 allowed archetypes.
+- [x] Run clean build then install fresh APK.
+- [x] Regenerate all screenshot artifacts from runtime capture.
+- [x] Add explicit Star Trade-In screenshot capture artifact for regression proof.
+- [x] Suppress tutorial overlays during screenshot automation to prevent highlight bleed-through.
+- [x] Add dedicated per-step tutorial screenshots (`how_to_play_tutorial_page_XX.png`).
+- [x] Re-capture `help_overlay.png`, `options_panel_typography.png`, and all level screenshots without tutorial overlay artifacts.
+- [x] Verify captured screenshots show redesigned Star Trade-In and modal consistency.
+- [x] Confirm no screenshot contains outdated parenthesized-cost UI.
 
-### D4: Dead method `SelectArchetypeForZone`
-- **Fix:** Remove it.
+## Phase 8 - Testing & CI
 
-### D5: No intra-block variation
-- **Root cause:** When archetype is the same for a 10-level block, the visual
-  difference between levels comes only from palette/seed jitter, which is subtle.
-- **Fix:** Already handled by `LevelVariant` (hue shift, saturation, value,
-  gradient direction, accent strength). Verify it provides sufficient variation.
+- [x] Run full local EditMode suite.
+- [x] Run full local PlayMode suite.
+- [x] Run coverage gate and confirm threshold compliance.
+- [x] Add/update tests for overlay lifecycle and star trade-in state where missing.
+- [x] Push changes and verify CI checks are green on active PR.
 
----
+## Exit Criteria
 
-## 4. Validation Result (Pre-fix)
-
-| Question | Answer |
-|----------|--------|
-| New theme every 10 levels? | **NO** — changes every level post-24, never pre-24 |
-| ≥15 distinct themes? | **YES** — 16 exist, but only 14 reachable |
-| All themes reachable? | **NO** — AtmosphericWash and OrganicCells dead |
-| Repetition patterns? | Cycle of 13 repeats post level 24 |
-
-## 5. Final Verdict (Pre-fix): **FAIL**
-
----
-
-## 6. Fix Plan
-
-1. Add `AtmosphericWash` + `OrganicCells` to `AllowedArchetypesOrdered` (16 total).
-2. Rewrite `SelectArchetypeForLevel` to use zone-based selection: same archetype
-   for all levels in a 10-level zone, cycling through all 16.
-3. Remove hardcoded `levelIndex <= 24` guard in archetype selection.
-4. Remove dead `SelectArchetypeForZone` method.
-5. Update `GameController.ApplyBackgroundVariation` levels ≤ 24 special colors:
-   keep per-zone color theming but derive it from the shared zone system.
-6. Starfield visibility: enable stars on all cosmic/hazy/cloud-like archetypes
-   (majority: 9 of 16). Disable only on clearly terrestrial/botanical/crystalline
-   themes (7 of 16). Simplify from three-category system to binary.
-   Stars YES: DomainWarpedClouds, CurlFlowAdvection, AtmosphericWash, NebulaGlow,
-              MarbledFlow, ConcentricRipples, ImplicitBlobHaze, OrganicCells,
-              FractalEscapeDensity.
-   Stars NO:  BotanicalIFS, BranchingTree, RootNetwork, VineTendrils,
-              CanopyDapple, FloralMandala, CrystallineFrost.
-7. **Deterministic shuffle**: The 16 archetypes are shuffled per cycle using a
-   seeded Fisher-Yates (Knuth) shuffle so the progression order varies by seed.
-   - The shuffle is fully deterministic: given the same seed, every replay from
-     level 1 produces the exact same background for every level.
-   - No two consecutive zones ever share the same archetype, including at the
-     boundary between cycles (e.g. zone 15 → zone 16).
-8. **Intro theme (levels 1-9)**: Apply a fixed "Midnight Ocean" deep blue/indigo
-   color palette for levels 1-9 (zone 0). This is a targeted color override in
-   `ApplyBackgroundVariation` that sets the gradient and layer tints to specific
-   deep indigo values. The archetype itself is still selected by the shuffle —
-   only the colors are overridden to ensure a consistent first impression.
-9. Add/update tests verifying:
-   - Same archetype within each 10-level block
-   - Different archetype at each 10-level boundary (up to cycle length)
-   - All 16 archetypes reachable
-   - Determinism for same seed
-   - No consecutive zones share the same archetype (including cross-cycle)
-   - Different seeds produce different orderings
-   - Starfield enabled on 9 cosmic archetypes, disabled on 7 terrestrial
-9. Run tests, build, push.
+- [x] No overlay auto-appears on startup.
+- [x] Tutorial highlights are correct and unobstructed.
+- [x] Star Trade-In layout is updated and cost labels are explicit.
+- [x] Disabled states and confirmation flow behave as specified.
+- [x] All modal families are visually and behaviorally consistent.
+- [x] Fresh screenshots are generated from latest APK and verified.
+- [x] Local tests and CI are green.

@@ -110,6 +110,8 @@ rm -f "${OUTPUT_DIR}"/*.png || true
 adb -s "${DEVICE_ID}" shell pm clear "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 adb -s "${DEVICE_ID}" shell rm -rf "/sdcard/Android/data/${PACKAGE_NAME}/files/DecantraScreenshots" >/dev/null 2>&1 || true
 adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+adb -s "${DEVICE_ID}" shell media volume --stream 3 --set 0 >/dev/null 2>&1 || true
+adb -s "${DEVICE_ID}" shell cmd media_session volume --stream 3 --set 0 >/dev/null 2>&1 || true
 
 install_output=""
 install_status=0
@@ -129,7 +131,7 @@ if [[ ${install_status} -ne 0 ]]; then
 fi
 adb -s "${DEVICE_ID}" shell pm enable "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 
-extras=(--ez decantra_screenshots true)
+extras=(--ez decantra_screenshots true --ez decantra_quiet true)
 if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
   extras+=(--ez decantra_screenshots_only true)
 fi
@@ -142,6 +144,7 @@ expected=(
   "startup_fade_in_midpoint.png"
   "help_overlay.png"
   "options_panel_typography.png"
+  "star_trade_in_low_stars.png"
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"
   "screenshot-03-level-01.png"
@@ -201,6 +204,37 @@ for file in "${expected[@]}"; do
   fi
   echo "Captured ${dest}"
   done
+
+tutorial_count=0
+for idx in $(seq -w 1 12); do
+  file="how_to_play_tutorial_page_${idx}.png"
+  dest="${OUTPUT_DIR}/${file}"
+  pulled=false
+  for attempt in 1 2 3; do
+    adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/${PACKAGE_NAME}/${remote_dir}/${file}" "${dest}" >/dev/null && pulled=true || true
+    if [[ -s "${dest}" ]]; then
+      pulled=true
+      break
+    fi
+    sleep 0.3
+  done
+
+  if [[ "${pulled}" == "true" && -s "${dest}" ]]; then
+    tutorial_count=$((tutorial_count + 1))
+    echo "Captured ${dest}"
+    continue
+  fi
+
+  rm -f "${dest}" >/dev/null 2>&1 || true
+  if [[ ${tutorial_count} -gt 0 ]]; then
+    break
+  fi
+done
+
+if [[ ${tutorial_count} -lt 7 ]]; then
+  echo "Expected at least 7 tutorial page screenshots, captured ${tutorial_count}." >&2
+  exit 1
+fi
 
 adb -s "${DEVICE_ID}" shell am force-stop uk.gleissner.decantra >/dev/null 2>&1 || true
 

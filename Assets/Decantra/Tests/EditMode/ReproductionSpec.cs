@@ -22,10 +22,9 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void VerifySolutionDoesNotUseSinks()
+        public void VerifyNoSinkModeDisallowsSinkTargets()
         {
-            // We want to find a level that has Sinks, and verify the solution doesn't touch them.
-            // Sinks are introduced based on LevelDifficultyEngine.ResolveSinkCount AND EmptyBottleCount.
+            // With allowSinkMoves=false the solver must avoid sink targets.
 
             var solver = new BfsSolver();
             var generator = new LevelGenerator(solver);
@@ -51,7 +50,7 @@ namespace Decantra.Tests.EditMode
             var state = generator.Generate(seed, profileWithSinks);
 
             // Re-solve the generated state to inspect moves
-            var solveResult = solver.SolveWithPath(state, 100000, 2000);
+            var solveResult = solver.SolveWithPath(state, 100000, 2000, allowSinkMoves: false);
 
             Assert.AreNotEqual(SolverStatus.Unsolvable, solveResult.Status);
             Assert.IsNotEmpty(solveResult.Path);
@@ -71,10 +70,8 @@ namespace Decantra.Tests.EditMode
                 {
                     Assert.Fail($"Solution moves FROM a sink! Move: {move.Source}->{move.Target}. Sink Indices: {string.Join(",", sinkIndices)}");
                 }
-                if (sinkIndices.Contains(move.Target))
-                {
-                    Assert.Fail($"Solution moves TO a sink! Move: {move.Source}->{move.Target}. Sink Indices: {string.Join(",", sinkIndices)}");
-                }
+                Assert.IsFalse(sinkIndices.Contains(move.Target),
+                    $"No-sink solve should not move TO a sink. Move: {move.Source}->{move.Target}. Sink Indices: {string.Join(",", sinkIndices)}");
             }
         }
     }

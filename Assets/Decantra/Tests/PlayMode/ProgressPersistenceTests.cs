@@ -48,6 +48,44 @@ namespace Decantra.Tests.PlayMode
         }
 
         [Test]
+        public void ProgressStore_PersistsStarBalance()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "decantra-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "progress.json");
+
+            var store = new ProgressStore(new[] { path });
+            var data = new ProgressData
+            {
+                HighestUnlockedLevel = 5,
+                CurrentLevel = 3,
+                CurrentSeed = 999,
+                StarBalance = 42
+            };
+
+            store.Save(data);
+            var loaded = store.Load();
+
+            Assert.AreEqual(42, loaded.StarBalance, "Star balance should survive round-trip.");
+        }
+
+        [Test]
+        public void ProgressStore_NegativeStarBalance_ClampedToZeroOnLoad()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "decantra-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "progress.json");
+
+            // Write corrupt data with negative balance
+            File.WriteAllText(path, "{\"HighestUnlockedLevel\":1,\"CurrentLevel\":1,\"CurrentSeed\":1,\"StarBalance\":-10}");
+
+            var store = new ProgressStore(new[] { path });
+            var loaded = store.Load();
+
+            Assert.GreaterOrEqual(loaded.StarBalance, 0, "Negative star balance should be clamped on load.");
+        }
+
+        [Test]
         public void ResumePolicy_UsesCurrentLevelWhenAvailable()
         {
             var data = new ProgressData

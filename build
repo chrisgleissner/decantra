@@ -9,6 +9,8 @@ DECANTRA_ANDROID_SERIAL="${DECANTRA_ANDROID_SERIAL:-${ANDROID_SERIAL:-}}"
 UNITY_PATH_OVERRIDE="${UNITY_PATH:-}"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
+export UNITY_DISABLE_AUDIO=1
+export SDL_AUDIODRIVER=dummy
 
 # Load .env if present (for keystore configuration)
 if [[ -f "${ROOT_DIR}/.env" ]]; then
@@ -665,8 +667,29 @@ if [[ "${GENERATE_SOLUTIONS}" == "true" ]]; then
     echo "dotnet not found in PATH" >&2
     exit 1
   fi
-  if ! dotnet run --project "${ROOT_DIR}/Reproduction/Reproduction.csproj" -- bulk 1000 > "${ROOT_DIR}/solver-solutions-debug.txt"; then
-    echo "Warning: Failed to generate solver solutions; dotnet run exited with status $?" >&2
+
+  REPRO_PROJECT_PATH="${ROOT_DIR}/Reproduction/Reproduction.csproj"
+  if [[ ! -f "${REPRO_PROJECT_PATH}" ]]; then
+    REPRO_PROJECT_PATH="${ROOT_DIR}/Reproduction"
+  fi
+  if [[ ! -e "${REPRO_PROJECT_PATH}" ]]; then
+    echo "ERROR: Reproduction project path not found: ${ROOT_DIR}/Reproduction" >&2
+    exit 1
+  fi
+
+  rm -f "${ROOT_DIR}/solver-solutions-debug.txt"
+  if dotnet run --project "${REPRO_PROJECT_PATH}" -- bulk 1000 > "${ROOT_DIR}/solver-solutions-debug.txt"; then
+    :
+  else
+    status=$?
+    echo "ERROR: Failed to generate solver solutions; dotnet run exited with status ${status}" >&2
+    exit ${status}
+  fi
+
+  generated_level_count=$(grep -c "^level=" "${ROOT_DIR}/solver-solutions-debug.txt" || true)
+  if [[ "${generated_level_count}" -le 0 ]]; then
+    echo "ERROR: Generated solver solutions are empty (0 levels)." >&2
+    exit 1
   fi
   
   # Run validation gates on generated solutions
@@ -710,6 +733,9 @@ if [[ "${GENERATE_BACKGROUND_SAMPLES}" == "true" ]]; then
   log "Running Unity batchmode to generate background samples"
   "${UNITY_PATH_FOUND}" \
     -batchmode \
+    -nographics \
+    -noaudio \
+    -disable-audio \
     -quit \
     -projectPath "${ROOT_DIR}" \
     -executeMethod "Decantra.Presentation.Editor.BackgroundSampleGenerator.GenerateSamplesBatchmode" \

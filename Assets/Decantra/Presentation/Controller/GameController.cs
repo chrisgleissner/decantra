@@ -37,6 +37,7 @@ namespace Decantra.Presentation.Controller
         [SerializeField] private OutOfMovesBanner outOfMovesBanner;
         [SerializeField] private RestartGameDialog restartDialog;
         [SerializeField] private ResetLevelDialog resetLevelDialog;
+        [SerializeField] private StarTradeInDialog starTradeInDialog;
         [SerializeField] private TutorialManager tutorialManager;
         [SerializeField] private Image backgroundImage;
         [SerializeField] private Image backgroundDetail;
@@ -59,6 +60,9 @@ namespace Decantra.Presentation.Controller
         private bool _isCompleting;
         private bool _isFailing;
         private bool _isResetting;
+        private bool _isAutoSolving;
+        private bool _autoSolvePlaybackActive;
+        private float _autoSolveMoveDuration = 1f;
         private int _levelSessionId;
         private int _currentLevel = 1;
         private int _currentSeed;
@@ -75,6 +79,7 @@ namespace Decantra.Presentation.Controller
         private CancellationTokenSource _precomputeCts;
         private Task<GeneratedLevel> _precomputeTask;
         private bool _wasInputLockedBeforeOverlay;
+        private bool _wasInputLockedBeforeStarTradeIn;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
 #endif
@@ -88,6 +93,8 @@ namespace Decantra.Presentation.Controller
         private bool _usedUndo;
         private bool _usedHints;
         private bool _usedRestart;
+        private bool _isCurrentLevelAssisted;
+        private int _levelResetCount;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
         private float _sfxVolume01 = 1f;
@@ -108,6 +115,7 @@ namespace Decantra.Presentation.Controller
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
         private const float StartupVisualSettleSeconds = 0.9f;
+        private const string QuietAutomationFlag = "decantra_quiet";
         private static readonly bool EnablePourDiagnostics = false;
 
         private readonly struct GeneratedLevel
@@ -300,6 +308,7 @@ namespace Decantra.Presentation.Controller
             _highContrastEnabled = _settingsStore.LoadHighContrastEnabled();
             _colorBlindAssistEnabled = _settingsStore.LoadAccessibleColorsEnabled();
             _starfieldConfig = _settingsStore.LoadStarfieldConfig();
+            ApplyQuietAudioOverridesForAutomation();
             ApplyStarfieldConfig();
             SetupAudio();
             ApplyAccessibilitySettings();
@@ -307,6 +316,19 @@ namespace Decantra.Presentation.Controller
             if (tutorialManager != null)
             {
                 tutorialManager.Initialize(this, _settingsStore);
+            }
+
+            ResolveOverlayReferencesIfMissing();
+            ApplyHowToPlayOverlayTypography();
+            HideModal(_optionsOverlay);
+            HideModal(_howToPlayOverlay);
+            HideModal(_privacyPolicyOverlay);
+            HideModal(_termsOverlay);
+
+            if (starTradeInDialog != null)
+            {
+                starTradeInDialog.Initialize();
+                starTradeInDialog.Hide();
             }
 
             _scoreSession = new ScoreSession(_progress?.CurrentScore ?? 0);
@@ -353,6 +375,10 @@ namespace Decantra.Presentation.Controller
             _usedUndo = false;
             _usedHints = false;
             _usedRestart = false;
+            _isCurrentLevelAssisted = false;
+            _levelResetCount = 0;
+            _isAutoSolving = false;
+            _autoSolvePlaybackActive = false;
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;
@@ -446,6 +472,7 @@ namespace Decantra.Presentation.Controller
             _selectedIndex = -1;
             _isFailing = false;
             _isCompleting = false;
+            _levelResetCount++;
 
             RestartCurrentLevel();
             _usedRestart = true;
@@ -657,10 +684,11 @@ namespace Decantra.Presentation.Controller
                 // Requirement #5: Score applies at specific moment in interstitial.
                 // We show only TotalScore during gameplay (Provisional hidden).
                 int displayScore = total;
+                int starBalance = _progress?.StarBalance ?? 0;
                 int highScore = _progress?.HighScore ?? total;
                 int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
                 bool levelCompleted = IsCurrentLevelCompleted(_state.LevelIndex);
-                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, highScore, maxLevel, _currentDifficulty100, levelCompleted);
+                hudView.Render(_state.LevelIndex, _state.MovesUsed, _state.MovesAllowed, _state.OptimalMoves, displayScore, starBalance, highScore, maxLevel, _currentDifficulty100, levelCompleted);
             }
 
             if (_state.IsWin() && !_isCompleting)
@@ -688,10 +716,19 @@ namespace Decantra.Presentation.Controller
             int nextLevel = _currentLevel + 1;
             float efficiency = ScoreCalculator.CalculateEfficiency(_state.OptimalMoves, _state.MovesUsed);
             _lastGrade = ScoreCalculator.CalculateGrade(_state.OptimalMoves, _state.MovesUsed);
-            _lastStars = CalculateStars(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed);
+            int baseStars = CalculateStars(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed);
+            _lastStars = ResolveAwardedStars(baseStars);
 
-            _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
-            int awardedScore = _scoreSession?.ProvisionalScore ?? 0;
+            if (_isCurrentLevelAssisted)
+            {
+                _scoreSession?.ResetAttempt();
+            }
+            else
+            {
+                _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
+            }
+
+            int awardedScore = _isCurrentLevelAssisted ? 0 : (_scoreSession?.ProvisionalScore ?? 0);
             // CommitLevel delayed to onScoreApply
             _completionStreak++;
 
@@ -699,9 +736,18 @@ namespace Decantra.Presentation.Controller
 
             Action onScoreApply = () =>
             {
-                _scoreSession?.CommitLevel();
+                if (!_isCurrentLevelAssisted)
+                {
+                    _scoreSession?.CommitLevel();
+                }
+                else
+                {
+                    _scoreSession?.ResetAttempt();
+                }
+
                 if (_progress != null)
                 {
+                    _progress.StarBalance = Math.Max(0, _progress.StarBalance + _lastStars);
                     _progress.HighestUnlockedLevel = Mathf.Max(_progress.HighestUnlockedLevel, nextLevel);
                     _progress.CurrentLevel = nextLevel;
                     _progress.CurrentSeed = NextSeed(nextLevel, _currentSeed);
@@ -952,6 +998,7 @@ namespace Decantra.Presentation.Controller
         public void ReplayTutorial()
         {
             HideOptionsOverlay();
+            ResolveTutorialManagerIfMissing();
             if (tutorialManager != null)
             {
                 tutorialManager.BeginReplay();
@@ -959,39 +1006,46 @@ namespace Decantra.Presentation.Controller
             PlayButtonSfx();
         }
 
+        public void SuppressTutorialOverlayForAutomation()
+        {
+            ResolveTutorialManagerIfMissing();
+            if (tutorialManager != null)
+            {
+                tutorialManager.SuppressForAutomation();
+            }
+
+            var tutorialOverlay = GameObject.Find("TutorialOverlay");
+            if (tutorialOverlay != null)
+            {
+                HideModal(tutorialOverlay);
+            }
+        }
+
         public void ShowPrivacyPolicyOverlay()
         {
-            if (_privacyPolicyOverlay != null)
-            {
-                _privacyPolicyOverlay.SetActive(true);
-            }
+            ResolveOverlayReferencesIfMissing();
+            ShowModal(_privacyPolicyOverlay);
             PlayButtonSfx();
         }
 
         public void HidePrivacyPolicyOverlay()
         {
-            if (_privacyPolicyOverlay != null)
-            {
-                _privacyPolicyOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_privacyPolicyOverlay);
             PlayButtonSfx();
         }
 
         public void ShowTermsOverlay()
         {
-            if (_termsOverlay != null)
-            {
-                _termsOverlay.SetActive(true);
-            }
+            ResolveOverlayReferencesIfMissing();
+            ShowModal(_termsOverlay);
             PlayButtonSfx();
         }
 
         public void HideTermsOverlay()
         {
-            if (_termsOverlay != null)
-            {
-                _termsOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_termsOverlay);
             PlayButtonSfx();
         }
 
@@ -1027,56 +1081,462 @@ namespace Decantra.Presentation.Controller
 
         public void ShowOptionsOverlay()
         {
+            ResolveOverlayReferencesIfMissing();
             if (_optionsOverlay != null)
             {
                 if (_accessibleColorsToggle != null)
                 {
                     _accessibleColorsToggle.SetIsOnWithoutNotify(_colorBlindAssistEnabled);
                 }
-                _optionsOverlay.SetActive(true);
+
+                ShowModal(_optionsOverlay);
             }
             PlayButtonSfx();
         }
 
         public void HideOptionsOverlay()
         {
-            if (_optionsOverlay != null)
-            {
-                _optionsOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_optionsOverlay);
 
             HideHowToPlayOverlay();
-            if (_privacyPolicyOverlay != null)
-            {
-                _privacyPolicyOverlay.SetActive(false);
-            }
-            if (_termsOverlay != null)
-            {
-                _termsOverlay.SetActive(false);
-            }
+            HideModal(_privacyPolicyOverlay);
+            HideModal(_termsOverlay);
         }
 
-        public bool IsOptionsOverlayVisible => _optionsOverlay != null && _optionsOverlay.activeSelf;
+        public bool IsOptionsOverlayVisible => IsModalVisible(_optionsOverlay);
+
+        public void ShowStarTradeInDialog()
+        {
+            if (_state == null || starTradeInDialog == null || _isAutoSolving) return;
+            if (tutorialManager != null && tutorialManager.IsRunning) return;
+            if (starTradeInDialog.IsVisible) return;
+
+            int starBalance = Math.Max(0, _progress?.StarBalance ?? 0);
+            int convertCost = StarEconomy.ConvertSinksCost;
+            int autoSolveCost = ResolveAutoSolveCost();
+            bool hasSink = HasAnySinkBottle();
+            bool canConvert = hasSink && starBalance >= convertCost;
+            bool canAutoSolve = starBalance >= autoSolveCost;
+
+            _wasInputLockedBeforeStarTradeIn = _inputLocked;
+            _inputLocked = true;
+
+            starTradeInDialog.Show(
+                starBalance,
+                convertCost,
+                hasSink,
+                canConvert,
+                autoSolveCost,
+                canAutoSolve,
+                ExecuteConvertSinksTradeIn,
+                ExecuteAutoSolveTradeIn,
+                HideStarTradeInDialog);
+            PlayButtonSfx();
+        }
+
+        public void HideStarTradeInDialog()
+        {
+            if (starTradeInDialog != null)
+            {
+                starTradeInDialog.Hide();
+            }
+            _inputLocked = _wasInputLockedBeforeStarTradeIn;
+            PlayButtonSfx();
+        }
 
         public void ShowHowToPlayOverlay()
         {
-            if (_howToPlayOverlay != null)
-            {
-                _howToPlayOverlay.SetActive(true);
-            }
+            ResolveOverlayReferencesIfMissing();
+            ApplyHowToPlayOverlayTypography();
+            ShowModal(_howToPlayOverlay);
             PlayButtonSfx();
         }
 
         public void HideHowToPlayOverlay()
         {
-            if (_howToPlayOverlay != null)
-            {
-                _howToPlayOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_howToPlayOverlay);
             PlayButtonSfx();
         }
 
-        public bool IsHowToPlayOverlayVisible => _howToPlayOverlay != null && _howToPlayOverlay.activeSelf;
+        public bool IsHowToPlayOverlayVisible => IsModalVisible(_howToPlayOverlay);
+
+        private void ApplyHowToPlayOverlayTypography()
+        {
+            if (_howToPlayOverlay == null)
+            {
+                return;
+            }
+
+            var texts = _howToPlayOverlay.GetComponentsInChildren<Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                var text = texts[i];
+                if (text == null)
+                {
+                    continue;
+                }
+
+                text.resizeTextForBestFit = false;
+                text.horizontalOverflow = HorizontalWrapMode.Wrap;
+                text.verticalOverflow = VerticalWrapMode.Overflow;
+
+                if (string.Equals(text.name, "Title", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.ModalHeader + 4);
+                    continue;
+                }
+
+                if (string.Equals(text.name, "Label", StringComparison.OrdinalIgnoreCase)
+                    && text.transform.parent != null
+                    && string.Equals(text.transform.parent.name, "BackRow", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.ButtonText);
+                    continue;
+                }
+
+                if (text.transform.parent != null
+                    && string.Equals(text.transform.parent.name, "Content", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.BodyText + 8);
+                    text.lineSpacing = Mathf.Max(text.lineSpacing, 1.22f);
+                }
+            }
+        }
+
+        private static void ShowModal(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                baseModal.Show();
+                return;
+            }
+
+            modalRoot.SetActive(true);
+        }
+
+        private static void HideModal(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                baseModal.Hide();
+                return;
+            }
+
+            modalRoot.SetActive(false);
+        }
+
+        private static bool IsModalVisible(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return false;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                return baseModal.IsVisible;
+            }
+
+            return modalRoot.activeSelf;
+        }
+
+        private static bool ShouldSuppressAutoTutorialForAutomation()
+        {
+            if (Application.isBatchMode)
+            {
+                return true;
+            }
+
+            if (UnityEngine.Object.FindFirstObjectByType<RuntimeScreenshot>() != null)
+            {
+                return true;
+            }
+
+            return HasLaunchFlag("-runTests")
+                || HasLaunchFlag("-testPlatform")
+                || HasLaunchFlag("-testResults")
+                || HasLaunchFlag("decantra_screenshots")
+                || HasLaunchFlag("decantra_screenshots_only")
+                || HasLaunchFlag("decantra_motion_capture")
+                || HasLaunchFlag("--screenshots")
+                || HasLaunchFlag("--screenshots-only")
+                || HasLaunchFlag("--motion-capture")
+                || HasLaunchFlag(QuietAutomationFlag);
+        }
+
+        private void ApplyQuietAudioOverridesForAutomation()
+        {
+            if (!ShouldForceQuietAudioForAutomation())
+            {
+                return;
+            }
+
+            _sfxEnabled = false;
+            _sfxVolume01 = 0f;
+            AudioListener.pause = true;
+            AudioListener.volume = 0f;
+        }
+
+        private static bool ShouldForceQuietAudioForAutomation()
+        {
+            if (Application.isBatchMode)
+            {
+                return true;
+            }
+
+            if (IsTruthyEnvironmentFlag(Environment.GetEnvironmentVariable("UNITY_DISABLE_AUDIO")))
+            {
+                return true;
+            }
+
+            return HasLaunchFlag("-noaudio")
+                || HasLaunchFlag("-disable-audio")
+                || HasLaunchFlag("-runTests")
+                || HasLaunchFlag("-testPlatform")
+                || HasLaunchFlag("-testResults")
+                || HasLaunchFlag("decantra_screenshots")
+                || HasLaunchFlag("decantra_screenshots_only")
+                || HasLaunchFlag("decantra_motion_capture")
+                || HasLaunchFlag("--screenshots")
+                || HasLaunchFlag("--screenshots-only")
+                || HasLaunchFlag("--motion-capture")
+                || HasLaunchFlag(QuietAutomationFlag);
+        }
+
+        private static bool IsTruthyEnvironmentFlag(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "on", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool HasLaunchFlag(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var intent = activity.Call<AndroidJavaObject>("getIntent"))
+                {
+                    if (intent == null || !intent.Call<bool>("hasExtra", key))
+                    {
+                        return false;
+                    }
+
+                    return intent.Call<bool>("getBooleanExtra", key, false)
+                           || string.Equals(intent.Call<string>("getStringExtra", key), "true", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(intent.Call<string>("getStringExtra", key), "1", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+#endif
+
+            return false;
+        }
+
+        private void ResolveOverlayReferencesIfMissing()
+        {
+            _optionsOverlay = ResolveOverlayReference(_optionsOverlay, "OptionsOverlay", null);
+
+            Transform optionsParent = _optionsOverlay != null ? _optionsOverlay.transform : null;
+            _howToPlayOverlay = ResolveOverlayReference(_howToPlayOverlay, "HowToPlayOverlay", optionsParent);
+            _privacyPolicyOverlay = ResolveOverlayReference(_privacyPolicyOverlay, "PrivacyPolicyOverlay", optionsParent);
+            _termsOverlay = ResolveOverlayReference(_termsOverlay, "TermsOverlay", optionsParent);
+        }
+
+        private void ResolveTutorialManagerIfMissing()
+        {
+            if (tutorialManager == null || tutorialManager.gameObject == null || tutorialManager.gameObject.scene != gameObject.scene)
+            {
+                tutorialManager = FindTutorialManagerInCurrentScene();
+            }
+
+            if (tutorialManager != null && _settingsStore != null)
+            {
+                tutorialManager.Initialize(this, _settingsStore);
+            }
+        }
+
+        private TutorialManager FindTutorialManagerInCurrentScene()
+        {
+            TutorialManager bestMatch = null;
+            int bestScore = int.MinValue;
+            var allManagers = Resources.FindObjectsOfTypeAll<TutorialManager>();
+            for (int i = 0; i < allManagers.Length; i++)
+            {
+                var candidate = allManagers[i];
+                if (candidate == null || candidate.hideFlags != HideFlags.None)
+                {
+                    continue;
+                }
+
+                var candidateObject = candidate.gameObject;
+                if (candidateObject == null || !candidateObject.scene.IsValid() || !candidateObject.scene.isLoaded)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (candidateObject.scene == gameObject.scene)
+                {
+                    score += 1000;
+                }
+
+                if (candidateObject.activeInHierarchy)
+                {
+                    score += 100;
+                }
+                else if (candidateObject.activeSelf)
+                {
+                    score += 50;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = candidate;
+                }
+            }
+
+            return bestMatch;
+        }
+
+        private GameObject ResolveOverlayReference(GameObject current, string expectedName, Transform preferredParent)
+        {
+            if (IsOverlayReferenceValid(current, expectedName, preferredParent))
+            {
+                return current;
+            }
+
+            return FindOverlayByName(expectedName, preferredParent);
+        }
+
+        private bool IsOverlayReferenceValid(GameObject candidate, string expectedName, Transform preferredParent)
+        {
+            if (candidate == null || candidate.name != expectedName)
+            {
+                return false;
+            }
+
+            if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
+            {
+                return false;
+            }
+
+            if (candidate.scene != gameObject.scene)
+            {
+                return false;
+            }
+
+            if (preferredParent != null && !candidate.transform.IsChildOf(preferredParent))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private GameObject FindOverlayByName(string name, Transform preferredParent)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            GameObject bestMatch = null;
+            int bestScore = int.MinValue;
+            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            for (int i = 0; i < allObjects.Length; i++)
+            {
+                var candidate = allObjects[i];
+                if (candidate == null || candidate.hideFlags != HideFlags.None)
+                {
+                    continue;
+                }
+
+                if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
+                {
+                    continue;
+                }
+
+                if (candidate.name != name)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (preferredParent != null && candidate.transform.IsChildOf(preferredParent))
+                {
+                    score += 1000;
+                }
+
+                if (candidate.scene == gameObject.scene)
+                {
+                    score += 200;
+                }
+
+                if (candidate.activeInHierarchy)
+                {
+                    score += 100;
+                }
+                else if (candidate.activeSelf)
+                {
+                    score += 50;
+                }
+
+                if (candidate.transform.parent != null)
+                {
+                    score += 10;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = candidate;
+                }
+            }
+
+            return bestMatch;
+        }
 
         private void ApplyStarfieldConfig()
         {
@@ -1121,7 +1581,7 @@ namespace Decantra.Presentation.Controller
 
             _inputLocked = false;
 
-            if (tutorialManager != null)
+            if (tutorialManager != null && !ShouldSuppressAutoTutorialForAutomation())
             {
                 tutorialManager.BeginIfFirstLaunch();
             }
@@ -1133,6 +1593,206 @@ namespace Decantra.Presentation.Controller
             _progress.CurrentLevel = Mathf.Max(1, levelIndex);
             _progress.CurrentSeed = seed > 0 ? seed : _progress.CurrentSeed;
             _progressStore.Save(_progress);
+        }
+
+        private int ResolveAwardedStars(int baseStars)
+        {
+            return StarEconomy.ResolveAwardedStars(baseStars, _levelResetCount, _isCurrentLevelAssisted);
+        }
+
+        private static float ResolveResetMultiplier(int resetCount)
+        {
+            return StarEconomy.ResolveResetMultiplier(resetCount);
+        }
+
+        private bool HasAnySinkBottle()
+        {
+            if (_state == null) return false;
+            for (int i = 0; i < _state.Bottles.Count; i++)
+            {
+                if (_state.Bottles[i].IsSink) return true;
+            }
+
+            return false;
+        }
+
+        private int ResolveAutoSolveCost()
+        {
+            return StarEconomy.ResolveAutoSolveCost(_currentDifficulty100);
+        }
+
+        private int ResolveDifficultyTier()
+        {
+            return StarEconomy.ResolveDifficultyTier(_currentDifficulty100);
+        }
+
+        private bool TrySpendStars(int cost)
+        {
+            if (_progress == null || cost <= 0) return false;
+            if (!StarEconomy.TrySpend(_progress.StarBalance, cost, out int newBalance))
+                return false;
+
+            _progress.StarBalance = newBalance;
+            _progressStore.Save(_progress);
+            Render();
+            return true;
+        }
+
+        private void RefundStars(int stars)
+        {
+            if (_progress == null || stars <= 0) return;
+            _progress.StarBalance = StarEconomy.Refund(_progress.StarBalance, stars);
+            _progressStore.Save(_progress);
+            Render();
+        }
+
+        private void ExecuteConvertSinksTradeIn()
+        {
+            int convertCost = StarEconomy.ConvertSinksCost;
+            if (_state == null) return;
+            if (!HasAnySinkBottle()) return;
+            if (!TrySpendStars(convertCost)) return;
+
+            _isCurrentLevelAssisted = true;
+            ConvertAllSinksToNormalBottles();
+        }
+
+        private void ConvertAllSinksToNormalBottles()
+        {
+            if (_state == null) return;
+
+            var converted = new List<Bottle>(_state.Bottles.Count);
+            for (int i = 0; i < _state.Bottles.Count; i++)
+            {
+                var bottle = _state.Bottles[i];
+                var slots = new ColorId?[bottle.Slots.Count];
+                for (int s = 0; s < bottle.Slots.Count; s++)
+                {
+                    slots[s] = bottle.Slots[s];
+                }
+
+                converted.Add(new Bottle(slots, isSink: false));
+            }
+
+            _state = new LevelState(
+                converted,
+                _state.MovesUsed,
+                _state.MovesAllowed,
+                _state.OptimalMoves,
+                _state.LevelIndex,
+                _state.Seed,
+                _state.ScrambleMoves,
+                _state.BackgroundPaletteIndex);
+
+            if (_initialState != null)
+            {
+                var initialConverted = new List<Bottle>(_initialState.Bottles.Count);
+                for (int i = 0; i < _initialState.Bottles.Count; i++)
+                {
+                    var bottle = _initialState.Bottles[i];
+                    var slots = new ColorId?[bottle.Slots.Count];
+                    for (int s = 0; s < bottle.Slots.Count; s++)
+                    {
+                        slots[s] = bottle.Slots[s];
+                    }
+
+                    initialConverted.Add(new Bottle(slots, isSink: false));
+                }
+
+                _initialState = new LevelState(
+                    initialConverted,
+                    0,
+                    _initialState.MovesAllowed,
+                    _initialState.OptimalMoves,
+                    _initialState.LevelIndex,
+                    _initialState.Seed,
+                    _initialState.ScrambleMoves,
+                    _initialState.BackgroundPaletteIndex);
+            }
+
+            Render();
+        }
+
+        private void ExecuteAutoSolveTradeIn()
+        {
+            if (_state == null || _isAutoSolving) return;
+            StartCoroutine(RunAutoSolveTradeIn());
+        }
+
+        private IEnumerator RunAutoSolveTradeIn()
+        {
+            if (_state == null || _isAutoSolving) yield break;
+
+            int cost = ResolveAutoSolveCost();
+            if (!TrySpendStars(cost))
+            {
+                yield break;
+            }
+
+            _isCurrentLevelAssisted = true;
+            _isAutoSolving = true;
+            _inputLocked = true;
+            _levelResetCount++;
+            RestartCurrentLevel();
+
+            var solveResult = _solver.SolveWithPath(_state, 8_000_000, 8_000, allowSinkMoves: true);
+            if (solveResult == null || solveResult.OptimalMoves < 0 || solveResult.Path == null || solveResult.Path.Count == 0)
+            {
+                RefundStars(cost);
+                _isAutoSolving = false;
+                _inputLocked = false;
+                yield break;
+            }
+
+            for (int i = 0; i < solveResult.Path.Count; i++)
+            {
+                if (_state == null)
+                {
+                    RefundStars(cost);
+                    _isAutoSolving = false;
+                    _autoSolvePlaybackActive = false;
+                    yield break;
+                }
+
+                _autoSolveMoveDuration = ResolveAutoSolveMoveDuration(_state.LevelIndex, i);
+                _autoSolvePlaybackActive = true;
+
+                var move = solveResult.Path[i];
+                bool started = TryStartMove(move.Source, move.Target, out _);
+                if (!started)
+                {
+                    RefundStars(cost);
+                    _autoSolvePlaybackActive = false;
+                    RestartCurrentLevel();
+                    _isAutoSolving = false;
+                    _inputLocked = false;
+                    yield break;
+                }
+
+                float timeout = 6f;
+                float elapsed = 0f;
+                while (_inputLocked && elapsed < timeout)
+                {
+                    elapsed += Time.deltaTime;
+                    yield return null;
+                }
+
+                _autoSolvePlaybackActive = false;
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            _isAutoSolving = false;
+            _inputLocked = false;
+        }
+
+        private static float ResolveAutoSolveMoveDuration(int levelIndex, int moveIndex)
+        {
+            unchecked
+            {
+                int hash = levelIndex * 73856093 ^ moveIndex * 19349663;
+                int bucket = Math.Abs(hash % 5);
+                return 0.8f + bucket * 0.1f;
+            }
         }
 
         private int CalculateStars(int optimalMoves, int movesUsed, int movesAllowed)
@@ -1169,6 +1829,11 @@ namespace Decantra.Presentation.Controller
 
         private float ResolvePourWindowDuration(float previousFillRatio, float newFillRatio, int poured)
         {
+            if (_autoSolvePlaybackActive)
+            {
+                return Mathf.Clamp(_autoSolveMoveDuration, 0.8f, 1.2f);
+            }
+
             if (_audioManager == null)
             {
                 return Mathf.Max(0.2f, 0.12f * poured);
@@ -1417,6 +2082,7 @@ namespace Decantra.Presentation.Controller
                 CurrentLevel = 1,
                 CurrentSeed = 0,
                 CurrentScore = 0,
+                StarBalance = 0,
                 HighScore = 0,
                 CompletedLevels = new List<int>(),
                 BestPerformances = new List<LevelPerformanceRecord>()
@@ -1443,6 +2109,10 @@ namespace Decantra.Presentation.Controller
             _usedUndo = false;
             _usedHints = false;
             _usedRestart = false;
+            _isCurrentLevelAssisted = false;
+            _levelResetCount = 0;
+            _isAutoSolving = false;
+            _autoSolvePlaybackActive = false;
             int attemptTotal = _progress?.CurrentScore ?? _scoreSession?.TotalScore ?? 0;
             _scoreSession?.BeginAttempt(attemptTotal);
             _nextState = null;

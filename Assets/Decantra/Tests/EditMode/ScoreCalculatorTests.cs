@@ -36,6 +36,7 @@ namespace Decantra.Tests.EditMode
         {
             // slack=10 => thresholds at 2,4,6,8 moves over optimal.
             Assert.AreEqual(5, ScoreCalculator.CalculateStars(10, 10, 20));
+            Assert.AreEqual(5, ScoreCalculator.CalculateStars(10, 9, 20));
             Assert.AreEqual(4, ScoreCalculator.CalculateStars(10, 12, 20));
             Assert.AreEqual(3, ScoreCalculator.CalculateStars(10, 14, 20));
             Assert.AreEqual(2, ScoreCalculator.CalculateStars(10, 16, 20));

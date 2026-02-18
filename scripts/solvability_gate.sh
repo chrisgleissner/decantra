@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 SOLUTIONS_FILE="${ROOT_DIR}/solver-solutions-debug.txt"
+EXPECTED_LEVEL_COUNT="${DECANTRA_EXPECTED_LEVELS:-1000}"
 
 if [[ ! -f "${SOLUTIONS_FILE}" ]]; then
   echo "ERROR: ${SOLUTIONS_FILE} not found"
@@ -31,6 +32,18 @@ if [[ "${UNSOLVABLE}" -gt 0 ]]; then
 else
   # Also verify expected level count
   LEVEL_COUNT=$(grep -c "^level=" "${SOLUTIONS_FILE}" || true)
+  if [[ "${LEVEL_COUNT}" -le 0 ]]; then
+    echo ""
+    echo "FAIL: No levels were parsed from ${SOLUTIONS_FILE}"
+    exit 1
+  fi
+
+  if [[ "${EXPECTED_LEVEL_COUNT}" =~ ^[0-9]+$ ]] && [[ "${EXPECTED_LEVEL_COUNT}" -gt 0 ]] && [[ "${LEVEL_COUNT}" -ne "${EXPECTED_LEVEL_COUNT}" ]]; then
+    echo ""
+    echo "FAIL: Expected ${EXPECTED_LEVEL_COUNT} levels, found ${LEVEL_COUNT}"
+    exit 1
+  fi
+
   echo "PASS: All ${LEVEL_COUNT} levels are solvable"
   exit 0
 fi

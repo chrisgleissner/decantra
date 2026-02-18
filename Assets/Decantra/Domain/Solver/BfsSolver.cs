@@ -22,21 +22,30 @@ namespace Decantra.Domain.Solver
 
         public SolverResult Solve(LevelState initial)
         {
-            return SolveOptimal(initial);
+            return SolveOptimal(initial, allowSinkMoves: true);
         }
 
         public SolverResult SolveOptimal(LevelState initial)
         {
+            return SolveOptimal(initial, allowSinkMoves: true);
+        }
+
+        public SolverResult SolveOptimal(LevelState initial, bool allowSinkMoves)
+        {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
-            var key = StateEncoder.EncodeCanonicalKey(initial);
-            if (_optimalCache.TryGetValue(key, out int cached))
+            if (allowSinkMoves)
             {
-                return new SolverResult(cached, new List<Move>());
+                var key = StateEncoder.EncodeCanonicalKey(initial);
+                if (_optimalCache.TryGetValue(key, out int cached))
+                {
+                    return new SolverResult(cached, new List<Move>());
+                }
             }
 
-            var result = SolveInternal(initial, -1, -1, false, false);
-            if (result.OptimalMoves >= 0)
+            var result = SolveInternal(initial, -1, -1, false, false, allowSinkMoves);
+            if (allowSinkMoves && result.OptimalMoves >= 0)
             {
+                var key = StateEncoder.EncodeCanonicalKey(initial);
                 _optimalCache.TryAdd(key, result.OptimalMoves);
             }
             return result;
@@ -45,28 +54,44 @@ namespace Decantra.Domain.Solver
         public SolverResult SolveWithPath(LevelState initial)
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
-            return SolveInternal(initial, -1, -1, false, true);
+            return SolveInternal(initial, -1, -1, false, true, allowSinkMoves: true);
+        }
+
+        public SolverResult SolveWithPath(LevelState initial, bool allowSinkMoves)
+        {
+            if (initial == null) throw new ArgumentNullException(nameof(initial));
+            return SolveInternal(initial, -1, -1, false, true, allowSinkMoves);
         }
 
         public SolverResult SolveWithPath(LevelState initial, int maxNodes, int maxMillis)
         {
-            if (initial == null) throw new ArgumentNullException(nameof(initial));
-            if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
-            if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
-
-            return SolveInternal(initial, maxNodes, maxMillis, true, true);
+            return SolveWithPath(initial, maxNodes, maxMillis, allowSinkMoves: true);
         }
 
-        public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)
+        public SolverResult SolveWithPath(LevelState initial, int maxNodes, int maxMillis, bool allowSinkMoves)
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
             if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
             if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
 
-            return SolveInternal(initial, maxNodes, maxMillis, true, false);
+            return SolveInternal(initial, maxNodes, maxMillis, true, true, allowSinkMoves);
         }
 
-        private SolverResult SolveInternal(LevelState initial, int maxNodes, int maxMillis, bool useLimits, bool trackPath)
+        public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis)
+        {
+            return Solve(initial, maxNodes, maxMillis, allowSinkMoves: true);
+        }
+
+        public SolverResult Solve(LevelState initial, int maxNodes, int maxMillis, bool allowSinkMoves)
+        {
+            if (initial == null) throw new ArgumentNullException(nameof(initial));
+            if (maxNodes <= 0) throw new ArgumentOutOfRangeException(nameof(maxNodes));
+            if (maxMillis <= 0) throw new ArgumentOutOfRangeException(nameof(maxMillis));
+
+            return SolveInternal(initial, maxNodes, maxMillis, true, false, allowSinkMoves);
+        }
+
+        private SolverResult SolveInternal(LevelState initial, int maxNodes, int maxMillis, bool useLimits, bool trackPath, bool allowSinkMoves)
         {
             if (initial == null) throw new ArgumentNullException(nameof(initial));
 
@@ -103,7 +128,7 @@ namespace Decantra.Domain.Solver
                     return BuildResult(node, trackPath);
                 }
 
-                foreach (var move in EnumerateMoves(node.State))
+                foreach (var move in EnumerateMoves(node.State, allowSinkMoves))
                 {
                     var next = CloneState(node.State);
                     int poured;
@@ -188,7 +213,7 @@ namespace Decantra.Domain.Solver
             return new SolverResult(path.Count, path);
         }
 
-        private static IEnumerable<Move> EnumerateMoves(LevelState state)
+        private static IEnumerable<Move> EnumerateMoves(LevelState state, bool allowSinkMoves)
         {
             for (int i = 0; i < state.Bottles.Count; i++)
             {
@@ -197,12 +222,8 @@ namespace Decantra.Domain.Solver
                 for (int j = 0; j < state.Bottles.Count; j++)
                 {
                     if (i == j) continue;
-                    // Solver optimization: skip sink targets.
-                    // Level generation ensures solutions never require pouring INTO sinks.
-                    // (Scrambling explicitly skips sinks as targets, so forward solutions don't need them.)
-                    // The game UI still allows sink pours via MoveRules for player flexibility.
                     var target = state.Bottles[j];
-                    if (target.IsSink) continue;
+                    if (!allowSinkMoves && target.IsSink) continue;
 
                     int amount = MoveRules.GetPourAmount(state, i, j);
                     if (amount <= 0) continue;

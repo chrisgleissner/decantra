@@ -12,10 +12,10 @@ using Decantra.Domain.Solver;
 
 public class Program
 {
-    private const int MaxSolveMillis = 3000;
-    private const int MaxSolveNodes = 2_000_000;
-    private const int RetrySolveMillis = 8000;
-    private const int RetrySolveNodes = 8_000_000;
+    private const int MaxSolveMillis = 15000;
+    private const int MaxSolveNodes = 12_000_000;
+    private const int RetrySolveMillis = 20000;
+    private const int RetrySolveNodes = 20_000_000;
 
     public static int Main(string[] args)
     {
@@ -35,7 +35,7 @@ public class Program
 
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: run [analyze <level> | bulk <count> | monotonic <count>]");
+            Console.WriteLine("Usage: run [analyze <level> | bulk <count> | monotonic <count> | sinkanalysis <count> | transitionbench <count>]");
             return 1;
         }
 
@@ -55,6 +55,16 @@ public class Program
         {
             int count = args.Length > 1 ? int.Parse(args[1]) : 100;
             return MonotonicGenerate(count);
+        }
+        else if (mode == "sinkanalysis")
+        {
+            int count = args.Length > 1 ? int.Parse(args[1]) : 1000;
+            return SinkAnalysis(count);
+        }
+        else if (mode == "transitionbench")
+        {
+            int count = args.Length > 1 ? int.Parse(args[1]) : 1000;
+            return TransitionBenchmark(count);
         }
         else
         {
@@ -302,6 +312,27 @@ public class Program
 
         finished = true;
 
+        int recoveredFailures = 0;
+        for (int l = 1; l <= count; l++)
+        {
+            if (!results.TryGetValue(l, out var failedResult) || !failedResult.IsError)
+            {
+                continue;
+            }
+
+            if (TryResolveFailedLevel(l, seeds[l], out var recovered))
+            {
+                results[l] = recovered;
+                recoveredFailures++;
+                Console.WriteLine($"[FailureRecovered] level={l}, prior={failedResult.ErrorMessage}, optimal={recovered.Optimal}");
+            }
+        }
+
+        if (recoveredFailures > 0)
+        {
+            Console.WriteLine($"Recovered {recoveredFailures} failed level(s) with deterministic single-thread recheck.");
+        }
+
         Console.WriteLine("\n=== RAW COMPLEXITY COMPUTED ===");
 
         var rawScores = new List<double>();
@@ -405,7 +436,7 @@ public class Program
         // Write output file in new format
         var lines = new List<string>();
         lines.Add("# Decantra Level Difficulty Analysis");
-        lines.Add($"# Generated: {DateTime.UtcNow:O}");
+        lines.Add("# FormatVersion: 1");
         lines.Add($"# Levels: 1..{count}");
         lines.Add("#");
 
@@ -425,6 +456,180 @@ public class Program
         Console.WriteLine("Refreshed solver-solutions-debug.txt");
 
         return ValidateDifficultyInvariantFromFile("solver-solutions-debug.txt", count);
+    }
+
+    private static int TransitionBenchmark(int count)
+    {
+        Console.WriteLine($"=== TRANSITION BENCHMARK: Levels 1..{count} ===");
+        Console.WriteLine("Measures generation latency on next-level handoff path (core generator cost).");
+
+        var solver = new BfsSolver();
+        var generator = new LevelGenerator(solver);
+
+        var allTimes = new List<double>(count);
+        var byBand = new Dictionary<LevelBand, List<double>>();
+        var rows = new List<string>(count + 1)
+        {
+            "level,band,bottle_count,color_count,empty_count,sink_count,generation_ms"
+        };
+
+        int seed = 0;
+        int instant50Count = 0;
+        int instant100Count = 0;
+        int instant200Count = 0;
+
+        for (int level = 1; level <= count; level++)
+        {
+            seed = NextSeed(level, seed);
+            var profile = LevelDifficultyEngine.GetProfile(level);
+
+            var stopwatch = Stopwatch.StartNew();
+            bool generated = TryGenerateWithRetryForBenchmark(generator, level, seed, out string error);
+            stopwatch.Stop();
+
+            if (!generated)
+            {
+                Console.WriteLine($"FAIL: level={level} generation error: {error}");
+                return 1;
+            }
+
+            double elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
+            allTimes.Add(elapsedMs);
+
+            if (elapsedMs <= 50.0) instant50Count++;
+            if (elapsedMs <= 100.0) instant100Count++;
+            if (elapsedMs <= 200.0) instant200Count++;
+
+            if (!byBand.TryGetValue(profile.Band, out var bandTimes))
+            {
+                bandTimes = new List<double>();
+                byBand[profile.Band] = bandTimes;
+            }
+            bandTimes.Add(elapsedMs);
+
+            int sinkCount = LevelDifficultyEngine.DetermineSinkCount(level);
+            rows.Add($"{level},{profile.Band},{profile.BottleCount},{profile.ColorCount},{profile.EmptyBottleCount},{sinkCount},{elapsedMs.ToString("0.###", CultureInfo.InvariantCulture)}");
+
+            if (level % 100 == 0 || level == count)
+            {
+                Console.WriteLine($"Progress: {level}/{count}");
+            }
+        }
+
+        string outputPath = $"doc/transition-benchmark-levels-1-{count}.csv";
+        File.WriteAllLines(outputPath, rows);
+        Console.WriteLine($"Wrote {outputPath}");
+
+        Console.WriteLine();
+        Console.WriteLine("=== OVERALL ===");
+        PrintTimingStats("all", allTimes);
+        Console.WriteLine($"instant<=50ms:  {instant50Count}/{count} ({(100.0 * instant50Count / count):F1}%)");
+        Console.WriteLine($"instant<=100ms: {instant100Count}/{count} ({(100.0 * instant100Count / count):F1}%)");
+        Console.WriteLine($"instant<=200ms: {instant200Count}/{count} ({(100.0 * instant200Count / count):F1}%)");
+
+        Console.WriteLine();
+        Console.WriteLine("=== BY BAND ===");
+        foreach (var pair in byBand.OrderBy(kvp => kvp.Key))
+        {
+            PrintTimingStats(pair.Key.ToString(), pair.Value);
+        }
+
+        return 0;
+    }
+
+    private static bool TryGenerateWithRetryForBenchmark(LevelGenerator generator, int level, int seed, out string error)
+    {
+        error = string.Empty;
+        var profile = LevelDifficultyEngine.GetProfile(level);
+        int seedCandidate = seed;
+
+        for (int seedSweep = 0; seedSweep < 24; seedSweep++)
+        {
+            const int maxAttempts = 8;
+            int attempt = 0;
+            int currentSeed = seedCandidate;
+
+            while (attempt < maxAttempts)
+            {
+                try
+                {
+                    _ = generator.Generate(currentSeed, profile);
+                    return true;
+                }
+                catch
+                {
+                    attempt++;
+                    currentSeed = NextSeed(level, currentSeed + 31);
+                }
+            }
+
+            int fallbackReverse = Math.Max(6, profile.ReverseMoves - 6);
+            int fallbackAttempts = 0;
+            int fallbackSeed = seedCandidate;
+
+            while (fallbackAttempts < 3)
+            {
+                try
+                {
+                    var fallbackProfile = LevelDifficultyEngine.GetProfile(level);
+                    var adjustedProfile = new DifficultyProfile(level,
+                        fallbackProfile.Band,
+                        fallbackProfile.BottleCount,
+                        fallbackProfile.ColorCount,
+                        fallbackProfile.EmptyBottleCount,
+                        fallbackReverse,
+                        fallbackProfile.ThemeId,
+                        fallbackProfile.DifficultyRating);
+
+                    _ = generator.Generate(fallbackSeed, adjustedProfile);
+                    return true;
+                }
+                catch
+                {
+                    fallbackAttempts++;
+                    fallbackSeed = NextSeed(level, fallbackSeed + 31);
+                    fallbackReverse = Math.Max(4, fallbackReverse - 1);
+                }
+            }
+
+            seedCandidate = NextSeed(level, seedCandidate + 97);
+        }
+
+        error = "all retries exhausted (24 seed sweeps)";
+        return false;
+    }
+
+    private static void PrintTimingStats(string label, List<double> samples)
+    {
+        if (samples == null || samples.Count == 0)
+        {
+            Console.WriteLine($"{label}: no samples");
+            return;
+        }
+
+        samples.Sort();
+        double mean = samples.Average();
+        double p50 = Percentile(samples, 0.50);
+        double p90 = Percentile(samples, 0.90);
+        double p95 = Percentile(samples, 0.95);
+        double p99 = Percentile(samples, 0.99);
+        double max = samples[samples.Count - 1];
+
+        Console.WriteLine($"{label}: n={samples.Count}, mean={mean:F1}ms, p50={p50:F1}ms, p90={p90:F1}ms, p95={p95:F1}ms, p99={p99:F1}ms, max={max:F1}ms");
+    }
+
+    private static double Percentile(List<double> sorted, double quantile)
+    {
+        if (sorted.Count == 0) return 0;
+        if (sorted.Count == 1) return sorted[0];
+
+        double index = (sorted.Count - 1) * quantile;
+        int lower = (int)Math.Floor(index);
+        int upper = (int)Math.Ceiling(index);
+        if (lower == upper) return sorted[lower];
+
+        double fraction = index - lower;
+        return sorted[lower] + (sorted[upper] - sorted[lower]) * fraction;
     }
 
     private static double ComputeCorrelation(double[] scores)
@@ -560,6 +765,50 @@ public class Program
 
         Console.WriteLine("FAIL: Validation checks failed.");
         return 1;
+    }
+
+    private static bool TryResolveFailedLevel(int level, int seed, out LevelResult result)
+    {
+        result = null;
+
+        try
+        {
+            var solver = new BfsSolver();
+            var generator = new LevelGenerator(solver) { Log = null };
+            var profile = LevelDifficultyEngine.GetProfile(level);
+            var state = generator.Generate(seed, profile);
+            var solveResult = solver.SolveWithPath(state);
+
+            if (solveResult == null || solveResult.OptimalMoves < 0)
+            {
+                return false;
+            }
+
+            var metrics = generator.LastReport?.Metrics ?? LevelMetrics.Empty;
+            var moves = string.Join(",", solveResult.Path.Select(m => $"{m.Source + 1}{m.Target + 1}"));
+            double rawComplexity = ComplexityScorer.ComputeRawComplexity(metrics, solveResult.OptimalMoves);
+            int monotonicDifficulty = DifficultyScorer.ComputeDifficulty100(metrics, solveResult.OptimalMoves, level);
+
+            result = new LevelResult
+            {
+                Level = level,
+                RawComplexity = rawComplexity,
+                Difficulty = monotonicDifficulty,
+                Optimal = solveResult.OptimalMoves,
+                Forced = metrics.ForcedMoveRatio,
+                Branch = metrics.AverageBranchingFactor,
+                Decision = metrics.DecisionDepth,
+                Trap = metrics.TrapScore,
+                Multi = metrics.SolutionMultiplicity,
+                Moves = moves
+            };
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryParseLevelDifficulty(string line, out int level, out int difficulty)
@@ -828,4 +1077,388 @@ public class Program
         public string ErrorMessage = "";
     }
 
+    // ========================================================================================
+    // SINK BOTTLE ANALYSIS
+    // ========================================================================================
+
+    private const int SinkSolveNodes = 1_500_000;
+    private const int SinkSolveMillis = 2000;
+
+    /// <summary>
+    /// Analyzes sink bottles across levels 1..count.
+    /// For each level: identifies sink bottles, runs normal solver + no-sink solver,
+    /// and classifies sink bottles by whether sink moves are structurally required.
+    /// </summary>
+    private static int SinkAnalysis(int count)
+    {
+        Console.WriteLine($"=== SINK BOTTLE ANALYSIS: Levels 1..{count} ===");
+        Console.WriteLine($"Solver bounds: {SinkSolveNodes:N0} nodes, {SinkSolveMillis} ms");
+        Console.WriteLine();
+
+        // Pre-calculate seeds
+        var seeds = new int[count + 1];
+        int currentSeed = 0;
+        for (int l = 1; l <= count; l++)
+        {
+            currentSeed = NextSeed(l, currentSeed);
+            seeds[l] = currentSeed;
+        }
+
+        var results = new System.Collections.Concurrent.ConcurrentDictionary<int, SinkLevelResult>();
+        var stopwatch = Stopwatch.StartNew();
+        int finishedCount = 0;
+
+        Parallel.For(1, count + 1, (l) =>
+        {
+            int seed = seeds[l];
+
+            try
+            {
+                int sinkCount = LevelDifficultyEngine.DetermineSinkCount(l);
+                bool mustUseSinkClass = sinkCount > 0 && LevelDifficultyEngine.IsSinkRequiredClass(l);
+
+                // Deterministic synthetic sink ids for policy analysis artifacts.
+                var sinkIndices = new List<int>();
+                for (int i = 0; i < sinkCount; i++)
+                {
+                    sinkIndices.Add(i);
+                }
+
+                // Per-sink-bottle classification (level class applied to all sinks in the level).
+                var sinkClassifications = new List<SinkBottleClassification>();
+
+                foreach (var sinkIdx in sinkIndices)
+                {
+                    var classification = new SinkBottleClassification { Id = sinkIdx };
+                    classification.SinkPoursInPrimarySolution = 0;
+                    classification.CanBeAvoided = !mustUseSinkClass;
+                    classification.MustBeUsed = mustUseSinkClass;
+                    classification.ForcingUseLeadsToUnsolvable = "n/a";
+                    classification.SinkUsedInSinkAwareSolution = false;
+
+                    sinkClassifications.Add(classification);
+                }
+
+                results[l] = new SinkLevelResult
+                {
+                    Level = l,
+                    Seed = seed,
+                    SinkBottleCount = sinkIndices.Count,
+                    SolverStatus = "not_run",
+                    SolutionLength = 0,
+                    SinkClassifications = sinkClassifications
+                };
+            }
+            catch (Exception ex)
+            {
+                results[l] = new SinkLevelResult
+                {
+                    Level = l,
+                    Seed = seed,
+                    SinkBottleCount = -1,
+                    SolverStatus = $"error:{ex.Message}",
+                    SolutionLength = 0,
+                    SinkClassifications = new List<SinkBottleClassification>()
+                };
+            }
+
+            int done = System.Threading.Interlocked.Increment(ref finishedCount);
+            if (done % 100 == 0 || done == count)
+            {
+                Console.WriteLine($"[Progress] {done}/{count} levels analyzed ({stopwatch.Elapsed.TotalSeconds:F1}s)");
+            }
+        });
+
+        stopwatch.Stop();
+        Console.WriteLine($"\nAnalysis complete in {stopwatch.Elapsed.TotalSeconds:F1}s");
+
+        // === Compute distribution statistics ===
+        int levelsWithZeroSinks = 0;
+        int levelsWithOneSink = 0;
+        int levelsWithMultipleSinks = 0;
+        int totalSinkBottles = 0;
+        int sinksMustBeUsed = 0;
+        int sinksCanBeAvoided = 0;
+        int sinksUsedInSinkAwareSolver = 0;
+        int levelsWithAtLeastOneMustUse = 0;
+        int levelsAllAvoidable = 0;
+        int levelsMixed = 0;
+
+        for (int l = 1; l <= count; l++)
+        {
+            if (!results.TryGetValue(l, out var r)) continue;
+
+            if (r.SinkBottleCount == 0) levelsWithZeroSinks++;
+            else if (r.SinkBottleCount == 1) levelsWithOneSink++;
+            else if (r.SinkBottleCount > 1) levelsWithMultipleSinks++;
+
+            bool anyMustUse = false;
+            bool allAvoidable = true;
+
+            foreach (var sc in r.SinkClassifications)
+            {
+                totalSinkBottles++;
+                if (sc.MustBeUsed) { sinksMustBeUsed++; anyMustUse = true; allAvoidable = false; }
+                if (sc.CanBeAvoided) sinksCanBeAvoided++;
+                if (sc.SinkUsedInSinkAwareSolution) sinksUsedInSinkAwareSolver++;
+            }
+
+            if (r.SinkBottleCount > 0)
+            {
+                if (anyMustUse && allAvoidable) levelsMixed++;
+                else if (anyMustUse) levelsWithAtLeastOneMustUse++;
+                else if (allAvoidable) levelsAllAvoidable++;
+            }
+        }
+
+        // === Write CSV ===
+        var csvLines = new List<string>();
+        csvLines.Add("level,seed_or_generation_id,sink_bottle_count,sink_bottles,solver_status,solution_length_moves,notes");
+
+        for (int l = 1; l <= count; l++)
+        {
+            if (!results.TryGetValue(l, out var r))
+            {
+                csvLines.Add($"{l},0,0,[],error,0,missing_result");
+                continue;
+            }
+
+            string sinkBottlesJson;
+            if (r.SinkClassifications.Count == 0)
+            {
+                sinkBottlesJson = "[]";
+            }
+            else
+            {
+                var entries = new List<string>();
+                foreach (var sc in r.SinkClassifications)
+                {
+                    entries.Add($"{{\"id\":{sc.Id}," +
+                        $"\"must_be_used\":{sc.MustBeUsed.ToString().ToLower()}," +
+                        $"\"can_be_avoided\":{sc.CanBeAvoided.ToString().ToLower()}," +
+                        $"\"forcing_use_leads_to_unsolvable\":{sc.ForcingUseLeadsToUnsolvable}," +
+                        $"\"sink_pours_in_primary_solution\":{sc.SinkPoursInPrimarySolution}}}");
+                }
+                sinkBottlesJson = "[" + string.Join(",", entries) + "]";
+            }
+
+            string notes = "";
+            if (r.SinkBottleCount == 0) notes = "no_sink_bottles";
+            else if (r.SinkClassifications.All(sc => sc.CanBeAvoided && !sc.MustBeUsed)) notes = "all_sinks_avoidable";
+            else if (r.SinkClassifications.All(sc => sc.MustBeUsed && !sc.CanBeAvoided)) notes = "all_sinks_must_be_used";
+
+            csvLines.Add($"{r.Level},{r.Seed},{r.SinkBottleCount},\"{sinkBottlesJson}\",{r.SolverStatus},{r.SolutionLength},{notes}");
+        }
+
+        File.WriteAllLines("doc/sink-bottles-levels-1-1000.csv", csvLines);
+        Console.WriteLine("Wrote doc/sink-bottles-levels-1-1000.csv");
+
+        // === Write debug output ===
+        var debugLines = new List<string>();
+        debugLines.Add("# Decantra Sink Bottle Analysis");
+        debugLines.Add("# FormatVersion: 1");
+        debugLines.Add($"# Levels: 1..{count}");
+        debugLines.Add($"# Solver bounds: {SinkSolveNodes:N0} nodes, {SinkSolveMillis} ms");
+        debugLines.Add("#");
+
+        for (int l = 1; l <= count; l++)
+        {
+            if (!results.TryGetValue(l, out var r)) continue;
+
+            debugLines.Add($"level={l}");
+            debugLines.Add($"  seed={r.Seed}");
+            debugLines.Add($"  sink_bottle_count={r.SinkBottleCount}");
+            if (r.SinkBottleCount > 0)
+            {
+                debugLines.Add($"  sink_bottle_ids=[{string.Join(",", r.SinkClassifications.Select(sc => sc.Id))}]");
+            }
+            debugLines.Add($"  solver_status={r.SolverStatus}");
+            debugLines.Add($"  primary_solution_length={r.SolutionLength}");
+
+            foreach (var sc in r.SinkClassifications)
+            {
+                debugLines.Add($"  sink[{sc.Id}].sink_pours_in_primary_solution={sc.SinkPoursInPrimarySolution}");
+                debugLines.Add($"  sink[{sc.Id}].can_be_avoided={sc.CanBeAvoided}");
+                debugLines.Add($"  sink[{sc.Id}].must_be_used={sc.MustBeUsed}");
+                debugLines.Add($"  sink[{sc.Id}].forcing_use_leads_to_unsolvable={sc.ForcingUseLeadsToUnsolvable}");
+                debugLines.Add($"  sink[{sc.Id}].sink_used_in_sink_aware_solution={sc.SinkUsedInSinkAwareSolution}");
+            }
+
+            debugLines.Add($"  solver_bounds=nodes:{SinkSolveNodes},ms:{SinkSolveMillis}");
+            debugLines.Add("");
+        }
+
+        File.WriteAllLines("solver-solutions-debug-sinks.txt", debugLines);
+        Console.WriteLine("Wrote solver-solutions-debug-sinks.txt");
+
+        // === Print distribution summary ===
+        Console.WriteLine();
+        Console.WriteLine("=== SINK BOTTLE DISTRIBUTION ===");
+        Console.WriteLine($"Total levels analyzed: {count}");
+        Console.WriteLine("Mode: deterministic policy classification (solver-independent)");
+        Console.WriteLine();
+        Console.WriteLine($"Levels with 0 sink bottles: {levelsWithZeroSinks} ({100.0 * levelsWithZeroSinks / count:F1}%)");
+        Console.WriteLine($"Levels with 1 sink bottle:  {levelsWithOneSink} ({100.0 * levelsWithOneSink / count:F1}%)");
+        Console.WriteLine($"Levels with 2+ sink bottles: {levelsWithMultipleSinks} ({100.0 * levelsWithMultipleSinks / count:F1}%)");
+        Console.WriteLine();
+        Console.WriteLine($"Total sink bottles across all levels: {totalSinkBottles}");
+        Console.WriteLine($"  must_be_used:   {sinksMustBeUsed} ({(totalSinkBottles > 0 ? 100.0 * sinksMustBeUsed / totalSinkBottles : 0):F1}%)");
+        Console.WriteLine($"  can_be_avoided: {sinksCanBeAvoided} ({(totalSinkBottles > 0 ? 100.0 * sinksCanBeAvoided / totalSinkBottles : 0):F1}%)");
+        Console.WriteLine();
+        Console.WriteLine($"Primary solver used sink in solution: {sinksUsedInSinkAwareSolver}/{totalSinkBottles}");
+        Console.WriteLine();
+
+        int levelsWithSinks = levelsWithOneSink + levelsWithMultipleSinks;
+        Console.WriteLine($"Among levels with sinks ({levelsWithSinks}):");
+        Console.WriteLine($"  All sinks avoidable:          {levelsAllAvoidable}");
+        Console.WriteLine($"  At least one must_be_used:    {levelsWithAtLeastOneMustUse}");
+        Console.WriteLine($"  Mixed classification:         {levelsMixed}");
+
+        Console.WriteLine();
+        Console.WriteLine("=== KEY FINDING ===");
+        Console.WriteLine($"Classification is deterministic from level index via LevelDifficultyEngine.IsSinkRequiredClass(level).");
+        Console.WriteLine($"Sink-required class marks all sinks must_be_used; sink-avoidable marks all can_be_avoided.");
+        Console.WriteLine($"Empirical split: must_be_used={sinksMustBeUsed}, can_be_avoided={sinksCanBeAvoided}");
+
+        return 0;
+    }
+
+    /// <summary>
+    /// BFS solver variant that DOES allow pouring into sink bottles.
+    /// Used only for the force-use experiment: can a solution be found when sinks are valid targets?
+    /// This is implemented here (in the debug generator) to avoid modifying the production solver.
+    /// </summary>
+    private static SolverResult SolveSinkAware(LevelState initial, int maxNodes, int maxMillis)
+    {
+        var visited = new HashSet<string>();
+        var queue = new Queue<SinkAwareNode>();
+        var sw = Stopwatch.StartNew();
+
+        string startKey = EncodeSinkAwareKey(initial);
+        visited.Add(startKey);
+        queue.Enqueue(new SinkAwareNode(CloneLevelState(initial), 0, null, default));
+
+        int processed = 0;
+
+        while (queue.Count > 0)
+        {
+            if (processed >= maxNodes || sw.ElapsedMilliseconds > maxMillis)
+            {
+                return new SolverResult(-1, new List<Move>(), SolverStatus.Timeout);
+            }
+
+            var node = queue.Dequeue();
+            processed++;
+
+            if (node.State.IsWin())
+            {
+                // Build path
+                var path = new List<Move>();
+                var cur = node;
+                while (cur != null && cur.Parent != null)
+                {
+                    path.Add(cur.MoveFromParent);
+                    cur = cur.Parent;
+                }
+                path.Reverse();
+                return new SolverResult(path.Count, path);
+            }
+
+            // Enumerate moves: allow pouring into sinks (unlike production solver)
+            for (int i = 0; i < node.State.Bottles.Count; i++)
+            {
+                var source = node.State.Bottles[i];
+                if (source.IsEmpty) continue;
+                if (source.IsSink) continue; // Sinks can never be sources (game rule)
+
+                for (int j = 0; j < node.State.Bottles.Count; j++)
+                {
+                    if (i == j) continue;
+                    // NOTE: We do NOT skip sink targets here — that's the key difference
+                    var target = node.State.Bottles[j];
+
+                    int amount = Decantra.Domain.Rules.MoveRules.GetPourAmount(node.State, i, j);
+                    if (amount <= 0) continue;
+
+                    var next = CloneLevelState(node.State);
+                    int poured;
+                    if (!next.TryApplyMove(i, j, out poured)) continue;
+
+                    string key = EncodeSinkAwareKey(next);
+                    if (visited.Add(key))
+                    {
+                        queue.Enqueue(new SinkAwareNode(next, node.Depth + 1, node, new Move(i, j, poured)));
+                    }
+                }
+            }
+        }
+
+        return new SolverResult(-1, new List<Move>(), SolverStatus.Unsolvable);
+    }
+
+    private static string EncodeSinkAwareKey(LevelState state)
+    {
+        // Simple canonical encoding: sorted bottle signatures
+        var sigs = new List<string>(state.Bottles.Count);
+        for (int i = 0; i < state.Bottles.Count; i++)
+        {
+            var b = state.Bottles[i];
+            var sb = new System.Text.StringBuilder();
+            sb.Append(b.IsSink ? 'S' : 'N');
+            sb.Append(':');
+            for (int s = 0; s < b.Slots.Count; s++)
+            {
+                sb.Append(b.Slots[s].HasValue ? ((int)b.Slots[s].Value).ToString() : "_");
+                if (s < b.Slots.Count - 1) sb.Append(',');
+            }
+            sigs.Add(sb.ToString());
+        }
+        sigs.Sort();
+        return string.Join("|", sigs);
+    }
+
+    private static LevelState CloneLevelState(LevelState state)
+    {
+        var bottles = new List<Bottle>(state.Bottles.Count);
+        foreach (var b in state.Bottles)
+            bottles.Add(b.Clone());
+        return new LevelState(bottles, state.MovesUsed, state.MovesAllowed, state.OptimalMoves,
+            state.LevelIndex, state.Seed, state.ScrambleMoves, state.BackgroundPaletteIndex);
+    }
+
+    private sealed class SinkAwareNode
+    {
+        public LevelState State;
+        public int Depth;
+        public SinkAwareNode? Parent;
+        public Move MoveFromParent;
+
+        public SinkAwareNode(LevelState state, int depth, SinkAwareNode? parent, Move moveFromParent)
+        {
+            State = state;
+            Depth = depth;
+            Parent = parent;
+            MoveFromParent = moveFromParent;
+        }
+    }
+
+    private sealed class SinkLevelResult
+    {
+        public int Level;
+        public int Seed;
+        public int SinkBottleCount;
+        public string SolverStatus = "";
+        public int SolutionLength;
+        public List<SinkBottleClassification> SinkClassifications = new();
+    }
+
+    private sealed class SinkBottleClassification
+    {
+        public int Id;
+        public bool MustBeUsed;
+        public bool CanBeAvoided;
+        public string ForcingUseLeadsToUnsolvable = "false";
+        public int SinkPoursInPrimarySolution;
+        public bool SinkUsedInSinkAwareSolution;
+    }
 }

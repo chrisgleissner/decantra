@@ -435,7 +435,21 @@ namespace Decantra.Tests.PlayMode
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);
 
-            controller.LoadLevel(24, 901);
+            // Scan levels 20+ to find one that deterministically has a sink bottle.
+            // DetermineSinkCount is hash-based; level 25 has sinkCount=1 with
+            // the current hash, but we scan to be resilient if the hash changes.
+            int sinkLevel = -1;
+            for (int candidate = 20; candidate <= 99; candidate++)
+            {
+                if (LevelDifficultyEngine.DetermineSinkCount(candidate) > 0)
+                {
+                    sinkLevel = candidate;
+                    break;
+                }
+            }
+            Assert.GreaterOrEqual(sinkLevel, 0, "Expected at least one level 20-99 with sinks.");
+
+            controller.LoadLevel(sinkLevel, 901);
             yield return null;
 
             var state = GetPrivateField(controller, "_state") as LevelState;
@@ -455,7 +469,7 @@ namespace Decantra.Tests.PlayMode
                 }
             }
 
-            Assert.GreaterOrEqual(sinkIndex, 0, "Expected a sink bottle by level 24.");
+            Assert.GreaterOrEqual(sinkIndex, 0, $"Expected a sink bottle at level {sinkLevel}.");
             Assert.GreaterOrEqual(normalIndex, 0, "Expected a normal bottle.");
 
             var sinkInput = GetBottleInputForIndex(controller, sinkIndex);
@@ -474,6 +488,222 @@ namespace Decantra.Tests.PlayMode
             normalInput.OnEndDrag(eventData);
 
             yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator StarTradeIn_HiddenOnStartup_AndTutorialReplayKeepsItHidden()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            var dialog = GetPrivateField(controller, "starTradeInDialog") as StarTradeInDialog;
+            Assert.IsNotNull(dialog, "Star trade-in dialog should be wired.");
+            Assert.IsFalse(dialog.IsVisible, "Star trade-in must be hidden on startup.");
+            Assert.IsFalse(dialog.gameObject.activeSelf, "Star trade-in root should be inactive on startup.");
+
+            var canvasGroup = GetPrivateField(dialog, "canvasGroup") as CanvasGroup;
+            Assert.IsNotNull(canvasGroup);
+            Assert.IsFalse(canvasGroup.blocksRaycasts, "Hidden star trade-in must not block input.");
+
+            controller.ReplayTutorial();
+            yield return null;
+
+            var tutorialOverlay = GameObject.Find("TutorialOverlay");
+            Assert.IsNotNull(tutorialOverlay);
+            Assert.IsTrue(tutorialOverlay.activeSelf, "Tutorial should be visible after replay request.");
+            Assert.IsFalse(dialog.IsVisible, "Star trade-in must remain hidden while tutorial is visible.");
+        }
+
+        [UnityTest]
+        public IEnumerator StarTradeIn_CloseButton_HidesOverlayAndRestoresInput()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            controller.LoadLevel(1, 101);
+            yield return null;
+
+            ConfigureControllerProgress(controller, stars: 30, currentLevel: 1, seed: 101);
+            bool lockedBeforeOpen = controller.IsInputLocked;
+
+            controller.ShowStarTradeInDialog();
+            yield return null;
+
+            var dialog = GetPrivateField(controller, "starTradeInDialog") as StarTradeInDialog;
+            Assert.IsNotNull(dialog);
+            Assert.IsTrue(dialog.IsVisible, "Dialog should be visible after opening trade-in.");
+
+            var closeButton = GetPrivateField(dialog, "closeButton") as Button;
+            Assert.IsNotNull(closeButton);
+            closeButton.onClick.Invoke();
+            yield return null;
+
+            Assert.IsFalse(dialog.IsVisible, "Dialog should close when Close is pressed.");
+            Assert.AreEqual(lockedBeforeOpen, controller.IsInputLocked, "Input lock should be restored after closing trade-in.");
+        }
+
+        [UnityTest]
+        public IEnumerator StarTradeIn_LowStars_DisablesActionsAndShowsInlineMessage()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            int sinkLevel = FindFirstLevelWithSink();
+            Assert.GreaterOrEqual(sinkLevel, 20);
+
+            ConfigureControllerProgress(controller, stars: 0, currentLevel: sinkLevel, seed: 901);
+            controller.LoadLevel(sinkLevel, 901);
+            yield return null;
+
+            controller.ShowStarTradeInDialog();
+            yield return null;
+
+            var dialog = GetPrivateField(controller, "starTradeInDialog") as StarTradeInDialog;
+            Assert.IsNotNull(dialog);
+            Assert.IsTrue(dialog.IsVisible);
+
+            var convertButton = GetPrivateField(dialog, "convertButton") as Button;
+            var autoSolveButton = GetPrivateField(dialog, "autoSolveButton") as Button;
+            var convertStatusText = GetPrivateField(dialog, "convertStatusText") as Text;
+            var autoSolveStatusText = GetPrivateField(dialog, "autoSolveStatusText") as Text;
+            var convertSubtitleText = GetPrivateField(dialog, "convertSubtitleText") as Text;
+            var convertCostLabelText = GetPrivateField(dialog, "convertCostLabelText") as Text;
+            var autoSolveCostLabelText = GetPrivateField(dialog, "autoSolveCostLabelText") as Text;
+            var convertCostValueText = GetPrivateField(dialog, "convertCostValueText") as Text;
+            var autoSolveCostValueText = GetPrivateField(dialog, "autoSolveCostValueText") as Text;
+            var sinkDefinitionText = GetPrivateField(dialog, "sinkDefinitionText") as Text;
+
+            Assert.IsNotNull(convertButton);
+            Assert.IsNotNull(autoSolveButton);
+            Assert.IsNotNull(convertStatusText);
+            Assert.IsNotNull(autoSolveStatusText);
+            Assert.IsNotNull(convertSubtitleText);
+            Assert.IsNotNull(convertCostLabelText);
+            Assert.IsNotNull(autoSolveCostLabelText);
+            Assert.IsNotNull(convertCostValueText);
+            Assert.IsNotNull(autoSolveCostValueText);
+            Assert.IsNotNull(sinkDefinitionText);
+
+            Assert.IsFalse(convertButton.interactable, "Convert card should be disabled when stars are insufficient.");
+            Assert.IsFalse(autoSolveButton.interactable, "Auto-solve card should be disabled when stars are insufficient.");
+            Assert.AreEqual("Not enough stars", convertStatusText.text);
+            Assert.AreEqual("Not enough stars", autoSolveStatusText.text);
+            Assert.AreEqual("Price", convertCostLabelText.text);
+            Assert.AreEqual("Price", autoSolveCostLabelText.text);
+            Assert.AreEqual("Sink bottles have dark bases: they can receive liquid but cannot pour.", convertSubtitleText.text);
+            Assert.IsFalse(sinkDefinitionText.gameObject.activeSelf, "Sink definition helper text should not render as a separate row.");
+            StringAssert.Contains("stars", convertCostValueText.text);
+            StringAssert.Contains("stars", autoSolveCostValueText.text);
+        }
+
+        [UnityTest]
+        public IEnumerator StarTradeIn_ConvertConfirm_DeductsStarsAndRemovesSinks()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            int sinkLevel = FindFirstLevelWithSink();
+            Assert.GreaterOrEqual(sinkLevel, 20);
+
+            ConfigureControllerProgress(controller, stars: 20, currentLevel: sinkLevel, seed: 902);
+            controller.LoadLevel(sinkLevel, 902);
+            yield return null;
+
+            controller.ShowStarTradeInDialog();
+            yield return null;
+
+            var dialog = GetPrivateField(controller, "starTradeInDialog") as StarTradeInDialog;
+            Assert.IsNotNull(dialog);
+            Assert.IsTrue(dialog.IsVisible);
+
+            var convertButton = GetPrivateField(dialog, "convertButton") as Button;
+            var confirmButton = GetPrivateField(dialog, "confirmButton") as Button;
+            var confirmationRoot = GetPrivateField(dialog, "confirmationRoot") as GameObject;
+            Assert.IsNotNull(convertButton);
+            Assert.IsNotNull(confirmButton);
+            Assert.IsNotNull(confirmationRoot);
+            Assert.IsTrue(convertButton.interactable, "Convert card should be enabled when stars are sufficient.");
+
+            convertButton.onClick.Invoke();
+            yield return null;
+            Assert.IsTrue(confirmationRoot.activeSelf, "Confirmation view should open after selecting an action.");
+
+            confirmButton.onClick.Invoke();
+            yield return null;
+
+            Assert.IsFalse(dialog.IsVisible, "Dialog should close after confirming the trade-in.");
+
+            var progress = GetPrivateField(controller, "_progress") as ProgressData;
+            Assert.IsNotNull(progress);
+            Assert.AreEqual(10, progress.StarBalance, "Convert trade-in should deduct exactly 10 stars.");
+
+            var state = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(state);
+            for (int i = 0; i < state.Bottles.Count; i++)
+            {
+                Assert.IsFalse(state.Bottles[i].IsSink, "All sink bottles should be converted to normal bottles.");
+            }
+
+            Assert.IsFalse(controller.IsInputLocked, "Input should be restored after confirm-flow conversion.");
+        }
+
+        [UnityTest]
+        public IEnumerator StarTradeIn_ConvertExecution_GatedWhenStarsAreInsufficient()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            int sinkLevel = FindFirstLevelWithSink();
+            Assert.GreaterOrEqual(sinkLevel, 20);
+
+            ConfigureControllerProgress(controller, stars: 0, currentLevel: sinkLevel, seed: 903);
+            controller.LoadLevel(sinkLevel, 903);
+            yield return null;
+
+            var stateBefore = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(stateBefore);
+            bool hadSinkBefore = false;
+            for (int i = 0; i < stateBefore.Bottles.Count; i++)
+            {
+                if (!stateBefore.Bottles[i].IsSink) continue;
+                hadSinkBefore = true;
+                break;
+            }
+            Assert.IsTrue(hadSinkBefore, "Expected at least one sink before conversion attempt.");
+
+            InvokePrivate(controller, "ExecuteConvertSinksTradeIn");
+            yield return null;
+
+            var progress = GetPrivateField(controller, "_progress") as ProgressData;
+            Assert.IsNotNull(progress);
+            Assert.AreEqual(0, progress.StarBalance, "Insufficient-star conversion attempt must not spend stars.");
+
+            var stateAfter = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(stateAfter);
+            bool hasSinkAfter = false;
+            for (int i = 0; i < stateAfter.Bottles.Count; i++)
+            {
+                if (!stateAfter.Bottles[i].IsSink) continue;
+                hasSinkAfter = true;
+                break;
+            }
+
+            Assert.IsTrue(hasSinkAfter, "Insufficient-star conversion attempt must not execute sink conversion.");
         }
 
         [UnityTest]
@@ -828,6 +1058,42 @@ namespace Decantra.Tests.PlayMode
                 }
             }
             return false;
+        }
+
+        private static int FindFirstLevelWithSink()
+        {
+            for (int level = 20; level <= 200; level++)
+            {
+                if (LevelDifficultyEngine.DetermineSinkCount(level) > 0)
+                {
+                    return level;
+                }
+            }
+
+            return -1;
+        }
+
+        private static void ConfigureControllerProgress(GameController controller, int stars, int currentLevel, int seed)
+        {
+            string root = Path.Combine(Path.GetTempPath(), "decantra-tests", System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "progress.json");
+
+            var store = new ProgressStore(new[] { path });
+            var progress = new ProgressData
+            {
+                HighestUnlockedLevel = Mathf.Max(1, currentLevel),
+                CurrentLevel = Mathf.Max(1, currentLevel),
+                CurrentSeed = seed,
+                CurrentScore = 0,
+                HighScore = 0,
+                StarBalance = Mathf.Max(0, stars)
+            };
+
+            SetPrivateField(controller, "_progressStore", store);
+            SetPrivateField(controller, "_progress", progress);
+            SetPrivateField(controller, "_currentLevel", progress.CurrentLevel);
+            SetPrivateField(controller, "_currentSeed", progress.CurrentSeed);
         }
 
         private static Decantra.Presentation.View.BottleInput GetBottleInputForIndex(GameController controller, int index)

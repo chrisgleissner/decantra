@@ -69,16 +69,17 @@ namespace Decantra.Domain.Rules
             if (levelIndex <= 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
 
             var band = ResolveBand(levelIndex);
-            int colorCount = ResolveColorCount(levelIndex);
-            int emptyCount = ResolveEmptyCount(levelIndex);
+            int sinkCount = DetermineSinkCount(levelIndex);
+            int emptyCount = ResolveEmptyCount(levelIndex, sinkCount);
+            int colorCount = ResolveColorCount(levelIndex, emptyCount);
 
             // Invariant: Max 9 Bottles
             if (colorCount + emptyCount > 9)
             {
                 // Prioritize preserving color count for real difficulty; reduce empties first.
-                // Keep the minimum empties required for sinks (>=18) when possible.
+                // Keep the minimum empties required for sinks when possible.
                 int overflow = colorCount + emptyCount - 9;
-                int minEmpty = ResolveSinkCount(levelIndex) > 0 ? 2 : 1;
+                int minEmpty = sinkCount > 0 ? Math.Min(6, sinkCount + 1) : 1;
                 int reducibleEmpty = Math.Max(0, emptyCount - minEmpty);
                 int emptyReduction = Math.Min(overflow, reducibleEmpty);
                 emptyCount -= emptyReduction;
@@ -108,31 +109,42 @@ namespace Decantra.Domain.Rules
             return LevelBand.E;
         }
 
-        private static int ResolveColorCount(int levelIndex)
+        private static int ResolveColorCount(int levelIndex, int emptyCount)
         {
             int eff = GetEffectiveLevel(levelIndex);
 
             // Stepwise scaling to keep bottle counts monotonic while respecting
             // the 9-bottle cap and early-game pacing.
-            if (eff <= 6) return 3;
-            if (eff <= 10) return 4;
-            if (eff <= 17) return 5;
-            if (eff <= 19) return 6;
-            return 7;
+            int baseColorCount;
+            if (eff <= 6) baseColorCount = 3;
+            else if (eff <= 10) baseColorCount = 4;
+            else if (eff <= 17) baseColorCount = 5;
+            else if (eff <= 19) baseColorCount = 6;
+            else baseColorCount = 7;
+
+            int maxByBottleLimit = Math.Max(3, 9 - Math.Max(0, emptyCount));
+            return Math.Min(baseColorCount, maxByBottleLimit);
         }
 
-        private static int ResolveEmptyCount(int levelIndex)
+        private static int ResolveEmptyCount(int levelIndex, int sinkCount)
         {
             int eff = GetEffectiveLevel(levelIndex);
 
             // Tutorial levels (1-6): 2 empties for easier play
-            if (eff <= 6) return 2;
+            int baseEmptyCount;
+            if (eff <= 6) baseEmptyCount = 2;
+            else if (eff <= 19) baseEmptyCount = 1;
+            else baseEmptyCount = 2;
 
-            // Mid levels (7-17): 1 empty for tighter constraints
-            if (eff <= 17) return 1;
+            if (sinkCount <= 0)
+            {
+                return baseEmptyCount;
+            }
 
-            // Sink levels (18+): 2 empties, with one being a sink
-            return 2;
+            // Keep at least one non-sink empty bottle available.
+            int requiredForSinks = sinkCount + 1;
+            int resolved = Math.Max(baseEmptyCount, requiredForSinks);
+            return Math.Min(6, resolved);
         }
 
         /// <summary>
@@ -141,13 +153,94 @@ namespace Decantra.Domain.Rules
         /// </summary>
         public static int ResolveSinkCount(int levelIndex)
         {
-            int eff = GetEffectiveLevel(levelIndex);
+            return DetermineSinkCount(levelIndex);
+        }
 
-            // No sinks before level 18
-            if (eff < 18) return 0;
+        /// <summary>
+        /// Deterministically determines sink count by level number only.
+        /// </summary>
+        public static int DetermineSinkCount(int levelNumber)
+        {
+            if (levelNumber <= 0) throw new ArgumentOutOfRangeException(nameof(levelNumber));
 
-            // Levels 18+: keep a single sink to avoid excessive solver complexity
-            return 1;
+            if (levelNumber <= 19)
+            {
+                return 0;
+            }
+
+            int roll = HashToPercent(levelNumber);
+
+            if (levelNumber <= 99)
+            {
+                // 70% -> 0, 30% -> 1
+                return roll < 70 ? 0 : 1;
+            }
+
+            if (levelNumber <= 299)
+            {
+                // 20% -> 0, 50% -> 1, 30% -> 2
+                if (roll < 20) return 0;
+                if (roll < 70) return 1;
+                return 2;
+            }
+
+            if (levelNumber <= 599)
+            {
+                // 10% -> 0, 40% -> 1, 35% -> 2, 15% -> 3
+                if (roll < 10) return 0;
+                if (roll < 50) return 1;
+                if (roll < 85) return 2;
+                return 3;
+            }
+
+            if (levelNumber <= 999)
+            {
+                // 5% -> 0, 30% -> 1, 35% -> 2, 20% -> 3, 10% -> 4
+                if (roll < 5) return 0;
+                if (roll < 35) return 1;
+                if (roll < 70) return 2;
+                if (roll < 90) return 3;
+                return 4;
+            }
+
+            // 1000+: 5% -> 0, 20% -> 1, 30% -> 2, 25% -> 3, 15% -> 4, 5% -> 5
+            if (roll < 5) return 0;
+            if (roll < 25) return 1;
+            if (roll < 55) return 2;
+            if (roll < 80) return 3;
+            if (roll < 95) return 4;
+            return 5;
+        }
+
+        /// <summary>
+        /// Deterministic sink role class split: approximately 50/50 by level hash.
+        /// True => requires at least one sink usage.
+        /// False => sink usage can be fully avoided.
+        /// </summary>
+        public static bool IsSinkRequiredClass(int levelNumber)
+        {
+            if (levelNumber <= 0) throw new ArgumentOutOfRangeException(nameof(levelNumber));
+            return (HashLevel(levelNumber) & 1) == 0;
+        }
+
+        private static int HashToPercent(int levelNumber)
+        {
+            uint hash = HashLevel(levelNumber);
+            return (int)(hash % 100u);
+        }
+
+        private static uint HashLevel(int levelNumber)
+        {
+            unchecked
+            {
+                uint value = (uint)levelNumber;
+                value ^= 0x9E3779B9u;
+                value *= 0x85EBCA6Bu;
+                value ^= value >> 13;
+                value *= 0xC2B2AE35u;
+                value ^= value >> 16;
+                return value;
+            }
         }
 
         private static BackgroundThemeId ResolveThemeId(LevelBand band, int levelIndex)
@@ -168,21 +261,21 @@ namespace Decantra.Domain.Rules
         {
             int eff = GetEffectiveLevel(levelIndex);
 
-            // Linear scaling: 6 reverse moves at level 1, 30 at level 100
+            // Keep scramble depth bounded to preserve generation/solve latency guarantees.
             float t = GetLinearProgress(levelIndex);
-            int baseMoves = 6 + (int)Math.Round(t * 24);
+            int baseMoves = 4 + (int)Math.Round(t * 12);
 
-            // Color complexity bonus
-            int colorBonus = (colorCount - 3) * 1;
+            // Color complexity bonus (bounded).
+            int colorBonus = Math.Max(0, (colorCount - 3) / 2);
 
-            // Sink level bonus (levels 18+): deeper scrambling needed
-            int sinkBonus = (eff >= 18) ? 4 : 0;
+            // Sink levels get a modest bump without exploding search cost.
+            int sinkBonus = (eff >= 18) ? 1 : 0;
 
             int result = baseMoves + colorBonus + sinkBonus;
 
             // Clamp to valid range
-            result = Math.Max(8, result);
-            result = Math.Min(30, result);
+            result = Math.Max(6, result);
+            result = Math.Min(18, result);
 
             return result;
         }
@@ -222,16 +315,9 @@ namespace Decantra.Domain.Rules
 
         private static int ComputeDifficultyRating(int levelIndex, LevelBand band, int colorCount, int emptyCount, int bottleCount, int reverseMoves)
         {
-            // This is the PROFILE difficulty rating, not the actual intrinsic difficulty.
-            // Actual difficulty is computed by DifficultyScorer from solver metrics.
-            int eff = GetEffectiveLevel(levelIndex);
-
-            int bandScore = ((int)band) * 900;
-            int levelScore = eff * 25;
-            int colorScore = colorCount * 70;
-            int bottleScore = bottleCount * 30;
-            int emptyScore = emptyCount * 50;
-            return Math.Max(0, bandScore + levelScore + colorScore + bottleScore + emptyScore);
+            // Keep profile rating strictly deterministic and monotonic through linear difficulty progression.
+            // Intrinsic difficulty is scored separately from solver-derived metrics.
+            return GetDifficultyForLevel(levelIndex) * 100;
         }
     }
 }

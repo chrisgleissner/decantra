@@ -17,6 +17,10 @@ UserSettings/
 
 # Compiled files
 Reproduction/bin/
+Reproduction/obj/
+
+# Track Reproduction project file (override *.csproj ignore)
+!Reproduction/Reproduction.csproj
 
 # Code Coverage reports
 Coverage
@@ -70,6 +74,7 @@ Temp/
 [Oo]bj/
 [Bb]uild/
 Reproduction/bin
+solver-solutions-debug.txt
 
 # Artifacts and build outputs
 Artifacts/
@@ -88,7 +93,6 @@ MemoryCaptures/
 
 # Other
 plans.md
-solver-solutions-debug.txt
 solutions-1-1000.txt
 release.keystore
 TestResults-*.xml
@@ -100,3 +104,4 @@ Assets/Resources/PerformanceTestRunInfo.json
 Assets/Resources/PerformanceTestRunInfo.json.meta
 Assets/Resources/PerformanceTestRunSettings.json
 Assets/Resources/PerformanceTestRunSettings.json.meta
+solver-solutions-debug-sinks.txt

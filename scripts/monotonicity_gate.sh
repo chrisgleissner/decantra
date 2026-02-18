@@ -10,6 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 SOLUTIONS_FILE="${ROOT_DIR}/solver-solutions-debug.txt"
+EXPECTED_LEVEL_COUNT="${DECANTRA_EXPECTED_LEVELS:-1000}"
 
 if [[ ! -f "${SOLUTIONS_FILE}" ]]; then
   echo "ERROR: ${SOLUTIONS_FILE} not found"
@@ -77,6 +78,21 @@ BEGIN {
   }
 }
 END {
+  if (total_count <= 0) {
+    print ""
+    print "FAIL: No level entries found in solutions file"
+    exit 1
+  }
+
+  if (ENVIRON["EXPECTED_LEVEL_COUNT"] ~ /^[0-9]+$/) {
+    expected = ENVIRON["EXPECTED_LEVEL_COUNT"] + 0
+    if (expected > 0 && total_count != expected) {
+      print ""
+      print "FAIL: Expected " expected " levels, found " total_count
+      exit 1
+    }
+  }
+
   if (total_count > 0) {
     avg = total_diff / total_count
     printf "Difficulty stats: min=%d, max=%d, avg=%.1f\n", min_diff, max_diff, avg

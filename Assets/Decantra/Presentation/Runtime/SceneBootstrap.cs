@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System.Collections.Generic;
 using System.Reflection;
+using Decantra.App.Services;
 using Decantra.Domain.Background;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
@@ -15,6 +16,7 @@ using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.Scripting;
 using UnityEngine.UI;
 
@@ -97,8 +99,11 @@ namespace Decantra.Presentation
                 EnsureHudSafeLayout();
                 WireResetButton(existingController);
                 WireOptionsButton(existingController);
+                EnsureStarTradeInDialog(existingController);
+                WireStarsButton(existingController);
                 EnsureLevelJumpOverlay(existingController);
                 WireLevelJumpOverlay(existingController);
+                ResetModalVisibility(existingController);
                 return;
             }
 
@@ -167,10 +172,13 @@ namespace Decantra.Presentation
             WireResetButton(controller);
             var resetLevelDialog = CreateResetLevelDialog(uiCanvas.transform);
             SetPrivateField(controller, "resetLevelDialog", resetLevelDialog);
+            var starTradeInDialog = CreateStarTradeInDialog(uiCanvas.transform);
+            SetPrivateField(controller, "starTradeInDialog", starTradeInDialog);
             var optionsOverlay = CreateOptionsOverlay(uiCanvas.transform, controller);
             SetPrivateField(controller, "_optionsOverlay", optionsOverlay);
             SetPrivateField(controller, "_starfieldMaterial", GetBackgroundStarsMaterial());
             WireOptionsButton(controller);
+            WireStarsButton(controller);
 
             var restartDialog = CreateRestartDialog(uiCanvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
@@ -251,9 +259,9 @@ namespace Decantra.Presentation
         {
             if (controller == null) return;
             var existing = GetPrivateField<TutorialManager>(controller, "tutorialManager");
-            if (existing != null) return;
+            if (IsComponentInScene(existing, controller.gameObject.scene)) return;
 
-            var root = GameObject.Find("TutorialOverlay");
+            var root = FindObjectByNameIncludingInactive("TutorialOverlay", controller.gameObject.scene);
             var manager = root != null ? root.GetComponent<TutorialManager>() : null;
             if (manager == null)
             {
@@ -263,18 +271,31 @@ namespace Decantra.Presentation
             }
 
             SetPrivateField(controller, "tutorialManager", manager);
+            var settingsStore = GetPrivateField<SettingsStore>(controller, "_settingsStore");
+            if (manager != null && settingsStore != null)
+            {
+                manager.Initialize(controller, settingsStore);
+            }
+            RemoveDuplicateNamedObjects("TutorialOverlay", manager != null ? manager.gameObject : null);
         }
 
         private static void EnsureOptionsOverlays(GameController controller)
         {
             if (controller == null) return;
+            var targetScene = controller.gameObject.scene;
 
             var options = GetPrivateField<GameObject>(controller, "_optionsOverlay");
+            if (!IsGameObjectInScene(options, targetScene))
+            {
+                options = null;
+            }
+
             if (options == null)
             {
-                var optionsGo = GameObject.Find("OptionsOverlay");
+                var optionsGo = FindObjectByNameIncludingInactive("OptionsOverlay", targetScene);
                 if (optionsGo != null)
                 {
+                    options = optionsGo;
                     SetPrivateField(controller, "_optionsOverlay", optionsGo);
                 }
                 else
@@ -283,15 +304,22 @@ namespace Decantra.Presentation
                     if (canvas != null)
                     {
                         var created = CreateOptionsOverlay(canvas.transform, controller);
+                        options = created;
                         SetPrivateField(controller, "_optionsOverlay", created);
                     }
                 }
             }
+            RemoveDuplicateNamedObjects("OptionsOverlay", options);
 
             var highContrast = GetPrivateField<GameObject>(controller, "_highContrastOverlay");
+            if (!IsGameObjectInScene(highContrast, targetScene))
+            {
+                highContrast = null;
+            }
+
             if (highContrast == null)
             {
-                var existingHighContrast = GameObject.Find("HighContrastOverlay");
+                var existingHighContrast = FindObjectByNameIncludingInactive("HighContrastOverlay", targetScene);
                 if (existingHighContrast == null)
                 {
                     var canvas = Object.FindFirstObjectByType<Canvas>();
@@ -306,11 +334,69 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_highContrastOverlay", existingHighContrast);
                 }
             }
+            RemoveDuplicateNamedObjects("HighContrastOverlay", GetPrivateField<GameObject>(controller, "_highContrastOverlay"));
+
+            var howToPlay = GetPrivateField<GameObject>(controller, "_howToPlayOverlay");
+            if (!IsGameObjectInScene(howToPlay, targetScene))
+            {
+                howToPlay = null;
+            }
+
+            if (howToPlay == null || (options != null && !howToPlay.transform.IsChildOf(options.transform)))
+            {
+                GameObject existingHowTo = options != null
+                    ? options.transform.Find("HowToPlayOverlay")?.gameObject
+                    : null;
+
+                if (existingHowTo == null)
+                {
+                    existingHowTo = FindObjectByNameIncludingInactive("HowToPlayOverlay", targetScene);
+                }
+
+                if (existingHowTo == null)
+                {
+                    Transform parent = options != null ? options.transform : null;
+                    if (parent == null)
+                    {
+                        var canvas = Object.FindFirstObjectByType<Canvas>();
+                        parent = canvas != null ? canvas.transform : null;
+                    }
+
+                    if (parent != null)
+                    {
+                        existingHowTo = CreateScrollableTextOverlay(
+                            parent,
+                            "HowToPlayOverlay",
+                            "HOW TO PLAY",
+                            BuildHowToPlayBodyText(),
+                            compact: true);
+                    }
+                }
+
+                if (existingHowTo != null)
+                {
+                    SetPrivateField(controller, "_howToPlayOverlay", existingHowTo);
+                }
+            }
+            RemoveDuplicateNamedObjects("HowToPlayOverlay", GetPrivateField<GameObject>(controller, "_howToPlayOverlay"));
 
             var privacy = GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay");
-            if (privacy == null)
+            if (!IsGameObjectInScene(privacy, targetScene))
             {
-                var existingPrivacy = GameObject.Find("PrivacyPolicyOverlay");
+                privacy = null;
+            }
+
+            if (privacy == null || (options != null && !privacy.transform.IsChildOf(options.transform)))
+            {
+                var existingPrivacy = options != null
+                    ? options.transform.Find("PrivacyPolicyOverlay")?.gameObject
+                    : null;
+
+                if (existingPrivacy == null)
+                {
+                    existingPrivacy = FindObjectByNameIncludingInactive("PrivacyPolicyOverlay", targetScene);
+                }
+
                 if (existingPrivacy == null)
                 {
                     var parent = options != null ? options.transform : null;
@@ -335,11 +421,25 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_privacyPolicyOverlay", existingPrivacy);
                 }
             }
+            RemoveDuplicateNamedObjects("PrivacyPolicyOverlay", GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay"));
 
             var terms = GetPrivateField<GameObject>(controller, "_termsOverlay");
-            if (terms == null)
+            if (!IsGameObjectInScene(terms, targetScene))
             {
-                var existingTerms = GameObject.Find("TermsOverlay");
+                terms = null;
+            }
+
+            if (terms == null || (options != null && !terms.transform.IsChildOf(options.transform)))
+            {
+                var existingTerms = options != null
+                    ? options.transform.Find("TermsOverlay")?.gameObject
+                    : null;
+
+                if (existingTerms == null)
+                {
+                    existingTerms = FindObjectByNameIncludingInactive("TermsOverlay", targetScene);
+                }
+
                 if (existingTerms == null)
                 {
                     var parent = options != null ? options.transform : null;
@@ -364,6 +464,75 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_termsOverlay", existingTerms);
                 }
             }
+            RemoveDuplicateNamedObjects("TermsOverlay", GetPrivateField<GameObject>(controller, "_termsOverlay"));
+        }
+
+        private static void ResetModalVisibility(GameController controller)
+        {
+            if (controller == null)
+            {
+                return;
+            }
+
+            HideModalRoot(GetPrivateField<GameObject>(controller, "_optionsOverlay"));
+            HideModalRoot(GetPrivateField<GameObject>(controller, "_howToPlayOverlay"));
+            HideModalRoot(GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay"));
+            HideModalRoot(GetPrivateField<GameObject>(controller, "_termsOverlay"));
+
+            var tutorial = GetPrivateField<TutorialManager>(controller, "tutorialManager");
+            if (tutorial != null)
+            {
+                HideModalRoot(tutorial.gameObject);
+                SetPrivateField(tutorial, "_running", false);
+            }
+
+            var starTradeIn = GetPrivateField<StarTradeInDialog>(controller, "starTradeInDialog");
+            if (starTradeIn != null)
+            {
+                starTradeIn.Hide();
+            }
+        }
+
+        private static void HideModalRoot(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                baseModal.Hide();
+                return;
+            }
+
+            modalRoot.SetActive(false);
+        }
+
+        private static void EnsureStarTradeInDialog(GameController controller)
+        {
+            if (controller == null) return;
+            var existing = GetPrivateField<StarTradeInDialog>(controller, "starTradeInDialog");
+            if (IsComponentInScene(existing, controller.gameObject.scene))
+            {
+                existing.Initialize();
+                existing.Hide();
+                return;
+            }
+
+            var root = GameObject.Find("StarTradeInDialog");
+            var dialog = root != null ? root.GetComponent<StarTradeInDialog>() : null;
+            if (dialog == null)
+            {
+                var canvas = FindOrCreateUiCanvas();
+                if (canvas == null) return;
+                dialog = CreateStarTradeInDialog(canvas.transform);
+            }
+
+            dialog.Initialize();
+            dialog.Hide();
+            SetPrivateField(controller, "starTradeInDialog", dialog);
         }
 
         private static void EnsureLevelJumpOverlay(GameController controller)
@@ -392,6 +561,104 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "levelJumpInput", input);
             SetPrivateField(controller, "levelJumpGoButton", goButton);
             SetPrivateField(controller, "levelJumpDismissButton", dismissButton);
+        }
+
+        private static GameObject FindObjectByNameIncludingInactive(string name, Scene preferredScene = default(Scene))
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            bool hasPreferredScene = preferredScene.IsValid();
+            GameObject bestMatch = null;
+            int bestScore = int.MinValue;
+            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            for (int i = 0; i < allObjects.Length; i++)
+            {
+                var candidate = allObjects[i];
+                if (candidate == null || candidate.hideFlags != HideFlags.None)
+                {
+                    continue;
+                }
+
+                if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
+                {
+                    continue;
+                }
+
+                if (candidate.name != name)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (hasPreferredScene && candidate.scene == preferredScene)
+                {
+                    score += 1000;
+                }
+
+                if (candidate.activeInHierarchy)
+                {
+                    score += 100;
+                }
+                else if (candidate.activeSelf)
+                {
+                    score += 40;
+                }
+
+                if (candidate.transform.parent != null)
+                {
+                    score += 10;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = candidate;
+                }
+            }
+
+            return bestMatch;
+        }
+
+        private static bool IsGameObjectInScene(GameObject gameObject, Scene scene)
+        {
+            return gameObject != null
+                && scene.IsValid()
+                && gameObject.scene.IsValid()
+                && gameObject.scene.isLoaded
+                && gameObject.scene == scene;
+        }
+
+        private static bool IsComponentInScene(Component component, Scene scene)
+        {
+            return component != null && IsGameObjectInScene(component.gameObject, scene);
+        }
+
+        private static void RemoveDuplicateNamedObjects(string name, GameObject keep)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            for (int i = 0; i < allObjects.Length; i++)
+            {
+                var candidate = allObjects[i];
+                if (candidate == null || candidate == keep)
+                {
+                    continue;
+                }
+
+                if (candidate.hideFlags != HideFlags.None || candidate.name != name)
+                {
+                    continue;
+                }
+
+                Object.DestroyImmediate(candidate);
+            }
         }
 
         private static bool HasRequiredWiring(GameController controller)
@@ -472,6 +739,21 @@ namespace Decantra.Presentation
             }
 
             preferredCamera.gameObject.AddComponent<AudioListener>();
+        }
+
+        private static Canvas FindOrCreateUiCanvas()
+        {
+            var uiGo = GameObject.Find("Canvas_UI");
+            if (uiGo != null)
+            {
+                var canvas = uiGo.GetComponent<Canvas>();
+                if (canvas != null)
+                {
+                    return canvas;
+                }
+            }
+
+            return Object.FindFirstObjectByType<Canvas>();
         }
 
         private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
@@ -950,10 +1232,12 @@ namespace Decantra.Presentation
             secondaryLayout.childAlignment = TextAnchor.MiddleCenter;
             secondaryLayout.childForceExpandWidth = false;
             secondaryLayout.childForceExpandHeight = false;
-            secondaryLayout.spacing = 32f;
+            secondaryLayout.spacing = 16f;
+            secondaryRect.sizeDelta = new Vector2(1000, 150);
 
             var resetButton = CreateResetButton(secondaryHud.transform);
             var optionsButton = CreateOptionsButton(secondaryHud.transform);
+            var starsButton = CreateStarsButton(secondaryHud.transform);
             var resetButtonRect = resetButton != null ? resetButton.GetComponent<RectTransform>() : null;
             if (resetButton != null)
             {
@@ -990,6 +1274,7 @@ namespace Decantra.Presentation
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
             SetPrivateField(hudView, "scoreText", scoreText);
+            SetPrivateField(hudView, "starsText", starsButton != null ? starsButton.transform.Find("Label")?.GetComponent<Text>() : null);
             SetPrivateField(hudView, "highScoreText", highScoreText);
             SetPrivateField(hudView, "maxLevelText", maxLevelText);
             SetPrivateField<Text>(hudView, "titleText", null);
@@ -1360,6 +1645,29 @@ namespace Decantra.Presentation
             rect.offsetMax = Vector2.zero;
             AddTextEffects(text, new Color(0f, 0f, 0f, 0.7f));
             return text;
+        }
+
+        private static BaseModal AttachBaseModal(GameObject root, CanvasGroup canvasGroup = null)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            var modal = root.GetComponent<BaseModal>() ?? root.AddComponent<BaseModal>();
+            modal.Configure(canvasGroup);
+            return modal;
+        }
+
+        private static void AttachResponsiveModalPanel(RectTransform panel, Vector2 preferred, Vector2 minimum)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            var responsive = panel.GetComponent<ResponsiveModalPanel>() ?? panel.gameObject.AddComponent<ResponsiveModalPanel>();
+            responsive.Configure(panel, preferred, minimum, ModalDesignTokens.Sizing.ModalMargin);
         }
 
         private static Text CreateTitleText(Transform parent, string name, string value)
@@ -1733,6 +2041,336 @@ namespace Decantra.Presentation
             return dialog;
         }
 
+        private static StarTradeInDialog CreateStarTradeInDialog(Transform parent)
+        {
+            var root = CreateUiChild(parent, "StarTradeInDialog");
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var overlay = root.AddComponent<Image>();
+            overlay.color = new Color(0f, 0f, 0f, 0.64f);
+            overlay.raycastTarget = true;
+
+            var canvasGroup = root.AddComponent<CanvasGroup>();
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(920f, 1120f);
+            AttachResponsiveModalPanel(panelRect, new Vector2(920f, 1120f), new Vector2(620f, 760f));
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = ModalDesignTokens.Colors.Panel;
+
+            var layout = panel.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+            layout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            layout.padding = new RectOffset(
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding);
+
+            var title = CreateHudText(panel.transform, "Title");
+            title.text = StarTradeInUiConfig.Copy.Title;
+            title.fontSize = StarTradeInUiConfig.FontSizes.Header;
+            title.alignment = TextAnchor.MiddleCenter;
+            title.color = StarTradeInUiConfig.PrimaryTextColor;
+            var titleElement = title.gameObject.AddComponent<LayoutElement>();
+            titleElement.preferredHeight = 72f;
+            titleElement.minHeight = 72f;
+
+            var messageText = CreateHudText(panel.transform, "MessageText");
+            messageText.fontSize = StarTradeInUiConfig.FontSizes.Prompt;
+            messageText.fontStyle = FontStyle.Bold;
+            messageText.alignment = TextAnchor.MiddleCenter;
+            messageText.text = StarTradeInUiConfig.Copy.Prompt;
+            messageText.color = StarTradeInUiConfig.PrimaryTextColor;
+            var messageElement = messageText.gameObject.AddComponent<LayoutElement>();
+            messageElement.preferredHeight = 60f;
+            messageElement.minHeight = 60f;
+
+            var currentStarsText = CreateHudText(panel.transform, "CurrentStarsText");
+            currentStarsText.fontSize = StarTradeInUiConfig.FontSizes.CurrentStars;
+            currentStarsText.alignment = TextAnchor.MiddleCenter;
+            currentStarsText.text = string.Format(StarTradeInUiConfig.Copy.CurrentStarsFormat, 0);
+            currentStarsText.color = StarTradeInUiConfig.SecondaryTextColor;
+            var currentStarsElement = currentStarsText.gameObject.AddComponent<LayoutElement>();
+            currentStarsElement.preferredHeight = 52f;
+            currentStarsElement.minHeight = 52f;
+
+            var selectionRoot = CreateUiChild(panel.transform, "SelectionRoot");
+            var selectionLayout = selectionRoot.AddComponent<VerticalLayoutGroup>();
+            selectionLayout.childAlignment = TextAnchor.UpperCenter;
+            selectionLayout.childForceExpandWidth = true;
+            selectionLayout.childForceExpandHeight = true;
+            selectionLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+            var selectionElement = selectionRoot.AddComponent<LayoutElement>();
+            selectionElement.flexibleHeight = 1f;
+            selectionElement.minHeight = 260f;
+
+            var selectionScroll = CreateUiChild(selectionRoot.transform, "SelectionScrollView");
+            var selectionScrollImage = selectionScroll.AddComponent<Image>();
+            selectionScrollImage.sprite = GetRoundedSprite();
+            selectionScrollImage.type = Image.Type.Sliced;
+            selectionScrollImage.color = ModalDesignTokens.Colors.SectionSurface;
+            var selectionScrollElement = selectionScroll.AddComponent<LayoutElement>();
+            selectionScrollElement.flexibleHeight = 1f;
+            selectionScrollElement.minHeight = 240f;
+            var selectionScrollRect = selectionScroll.AddComponent<ScrollRect>();
+            selectionScrollRect.horizontal = false;
+            selectionScrollRect.vertical = true;
+            selectionScrollRect.movementType = ScrollRect.MovementType.Clamped;
+            selectionScrollRect.scrollSensitivity = 52f;
+
+            var selectionViewport = CreateUiChild(selectionScroll.transform, "Viewport");
+            var selectionViewportRect = selectionViewport.GetComponent<RectTransform>();
+            selectionViewportRect.anchorMin = Vector2.zero;
+            selectionViewportRect.anchorMax = Vector2.one;
+            selectionViewportRect.offsetMin = new Vector2(12f, 12f);
+            selectionViewportRect.offsetMax = new Vector2(-12f, -12f);
+            var selectionViewportImage = selectionViewport.AddComponent<Image>();
+            selectionViewportImage.color = new Color(0f, 0f, 0f, 0.01f);
+            selectionViewportImage.raycastTarget = true;
+            selectionViewport.AddComponent<Mask>().showMaskGraphic = false;
+
+            var selectionContent = CreateUiChild(selectionViewport.transform, "Content");
+            var selectionContentRect = selectionContent.GetComponent<RectTransform>();
+            selectionContentRect.anchorMin = new Vector2(0f, 1f);
+            selectionContentRect.anchorMax = new Vector2(1f, 1f);
+            selectionContentRect.pivot = new Vector2(0.5f, 1f);
+            selectionContentRect.anchoredPosition = Vector2.zero;
+            selectionContentRect.sizeDelta = Vector2.zero;
+            var selectionContentLayout = selectionContent.AddComponent<VerticalLayoutGroup>();
+            selectionContentLayout.childAlignment = TextAnchor.UpperCenter;
+            selectionContentLayout.childForceExpandWidth = true;
+            selectionContentLayout.childForceExpandHeight = false;
+            selectionContentLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+            selectionContentLayout.padding = new RectOffset(2, 2, 2, 2);
+            var selectionFitter = selectionContent.AddComponent<ContentSizeFitter>();
+            selectionFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            selectionScrollRect.viewport = selectionViewportRect;
+            selectionScrollRect.content = selectionContentRect;
+
+            var cardsRoot = CreateUiChild(selectionContent.transform, "CardsRoot");
+            var cardsLayout = cardsRoot.AddComponent<VerticalLayoutGroup>();
+            cardsLayout.childAlignment = TextAnchor.UpperCenter;
+            cardsLayout.childForceExpandWidth = true;
+            cardsLayout.childForceExpandHeight = false;
+            cardsLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+
+            Button CreateActionCard(
+                string objectName,
+                out Image cardImage,
+                out Text titleText,
+                out Text subtitleText,
+                out Text costLabelText,
+                out Text costValueText,
+                out Text statusText)
+            {
+                var card = CreateUiChild(cardsRoot.transform, objectName);
+                cardImage = card.AddComponent<Image>();
+                cardImage.sprite = GetRoundedSprite();
+                cardImage.type = Image.Type.Sliced;
+                cardImage.color = StarTradeInUiConfig.DisabledCardColor;
+
+                var button = card.AddComponent<Button>();
+                button.targetGraphic = cardImage;
+
+                var cardElement = card.AddComponent<LayoutElement>();
+                cardElement.preferredHeight = 234f;
+                cardElement.minHeight = 210f;
+
+                var cardLayout = card.AddComponent<VerticalLayoutGroup>();
+                cardLayout.childAlignment = TextAnchor.UpperLeft;
+                cardLayout.childForceExpandWidth = true;
+                cardLayout.childForceExpandHeight = false;
+                cardLayout.spacing = 8f;
+                cardLayout.padding = new RectOffset(20, 20, 18, 18);
+
+                titleText = CreateHudText(card.transform, "Title");
+                titleText.fontSize = StarTradeInUiConfig.FontSizes.CardTitle;
+                titleText.fontStyle = FontStyle.Bold;
+                titleText.alignment = TextAnchor.MiddleLeft;
+                titleText.color = StarTradeInUiConfig.PrimaryTextColor;
+                var titleElementLocal = titleText.gameObject.AddComponent<LayoutElement>();
+                titleElementLocal.preferredHeight = 42f;
+
+                subtitleText = CreateHudText(card.transform, "Subtitle");
+                subtitleText.fontSize = StarTradeInUiConfig.FontSizes.CardSubtitle;
+                subtitleText.fontStyle = FontStyle.Normal;
+                subtitleText.alignment = TextAnchor.MiddleLeft;
+                subtitleText.color = StarTradeInUiConfig.SecondaryTextColor;
+                subtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                subtitleText.verticalOverflow = VerticalWrapMode.Overflow;
+                var subtitleElement = subtitleText.gameObject.AddComponent<LayoutElement>();
+                subtitleElement.preferredHeight = 98f;
+
+                var costRow = CreateUiChild(card.transform, "CostRow");
+                var costRowLayout = costRow.AddComponent<HorizontalLayoutGroup>();
+                costRowLayout.childAlignment = TextAnchor.MiddleLeft;
+                costRowLayout.childForceExpandWidth = false;
+                costRowLayout.childForceExpandHeight = false;
+                costRowLayout.spacing = 14f;
+                var costRowElement = costRow.AddComponent<LayoutElement>();
+                costRowElement.preferredHeight = 42f;
+
+                costLabelText = CreateHudText(costRow.transform, "CostLabel");
+                costLabelText.fontSize = StarTradeInUiConfig.FontSizes.CostLabel;
+                costLabelText.fontStyle = FontStyle.Normal;
+                costLabelText.alignment = TextAnchor.MiddleLeft;
+                costLabelText.color = StarTradeInUiConfig.TertiaryTextColor;
+                var costLabelElement = costLabelText.gameObject.AddComponent<LayoutElement>();
+                costLabelElement.preferredWidth = 92f;
+
+                costValueText = CreateHudText(costRow.transform, "CostValue");
+                costValueText.fontSize = StarTradeInUiConfig.FontSizes.CostValue;
+                costValueText.fontStyle = FontStyle.Bold;
+                costValueText.alignment = TextAnchor.MiddleLeft;
+                costValueText.color = StarTradeInUiConfig.PrimaryTextColor;
+                var costValueElement = costValueText.gameObject.AddComponent<LayoutElement>();
+                costValueElement.flexibleWidth = 1f;
+
+                statusText = CreateHudText(card.transform, "Status");
+                statusText.fontSize = StarTradeInUiConfig.FontSizes.CardStatus;
+                statusText.fontStyle = FontStyle.Bold;
+                statusText.alignment = TextAnchor.MiddleLeft;
+                statusText.color = StarTradeInUiConfig.StatusWarningColor;
+                var statusElement = statusText.gameObject.AddComponent<LayoutElement>();
+                statusElement.preferredHeight = 36f;
+
+                return button;
+            }
+
+            var convertButton = CreateActionCard(
+                "ConvertButton",
+                out var convertCardImage,
+                out var convertTitleText,
+                out var convertSubtitleText,
+                out var convertCostLabelText,
+                out var convertCostValueText,
+                out var convertStatusText);
+            var autoSolveButton = CreateActionCard(
+                "AutoSolveButton",
+                out var autoSolveCardImage,
+                out var autoSolveTitleText,
+                out var autoSolveSubtitleText,
+                out var autoSolveCostLabelText,
+                out var autoSolveCostValueText,
+                out var autoSolveStatusText);
+
+            var helperText = CreateHudText(selectionContent.transform, "SinkDefinitionText");
+            helperText.fontSize = StarTradeInUiConfig.FontSizes.Helper;
+            helperText.fontStyle = FontStyle.Normal;
+            helperText.alignment = TextAnchor.MiddleLeft;
+            helperText.color = StarTradeInUiConfig.TertiaryTextColor;
+            helperText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            helperText.verticalOverflow = VerticalWrapMode.Overflow;
+            helperText.text = string.Empty;
+            var helperElement = helperText.gameObject.AddComponent<LayoutElement>();
+            helperElement.preferredHeight = 0f;
+            helperElement.minHeight = 0f;
+            helperText.gameObject.SetActive(false);
+
+            var confirmationRoot = CreateUiChild(panel.transform, "ConfirmationRoot");
+            var confirmationLayout = confirmationRoot.AddComponent<VerticalLayoutGroup>();
+            confirmationLayout.childAlignment = TextAnchor.MiddleCenter;
+            confirmationLayout.childForceExpandWidth = true;
+            confirmationLayout.childForceExpandHeight = false;
+            confirmationLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+            confirmationLayout.padding = new RectOffset(0, 0, 8, 8);
+            var confirmationElement = confirmationRoot.AddComponent<LayoutElement>();
+            confirmationElement.preferredHeight = 190f;
+            confirmationElement.minHeight = 190f;
+
+            var confirmationText = CreateHudText(confirmationRoot.transform, "ConfirmationText");
+            confirmationText.fontSize = StarTradeInUiConfig.FontSizes.Confirmation;
+            confirmationText.fontStyle = FontStyle.Bold;
+            confirmationText.alignment = TextAnchor.MiddleCenter;
+            confirmationText.color = StarTradeInUiConfig.PrimaryTextColor;
+            confirmationText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            confirmationText.verticalOverflow = VerticalWrapMode.Overflow;
+            var confirmationTextElement = confirmationText.gameObject.AddComponent<LayoutElement>();
+            confirmationTextElement.preferredHeight = 94f;
+
+            var confirmRow = CreateUiChild(confirmationRoot.transform, "ConfirmRow");
+            var confirmLayout = confirmRow.AddComponent<HorizontalLayoutGroup>();
+            confirmLayout.childAlignment = TextAnchor.MiddleCenter;
+            confirmLayout.childForceExpandWidth = true;
+            confirmLayout.childForceExpandHeight = false;
+            confirmLayout.spacing = 12f;
+            var confirmRowElement = confirmRow.AddComponent<LayoutElement>();
+            confirmRowElement.preferredHeight = 84f;
+
+            Button CreateSmallButton(Transform parentTransform, string objectName, string label, Color color)
+            {
+                var go = CreateUiChild(parentTransform, objectName);
+                var image = go.AddComponent<Image>();
+                image.sprite = GetRoundedSprite();
+                image.type = Image.Type.Sliced;
+                image.color = color;
+                var button = go.AddComponent<Button>();
+                button.targetGraphic = image;
+                var element = go.AddComponent<LayoutElement>();
+                element.preferredHeight = 84f;
+                element.flexibleWidth = 1f;
+                var text = CreateHudText(go.transform, "Label");
+                text.text = label;
+                text.fontSize = StarTradeInUiConfig.FontSizes.ActionButton;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = StarTradeInUiConfig.PrimaryTextColor;
+                return button;
+            }
+
+            var confirmButton = CreateSmallButton(confirmRow.transform, "ConfirmButton", "Confirm", ModalDesignTokens.Colors.ConfirmAction);
+            var cancelButton = CreateSmallButton(confirmRow.transform, "CancelButton", "Cancel", ModalDesignTokens.Colors.SecondaryAction);
+            var closeButton = CreateSmallButton(panel.transform, "CloseButton", "Close", ModalDesignTokens.Colors.SecondaryAction);
+            var closeElement = closeButton.GetComponent<LayoutElement>();
+            if (closeElement != null)
+            {
+                closeElement.preferredHeight = 84f;
+                closeElement.minHeight = 84f;
+            }
+
+            var dialog = root.AddComponent<StarTradeInDialog>();
+            SetPrivateField(dialog, "panel", panelRect);
+            SetPrivateField(dialog, "canvasGroup", canvasGroup);
+            SetPrivateField(dialog, "currentStarsText", currentStarsText);
+            SetPrivateField(dialog, "messageText", messageText);
+            SetPrivateField(dialog, "selectionRoot", selectionRoot);
+            SetPrivateField(dialog, "confirmationRoot", confirmationRoot);
+            SetPrivateField(dialog, "confirmationText", confirmationText);
+            SetPrivateField(dialog, "convertButton", convertButton);
+            SetPrivateField(dialog, "convertCardBackground", convertCardImage);
+            SetPrivateField(dialog, "convertLabel", convertTitleText);
+            SetPrivateField(dialog, "convertSubtitleText", convertSubtitleText);
+            SetPrivateField(dialog, "convertCostLabelText", convertCostLabelText);
+            SetPrivateField(dialog, "convertCostValueText", convertCostValueText);
+            SetPrivateField(dialog, "convertStatusText", convertStatusText);
+            SetPrivateField(dialog, "autoSolveButton", autoSolveButton);
+            SetPrivateField(dialog, "autoSolveCardBackground", autoSolveCardImage);
+            SetPrivateField(dialog, "autoSolveLabel", autoSolveTitleText);
+            SetPrivateField(dialog, "autoSolveSubtitleText", autoSolveSubtitleText);
+            SetPrivateField(dialog, "autoSolveCostLabelText", autoSolveCostLabelText);
+            SetPrivateField(dialog, "autoSolveCostValueText", autoSolveCostValueText);
+            SetPrivateField(dialog, "autoSolveStatusText", autoSolveStatusText);
+            SetPrivateField(dialog, "sinkDefinitionText", helperText);
+            SetPrivateField(dialog, "closeButton", closeButton);
+            SetPrivateField(dialog, "confirmButton", confirmButton);
+            SetPrivateField(dialog, "cancelButton", cancelButton);
+            dialog.Initialize();
+            return dialog;
+        }
+
         private static TutorialManager CreateTutorialOverlay(Transform parent)
         {
             var root = CreateUiChild(parent, "TutorialOverlay");
@@ -1743,7 +2381,7 @@ namespace Decantra.Presentation
             rootRect.offsetMax = Vector2.zero;
 
             var dimmer = root.AddComponent<Image>();
-            dimmer.color = new Color(0f, 0f, 0f, 0.41f);
+            dimmer.color = new Color(0f, 0f, 0f, 0.46f);
             dimmer.raycastTarget = true;
 
             var highlight = CreateUiChild(root.transform, "HighlightFrame");
@@ -1758,38 +2396,51 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0f);
             panelRect.anchorMax = new Vector2(0.5f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
-            panelRect.anchoredPosition = new Vector2(0f, 70f);
-            panelRect.sizeDelta = new Vector2(980f, 560f);
+            panelRect.anchoredPosition = new Vector2(0f, 56f);
+            panelRect.sizeDelta = new Vector2(980f, 640f);
+            AttachResponsiveModalPanel(
+                panelRect,
+                new Vector2(980f, 640f),
+                new Vector2(620f, 500f));
 
             var panelImage = instructionPanel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
             panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(0.1f, 0.12f, 0.18f, 0.98f);
+            panelImage.color = ModalDesignTokens.Colors.Panel;
+
+            var panelLayout = instructionPanel.AddComponent<VerticalLayoutGroup>();
+            panelLayout.childAlignment = TextAnchor.UpperCenter;
+            panelLayout.childForceExpandWidth = true;
+            panelLayout.childForceExpandHeight = false;
+            panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            panelLayout.padding = new RectOffset(
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding);
 
             var instructionText = CreateHudText(instructionPanel.transform, "InstructionText");
-            instructionText.fontSize = 44;
+            instructionText.fontSize = ModalDesignTokens.Typography.BodyText + 2;
             instructionText.alignment = TextAnchor.UpperLeft;
+            instructionText.fontStyle = FontStyle.Normal;
+            instructionText.lineSpacing = 1.16f;
             instructionText.horizontalOverflow = HorizontalWrapMode.Wrap;
             instructionText.verticalOverflow = VerticalWrapMode.Overflow;
             instructionText.text = "Tutorial";
-            var instructionRect = instructionText.GetComponent<RectTransform>();
-            instructionRect.anchorMin = new Vector2(0f, 0.45f);
-            instructionRect.anchorMax = new Vector2(1f, 1f);
-            instructionRect.offsetMin = new Vector2(34f, -8f);
-            instructionRect.offsetMax = new Vector2(-34f, -24f);
+            instructionText.color = ModalDesignTokens.Colors.PrimaryText;
+            var instructionElement = instructionText.gameObject.AddComponent<LayoutElement>();
+            instructionElement.flexibleHeight = 1f;
+            instructionElement.minHeight = 260f;
 
             var buttonsRow = CreateUiChild(instructionPanel.transform, "ButtonsRow");
-            var buttonsRect = buttonsRow.GetComponent<RectTransform>();
-            buttonsRect.anchorMin = new Vector2(0.5f, 0f);
-            buttonsRect.anchorMax = new Vector2(0.5f, 0f);
-            buttonsRect.pivot = new Vector2(0.5f, 0f);
-            buttonsRect.anchoredPosition = new Vector2(0f, 24f);
-            buttonsRect.sizeDelta = new Vector2(900f, 140f);
+            var buttonsElement = buttonsRow.AddComponent<LayoutElement>();
+            buttonsElement.preferredHeight = 110f;
+            buttonsElement.minHeight = 110f;
             var buttonsLayout = buttonsRow.AddComponent<HorizontalLayoutGroup>();
             buttonsLayout.childAlignment = TextAnchor.MiddleCenter;
             buttonsLayout.childForceExpandWidth = true;
             buttonsLayout.childForceExpandHeight = false;
-            buttonsLayout.spacing = 26f;
+            buttonsLayout.spacing = 18f;
 
             Button CreateTutorialButton(string objectName, string label, Color color)
             {
@@ -1800,22 +2451,23 @@ namespace Decantra.Presentation
                 image.color = color;
 
                 var element = buttonGo.AddComponent<LayoutElement>();
-                element.minWidth = 420f;
-                element.minHeight = 118f;
+                element.minWidth = 260f;
+                element.minHeight = 110f;
+                element.flexibleWidth = 1f;
 
                 var button = buttonGo.AddComponent<Button>();
                 button.targetGraphic = image;
 
                 var text = CreateHudText(buttonGo.transform, "Label");
                 text.text = label;
-                text.fontSize = 40;
+                text.fontSize = ModalDesignTokens.Typography.ButtonText;
                 text.alignment = TextAnchor.MiddleCenter;
-                text.color = Color.white;
+                text.color = ModalDesignTokens.Colors.PrimaryText;
                 return button;
             }
 
-            var skipButton = CreateTutorialButton("SkipButton", "SKIP TUTORIAL", new Color(0.28f, 0.35f, 0.48f, 1f));
-            var nextButton = CreateTutorialButton("NextButton", "NEXT", new Color(0.2f, 0.58f, 0.32f, 1f));
+            var skipButton = CreateTutorialButton("SkipButton", "SKIP TUTORIAL", ModalDesignTokens.Colors.SecondaryAction);
+            var nextButton = CreateTutorialButton("NextButton", "NEXT", ModalDesignTokens.Colors.PrimaryAction);
 
             var manager = root.AddComponent<TutorialManager>();
             SetPrivateField(manager, "root", rootRect);
@@ -1824,7 +2476,15 @@ namespace Decantra.Presentation
             SetPrivateField(manager, "nextButton", nextButton);
             SetPrivateField(manager, "skipButton", skipButton);
 
-            root.SetActive(false);
+            var modal = AttachBaseModal(root);
+            if (modal != null)
+            {
+                modal.Hide();
+            }
+            else
+            {
+                root.SetActive(false);
+            }
             return manager;
         }
 
@@ -1859,56 +2519,79 @@ namespace Decantra.Presentation
             dimmerRect.offsetMin = Vector2.zero;
             dimmerRect.offsetMax = Vector2.zero;
             var dimmerImage = dimmer.AddComponent<Image>();
-            dimmerImage.color = new Color(0f, 0f, 0f, 0.84f);
+            dimmerImage.color = ModalDesignTokens.Colors.Backdrop;
             var dimmerButton = dimmer.AddComponent<Button>();
             dimmerButton.transition = Selectable.Transition.None;
-            dimmerButton.onClick.AddListener(() => root.SetActive(false));
+
+            var modal = AttachBaseModal(root);
+            dimmerButton.onClick.AddListener(() =>
+            {
+                if (modal != null)
+                {
+                    modal.Hide();
+                }
+                else
+                {
+                    root.SetActive(false);
+                }
+            });
 
             var panel = CreateUiChild(root.transform, "Panel");
             var panelRect = panel.GetComponent<RectTransform>();
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = compact ? new Vector2(900f, 760f) : new Vector2(920f, 1450f);
+            panelRect.sizeDelta = compact ? ModalDesignTokens.Sizing.CompactPreferred : ModalDesignTokens.Sizing.MediumPreferred;
+            AttachResponsiveModalPanel(
+                panelRect,
+                compact ? ModalDesignTokens.Sizing.CompactPreferred : ModalDesignTokens.Sizing.MediumPreferred,
+                compact ? ModalDesignTokens.Sizing.CompactMinimum : ModalDesignTokens.Sizing.MediumMinimum);
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
             panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(0.08f, 0.1f, 0.14f, 0.98f);
+            panelImage.color = ModalDesignTokens.Colors.Panel;
 
             var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
             panelLayout.childAlignment = TextAnchor.UpperCenter;
             panelLayout.childForceExpandWidth = true;
-            panelLayout.childForceExpandHeight = false;
-            panelLayout.spacing = compact ? 12f : 16f;
-            panelLayout.padding = compact ? new RectOffset(28, 28, 20, 20) : new RectOffset(32, 32, 24, 24);
+            panelLayout.childForceExpandHeight = true;
+            panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            panelLayout.padding = new RectOffset(
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding);
 
             var titleText = CreateHudText(panel.transform, "Title");
             titleText.text = title;
-            titleText.fontSize = compact ? 44 : 52;
+            titleText.fontSize = compact ? ModalDesignTokens.Typography.ModalHeader + 4 : ModalDesignTokens.Typography.ModalHeader;
+            titleText.fontStyle = FontStyle.Bold;
             titleText.alignment = TextAnchor.MiddleCenter;
-            titleText.color = new Color(1f, 0.98f, 0.92f, 1f);
+            titleText.color = ModalDesignTokens.Colors.PrimaryText;
             var titleElement = titleText.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = compact ? 62f : 74f;
+            titleElement.minHeight = 64f;
+            titleElement.preferredHeight = 72f;
 
             var scrollGo = CreateUiChild(panel.transform, "ScrollView");
             var scrollImage = scrollGo.AddComponent<Image>();
             scrollImage.sprite = GetRoundedSprite();
             scrollImage.type = Image.Type.Sliced;
-            scrollImage.color = new Color(1f, 1f, 1f, 0.06f);
+            scrollImage.color = ModalDesignTokens.Colors.SectionSurface;
             var scrollElement = scrollGo.AddComponent<LayoutElement>();
-            scrollElement.preferredHeight = compact ? 440f : 1200f;
+            scrollElement.flexibleHeight = 1f;
+            scrollElement.minHeight = compact ? 260f : 440f;
             var scrollRect = scrollGo.AddComponent<ScrollRect>();
             scrollRect.horizontal = false;
             scrollRect.vertical = true;
             scrollRect.movementType = ScrollRect.MovementType.Clamped;
-            scrollRect.scrollSensitivity = 52f;
+            scrollRect.scrollSensitivity = 56f;
 
             var viewport = CreateUiChild(scrollGo.transform, "Viewport");
             var viewportRect = viewport.GetComponent<RectTransform>();
             viewportRect.anchorMin = Vector2.zero;
             viewportRect.anchorMax = Vector2.one;
-            viewportRect.offsetMin = new Vector2(14f, 14f);
-            viewportRect.offsetMax = new Vector2(-32f, -14f);
+            viewportRect.offsetMin = new Vector2(16f, 16f);
+            viewportRect.offsetMax = new Vector2(-20f, -16f);
             var viewportImage = viewport.AddComponent<Image>();
             viewportImage.color = new Color(0f, 0f, 0f, 0.03f);
             viewportImage.raycastTarget = true;
@@ -1924,13 +2607,13 @@ namespace Decantra.Presentation
 
             var bodyText = content.AddComponent<Text>();
             bodyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            bodyText.fontSize = compact ? 32 : 37;
+            bodyText.fontSize = compact ? ModalDesignTokens.Typography.BodyText + 8 : ModalDesignTokens.Typography.BodyText + 2;
             bodyText.alignment = TextAnchor.UpperLeft;
             bodyText.fontStyle = FontStyle.Normal;
             bodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
             bodyText.verticalOverflow = VerticalWrapMode.Overflow;
-            bodyText.lineSpacing = 1.15f;
-            bodyText.color = new Color(1f, 0.98f, 0.92f, 1f);
+            bodyText.lineSpacing = compact ? 1.22f : 1.18f;
+            bodyText.color = ModalDesignTokens.Colors.PrimaryText;
             bodyText.text = body;
             bodyText.supportRichText = false;
             bodyText.raycastTarget = false;
@@ -1939,37 +2622,42 @@ namespace Decantra.Presentation
             scrollRect.viewport = viewportRect;
             scrollRect.content = contentRect;
 
-            if (compact)
-            {
-                Canvas.ForceUpdateCanvases();
-                float contentHeight = Mathf.Max(0f, bodyText.preferredHeight + 28f);
-                float compactBodyHeight = Mathf.Clamp(contentHeight, 240f, 460f);
-                scrollElement.preferredHeight = compactBodyHeight;
-                scrollRect.vertical = contentHeight > compactBodyHeight + 0.5f;
-
-                float compactPanelHeight = 20f + titleElement.preferredHeight + panelLayout.spacing
-                    + compactBodyHeight + panelLayout.spacing + 82f + 20f;
-                panelRect.sizeDelta = new Vector2(900f, Mathf.Clamp(compactPanelHeight, 620f, 780f));
-            }
-
             var backRow = CreateUiChild(panel.transform, "BackRow");
             var backButtonImage = backRow.AddComponent<Image>();
             backButtonImage.sprite = GetRoundedSprite();
             backButtonImage.type = Image.Type.Sliced;
-            backButtonImage.color = new Color(0.18f, 0.24f, 0.36f, 1f);
+            backButtonImage.color = ModalDesignTokens.Colors.SecondaryAction;
             var backElement = backRow.AddComponent<LayoutElement>();
-            backElement.preferredHeight = compact ? 82f : 98f;
+            backElement.preferredHeight = compact ? 84f : 92f;
+            backElement.minHeight = compact ? 84f : 92f;
             var backButton = backRow.AddComponent<Button>();
             backButton.targetGraphic = backButtonImage;
-            backButton.onClick.AddListener(() => root.SetActive(false));
+            backButton.onClick.AddListener(() =>
+            {
+                if (modal != null)
+                {
+                    modal.Hide();
+                }
+                else
+                {
+                    root.SetActive(false);
+                }
+            });
 
             var backText = CreateHudText(backRow.transform, "Label");
             backText.text = "BACK";
-            backText.fontSize = compact ? 34 : 42;
+            backText.fontSize = ModalDesignTokens.Typography.ButtonText;
             backText.alignment = TextAnchor.MiddleCenter;
-            backText.color = Color.white;
+            backText.color = ModalDesignTokens.Colors.PrimaryText;
 
-            root.SetActive(false);
+            if (modal != null)
+            {
+                modal.Hide();
+            }
+            else
+            {
+                root.SetActive(false);
+            }
             return root;
         }
 
@@ -2245,6 +2933,59 @@ namespace Decantra.Presentation
             return button;
         }
 
+        private static Button CreateStarsButton(Transform parent)
+        {
+            var panel = CreateUiChild(parent, "StarsButton");
+            var image = panel.AddComponent<Image>();
+            image.sprite = GetRoundedSprite();
+            image.type = Image.Type.Sliced;
+            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
+
+            var shadowGo = CreateUiChild(panel.transform, "Shadow");
+            var shadowImage = shadowGo.AddComponent<Image>();
+            shadowImage.sprite = GetRoundedSprite();
+            shadowImage.type = Image.Type.Sliced;
+            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
+            shadowImage.raycastTarget = false;
+            var shadowRect = shadowGo.GetComponent<RectTransform>();
+            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            shadowRect.pivot = new Vector2(0.5f, 0.5f);
+            shadowRect.sizeDelta = new Vector2(308, 148);
+            shadowRect.anchoredPosition = new Vector2(4f, -4f);
+            shadowGo.transform.SetAsFirstSibling();
+
+            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
+            var glassImage = glassGo.AddComponent<Image>();
+            glassImage.sprite = GetRoundedSprite();
+            glassImage.type = Image.Type.Sliced;
+            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
+            glassImage.raycastTarget = false;
+            var glassRect = glassGo.GetComponent<RectTransform>();
+            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
+            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
+            glassRect.pivot = new Vector2(0.5f, 0.5f);
+            glassRect.sizeDelta = new Vector2(292, 64);
+            glassRect.anchoredPosition = new Vector2(0f, 32f);
+
+            var rect = panel.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(300, 140);
+            var element = panel.AddComponent<LayoutElement>();
+            element.minWidth = 300;
+            element.minHeight = 140;
+
+            var button = panel.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var labelText = CreateHudText(panel.transform, "Label");
+            labelText.fontSize = 36;
+            labelText.alignment = TextAnchor.MiddleCenter;
+            labelText.text = "STARS\n0";
+            labelText.color = new Color(1f, 0.98f, 0.92f, 1f);
+            AddTextEffects(labelText, new Color(0f, 0f, 0f, 0.75f));
+            return button;
+        }
+
         private static void WireOptionsButton(GameController controller)
         {
             if (controller == null) return;
@@ -2254,6 +2995,17 @@ namespace Decantra.Presentation
             if (button == null) return;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.ShowOptionsOverlay);
+        }
+
+        private static void WireStarsButton(GameController controller)
+        {
+            if (controller == null) return;
+            var starsGo = GameObject.Find("StarsButton");
+            if (starsGo == null) return;
+            var button = starsGo.GetComponent<Button>();
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(controller.ShowStarTradeInDialog);
         }
 
         private static GameObject CreateOptionsOverlay(Transform parent, GameController controller)
@@ -2272,12 +3024,14 @@ namespace Decantra.Presentation
             dimmerRect.offsetMin = Vector2.zero;
             dimmerRect.offsetMax = Vector2.zero;
             var dimmerImage = dimmer.AddComponent<Image>();
-            dimmerImage.color = new Color(0f, 0f, 0f, 0.78f);
+            dimmerImage.color = ModalDesignTokens.Colors.Backdrop;
             var dimmerButton = dimmer.AddComponent<Button>();
             dimmerButton.transition = Selectable.Transition.None;
+            var modal = AttachBaseModal(root);
             dimmerButton.onClick.AddListener(() =>
             {
                 if (controller != null) controller.HideOptionsOverlay();
+                else if (modal != null) modal.Hide();
                 else root.SetActive(false);
             });
 
@@ -2286,50 +3040,110 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(920f, 1540f);
+            panelRect.sizeDelta = ModalDesignTokens.Sizing.MediumPreferred;
+            AttachResponsiveModalPanel(panelRect, ModalDesignTokens.Sizing.MediumPreferred, ModalDesignTokens.Sizing.MediumMinimum);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
             panelImage.type = Image.Type.Sliced;
-            panelImage.color = new Color(0.06f, 0.07f, 0.11f, 0.97f);
+            panelImage.color = ModalDesignTokens.Colors.Panel;
 
             var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
             panelLayout.childAlignment = TextAnchor.UpperCenter;
             panelLayout.childForceExpandWidth = true;
-            panelLayout.childForceExpandHeight = false;
-            panelLayout.spacing = 10f;
-            panelLayout.padding = new RectOffset(24, 24, 18, 18);
+            panelLayout.childForceExpandHeight = true;
+            panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            panelLayout.padding = new RectOffset(
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding);
 
             var title = CreateHudText(panel.transform, "Title");
             title.text = "OPTIONS";
-            title.fontSize = 42;
+            title.fontSize = ModalDesignTokens.Typography.ModalHeader;
             title.alignment = TextAnchor.MiddleCenter;
-            title.color = new Color(1f, 0.98f, 0.92f, 1f);
+            title.color = ModalDesignTokens.Colors.PrimaryText;
             var titleElement = title.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = 58f;
+            titleElement.preferredHeight = 74f;
+            titleElement.minHeight = 74f;
 
             var listContainer = CreateUiChild(panel.transform, "ListContainer");
             var listContainerImage = listContainer.AddComponent<Image>();
             listContainerImage.sprite = GetRoundedSprite();
             listContainerImage.type = Image.Type.Sliced;
-            listContainerImage.color = new Color(1f, 1f, 1f, 0.06f);
+            listContainerImage.color = ModalDesignTokens.Colors.SectionSurface;
             var listContainerElement = listContainer.AddComponent<LayoutElement>();
-            listContainerElement.preferredHeight = 1360f;
+            listContainerElement.flexibleHeight = 1f;
+            listContainerElement.minHeight = 400f;
+            var listScrollRect = listContainer.AddComponent<ScrollRect>();
+            listScrollRect.horizontal = false;
+            listScrollRect.vertical = true;
+            listScrollRect.movementType = ScrollRect.MovementType.Clamped;
+            listScrollRect.scrollSensitivity = 56f;
 
-            var list = CreateUiChild(listContainer.transform, "Content");
+            var viewport = CreateUiChild(listContainer.transform, "Viewport");
+            var viewportRect = viewport.GetComponent<RectTransform>();
+            viewportRect.anchorMin = Vector2.zero;
+            viewportRect.anchorMax = Vector2.one;
+            viewportRect.offsetMin = new Vector2(12f, 12f);
+            viewportRect.offsetMax = new Vector2(-12f, -12f);
+            var viewportImage = viewport.AddComponent<Image>();
+            viewportImage.color = new Color(0f, 0f, 0f, 0.02f);
+            viewportImage.raycastTarget = true;
+            viewport.AddComponent<Mask>().showMaskGraphic = false;
+
+            var list = CreateUiChild(viewport.transform, "Content");
             var listRect = list.GetComponent<RectTransform>();
-            listRect.anchorMin = Vector2.zero;
-            listRect.anchorMax = Vector2.one;
-            listRect.pivot = new Vector2(0.5f, 0.5f);
+            listRect.anchorMin = new Vector2(0f, 1f);
+            listRect.anchorMax = new Vector2(1f, 1f);
+            listRect.pivot = new Vector2(0.5f, 1f);
             listRect.anchoredPosition = Vector2.zero;
-            listRect.offsetMin = new Vector2(16f, 12f);
-            listRect.offsetMax = new Vector2(-16f, -12f);
+            listRect.sizeDelta = Vector2.zero;
             var listLayout = list.AddComponent<VerticalLayoutGroup>();
             listLayout.childAlignment = TextAnchor.UpperCenter;
             listLayout.childForceExpandWidth = true;
             listLayout.childForceExpandHeight = false;
-            listLayout.spacing = 8f;
-            listLayout.padding = new RectOffset(4, 4, 4, 4);
+            listLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            listLayout.padding = new RectOffset(6, 6, 6, 6);
+            var listFitter = list.AddComponent<ContentSizeFitter>();
+            listFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            listScrollRect.viewport = viewportRect;
+            listScrollRect.content = listRect;
+
+            Text CreateSectionTitle(Transform parentTransform, string objectName, string label)
+            {
+                var text = CreateHudText(parentTransform, objectName);
+                text.fontSize = ModalDesignTokens.Typography.SectionTitle;
+                text.fontStyle = FontStyle.Bold;
+                text.text = label;
+                text.alignment = TextAnchor.MiddleLeft;
+                text.color = ModalDesignTokens.Colors.PrimaryText;
+                var element = text.gameObject.AddComponent<LayoutElement>();
+                element.preferredHeight = 46f;
+                return text;
+            }
+
+            GameObject CreateSectionSurface(Transform parentTransform, string objectName)
+            {
+                var section = CreateUiChild(parentTransform, objectName);
+                var sectionImage = section.AddComponent<Image>();
+                sectionImage.sprite = GetRoundedSprite();
+                sectionImage.type = Image.Type.Sliced;
+                sectionImage.color = new Color(1f, 1f, 1f, 0.05f);
+                var sectionLayout = section.AddComponent<VerticalLayoutGroup>();
+                sectionLayout.childAlignment = TextAnchor.UpperCenter;
+                sectionLayout.childForceExpandWidth = true;
+                sectionLayout.childForceExpandHeight = false;
+                sectionLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+                sectionLayout.padding = new RectOffset(
+                    ModalDesignTokens.Spacing.InnerPadding,
+                    ModalDesignTokens.Spacing.InnerPadding,
+                    ModalDesignTokens.Spacing.InnerPadding,
+                    ModalDesignTokens.Spacing.InnerPadding);
+                return section;
+            }
 
             Button CreateActionButton(Transform buttonParent, string rowName, string label, Color color)
             {
@@ -2344,13 +3158,15 @@ namespace Decantra.Presentation
 
                 var element = panelGo.AddComponent<LayoutElement>();
                 element.flexibleWidth = 1f;
-                element.preferredHeight = 72f;
+                element.preferredHeight = 76f;
+                element.minHeight = 76f;
 
                 var text = CreateHudText(panelGo.transform, "Label");
-                text.fontSize = 29;
+                text.fontSize = ModalDesignTokens.Typography.ButtonText;
+                text.fontStyle = FontStyle.Bold;
                 text.text = label;
                 text.alignment = TextAnchor.MiddleCenter;
-                text.color = new Color(1f, 0.98f, 0.92f, 1f);
+                text.color = ModalDesignTokens.Colors.PrimaryText;
                 return button;
             }
 
@@ -2359,10 +3175,10 @@ namespace Decantra.Presentation
                 var row = CreateOptionsRow(rowParent, rowName);
 
                 var rowLabel = CreateHudText(row.transform, "Label");
-                rowLabel.fontSize = 28;
+                rowLabel.fontSize = ModalDesignTokens.Typography.BodyText;
                 rowLabel.text = label;
                 rowLabel.alignment = TextAnchor.MiddleLeft;
-                rowLabel.color = new Color(1f, 0.98f, 0.92f, 0.95f);
+                rowLabel.color = ModalDesignTokens.Colors.SecondaryText;
                 var rowLabelElement = rowLabel.gameObject.AddComponent<LayoutElement>();
                 rowLabelElement.flexibleWidth = 1f;
 
@@ -2385,7 +3201,7 @@ namespace Decantra.Presentation
                 var check = CreateUiChild(bg.transform, "Check");
                 var checkImage = check.AddComponent<Image>();
                 checkImage.sprite = GetSoftCircleSprite();
-                checkImage.color = new Color(1f, 0.98f, 0.92f, 0.96f);
+                checkImage.color = ModalDesignTokens.Colors.PrimaryText;
                 var checkRect = check.GetComponent<RectTransform>();
                 checkRect.anchorMin = new Vector2(0.5f, 0.5f);
                 checkRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -2397,53 +3213,44 @@ namespace Decantra.Presentation
                 return toggle;
             }
 
-            var replayTutorialButton = CreateActionButton(list.transform, "ReplayTutorialRow", "REPLAY TUTORIAL", new Color(0.2f, 0.34f, 0.54f, 0.95f));
+            CreateSectionTitle(list.transform, "GameplayHeader", "GAMEPLAY");
+            var gameplaySection = CreateSectionSurface(list.transform, "GameplaySection");
+            var replayTutorialButton = CreateActionButton(gameplaySection.transform, "ReplayTutorialRow", "REPLAY TUTORIAL", ModalDesignTokens.Colors.PrimaryAction);
+            var howToPlayButton = CreateActionButton(gameplaySection.transform, "HowToPlayRow", "HOW TO PLAY", ModalDesignTokens.Colors.SecondaryAction);
 
-            var sfxToggle = CreateToggleRow(list.transform, "SfxRow", "SOUND EFFECTS", controller != null && controller.IsSfxEnabled);
-            var sfxVolumeSlider = CreateOptionsSlider(list.transform, "SfxVolumeRow", "VOLUME",
+            CreateSectionTitle(list.transform, "AudioHeader", "AUDIO");
+            var audioSection = CreateSectionSurface(list.transform, "AudioSection");
+            var sfxToggle = CreateToggleRow(audioSection.transform, "SfxRow", "SOUND EFFECTS", controller != null && controller.IsSfxEnabled);
+            var sfxVolumeSlider = CreateOptionsSlider(audioSection.transform, "SfxVolumeRow", "VOLUME",
                 0f, 1f, controller != null ? controller.SfxVolume01 : 1f);
-            var accessibleColorsToggle = CreateToggleRow(list.transform, "AccessibleColorsRow", "ACCESSIBLE COLORS", controller != null && controller.AccessibleColorsEnabled);
-            var accessibleColorsLabelTransform = accessibleColorsToggle.transform.parent.Find("Label");
-            if (accessibleColorsLabelTransform != null)
-            {
-                var accessibleColorsLabel = accessibleColorsLabelTransform.GetComponent<Text>();
-                if (accessibleColorsLabel != null)
-                {
-                    accessibleColorsLabel.fontSize = 32;
-                }
-            }
 
-            var sectionHeader = CreateHudText(list.transform, "StarfieldHeader");
-            sectionHeader.fontSize = 32;
-            sectionHeader.text = "STARFIELD";
-            sectionHeader.alignment = TextAnchor.MiddleLeft;
-            sectionHeader.color = new Color(1f, 0.98f, 0.92f, 0.92f);
-            var sectionElement = sectionHeader.gameObject.AddComponent<LayoutElement>();
-            sectionElement.preferredHeight = 40f;
+            CreateSectionTitle(list.transform, "AccessibilityHeader", "ACCESSIBILITY");
+            var accessibilitySection = CreateSectionSurface(list.transform, "AccessibilitySection");
+            var accessibleColorsToggle = CreateToggleRow(accessibilitySection.transform, "AccessibleColorsRow", "ACCESSIBLE COLORS", controller != null && controller.AccessibleColorsEnabled);
 
-            var sectionHint = CreateHudText(list.transform, "StarfieldHint");
-            sectionHint.fontSize = 24;
-            sectionHint.text = "Density, Speed, and Brightness control only the starfield background effect.";
+            CreateSectionTitle(list.transform, "VisualHeader", "VISUAL");
+            var visualSection = CreateSectionSurface(list.transform, "VisualSection");
+            var sectionHint = CreateHudText(visualSection.transform, "StarfieldHint");
+            sectionHint.fontSize = ModalDesignTokens.Typography.HelperText;
+            sectionHint.text = "Density, speed, and brightness affect only the animated starfield background.";
             sectionHint.alignment = TextAnchor.MiddleLeft;
-            sectionHint.color = new Color(1f, 0.98f, 0.92f, 0.75f);
+            sectionHint.color = ModalDesignTokens.Colors.HelperText;
             sectionHint.horizontalOverflow = HorizontalWrapMode.Wrap;
             sectionHint.verticalOverflow = VerticalWrapMode.Overflow;
             var sectionHintElement = sectionHint.gameObject.AddComponent<LayoutElement>();
-            sectionHintElement.preferredHeight = 62f;
+            sectionHintElement.preferredHeight = 56f;
 
-            var starfieldGroup = CreateUiChild(list.transform, "StarfieldGroup");
+            var starfieldGroup = CreateUiChild(visualSection.transform, "StarfieldGroup");
             var starfieldGroupImage = starfieldGroup.AddComponent<Image>();
             starfieldGroupImage.sprite = GetRoundedSprite();
             starfieldGroupImage.type = Image.Type.Sliced;
-            starfieldGroupImage.color = new Color(1f, 1f, 1f, 0.055f);
-            var starfieldGroupElement = starfieldGroup.AddComponent<LayoutElement>();
-            starfieldGroupElement.preferredHeight = 374f;
+            starfieldGroupImage.color = new Color(1f, 1f, 1f, 0.045f);
             var starfieldGroupLayout = starfieldGroup.AddComponent<VerticalLayoutGroup>();
             starfieldGroupLayout.childAlignment = TextAnchor.UpperCenter;
             starfieldGroupLayout.childForceExpandWidth = true;
             starfieldGroupLayout.childForceExpandHeight = false;
-            starfieldGroupLayout.spacing = 8f;
-            starfieldGroupLayout.padding = new RectOffset(14, 14, 10, 10);
+            starfieldGroupLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+            starfieldGroupLayout.padding = new RectOffset(12, 12, 12, 12);
 
             bool starfieldEnabled = controller != null && controller.StarfieldConfiguration != null && controller.StarfieldConfiguration.Enabled;
             var starfieldToggle = CreateToggleRow(starfieldGroup.transform, "StarfieldEnabledRow", "ENABLED", starfieldEnabled);
@@ -2457,23 +3264,28 @@ namespace Decantra.Presentation
                 StarfieldConfig.BrightnessMin, StarfieldConfig.BrightnessMax,
                 controller != null && controller.StarfieldConfiguration != null ? controller.StarfieldConfiguration.Brightness : StarfieldConfig.BrightnessDefault);
 
-            var howToPlayButton = CreateActionButton(list.transform, "HowToPlayRow", "HOW TO PLAY", new Color(0.18f, 0.24f, 0.36f, 0.95f));
-            var privacyButton = CreateActionButton(list.transform, "PrivacyRow", "PRIVACY POLICY", new Color(0.16f, 0.2f, 0.3f, 0.95f));
-            var termsButton = CreateActionButton(list.transform, "TermsRow", "TERMS OF SERVICE", new Color(0.16f, 0.2f, 0.3f, 0.95f));
+            CreateSectionTitle(list.transform, "LegalHeader", "LEGAL");
+            var legalSection = CreateSectionSurface(list.transform, "LegalSection");
+            var privacyButton = CreateActionButton(legalSection.transform, "PrivacyRow", "PRIVACY POLICY", ModalDesignTokens.Colors.SecondaryAction);
+            var termsButton = CreateActionButton(legalSection.transform, "TermsRow", "TERMS OF SERVICE", ModalDesignTokens.Colors.SecondaryAction);
 
-            var versionRow = CreateUiChild(list.transform, "VersionRow");
+            CreateSectionTitle(list.transform, "AboutHeader", "ABOUT");
+            var aboutSection = CreateSectionSurface(list.transform, "AboutSection");
+            var versionRow = CreateUiChild(aboutSection.transform, "VersionRow");
             var versionElement = versionRow.AddComponent<LayoutElement>();
-            versionElement.preferredHeight = 50f;
+            versionElement.preferredHeight = 52f;
             var versionText = CreateHudText(versionRow.transform, "VersionText");
-            versionText.fontSize = 30;
+            versionText.fontSize = ModalDesignTokens.Typography.BodyText;
             versionText.alignment = TextAnchor.MiddleCenter;
-            versionText.color = new Color(1f, 0.98f, 0.92f, 0.8f);
+            versionText.color = ModalDesignTokens.Colors.HelperText;
+            versionText.fontStyle = FontStyle.Normal;
             versionText.text = BuildVersionFooterText();
 
-            var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", new Color(0.12f, 0.14f, 0.2f, 0.95f));
+            var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", ModalDesignTokens.Colors.SecondaryAction);
             closeButton.onClick.AddListener(() =>
             {
                 if (controller != null) controller.HideOptionsOverlay();
+                else if (modal != null) modal.Hide();
                 else root.SetActive(false);
             });
 
@@ -2507,13 +3319,54 @@ namespace Decantra.Presentation
             }
             else
             {
-                replayTutorialButton.onClick.AddListener(() => root.SetActive(false));
-                howToPlayButton.onClick.AddListener(() => howToPlayOverlay.SetActive(true));
-                privacyButton.onClick.AddListener(() => privacyOverlay.SetActive(true));
-                termsButton.onClick.AddListener(() => termsOverlay.SetActive(true));
+                replayTutorialButton.onClick.AddListener(() =>
+                {
+                    if (modal != null) modal.Hide();
+                    else root.SetActive(false);
+                });
+                howToPlayButton.onClick.AddListener(() =>
+                {
+                    if (howToPlayOverlay.TryGetComponent<BaseModal>(out var overlayModal))
+                    {
+                        overlayModal.Show();
+                    }
+                    else
+                    {
+                        howToPlayOverlay.SetActive(true);
+                    }
+                });
+                privacyButton.onClick.AddListener(() =>
+                {
+                    if (privacyOverlay.TryGetComponent<BaseModal>(out var overlayModal))
+                    {
+                        overlayModal.Show();
+                    }
+                    else
+                    {
+                        privacyOverlay.SetActive(true);
+                    }
+                });
+                termsButton.onClick.AddListener(() =>
+                {
+                    if (termsOverlay.TryGetComponent<BaseModal>(out var overlayModal))
+                    {
+                        overlayModal.Show();
+                    }
+                    else
+                    {
+                        termsOverlay.SetActive(true);
+                    }
+                });
             }
 
-            root.SetActive(false);
+            if (modal != null)
+            {
+                modal.Hide();
+            }
+            else
+            {
+                root.SetActive(false);
+            }
             return root;
         }
 
@@ -2571,12 +3424,13 @@ namespace Decantra.Presentation
         {
             var row = CreateUiChild(parent, name);
             var rowElement = row.AddComponent<LayoutElement>();
-            rowElement.preferredHeight = 90;
+            rowElement.preferredHeight = 86f;
+            rowElement.minHeight = 82f;
             var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
             rowLayout.childAlignment = TextAnchor.MiddleLeft;
             rowLayout.childForceExpandWidth = false;
             rowLayout.childForceExpandHeight = false;
-            rowLayout.spacing = 16f;
+            rowLayout.spacing = 12f;
             return row;
         }
 
@@ -2585,12 +3439,14 @@ namespace Decantra.Presentation
             var row = CreateOptionsRow(parent, rowName);
 
             var label = CreateHudText(row.transform, "Label");
-            label.fontSize = 28;
+            label.fontSize = ModalDesignTokens.Typography.BodyText;
+            label.fontStyle = FontStyle.Normal;
             label.text = labelText;
             label.color = new Color(1f, 0.98f, 0.92f, 0.9f);
             label.alignment = TextAnchor.MiddleLeft;
             var labelElement = label.gameObject.AddComponent<LayoutElement>();
-            labelElement.preferredWidth = 210;
+            labelElement.preferredWidth = 220;
+            labelElement.minWidth = 180;
 
             var sliderGo = CreateUiChild(row.transform, labelText + "Slider");
             var sliderElement = sliderGo.AddComponent<LayoutElement>();
@@ -3482,7 +4338,7 @@ namespace Decantra.Presentation
             {
                 new ColorPalette.Entry { ColorId = ColorId.Red, Color = new Color(0.92f, 0.25f, 0.22f) },
                 new ColorPalette.Entry { ColorId = ColorId.Blue, Color = new Color(0.25f, 0.5f, 0.95f) },
-                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.2f, 0.78f, 0.38f) },
+                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.2f, 0.78039217f, 0.3882353f) },
                 new ColorPalette.Entry { ColorId = ColorId.Yellow, Color = new Color(0.98f, 0.88f, 0.2f) },
                 new ColorPalette.Entry { ColorId = ColorId.Purple, Color = new Color(0.65f, 0.38f, 0.85f) },
                 new ColorPalette.Entry { ColorId = ColorId.Orange, Color = new Color(0.97f, 0.55f, 0.2f) },
