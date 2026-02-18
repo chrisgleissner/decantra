@@ -1,6 +1,6 @@
 # PLANS
 
-Last updated: 2026-02-18 (screenshot regression pass 2)
+Last updated: 2026-02-18 (screenshot regression pass 3)
 Owner: GitHub Copilot (GPT-5.3-Codex)
 
 ## Mission
@@ -25,7 +25,7 @@ Validate and fix regressions end-to-end: prove screenshot provenance from the la
 
 ## Phase 3 - Star Trade-In Redesign Compliance
 
-- [x] Validate action cards include title, subtitle, and explicit `Costs` + `N stars` section.
+- [x] Validate action cards include title, subtitle, and explicit `Price` + `N stars` section.
 - [x] Ensure no parenthesized cost indicators remain in UI copy/layout.
 - [x] Ensure disabled state: greyed card, `Not enough stars`, non-clickable, cost still visible.
 - [x] Ensure enabled state remains clearly interactive.
@@ -68,7 +68,7 @@ Validate and fix regressions end-to-end: prove screenshot provenance from the la
 - [x] Run full local PlayMode suite.
 - [x] Run coverage gate and confirm threshold compliance.
 - [x] Add/update tests for overlay lifecycle and star trade-in state where missing.
-- [ ] Push changes and verify CI checks are green on active PR.
+- [x] Push changes and verify CI checks are green on active PR.
 
 ## Exit Criteria
 
@@ -78,4 +78,4 @@ Validate and fix regressions end-to-end: prove screenshot provenance from the la
 - [x] Disabled states and confirmation flow behave as specified.
 - [x] All modal families are visually and behaviorally consistent.
 - [x] Fresh screenshots are generated from latest APK and verified.
-- [ ] Local tests and CI are green. (Local green; CI pending after push)
+- [x] Local tests and CI are green.
