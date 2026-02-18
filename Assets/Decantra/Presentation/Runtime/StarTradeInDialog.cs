@@ -16,17 +16,17 @@ namespace Decantra.Presentation
     {
         internal static class FontSizes
         {
-            public const int Header = 52;
-            public const int Prompt = 36;
-            public const int CurrentStars = 34;
-            public const int CardTitle = 36;
-            public const int CardSubtitle = 28;
-            public const int CostLabel = 24;
-            public const int CostValue = 34;
-            public const int CardStatus = 24;
-            public const int Confirmation = 34;
-            public const int ActionButton = 30;
-            public const int Helper = 23;
+            public const int Header = ModalDesignTokens.Typography.ModalHeader;
+            public const int Prompt = ModalDesignTokens.Typography.BodyText + 2;
+            public const int CurrentStars = ModalDesignTokens.Typography.SectionTitle;
+            public const int CardTitle = ModalDesignTokens.Typography.SectionTitle;
+            public const int CardSubtitle = ModalDesignTokens.Typography.BodyText;
+            public const int CostLabel = ModalDesignTokens.Typography.HelperText;
+            public const int CostValue = ModalDesignTokens.Typography.CostText;
+            public const int CardStatus = ModalDesignTokens.Typography.HelperText;
+            public const int Confirmation = ModalDesignTokens.Typography.BodyText + 2;
+            public const int ActionButton = ModalDesignTokens.Typography.ButtonText;
+            public const int Helper = ModalDesignTokens.Typography.HelperText;
         }
 
         internal static class Copy
@@ -47,15 +47,15 @@ namespace Decantra.Presentation
             public const string ConfirmFormat = "Spend {0} stars to {1}?";
         }
 
-        public static readonly Color ActiveConvertCardColor = new Color(0.18f, 0.34f, 0.54f, 0.96f);
+        public static readonly Color ActiveConvertCardColor = ModalDesignTokens.Colors.PrimaryAction;
         public static readonly Color ActiveAutoSolveCardColor = new Color(0.32f, 0.23f, 0.5f, 0.96f);
         public static readonly Color DisabledCardColor = new Color(0.24f, 0.26f, 0.3f, 0.96f);
-        public static readonly Color PrimaryTextColor = new Color(1f, 0.98f, 0.92f, 1f);
-        public static readonly Color SecondaryTextColor = new Color(1f, 0.98f, 0.92f, 0.9f);
-        public static readonly Color TertiaryTextColor = new Color(1f, 0.98f, 0.92f, 0.8f);
-        public static readonly Color StatusWarningColor = new Color(1f, 0.78f, 0.74f, 0.96f);
-        public static readonly Color StatusNeutralColor = new Color(0.84f, 0.95f, 0.88f, 0.96f);
-        public static readonly Color DisabledTextColor = new Color(0.84f, 0.85f, 0.88f, 0.9f);
+        public static readonly Color PrimaryTextColor = ModalDesignTokens.Colors.PrimaryText;
+        public static readonly Color SecondaryTextColor = ModalDesignTokens.Colors.SecondaryText;
+        public static readonly Color TertiaryTextColor = ModalDesignTokens.Colors.HelperText;
+        public static readonly Color StatusWarningColor = ModalDesignTokens.Colors.Warning;
+        public static readonly Color StatusNeutralColor = ModalDesignTokens.Colors.Positive;
+        public static readonly Color DisabledTextColor = ModalDesignTokens.Colors.DisabledText;
     }
 
     public sealed class StarTradeInDialog : MonoBehaviour
@@ -97,9 +97,6 @@ namespace Decantra.Presentation
 
         public void Initialize()
         {
-            if (_initialized) return;
-            _initialized = true;
-
             if (closeButton != null)
             {
                 closeButton.onClick.RemoveAllListeners();
@@ -119,6 +116,13 @@ namespace Decantra.Presentation
             }
 
             ApplyStaticCopy();
+
+            if (_initialized)
+            {
+                return;
+            }
+
+            _initialized = true;
             Hide();
         }
 

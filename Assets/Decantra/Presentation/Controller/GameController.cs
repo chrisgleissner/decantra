@@ -316,6 +316,12 @@ namespace Decantra.Presentation.Controller
                 tutorialManager.Initialize(this, _settingsStore);
             }
 
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_optionsOverlay);
+            HideModal(_howToPlayOverlay);
+            HideModal(_privacyPolicyOverlay);
+            HideModal(_termsOverlay);
+
             if (starTradeInDialog != null)
             {
                 starTradeInDialog.Initialize();
@@ -998,37 +1004,29 @@ namespace Decantra.Presentation.Controller
 
         public void ShowPrivacyPolicyOverlay()
         {
-            if (_privacyPolicyOverlay != null)
-            {
-                _privacyPolicyOverlay.SetActive(true);
-            }
+            ResolveOverlayReferencesIfMissing();
+            ShowModal(_privacyPolicyOverlay);
             PlayButtonSfx();
         }
 
         public void HidePrivacyPolicyOverlay()
         {
-            if (_privacyPolicyOverlay != null)
-            {
-                _privacyPolicyOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_privacyPolicyOverlay);
             PlayButtonSfx();
         }
 
         public void ShowTermsOverlay()
         {
-            if (_termsOverlay != null)
-            {
-                _termsOverlay.SetActive(true);
-            }
+            ResolveOverlayReferencesIfMissing();
+            ShowModal(_termsOverlay);
             PlayButtonSfx();
         }
 
         public void HideTermsOverlay()
         {
-            if (_termsOverlay != null)
-            {
-                _termsOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_termsOverlay);
             PlayButtonSfx();
         }
 
@@ -1064,36 +1062,30 @@ namespace Decantra.Presentation.Controller
 
         public void ShowOptionsOverlay()
         {
+            ResolveOverlayReferencesIfMissing();
             if (_optionsOverlay != null)
             {
                 if (_accessibleColorsToggle != null)
                 {
                     _accessibleColorsToggle.SetIsOnWithoutNotify(_colorBlindAssistEnabled);
                 }
-                _optionsOverlay.SetActive(true);
+
+                ShowModal(_optionsOverlay);
             }
             PlayButtonSfx();
         }
 
         public void HideOptionsOverlay()
         {
-            if (_optionsOverlay != null)
-            {
-                _optionsOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_optionsOverlay);
 
             HideHowToPlayOverlay();
-            if (_privacyPolicyOverlay != null)
-            {
-                _privacyPolicyOverlay.SetActive(false);
-            }
-            if (_termsOverlay != null)
-            {
-                _termsOverlay.SetActive(false);
-            }
+            HideModal(_privacyPolicyOverlay);
+            HideModal(_termsOverlay);
         }
 
-        public bool IsOptionsOverlayVisible => _optionsOverlay != null && _optionsOverlay.activeSelf;
+        public bool IsOptionsOverlayVisible => IsModalVisible(_optionsOverlay);
 
         public void ShowStarTradeInDialog()
         {
@@ -1136,23 +1128,189 @@ namespace Decantra.Presentation.Controller
 
         public void ShowHowToPlayOverlay()
         {
-            if (_howToPlayOverlay != null)
-            {
-                _howToPlayOverlay.SetActive(true);
-            }
+            ResolveOverlayReferencesIfMissing();
+            ShowModal(_howToPlayOverlay);
             PlayButtonSfx();
         }
 
         public void HideHowToPlayOverlay()
         {
-            if (_howToPlayOverlay != null)
-            {
-                _howToPlayOverlay.SetActive(false);
-            }
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_howToPlayOverlay);
             PlayButtonSfx();
         }
 
-        public bool IsHowToPlayOverlayVisible => _howToPlayOverlay != null && _howToPlayOverlay.activeSelf;
+        public bool IsHowToPlayOverlayVisible => IsModalVisible(_howToPlayOverlay);
+
+        private static void ShowModal(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                baseModal.Show();
+                return;
+            }
+
+            modalRoot.SetActive(true);
+        }
+
+        private static void HideModal(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                baseModal.Hide();
+                return;
+            }
+
+            modalRoot.SetActive(false);
+        }
+
+        private static bool IsModalVisible(GameObject modalRoot)
+        {
+            if (modalRoot == null)
+            {
+                return false;
+            }
+
+            var baseModal = modalRoot.GetComponent<BaseModal>();
+            if (baseModal != null)
+            {
+                return baseModal.IsVisible;
+            }
+
+            return modalRoot.activeSelf;
+        }
+
+        private static bool ShouldSuppressAutoTutorialForAutomation()
+        {
+#if UNITY_EDITOR
+            if (Application.isBatchMode)
+            {
+                return true;
+            }
+
+            string commandLine = Environment.CommandLine ?? string.Empty;
+            return commandLine.IndexOf("-runTests", StringComparison.OrdinalIgnoreCase) >= 0
+                || commandLine.IndexOf("-testPlatform", StringComparison.OrdinalIgnoreCase) >= 0
+                || commandLine.IndexOf("-testResults", StringComparison.OrdinalIgnoreCase) >= 0;
+#else
+            return false;
+#endif
+        }
+
+        private void ResolveOverlayReferencesIfMissing()
+        {
+            _optionsOverlay = ResolveOverlayReference(_optionsOverlay, "OptionsOverlay", null);
+
+            Transform optionsParent = _optionsOverlay != null ? _optionsOverlay.transform : null;
+            _howToPlayOverlay = ResolveOverlayReference(_howToPlayOverlay, "HowToPlayOverlay", optionsParent);
+            _privacyPolicyOverlay = ResolveOverlayReference(_privacyPolicyOverlay, "PrivacyPolicyOverlay", optionsParent);
+            _termsOverlay = ResolveOverlayReference(_termsOverlay, "TermsOverlay", optionsParent);
+        }
+
+        private GameObject ResolveOverlayReference(GameObject current, string expectedName, Transform preferredParent)
+        {
+            if (IsOverlayReferenceValid(current, expectedName, preferredParent))
+            {
+                return current;
+            }
+
+            return FindOverlayByName(expectedName, preferredParent);
+        }
+
+        private static bool IsOverlayReferenceValid(GameObject candidate, string expectedName, Transform preferredParent)
+        {
+            if (candidate == null || candidate.name != expectedName)
+            {
+                return false;
+            }
+
+            if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
+            {
+                return false;
+            }
+
+            if (preferredParent != null && !candidate.transform.IsChildOf(preferredParent))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private GameObject FindOverlayByName(string name, Transform preferredParent)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            GameObject bestMatch = null;
+            int bestScore = int.MinValue;
+            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            for (int i = 0; i < allObjects.Length; i++)
+            {
+                var candidate = allObjects[i];
+                if (candidate == null || candidate.hideFlags != HideFlags.None)
+                {
+                    continue;
+                }
+
+                if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
+                {
+                    continue;
+                }
+
+                if (candidate.name != name)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (preferredParent != null && candidate.transform.IsChildOf(preferredParent))
+                {
+                    score += 1000;
+                }
+
+                if (candidate.scene == gameObject.scene)
+                {
+                    score += 200;
+                }
+
+                if (candidate.activeInHierarchy)
+                {
+                    score += 100;
+                }
+                else if (candidate.activeSelf)
+                {
+                    score += 50;
+                }
+
+                if (candidate.transform.parent != null)
+                {
+                    score += 10;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = candidate;
+                }
+            }
+
+            return bestMatch;
+        }
 
         private void ApplyStarfieldConfig()
         {
@@ -1197,7 +1355,7 @@ namespace Decantra.Presentation.Controller
 
             _inputLocked = false;
 
-            if (tutorialManager != null)
+            if (tutorialManager != null && !ShouldSuppressAutoTutorialForAutomation())
             {
                 tutorialManager.BeginIfFirstLaunch();
             }

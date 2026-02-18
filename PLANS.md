@@ -50,3 +50,52 @@ Owner: Codex
 - [ ] Run coverage gate locally.
 - [ ] Confirm no regressions/soft-locks from overlay lifecycle changes.
 - [ ] Confirm CI status is green.
+
+## Production-Grade Modal UX System
+### Phase 1: Full Modal Audit
+- [x] Audit Options modal structure, CTA grouping, and overlay lifecycle.
+- [x] Audit Tutorial modal structure, readability, and layering behavior.
+- [x] Audit Terms and Conditions modal structure, scroll behavior, and dismiss flow.
+- [x] Audit Privacy Policy modal structure, scroll behavior, and dismiss flow.
+- [x] Audit Stars (Star Trade-In) modal structure, CTA distinction, and state feedback.
+
+### Phase 2: Typography and Accessibility System
+- [x] Define centralized modal typography roles: `ModalHeader`, `SectionTitle`, `BodyText`, `HelperText`, `ButtonText`, `CostText`.
+- [x] Define centralized modal palette and state colors (normal/disabled/warning/confirm).
+- [x] Enforce readable minimum text sizing for 5.5-inch equivalent layouts.
+- [x] Ensure disabled and warning states are not communicated by color alone.
+
+### Phase 3: Layout and Responsiveness Rules
+- [x] Introduce shared modal sizing logic for small screens and varying aspect ratios.
+- [x] Ensure no forced clipping/overflow for modal content.
+- [x] Ensure vertically long content uses intentional `ScrollRect` containers.
+- [x] Ensure consistent outer padding, inner padding, and vertical rhythm across modals.
+
+### Phase 4: CTA Grouping and Interaction Model
+- [x] Separate primary and secondary CTAs with explicit spacing and sectioning.
+- [x] Avoid ambiguous adjacency of unrelated actions in Options and Star Trade-In.
+- [x] Ensure star-spending actions remain visually distinct and clearly gated.
+- [x] Ensure all modal dismiss actions are consistent and obvious.
+
+### Phase 5: Refactor and Template Consolidation
+- [x] Introduce shared `BaseModal` behavior component where feasible.
+- [x] Consolidate modal construction helpers in `SceneBootstrap`.
+- [x] Remove duplicated per-modal typography/spacing literals.
+- [x] Preserve existing controller wiring and deterministic game behavior.
+
+### Phase 6: Multi-Resolution Validation
+- [ ] Validate fresh-install state.
+- [ ] Validate tutorial-active state.
+- [ ] Validate mid-game state with modal interactions.
+- [ ] Validate low-star and high-star Star Trade-In states.
+- [ ] Validate low-resolution / 5.5-inch equivalent layout behavior.
+- [ ] Validate no clipped text, broken wrapping, or overlapping controls.
+
+### Phase 7: Automated Tests and Regression Validation
+- [x] Add/update tests for modal hidden-by-default lifecycle.
+- [x] Add/update tests for no auto-show and clean dismissal/raycast behavior.
+- [x] Add/update tests for button enable/disable and no-soft-lock outcomes.
+- [x] Add/update tests for required layout components (scroll/layout groups) where feasible.
+- [ ] Run local EditMode and PlayMode suites.
+- [ ] Run coverage gate (>=80% domain coverage).
+- [ ] Confirm CI is green.
