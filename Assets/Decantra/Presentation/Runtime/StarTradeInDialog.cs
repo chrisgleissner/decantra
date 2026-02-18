@@ -93,10 +93,12 @@ namespace Decantra.Presentation
         private Action _pendingConfirmAction;
         private bool _initialized;
 
-        public bool IsVisible => canvasGroup != null && canvasGroup.blocksRaycasts && canvasGroup.alpha > 0.01f;
+        public bool IsVisible => gameObject.activeInHierarchy && canvasGroup != null && canvasGroup.blocksRaycasts && canvasGroup.alpha > 0.01f;
 
         public void Initialize()
         {
+            EnsureCanvasGroup();
+
             if (closeButton != null)
             {
                 closeButton.onClick.RemoveAllListeners();
@@ -192,6 +194,7 @@ namespace Decantra.Presentation
                 return;
             }
 
+            gameObject.SetActive(true);
             canvasGroup.alpha = 1f;
             canvasGroup.blocksRaycasts = true;
             canvasGroup.interactable = true;
@@ -203,8 +206,11 @@ namespace Decantra.Presentation
         {
             _pendingConfirmAction = null;
 
+            EnsureCanvasGroup();
+
             if (canvasGroup == null)
             {
+                gameObject.SetActive(false);
                 return;
             }
 
@@ -212,6 +218,21 @@ namespace Decantra.Presentation
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
             SetSelectionState();
+            gameObject.SetActive(false);
+        }
+
+        private void EnsureCanvasGroup()
+        {
+            if (canvasGroup != null)
+            {
+                return;
+            }
+
+            canvasGroup = GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+            {
+                canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            }
         }
 
         private void ApplyStaticCopy()

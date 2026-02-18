@@ -502,6 +502,7 @@ namespace Decantra.Tests.PlayMode
             var dialog = GetPrivateField(controller, "starTradeInDialog") as StarTradeInDialog;
             Assert.IsNotNull(dialog, "Star trade-in dialog should be wired.");
             Assert.IsFalse(dialog.IsVisible, "Star trade-in must be hidden on startup.");
+            Assert.IsFalse(dialog.gameObject.activeSelf, "Star trade-in root should be inactive on startup.");
 
             var canvasGroup = GetPrivateField(dialog, "canvasGroup") as CanvasGroup;
             Assert.IsNotNull(canvasGroup);

@@ -11,6 +11,7 @@ using System.Collections;
 using System.IO;
 using System.Reflection;
 using Decantra.Domain.Model;
+using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
@@ -36,6 +37,7 @@ namespace Decantra.Presentation
             "startup_fade_in_midpoint.png",
             "help_overlay.png",
             "options_panel_typography.png",
+            "star_trade_in_low_stars.png",
             "screenshot-01-launch.png",
             "screenshot-02-intro.png",
             "screenshot-03-level-01.png",
@@ -91,18 +93,19 @@ namespace Decantra.Presentation
             yield return CaptureStartupFadeMidpoint(outputDir, ScreenshotFiles[0]);
             yield return CaptureLaunchScreenshot(outputDir);
             yield return CaptureIntroScreenshot(outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[5]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[6]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[7]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, ScreenshotFiles[8]);
-            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[9]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, ScreenshotFiles[6]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, ScreenshotFiles[7]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, ScreenshotFiles[8]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, ScreenshotFiles[9]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, ScreenshotFiles[10]);
             yield return CaptureInterstitialScreenshot(outputDir);
-            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[11]);
+            yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, ScreenshotFiles[12]);
             yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[2]);
+            yield return CaptureStarTradeInScreenshot(controller, outputDir, ScreenshotFiles[3]);
             // Capture the options overlay twice: once with the new descriptive filename
             // ("options_panel_typography.png") and once with the legacy numbered filename
             // ("screenshot-10-options.png") to preserve backward compatibility with existing assets.
-            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[12]);
+            yield return CaptureOptionsScreenshot(controller, outputDir, ScreenshotFiles[13]);
             yield return CaptureHelpOverlayScreenshot(controller, outputDir, ScreenshotFiles[1]);
 
             yield return new WaitForEndOfFrame();
@@ -719,7 +722,7 @@ namespace Decantra.Presentation
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
             yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[3]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[4]));
         }
 
         private IEnumerator CaptureIntroScreenshot(string outputDir)
@@ -737,7 +740,7 @@ namespace Decantra.Presentation
             intro.EnableScreenshotMode();
             StartCoroutine(intro.Play());
             yield return new WaitForSeconds(intro.GetCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[4]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[5]));
             intro.DismissEarly();
             yield return new WaitForSeconds(0.5f);
         }
@@ -756,7 +759,7 @@ namespace Decantra.Presentation
             banner.Show(2, 4, 280, false, () => { }, () => complete = true);
             yield return WaitForInterstitialVisible();
             yield return new WaitForSeconds(banner.GetStarsCaptureDelay());
-            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[10]));
+            yield return CaptureScreenshot(Path.Combine(outputDir, ScreenshotFiles[11]));
             float timeout = 4f;
             float elapsed = 0f;
             while (!complete && elapsed < timeout)
@@ -810,6 +813,85 @@ namespace Decantra.Presentation
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
 
             controller.HideOptionsOverlay();
+            yield return null;
+        }
+
+        private IEnumerator CaptureStarTradeInScreenshot(GameController controller, string outputDir, string fileName)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.HideOptionsOverlay();
+            controller.HideStarTradeInDialog();
+
+            const int sinkLevel = 20;
+            const int sinkSeed = 682415;
+            const int lowStars = 0;
+
+            controller.LoadLevel(sinkLevel, sinkSeed);
+            yield return null;
+
+            if (!CurrentLevelHasSinkBottle(controller))
+            {
+                for (int level = 20; level <= 60; level++)
+                {
+                    int seed = 900 + level;
+                    controller.LoadLevel(level, seed);
+                    yield return null;
+                    if (CurrentLevelHasSinkBottle(controller))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            SetControllerStarBalance(controller, lowStars);
+            yield return new WaitForSeconds(0.5f);
+
+            controller.ShowStarTradeInDialog();
+            yield return new WaitForSeconds(0.2f);
+
+            var starDialog = FindStarTradeInDialog(controller);
+            if (starDialog == null)
+            {
+                Debug.LogError("RuntimeScreenshot: Star Trade-In dialog instance was not found.");
+                _failed = true;
+                yield break;
+            }
+
+            if (!starDialog.IsVisible)
+            {
+                int autoSolveCost = ResolveAutoSolveCost(controller);
+                bool hasSinkBottle = CurrentLevelHasSinkBottle(controller);
+                starDialog.Show(
+                    lowStars,
+                    StarEconomy.ConvertSinksCost,
+                    hasSinkBottle,
+                    false,
+                    autoSolveCost,
+                    false,
+                    null,
+                    null,
+                    controller.HideStarTradeInDialog);
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            if (!starDialog.IsVisible)
+            {
+                Debug.LogError("RuntimeScreenshot: Star Trade-In did not become visible for screenshot capture.");
+                _failed = true;
+                yield break;
+            }
+
+            yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+
+            controller.HideStarTradeInDialog();
             yield return null;
         }
 
@@ -881,6 +963,92 @@ namespace Decantra.Presentation
             {
                 banner.HideImmediate();
             }
+        }
+
+        private static StarTradeInDialog FindStarTradeInDialog(GameController controller)
+        {
+            if (controller == null)
+            {
+                return null;
+            }
+
+            var field = typeof(GameController).GetField("starTradeInDialog", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null)
+            {
+                return null;
+            }
+
+            return field.GetValue(controller) as StarTradeInDialog;
+        }
+
+        private static int ResolveAutoSolveCost(GameController controller)
+        {
+            if (controller == null)
+            {
+                return StarEconomy.ResolveAutoSolveCost(1);
+            }
+
+            var method = typeof(GameController).GetMethod("ResolveAutoSolveCost", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null)
+            {
+                return StarEconomy.ResolveAutoSolveCost(1);
+            }
+
+            object result = method.Invoke(controller, null);
+            return result is int value ? value : StarEconomy.ResolveAutoSolveCost(1);
+        }
+
+        private static bool CurrentLevelHasSinkBottle(GameController controller)
+        {
+            if (controller == null)
+            {
+                return false;
+            }
+
+            var stateField = typeof(GameController).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (stateField == null)
+            {
+                return false;
+            }
+
+            var levelState = stateField.GetValue(controller) as LevelState;
+            if (levelState == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < levelState.Bottles.Count; i++)
+            {
+                if (levelState.Bottles[i].IsSink)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void SetControllerStarBalance(GameController controller, int starBalance)
+        {
+            if (controller == null)
+            {
+                return;
+            }
+
+            var progressField = typeof(GameController).GetField("_progress", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (progressField == null)
+            {
+                return;
+            }
+
+            var progress = progressField.GetValue(controller) as ProgressData;
+            if (progress == null)
+            {
+                progress = new ProgressData();
+                progressField.SetValue(controller, progress);
+            }
+
+            progress.StarBalance = Mathf.Max(0, starBalance);
         }
 
         private static IEnumerator WaitForInterstitialHidden()
