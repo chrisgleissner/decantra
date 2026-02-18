@@ -375,7 +375,12 @@ namespace Decantra.Presentation
         {
             if (controller == null) return;
             var existing = GetPrivateField<StarTradeInDialog>(controller, "starTradeInDialog");
-            if (existing != null) return;
+            if (existing != null)
+            {
+                existing.Initialize();
+                existing.Hide();
+                return;
+            }
 
             var root = GameObject.Find("StarTradeInDialog");
             var dialog = root != null ? root.GetComponent<StarTradeInDialog>() : null;
@@ -386,6 +391,8 @@ namespace Decantra.Presentation
                 dialog = CreateStarTradeInDialog(canvas.transform);
             }
 
+            dialog.Initialize();
+            dialog.Hide();
             SetPrivateField(controller, "starTradeInDialog", dialog);
         }
 
@@ -1794,7 +1801,7 @@ namespace Decantra.Presentation
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(820f, 760f);
+            panelRect.sizeDelta = new Vector2(860f, 980f);
 
             var panelImage = panel.AddComponent<Image>();
             panelImage.sprite = GetRoundedSprite();
@@ -1803,68 +1810,192 @@ namespace Decantra.Presentation
 
             var layout = panel.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.UpperCenter;
-            layout.childForceExpandHeight = false;
+            layout.childForceExpandHeight = true;
             layout.childForceExpandWidth = true;
-            layout.spacing = 14f;
-            layout.padding = new RectOffset(28, 28, 24, 24);
+            layout.spacing = 16f;
+            layout.padding = new RectOffset(30, 30, 28, 28);
 
             var title = CreateHudText(panel.transform, "Title");
-            title.text = "Star Trade-In";
-            title.fontSize = 42;
+            title.text = StarTradeInUiConfig.Copy.Title;
+            title.fontSize = StarTradeInUiConfig.FontSizes.Header;
             title.alignment = TextAnchor.MiddleCenter;
-            title.color = new Color(1f, 0.98f, 0.92f, 1f);
+            title.color = StarTradeInUiConfig.PrimaryTextColor;
             var titleElement = title.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = 70f;
+            titleElement.preferredHeight = 84f;
+
+            var messageText = CreateHudText(panel.transform, "MessageText");
+            messageText.fontSize = StarTradeInUiConfig.FontSizes.Prompt;
+            messageText.fontStyle = FontStyle.Bold;
+            messageText.alignment = TextAnchor.MiddleCenter;
+            messageText.text = StarTradeInUiConfig.Copy.Prompt;
+            messageText.color = StarTradeInUiConfig.PrimaryTextColor;
+            var messageElement = messageText.gameObject.AddComponent<LayoutElement>();
+            messageElement.preferredHeight = 72f;
 
             var currentStarsText = CreateHudText(panel.transform, "CurrentStarsText");
-            currentStarsText.fontSize = 30;
+            currentStarsText.fontSize = StarTradeInUiConfig.FontSizes.CurrentStars;
             currentStarsText.alignment = TextAnchor.MiddleCenter;
-            currentStarsText.text = "Current Stars: 0";
-            currentStarsText.color = new Color(1f, 0.98f, 0.92f, 0.92f);
+            currentStarsText.text = string.Format(StarTradeInUiConfig.Copy.CurrentStarsFormat, 0);
+            currentStarsText.color = StarTradeInUiConfig.SecondaryTextColor;
             var currentStarsElement = currentStarsText.gameObject.AddComponent<LayoutElement>();
-            currentStarsElement.preferredHeight = 52f;
+            currentStarsElement.preferredHeight = 60f;
 
-            Button CreateRowButton(string objectName, string label, Color color)
+            var selectionRoot = CreateUiChild(panel.transform, "SelectionRoot");
+            var selectionLayout = selectionRoot.AddComponent<VerticalLayoutGroup>();
+            selectionLayout.childAlignment = TextAnchor.UpperCenter;
+            selectionLayout.childForceExpandWidth = true;
+            selectionLayout.childForceExpandHeight = false;
+            selectionLayout.spacing = 14f;
+            var selectionElement = selectionRoot.AddComponent<LayoutElement>();
+            selectionElement.flexibleHeight = 1f;
+
+            var cardsRoot = CreateUiChild(selectionRoot.transform, "CardsRoot");
+            var cardsLayout = cardsRoot.AddComponent<VerticalLayoutGroup>();
+            cardsLayout.childAlignment = TextAnchor.UpperCenter;
+            cardsLayout.childForceExpandWidth = true;
+            cardsLayout.childForceExpandHeight = false;
+            cardsLayout.spacing = 14f;
+            var cardsElement = cardsRoot.AddComponent<LayoutElement>();
+            cardsElement.preferredHeight = 520f;
+
+            Button CreateActionCard(
+                string objectName,
+                out Image cardImage,
+                out Text titleText,
+                out Text subtitleText,
+                out Text costLabelText,
+                out Text costValueText,
+                out Text statusText)
             {
-                var row = CreateUiChild(panel.transform, objectName);
-                var image = row.AddComponent<Image>();
-                image.sprite = GetRoundedSprite();
-                image.type = Image.Type.Sliced;
-                image.color = color;
-                var button = row.AddComponent<Button>();
-                button.targetGraphic = image;
-                var element = row.AddComponent<LayoutElement>();
-                element.preferredHeight = 98f;
+                var card = CreateUiChild(cardsRoot.transform, objectName);
+                cardImage = card.AddComponent<Image>();
+                cardImage.sprite = GetRoundedSprite();
+                cardImage.type = Image.Type.Sliced;
+                cardImage.color = StarTradeInUiConfig.DisabledCardColor;
 
-                var text = CreateHudText(row.transform, "Label");
-                text.text = label;
-                text.fontSize = 30;
-                text.alignment = TextAnchor.MiddleCenter;
-                text.color = new Color(1f, 0.98f, 0.92f, 1f);
+                var button = card.AddComponent<Button>();
+                button.targetGraphic = cardImage;
+
+                var cardElement = card.AddComponent<LayoutElement>();
+                cardElement.preferredHeight = 246f;
+
+                var cardLayout = card.AddComponent<VerticalLayoutGroup>();
+                cardLayout.childAlignment = TextAnchor.UpperLeft;
+                cardLayout.childForceExpandWidth = true;
+                cardLayout.childForceExpandHeight = false;
+                cardLayout.spacing = 8f;
+                cardLayout.padding = new RectOffset(24, 24, 20, 18);
+
+                titleText = CreateHudText(card.transform, "Title");
+                titleText.fontSize = StarTradeInUiConfig.FontSizes.CardTitle;
+                titleText.fontStyle = FontStyle.Bold;
+                titleText.alignment = TextAnchor.MiddleLeft;
+                titleText.color = StarTradeInUiConfig.PrimaryTextColor;
+                var titleElementLocal = titleText.gameObject.AddComponent<LayoutElement>();
+                titleElementLocal.preferredHeight = 46f;
+
+                subtitleText = CreateHudText(card.transform, "Subtitle");
+                subtitleText.fontSize = StarTradeInUiConfig.FontSizes.CardSubtitle;
+                subtitleText.fontStyle = FontStyle.Normal;
+                subtitleText.alignment = TextAnchor.MiddleLeft;
+                subtitleText.color = StarTradeInUiConfig.SecondaryTextColor;
+                subtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                subtitleText.verticalOverflow = VerticalWrapMode.Overflow;
+                var subtitleElement = subtitleText.gameObject.AddComponent<LayoutElement>();
+                subtitleElement.preferredHeight = 74f;
+
+                var costRow = CreateUiChild(card.transform, "CostRow");
+                var costRowLayout = costRow.AddComponent<HorizontalLayoutGroup>();
+                costRowLayout.childAlignment = TextAnchor.MiddleLeft;
+                costRowLayout.childForceExpandWidth = false;
+                costRowLayout.childForceExpandHeight = false;
+                costRowLayout.spacing = 16f;
+                var costRowElement = costRow.AddComponent<LayoutElement>();
+                costRowElement.preferredHeight = 42f;
+
+                costLabelText = CreateHudText(costRow.transform, "CostLabel");
+                costLabelText.fontSize = StarTradeInUiConfig.FontSizes.CostLabel;
+                costLabelText.fontStyle = FontStyle.Normal;
+                costLabelText.alignment = TextAnchor.MiddleLeft;
+                costLabelText.color = StarTradeInUiConfig.TertiaryTextColor;
+                var costLabelElement = costLabelText.gameObject.AddComponent<LayoutElement>();
+                costLabelElement.preferredWidth = 92f;
+
+                costValueText = CreateHudText(costRow.transform, "CostValue");
+                costValueText.fontSize = StarTradeInUiConfig.FontSizes.CostValue;
+                costValueText.fontStyle = FontStyle.Bold;
+                costValueText.alignment = TextAnchor.MiddleLeft;
+                costValueText.color = StarTradeInUiConfig.PrimaryTextColor;
+                var costValueElement = costValueText.gameObject.AddComponent<LayoutElement>();
+                costValueElement.flexibleWidth = 1f;
+
+                statusText = CreateHudText(card.transform, "Status");
+                statusText.fontSize = StarTradeInUiConfig.FontSizes.CardStatus;
+                statusText.fontStyle = FontStyle.Bold;
+                statusText.alignment = TextAnchor.MiddleLeft;
+                statusText.color = StarTradeInUiConfig.StatusWarningColor;
+                var statusElement = statusText.gameObject.AddComponent<LayoutElement>();
+                statusElement.preferredHeight = 40f;
+
                 return button;
             }
 
-            var convertButton = CreateRowButton("ConvertButton", "Convert All Sinks (10)", new Color(0.2f, 0.34f, 0.54f, 0.95f));
-            var autoSolveButton = CreateRowButton("AutoSolveButton", "Auto-Solve Level (15)", new Color(0.36f, 0.24f, 0.5f, 0.95f));
+            var convertButton = CreateActionCard(
+                "ConvertButton",
+                out var convertCardImage,
+                out var convertTitleText,
+                out var convertSubtitleText,
+                out var convertCostLabelText,
+                out var convertCostValueText,
+                out var convertStatusText);
+            var autoSolveButton = CreateActionCard(
+                "AutoSolveButton",
+                out var autoSolveCardImage,
+                out var autoSolveTitleText,
+                out var autoSolveSubtitleText,
+                out var autoSolveCostLabelText,
+                out var autoSolveCostValueText,
+                out var autoSolveStatusText);
 
-            var messageText = CreateHudText(panel.transform, "MessageText");
-            messageText.fontSize = 24;
-            messageText.alignment = TextAnchor.MiddleCenter;
-            messageText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            messageText.verticalOverflow = VerticalWrapMode.Overflow;
-            messageText.text = "Choose an option below. Confirmation is required before spending stars.";
-            messageText.color = new Color(1f, 0.98f, 0.92f, 0.9f);
-            var messageElement = messageText.gameObject.AddComponent<LayoutElement>();
-            messageElement.preferredHeight = 70f;
+            var helperText = CreateHudText(selectionRoot.transform, "SinkDefinitionText");
+            helperText.fontSize = StarTradeInUiConfig.FontSizes.Helper;
+            helperText.fontStyle = FontStyle.Normal;
+            helperText.alignment = TextAnchor.MiddleLeft;
+            helperText.color = StarTradeInUiConfig.TertiaryTextColor;
+            helperText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            helperText.verticalOverflow = VerticalWrapMode.Overflow;
+            helperText.text = StarTradeInUiConfig.Copy.SinkDefinition;
+            var helperElement = helperText.gameObject.AddComponent<LayoutElement>();
+            helperElement.preferredHeight = 72f;
 
-            var confirmRow = CreateUiChild(panel.transform, "ConfirmRow");
+            var confirmationRoot = CreateUiChild(panel.transform, "ConfirmationRoot");
+            var confirmationLayout = confirmationRoot.AddComponent<VerticalLayoutGroup>();
+            confirmationLayout.childAlignment = TextAnchor.MiddleCenter;
+            confirmationLayout.childForceExpandWidth = true;
+            confirmationLayout.childForceExpandHeight = false;
+            confirmationLayout.spacing = 14f;
+            confirmationLayout.padding = new RectOffset(0, 0, 8, 8);
+            var confirmationElement = confirmationRoot.AddComponent<LayoutElement>();
+            confirmationElement.preferredHeight = 200f;
+
+            var confirmationText = CreateHudText(confirmationRoot.transform, "ConfirmationText");
+            confirmationText.fontSize = StarTradeInUiConfig.FontSizes.Confirmation;
+            confirmationText.fontStyle = FontStyle.Bold;
+            confirmationText.alignment = TextAnchor.MiddleCenter;
+            confirmationText.color = StarTradeInUiConfig.PrimaryTextColor;
+            confirmationText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            confirmationText.verticalOverflow = VerticalWrapMode.Overflow;
+            var confirmationTextElement = confirmationText.gameObject.AddComponent<LayoutElement>();
+            confirmationTextElement.preferredHeight = 104f;
+
+            var confirmRow = CreateUiChild(confirmationRoot.transform, "ConfirmRow");
             var confirmLayout = confirmRow.AddComponent<HorizontalLayoutGroup>();
             confirmLayout.childAlignment = TextAnchor.MiddleCenter;
             confirmLayout.childForceExpandWidth = true;
             confirmLayout.childForceExpandHeight = false;
             confirmLayout.spacing = 14f;
             var confirmRowElement = confirmRow.AddComponent<LayoutElement>();
-            confirmRowElement.preferredHeight = 84f;
+            confirmRowElement.preferredHeight = 78f;
 
             Button CreateSmallButton(Transform parentTransform, string objectName, string label, Color color)
             {
@@ -1876,29 +2007,48 @@ namespace Decantra.Presentation
                 var button = go.AddComponent<Button>();
                 button.targetGraphic = image;
                 var element = go.AddComponent<LayoutElement>();
-                element.preferredHeight = 84f;
+                element.preferredHeight = 78f;
                 element.flexibleWidth = 1f;
                 var text = CreateHudText(go.transform, "Label");
                 text.text = label;
-                text.fontSize = 28;
+                text.fontSize = StarTradeInUiConfig.FontSizes.ActionButton;
                 text.alignment = TextAnchor.MiddleCenter;
-                text.color = new Color(1f, 0.98f, 0.92f, 1f);
+                text.color = StarTradeInUiConfig.PrimaryTextColor;
                 return button;
             }
 
             var confirmButton = CreateSmallButton(confirmRow.transform, "ConfirmButton", "Confirm", new Color(0.16f, 0.45f, 0.2f, 0.95f));
             var cancelButton = CreateSmallButton(confirmRow.transform, "CancelButton", "Cancel", new Color(0.24f, 0.26f, 0.34f, 0.95f));
             var closeButton = CreateSmallButton(panel.transform, "CloseButton", "Close", new Color(0.18f, 0.2f, 0.3f, 0.95f));
+            var closeElement = closeButton.GetComponent<LayoutElement>();
+            if (closeElement != null)
+            {
+                closeElement.preferredHeight = 78f;
+            }
 
             var dialog = root.AddComponent<StarTradeInDialog>();
             SetPrivateField(dialog, "panel", panelRect);
             SetPrivateField(dialog, "canvasGroup", canvasGroup);
             SetPrivateField(dialog, "currentStarsText", currentStarsText);
             SetPrivateField(dialog, "messageText", messageText);
+            SetPrivateField(dialog, "selectionRoot", selectionRoot);
+            SetPrivateField(dialog, "confirmationRoot", confirmationRoot);
+            SetPrivateField(dialog, "confirmationText", confirmationText);
             SetPrivateField(dialog, "convertButton", convertButton);
-            SetPrivateField(dialog, "convertLabel", convertButton.transform.Find("Label")?.GetComponent<Text>());
+            SetPrivateField(dialog, "convertCardBackground", convertCardImage);
+            SetPrivateField(dialog, "convertLabel", convertTitleText);
+            SetPrivateField(dialog, "convertSubtitleText", convertSubtitleText);
+            SetPrivateField(dialog, "convertCostLabelText", convertCostLabelText);
+            SetPrivateField(dialog, "convertCostValueText", convertCostValueText);
+            SetPrivateField(dialog, "convertStatusText", convertStatusText);
             SetPrivateField(dialog, "autoSolveButton", autoSolveButton);
-            SetPrivateField(dialog, "autoSolveLabel", autoSolveButton.transform.Find("Label")?.GetComponent<Text>());
+            SetPrivateField(dialog, "autoSolveCardBackground", autoSolveCardImage);
+            SetPrivateField(dialog, "autoSolveLabel", autoSolveTitleText);
+            SetPrivateField(dialog, "autoSolveSubtitleText", autoSolveSubtitleText);
+            SetPrivateField(dialog, "autoSolveCostLabelText", autoSolveCostLabelText);
+            SetPrivateField(dialog, "autoSolveCostValueText", autoSolveCostValueText);
+            SetPrivateField(dialog, "autoSolveStatusText", autoSolveStatusText);
+            SetPrivateField(dialog, "sinkDefinitionText", helperText);
             SetPrivateField(dialog, "closeButton", closeButton);
             SetPrivateField(dialog, "confirmButton", confirmButton);
             SetPrivateField(dialog, "cancelButton", cancelButton);

@@ -12,16 +12,79 @@ using UnityEngine.UI;
 
 namespace Decantra.Presentation
 {
+    internal static class StarTradeInUiConfig
+    {
+        internal static class FontSizes
+        {
+            public const int Header = 52;
+            public const int Prompt = 36;
+            public const int CurrentStars = 34;
+            public const int CardTitle = 36;
+            public const int CardSubtitle = 28;
+            public const int CostLabel = 24;
+            public const int CostValue = 34;
+            public const int CardStatus = 24;
+            public const int Confirmation = 34;
+            public const int ActionButton = 30;
+            public const int Helper = 23;
+        }
+
+        internal static class Copy
+        {
+            public const string Title = "Star Trade-In";
+            public const string Prompt = "Choose an option below";
+            public const string CurrentStarsFormat = "Current Stars: {0}";
+            public const string ConvertTitle = "Convert All Sink Bottles";
+            public const string ConvertSubtitle = "Turns all sink bottles into normal bottles.";
+            public const string AutoSolveTitle = "Auto-Solve Level";
+            public const string AutoSolveSubtitle = "Plays a full solution for the current level.";
+            public const string CostLabel = "Costs";
+            public const string StarsSuffix = "stars";
+            public const string NotEnoughStars = "Not enough stars";
+            public const string NoSinkBottles = "No sink bottles in this level";
+            public const string Ready = "Ready";
+            public const string SinkDefinition = "Sink bottles have dark bases: they can receive liquid but cannot pour.";
+            public const string ConfirmFormat = "Spend {0} stars to {1}?";
+        }
+
+        public static readonly Color ActiveConvertCardColor = new Color(0.18f, 0.34f, 0.54f, 0.96f);
+        public static readonly Color ActiveAutoSolveCardColor = new Color(0.32f, 0.23f, 0.5f, 0.96f);
+        public static readonly Color DisabledCardColor = new Color(0.24f, 0.26f, 0.3f, 0.96f);
+        public static readonly Color PrimaryTextColor = new Color(1f, 0.98f, 0.92f, 1f);
+        public static readonly Color SecondaryTextColor = new Color(1f, 0.98f, 0.92f, 0.9f);
+        public static readonly Color TertiaryTextColor = new Color(1f, 0.98f, 0.92f, 0.8f);
+        public static readonly Color StatusWarningColor = new Color(1f, 0.78f, 0.74f, 0.96f);
+        public static readonly Color StatusNeutralColor = new Color(0.84f, 0.95f, 0.88f, 0.96f);
+        public static readonly Color DisabledTextColor = new Color(0.84f, 0.85f, 0.88f, 0.9f);
+    }
+
     public sealed class StarTradeInDialog : MonoBehaviour
     {
         [SerializeField] private RectTransform panel;
         [SerializeField] private CanvasGroup canvasGroup;
         [SerializeField] private Text currentStarsText;
         [SerializeField] private Text messageText;
+        [SerializeField] private GameObject selectionRoot;
+        [SerializeField] private GameObject confirmationRoot;
+        [SerializeField] private Text confirmationText;
+
         [SerializeField] private Button convertButton;
+        [SerializeField] private Image convertCardBackground;
         [SerializeField] private Text convertLabel;
+        [SerializeField] private Text convertSubtitleText;
+        [SerializeField] private Text convertCostLabelText;
+        [SerializeField] private Text convertCostValueText;
+        [SerializeField] private Text convertStatusText;
+
         [SerializeField] private Button autoSolveButton;
+        [SerializeField] private Image autoSolveCardBackground;
         [SerializeField] private Text autoSolveLabel;
+        [SerializeField] private Text autoSolveSubtitleText;
+        [SerializeField] private Text autoSolveCostLabelText;
+        [SerializeField] private Text autoSolveCostValueText;
+        [SerializeField] private Text autoSolveStatusText;
+
+        [SerializeField] private Text sinkDefinitionText;
         [SerializeField] private Button closeButton;
         [SerializeField] private Button confirmButton;
         [SerializeField] private Button cancelButton;
@@ -30,7 +93,7 @@ namespace Decantra.Presentation
         private Action _pendingConfirmAction;
         private bool _initialized;
 
-        public bool IsVisible => canvasGroup != null && canvasGroup.blocksRaycasts;
+        public bool IsVisible => canvasGroup != null && canvasGroup.blocksRaycasts && canvasGroup.alpha > 0.01f;
 
         public void Initialize()
         {
@@ -40,41 +103,29 @@ namespace Decantra.Presentation
             if (closeButton != null)
             {
                 closeButton.onClick.RemoveAllListeners();
-                closeButton.onClick.AddListener(() =>
-                {
-                    Hide();
-                    _onClose?.Invoke();
-                });
+                closeButton.onClick.AddListener(CloseAndNotify);
             }
 
             if (confirmButton != null)
             {
                 confirmButton.onClick.RemoveAllListeners();
-                confirmButton.onClick.AddListener(() =>
-                {
-                    var pending = _pendingConfirmAction;
-                    _pendingConfirmAction = null;
-                    if (pending != null)
-                    {
-                        pending.Invoke();
-                    }
-
-                    Hide();
-                });
+                confirmButton.onClick.AddListener(ConfirmAndClose);
             }
 
             if (cancelButton != null)
             {
                 cancelButton.onClick.RemoveAllListeners();
-                cancelButton.onClick.AddListener(ResetConfirmation);
+                cancelButton.onClick.AddListener(SetSelectionState);
             }
 
+            ApplyStaticCopy();
             Hide();
         }
 
         public void Show(
             int currentStars,
             int convertCost,
+            bool hasSinkBottle,
             bool canConvert,
             int autoSolveCost,
             bool canAutoSolve,
@@ -82,39 +133,55 @@ namespace Decantra.Presentation
             Action onAutoSolve,
             Action onClose)
         {
+            Initialize();
             _onClose = onClose;
             _pendingConfirmAction = null;
 
+            ApplyStaticCopy();
+
             if (currentStarsText != null)
             {
-                currentStarsText.text = $"Current Stars: {Mathf.Max(0, currentStars)}";
+                currentStarsText.text = string.Format(
+                    StarTradeInUiConfig.Copy.CurrentStarsFormat,
+                    Mathf.Max(0, currentStars));
             }
 
-            if (convertLabel != null)
-            {
-                convertLabel.text = $"Convert All Sinks ({convertCost})";
-            }
+            bool canAffordConvert = currentStars >= convertCost;
+            bool convertStarGated = hasSinkBottle && (!canAffordConvert || !canConvert);
+            string convertStatus = hasSinkBottle
+                ? (convertStarGated ? StarTradeInUiConfig.Copy.NotEnoughStars : StarTradeInUiConfig.Copy.Ready)
+                : StarTradeInUiConfig.Copy.NoSinkBottles;
+            bool convertEnabled = hasSinkBottle && canAffordConvert && canConvert && onConvert != null;
 
-            if (autoSolveLabel != null)
-            {
-                autoSolveLabel.text = $"Auto-Solve Level ({autoSolveCost})";
-            }
+            ConfigureCard(
+                convertButton,
+                convertCardBackground,
+                convertCostValueText,
+                convertStatusText,
+                convertCost,
+                convertEnabled,
+                convertStatus,
+                StarTradeInUiConfig.ActiveConvertCardColor,
+                () => BeginConfirm(StarTradeInUiConfig.Copy.ConvertTitle, convertCost, onConvert));
 
-            if (convertButton != null)
-            {
-                convertButton.interactable = canConvert;
-                convertButton.onClick.RemoveAllListeners();
-                convertButton.onClick.AddListener(() => BeginConfirm("Convert all sinks for 10 stars?", onConvert));
-            }
+            bool canAffordAutoSolve = currentStars >= autoSolveCost;
+            string autoStatus = canAffordAutoSolve && canAutoSolve
+                ? StarTradeInUiConfig.Copy.Ready
+                : StarTradeInUiConfig.Copy.NotEnoughStars;
+            bool autoEnabled = canAffordAutoSolve && canAutoSolve && onAutoSolve != null;
 
-            if (autoSolveButton != null)
-            {
-                autoSolveButton.interactable = canAutoSolve;
-                autoSolveButton.onClick.RemoveAllListeners();
-                autoSolveButton.onClick.AddListener(() => BeginConfirm($"Auto-solve this level for {autoSolveCost} stars?", onAutoSolve));
-            }
+            ConfigureCard(
+                autoSolveButton,
+                autoSolveCardBackground,
+                autoSolveCostValueText,
+                autoSolveStatusText,
+                autoSolveCost,
+                autoEnabled,
+                autoStatus,
+                StarTradeInUiConfig.ActiveAutoSolveCardColor,
+                () => BeginConfirm(StarTradeInUiConfig.Copy.AutoSolveTitle, autoSolveCost, onAutoSolve));
 
-            ResetConfirmation();
+            SetSelectionState();
 
             if (canvasGroup == null || panel == null)
             {
@@ -125,57 +192,197 @@ namespace Decantra.Presentation
             canvasGroup.blocksRaycasts = true;
             canvasGroup.interactable = true;
             panel.anchoredPosition = Vector2.zero;
+            transform.SetAsLastSibling();
         }
 
         public void Hide()
         {
-            if (canvasGroup == null) return;
+            _pendingConfirmAction = null;
+
+            if (canvasGroup == null)
+            {
+                return;
+            }
+
             canvasGroup.alpha = 0f;
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
-            _pendingConfirmAction = null;
+            SetSelectionState();
         }
 
-        private void BeginConfirm(string message, Action confirmAction)
+        private void ApplyStaticCopy()
         {
             if (messageText != null)
             {
-                messageText.text = message;
+                messageText.text = StarTradeInUiConfig.Copy.Prompt;
+            }
+
+            if (convertLabel != null)
+            {
+                convertLabel.text = StarTradeInUiConfig.Copy.ConvertTitle;
+            }
+
+            if (convertSubtitleText != null)
+            {
+                convertSubtitleText.text = StarTradeInUiConfig.Copy.ConvertSubtitle;
+            }
+
+            if (convertCostLabelText != null)
+            {
+                convertCostLabelText.text = StarTradeInUiConfig.Copy.CostLabel;
+            }
+
+            if (autoSolveLabel != null)
+            {
+                autoSolveLabel.text = StarTradeInUiConfig.Copy.AutoSolveTitle;
+            }
+
+            if (autoSolveSubtitleText != null)
+            {
+                autoSolveSubtitleText.text = StarTradeInUiConfig.Copy.AutoSolveSubtitle;
+            }
+
+            if (autoSolveCostLabelText != null)
+            {
+                autoSolveCostLabelText.text = StarTradeInUiConfig.Copy.CostLabel;
+            }
+
+            if (sinkDefinitionText != null)
+            {
+                sinkDefinitionText.text = StarTradeInUiConfig.Copy.SinkDefinition;
+            }
+        }
+
+        private void ConfigureCard(
+            Button button,
+            Image cardBackground,
+            Text costValue,
+            Text statusText,
+            int cost,
+            bool isEnabled,
+            string status,
+            Color activeColor,
+            Action onClick)
+        {
+            if (costValue != null)
+            {
+                costValue.text = $"{Mathf.Max(0, cost)} {StarTradeInUiConfig.Copy.StarsSuffix}";
+            }
+
+            if (button != null)
+            {
+                button.interactable = isEnabled;
+                button.onClick.RemoveAllListeners();
+                if (isEnabled && onClick != null)
+                {
+                    button.onClick.AddListener(() => onClick.Invoke());
+                }
+            }
+
+            if (cardBackground != null)
+            {
+                cardBackground.color = isEnabled ? activeColor : StarTradeInUiConfig.DisabledCardColor;
+            }
+
+            Color bodyColor = isEnabled ? StarTradeInUiConfig.PrimaryTextColor : StarTradeInUiConfig.DisabledTextColor;
+            ApplyCardTextColors(button, bodyColor);
+
+            if (statusText != null)
+            {
+                statusText.text = status;
+                statusText.color = status == StarTradeInUiConfig.Copy.NotEnoughStars
+                    ? StarTradeInUiConfig.StatusWarningColor
+                    : (status == StarTradeInUiConfig.Copy.Ready
+                        ? StarTradeInUiConfig.StatusNeutralColor
+                        : StarTradeInUiConfig.DisabledTextColor);
+            }
+        }
+
+        private static void ApplyCardTextColors(Button button, Color color)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var texts = button.GetComponentsInChildren<Text>(true);
+            for (int i = 0; i < texts.Length; i++)
+            {
+                if (texts[i] != null)
+                {
+                    texts[i].color = color;
+                }
+            }
+        }
+
+        private void BeginConfirm(string actionLabel, int cost, Action confirmAction)
+        {
+            if (confirmAction == null)
+            {
+                return;
             }
 
             _pendingConfirmAction = confirmAction;
 
-            if (confirmButton != null)
+            if (confirmationText != null)
             {
-                confirmButton.gameObject.SetActive(true);
-                confirmButton.interactable = _pendingConfirmAction != null;
+                confirmationText.text = string.Format(StarTradeInUiConfig.Copy.ConfirmFormat, Mathf.Max(0, cost), actionLabel);
             }
 
-            if (cancelButton != null)
+            if (selectionRoot != null)
             {
-                cancelButton.gameObject.SetActive(true);
+                selectionRoot.SetActive(false);
+            }
+
+            if (confirmationRoot != null)
+            {
+                confirmationRoot.SetActive(true);
+            }
+
+            if (confirmButton != null)
+            {
+                confirmButton.interactable = true;
             }
         }
 
-        private void ResetConfirmation()
+        private void SetSelectionState()
         {
-            if (messageText != null)
+            _pendingConfirmAction = null;
+
+            if (selectionRoot != null)
             {
-                messageText.text = "Choose an option below. Confirmation is required before spending stars.";
+                selectionRoot.SetActive(true);
             }
 
-            _pendingConfirmAction = null;
+            if (confirmationRoot != null)
+            {
+                confirmationRoot.SetActive(false);
+            }
 
             if (confirmButton != null)
             {
-                confirmButton.gameObject.SetActive(true);
                 confirmButton.interactable = false;
             }
+        }
 
-            if (cancelButton != null)
+        private void ConfirmAndClose()
+        {
+            if (_pendingConfirmAction == null)
             {
-                cancelButton.gameObject.SetActive(true);
+                SetSelectionState();
+                return;
             }
+
+            var pending = _pendingConfirmAction;
+            _pendingConfirmAction = null;
+            CloseAndNotify();
+            pending.Invoke();
+        }
+
+        private void CloseAndNotify()
+        {
+            Hide();
+            _onClose?.Invoke();
         }
 
         private void Awake()

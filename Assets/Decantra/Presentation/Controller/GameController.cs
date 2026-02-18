@@ -79,6 +79,7 @@ namespace Decantra.Presentation.Controller
         private CancellationTokenSource _precomputeCts;
         private Task<GeneratedLevel> _precomputeTask;
         private bool _wasInputLockedBeforeOverlay;
+        private bool _wasInputLockedBeforeStarTradeIn;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
 #endif
@@ -313,6 +314,12 @@ namespace Decantra.Presentation.Controller
             if (tutorialManager != null)
             {
                 tutorialManager.Initialize(this, _settingsStore);
+            }
+
+            if (starTradeInDialog != null)
+            {
+                starTradeInDialog.Initialize();
+                starTradeInDialog.Hide();
             }
 
             _scoreSession = new ScoreSession(_progress?.CurrentScore ?? 0);
@@ -1091,17 +1098,23 @@ namespace Decantra.Presentation.Controller
         public void ShowStarTradeInDialog()
         {
             if (_state == null || starTradeInDialog == null || _isAutoSolving) return;
+            if (tutorialManager != null && tutorialManager.IsRunning) return;
+            if (starTradeInDialog.IsVisible) return;
 
             int starBalance = Math.Max(0, _progress?.StarBalance ?? 0);
-            int convertCost = 10;
+            int convertCost = StarEconomy.ConvertSinksCost;
             int autoSolveCost = ResolveAutoSolveCost();
             bool hasSink = HasAnySinkBottle();
             bool canConvert = hasSink && starBalance >= convertCost;
             bool canAutoSolve = starBalance >= autoSolveCost;
 
+            _wasInputLockedBeforeStarTradeIn = _inputLocked;
+            _inputLocked = true;
+
             starTradeInDialog.Show(
                 starBalance,
                 convertCost,
+                hasSink,
                 canConvert,
                 autoSolveCost,
                 canAutoSolve,
@@ -1117,6 +1130,7 @@ namespace Decantra.Presentation.Controller
             {
                 starTradeInDialog.Hide();
             }
+            _inputLocked = _wasInputLockedBeforeStarTradeIn;
             PlayButtonSfx();
         }
 
@@ -1250,14 +1264,13 @@ namespace Decantra.Presentation.Controller
 
         private void ExecuteConvertSinksTradeIn()
         {
-            const int convertCost = 10;
+            int convertCost = StarEconomy.ConvertSinksCost;
             if (_state == null) return;
             if (!HasAnySinkBottle()) return;
             if (!TrySpendStars(convertCost)) return;
 
             _isCurrentLevelAssisted = true;
             ConvertAllSinksToNormalBottles();
-            HideStarTradeInDialog();
         }
 
         private void ConvertAllSinksToNormalBottles()
@@ -1336,8 +1349,6 @@ namespace Decantra.Presentation.Controller
             _isAutoSolving = true;
             _inputLocked = true;
             _levelResetCount++;
-
-            HideStarTradeInDialog();
             RestartCurrentLevel();
 
             var solveResult = _solver.SolveWithPath(_state, 8_000_000, 8_000, allowSinkMoves: true);
