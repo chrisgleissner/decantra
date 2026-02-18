@@ -97,6 +97,9 @@ if [[ -z "${DEVICE_ID}" ]]; then
   DEVICE_ID="${DECANTRA_ANDROID_SERIAL:-${ANDROID_SERIAL:-}}"
 fi
 if [[ -z "${DEVICE_ID}" ]]; then
+  DEVICE_ID="$(adb devices | awk 'NR>1 && $2=="device" && $1 ~ /^emulator/ {print $1; exit}')"
+fi
+if [[ -z "${DEVICE_ID}" ]]; then
   DEVICE_ID="$(adb devices | awk 'NR>1 && $2=="device" {print $1; exit}')"
 fi
 if [[ -z "${DEVICE_ID}" ]]; then
