@@ -155,10 +155,6 @@ expected=(
   "sink_indicator_dark.png"
   "sink_indicator_comparison.png"
   "auto_solve_start.png"
-  "auto_solve_step_01.png"
-  "auto_solve_step_02.png"
-  "auto_solve_step_03.png"
-  "auto_solve_step_04.png"
   "auto_solve_complete.png"
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"
@@ -245,6 +241,47 @@ for idx in $(seq -w 1 12); do
     break
   fi
 done
+
+auto_step_count=0
+for idx in $(seq -w 1 40); do
+  drag_file="auto_solve_step_${idx}_drag.png"
+  pour_file="auto_solve_step_${idx}_pour.png"
+  drag_dest="${OUTPUT_DIR}/${drag_file}"
+  pour_dest="${OUTPUT_DIR}/${pour_file}"
+
+  drag_pulled=false
+  pour_pulled=false
+
+  for attempt in 1 2 3; do
+    adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/${PACKAGE_NAME}/${remote_dir}/${drag_file}" "${drag_dest}" >/dev/null && drag_pulled=true || true
+    adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/${PACKAGE_NAME}/${remote_dir}/${pour_file}" "${pour_dest}" >/dev/null && pour_pulled=true || true
+
+    [[ -s "${drag_dest}" ]] && drag_pulled=true
+    [[ -s "${pour_dest}" ]] && pour_pulled=true
+
+    if [[ "${drag_pulled}" == "true" && "${pour_pulled}" == "true" ]]; then
+      break
+    fi
+    sleep 0.2
+  done
+
+  if [[ "${drag_pulled}" == "true" && "${pour_pulled}" == "true" ]]; then
+    auto_step_count=$((auto_step_count + 1))
+    echo "Captured ${drag_dest}"
+    echo "Captured ${pour_dest}"
+    continue
+  fi
+
+  rm -f "${drag_dest}" "${pour_dest}" >/dev/null 2>&1 || true
+  if [[ ${auto_step_count} -gt 0 ]]; then
+    break
+  fi
+done
+
+if [[ ${auto_step_count} -lt 1 ]]; then
+  echo "Expected at least one auto-solve drag/pour step pair, captured ${auto_step_count}." >&2
+  exit 1
+fi
 
 if [[ ${tutorial_count} -lt 7 ]]; then
   echo "Expected at least 7 tutorial page screenshots, captured ${tutorial_count}." >&2

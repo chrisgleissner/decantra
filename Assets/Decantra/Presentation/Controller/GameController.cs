@@ -115,6 +115,8 @@ namespace Decantra.Presentation.Controller
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
         private const float StartupVisualSettleSeconds = 0.9f;
+        private const float AutoSolveMinDragSeconds = 0.35f;
+        private const float AutoSolveMaxDragSeconds = 1.0f;
         private const string QuietAutomationFlag = "decantra_quiet";
         private static readonly bool EnablePourDiagnostics = false;
 
@@ -1754,10 +1756,11 @@ namespace Decantra.Presentation.Controller
                     yield break;
                 }
 
+                var move = solveResult.Path[i];
+                yield return AnimateAutoSolveDrag(move.Source, move.Target);
+
                 _autoSolveMoveDuration = ResolveAutoSolveMoveDuration(_state.LevelIndex, i);
                 _autoSolvePlaybackActive = true;
-
-                var move = solveResult.Path[i];
                 bool started = TryStartMove(move.Source, move.Target, out _);
                 if (!started)
                 {
@@ -1783,6 +1786,76 @@ namespace Decantra.Presentation.Controller
 
             _isAutoSolving = false;
             _inputLocked = false;
+        }
+
+        private IEnumerator AnimateAutoSolveDrag(int sourceIndex, int targetIndex)
+        {
+            var sourceView = GetBottleView(sourceIndex);
+            var targetView = GetBottleView(targetIndex);
+            if (sourceView == null || targetView == null)
+            {
+                yield break;
+            }
+
+            var sourceRect = sourceView.transform as RectTransform;
+            var targetRect = targetView.transform as RectTransform;
+            if (sourceRect == null || targetRect == null)
+            {
+                yield break;
+            }
+
+            Vector2 start = sourceRect.anchoredPosition;
+            Vector2 end = targetRect.anchoredPosition;
+            float maxDistance = ResolveMaxBottleDistance();
+            float distance = Vector2.Distance(start, end);
+            float normalizedDistance = maxDistance > 0f ? Mathf.Clamp01(distance / maxDistance) : 0f;
+            float duration = Mathf.Lerp(AutoSolveMinDragSeconds, AutoSolveMaxDragSeconds, normalizedDistance);
+            float lift = Mathf.Lerp(18f, 52f, normalizedDistance);
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                Vector2 planar = Vector2.Lerp(start, end, t);
+                float arc = Mathf.Sin(t * Mathf.PI) * lift;
+                sourceRect.anchoredPosition = planar + Vector2.up * arc;
+                yield return null;
+            }
+
+            sourceRect.anchoredPosition = start;
+            yield return null;
+        }
+
+        private float ResolveMaxBottleDistance()
+        {
+            if (bottleViews == null || bottleViews.Count < 2)
+            {
+                return 1f;
+            }
+
+            float maxDistance = 1f;
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var a = bottleViews[i];
+                var aRect = a != null ? a.transform as RectTransform : null;
+                if (aRect == null || !a.gameObject.activeInHierarchy) continue;
+
+                for (int j = i + 1; j < bottleViews.Count; j++)
+                {
+                    var b = bottleViews[j];
+                    var bRect = b != null ? b.transform as RectTransform : null;
+                    if (bRect == null || !b.gameObject.activeInHierarchy) continue;
+
+                    float distance = Vector2.Distance(aRect.anchoredPosition, bRect.anchoredPosition);
+                    if (distance > maxDistance)
+                    {
+                        maxDistance = distance;
+                    }
+                }
+            }
+
+            return maxDistance;
         }
 
         private static float ResolveAutoSolveMoveDuration(int levelIndex, int moveIndex)

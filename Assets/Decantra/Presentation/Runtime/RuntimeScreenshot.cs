@@ -43,7 +43,8 @@ namespace Decantra.Presentation
         private const string AutoSolveStartFileName = "auto_solve_start.png";
         private const string AutoSolveStepPrefix = "auto_solve_step_";
         private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
-        private const int AutoSolveStepFrameCount = 4;
+        private const float AutoSolveMinDragSeconds = 0.35f;
+        private const float AutoSolveMaxDragSeconds = 1.0f;
         private const string LaunchFileName = "screenshot-01-launch.png";
         private const string IntroFileName = "screenshot-02-intro.png";
         private const string Level01FileName = "screenshot-03-level-01.png";
@@ -1008,13 +1009,25 @@ namespace Decantra.Presentation
                 yield break;
             }
 
-            int capturedSteps = 0;
             int successfulMoves = 0;
+            int capturedDragFrames = 0;
+            int capturedPourFrames = 0;
 
             for (int i = 0; i < result.Path.Count; i++)
             {
                 var move = result.Path[i];
-                if (!controller.TryStartMove(move.Source, move.Target, out _))
+                string stepIndex = (i + 1).ToString("D2");
+                string dragPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_drag.png");
+                string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_pour.png");
+
+                bool dragCaptured = false;
+                yield return AnimateDragForCapture(controller, move.Source, move.Target, dragPath, () => dragCaptured = true);
+                if (dragCaptured)
+                {
+                    capturedDragFrames++;
+                }
+
+                if (!controller.TryStartMove(move.Source, move.Target, out float pourDuration))
                 {
                     Debug.LogError($"RuntimeScreenshot: Failed to start auto-solve move {i} ({move.Source}->{move.Target}).");
                     _failed = true;
@@ -1022,12 +1035,10 @@ namespace Decantra.Presentation
                 }
                 successfulMoves++;
 
-                if (capturedSteps < AutoSolveStepFrameCount)
-                {
-                    yield return new WaitForSeconds(0.12f);
-                    yield return CaptureScreenshot(Path.Combine(outputDir, $"{AutoSolveStepPrefix}{capturedSteps + 1:D2}.png"));
-                    capturedSteps++;
-                }
+                float pourCaptureDelay = Mathf.Clamp(pourDuration * 0.5f, 0.12f, 0.65f);
+                yield return new WaitForSeconds(pourCaptureDelay);
+                yield return CaptureScreenshot(pourPath);
+                capturedPourFrames++;
 
                 float timeout = 8f;
                 float elapsed = 0f;
@@ -1047,7 +1058,7 @@ namespace Decantra.Presentation
                 yield return new WaitForSeconds(0.06f);
             }
 
-            if (successfulMoves <= 0 || capturedSteps <= 0)
+            if (successfulMoves <= 0 || capturedDragFrames <= 0 || capturedPourFrames <= 0)
             {
                 Debug.LogError("RuntimeScreenshot: Auto-solve evidence capture did not record move playback frames.");
                 _failed = true;
@@ -1088,6 +1099,124 @@ namespace Decantra.Presentation
                 levelState.ScrambleMoves,
                 levelState.BackgroundPaletteIndex);
             return true;
+        }
+
+        private IEnumerator AnimateDragForCapture(
+            GameController controller,
+            int sourceIndex,
+            int targetIndex,
+            string screenshotPath,
+            Action onDragCaptured)
+        {
+            if (!TryGetBottleRect(controller, sourceIndex, out var sourceRect)
+                || !TryGetBottleRect(controller, targetIndex, out var targetRect)
+                || sourceRect == null
+                || targetRect == null)
+            {
+                yield return CaptureScreenshot(screenshotPath);
+                onDragCaptured?.Invoke();
+                yield break;
+            }
+
+            Vector2 start = sourceRect.anchoredPosition;
+            Vector2 end = targetRect.anchoredPosition;
+            float maxDistance = Mathf.Max(1f, ResolveMaxBottleDistance(controller));
+            float distance = Vector2.Distance(start, end);
+            float normalizedDistance = Mathf.Clamp01(distance / maxDistance);
+            float duration = Mathf.Lerp(AutoSolveMinDragSeconds, AutoSolveMaxDragSeconds, normalizedDistance);
+            float lift = Mathf.Lerp(22f, 62f, normalizedDistance);
+
+            bool captured = false;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                Vector2 planar = Vector2.Lerp(start, end, t);
+                float arc = Mathf.Sin(t * Mathf.PI) * lift;
+                sourceRect.anchoredPosition = planar + Vector2.up * arc;
+
+                if (!captured && t >= 0.5f)
+                {
+                    yield return CaptureScreenshot(screenshotPath);
+                    onDragCaptured?.Invoke();
+                    captured = true;
+                }
+
+                yield return null;
+            }
+
+            if (!captured)
+            {
+                yield return CaptureScreenshot(screenshotPath);
+                onDragCaptured?.Invoke();
+            }
+
+            sourceRect.anchoredPosition = start;
+            yield return null;
+        }
+
+        private static bool TryGetBottleRect(GameController controller, int index, out RectTransform rect)
+        {
+            rect = null;
+            if (controller == null || index < 0)
+            {
+                return false;
+            }
+
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null)
+            {
+                return false;
+            }
+
+            var list = field.GetValue(controller) as System.Collections.IList;
+            if (list == null || index >= list.Count)
+            {
+                return false;
+            }
+
+            var view = list[index] as BottleView;
+            if (view == null)
+            {
+                return false;
+            }
+
+            rect = view.transform as RectTransform;
+            return rect != null;
+        }
+
+        private static float ResolveMaxBottleDistance(GameController controller)
+        {
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            var list = field?.GetValue(controller) as System.Collections.IList;
+            if (list == null || list.Count < 2)
+            {
+                return 1f;
+            }
+
+            float maxDistance = 1f;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var a = list[i] as BottleView;
+                var aRect = a != null ? a.transform as RectTransform : null;
+                if (aRect == null || !a.gameObject.activeInHierarchy) continue;
+
+                for (int j = i + 1; j < list.Count; j++)
+                {
+                    var b = list[j] as BottleView;
+                    var bRect = b != null ? b.transform as RectTransform : null;
+                    if (bRect == null || !b.gameObject.activeInHierarchy) continue;
+
+                    float distance = Vector2.Distance(aRect.anchoredPosition, bRect.anchoredPosition);
+                    if (distance > maxDistance)
+                    {
+                        maxDistance = distance;
+                    }
+                }
+            }
+
+            return maxDistance;
         }
 
         private IEnumerator CaptureOptionsCoverageScreenshots(GameController controller, string outputDir)
