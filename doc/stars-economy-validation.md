@@ -61,6 +61,17 @@ Validated by `GameController.RunAutoSolveTradeIn()`:
 - Per-move duration forced to `0.8..1.2s` (`ResolveAutoSolveMoveDuration`, `ResolvePourWindowDuration`).
 - Inter-move pause of `0.2s`.
 
+## Performance and timing checks
+
+- Local regression gate (`2026-02-18`) passed with:
+  - EditMode: `273/273` passing
+  - PlayMode: `69` passing, `0` failing, `2` skipped
+  - Domain coverage gate: line coverage `0.921` (threshold `0.800`)
+- Auto-solve remains intentionally readable (non-instant) with deterministic timing window:
+  - move playback: `0.8..1.2s`
+  - inter-move pause: `0.2s`
+- Solver-backed assistance is protected by refund-on-failure path (`RunAutoSolveTradeIn` + `RefundStars`) so timing failures do not leak stars.
+
 ## Persistence checks
 
 Validated by `ProgressData.StarBalance` + `ProgressStore`:

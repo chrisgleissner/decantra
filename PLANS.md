@@ -81,4 +81,6 @@ All satisfied:
 - [x] Validation documents produced.
 - [x] All features deterministic and stable.
 - [x] EditMode tests: 273 passed, 0 failed (local run 2026-02-18).
-- [ ] CI green (pending push with fixes).
+- [x] PlayMode tests: 69 passed, 0 failed, 2 skipped (local run 2026-02-18).
+- [x] Coverage gate: line coverage 0.921 (threshold 0.800).
+- [x] CI green: GitHub Actions run `22121553633` completed success on 2026-02-18.
