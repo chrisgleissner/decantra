@@ -45,10 +45,10 @@ Owner: Codex
 
 ## Regression Validation
 - [ ] Validate fresh-install behavior (0 stars baseline).
-- [ ] Run EditMode tests locally.
-- [ ] Run PlayMode tests locally.
-- [ ] Run coverage gate locally.
-- [ ] Confirm no regressions/soft-locks from overlay lifecycle changes.
+- [x] Run EditMode tests locally.
+- [x] Run PlayMode tests locally.
+- [x] Run coverage gate locally.
+- [x] Confirm no regressions/soft-locks from overlay lifecycle changes.
 - [ ] Confirm CI status is green.
 
 ## Production-Grade Modal UX System
@@ -85,17 +85,17 @@ Owner: Codex
 
 ### Phase 6: Multi-Resolution Validation
 - [ ] Validate fresh-install state.
-- [ ] Validate tutorial-active state.
-- [ ] Validate mid-game state with modal interactions.
-- [ ] Validate low-star and high-star Star Trade-In states.
+- [x] Validate tutorial-active state.
+- [x] Validate mid-game state with modal interactions.
+- [x] Validate low-star and high-star Star Trade-In states.
 - [ ] Validate low-resolution / 5.5-inch equivalent layout behavior.
-- [ ] Validate no clipped text, broken wrapping, or overlapping controls.
+- [x] Validate no clipped text, broken wrapping, or overlapping controls.
 
 ### Phase 7: Automated Tests and Regression Validation
 - [x] Add/update tests for modal hidden-by-default lifecycle.
 - [x] Add/update tests for no auto-show and clean dismissal/raycast behavior.
 - [x] Add/update tests for button enable/disable and no-soft-lock outcomes.
 - [x] Add/update tests for required layout components (scroll/layout groups) where feasible.
-- [ ] Run local EditMode and PlayMode suites.
-- [ ] Run coverage gate (>=80% domain coverage).
+- [x] Run local EditMode and PlayMode suites.
+- [x] Run coverage gate (>=80% domain coverage).
 - [ ] Confirm CI is green.

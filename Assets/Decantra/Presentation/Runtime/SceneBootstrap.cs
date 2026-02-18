@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System.Collections.Generic;
 using System.Reflection;
+using Decantra.App.Services;
 using Decantra.Domain.Background;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
@@ -15,6 +16,7 @@ using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.Scripting;
 using UnityEngine.UI;
 
@@ -257,9 +259,9 @@ namespace Decantra.Presentation
         {
             if (controller == null) return;
             var existing = GetPrivateField<TutorialManager>(controller, "tutorialManager");
-            if (existing != null) return;
+            if (IsComponentInScene(existing, controller.gameObject.scene)) return;
 
-            var root = FindObjectByNameIncludingInactive("TutorialOverlay");
+            var root = FindObjectByNameIncludingInactive("TutorialOverlay", controller.gameObject.scene);
             var manager = root != null ? root.GetComponent<TutorialManager>() : null;
             if (manager == null)
             {
@@ -269,16 +271,28 @@ namespace Decantra.Presentation
             }
 
             SetPrivateField(controller, "tutorialManager", manager);
+            var settingsStore = GetPrivateField<SettingsStore>(controller, "_settingsStore");
+            if (manager != null && settingsStore != null)
+            {
+                manager.Initialize(controller, settingsStore);
+            }
+            RemoveDuplicateNamedObjects("TutorialOverlay", manager != null ? manager.gameObject : null);
         }
 
         private static void EnsureOptionsOverlays(GameController controller)
         {
             if (controller == null) return;
+            var targetScene = controller.gameObject.scene;
 
             var options = GetPrivateField<GameObject>(controller, "_optionsOverlay");
+            if (!IsGameObjectInScene(options, targetScene))
+            {
+                options = null;
+            }
+
             if (options == null)
             {
-                var optionsGo = FindObjectByNameIncludingInactive("OptionsOverlay");
+                var optionsGo = FindObjectByNameIncludingInactive("OptionsOverlay", targetScene);
                 if (optionsGo != null)
                 {
                     options = optionsGo;
@@ -295,11 +309,17 @@ namespace Decantra.Presentation
                     }
                 }
             }
+            RemoveDuplicateNamedObjects("OptionsOverlay", options);
 
             var highContrast = GetPrivateField<GameObject>(controller, "_highContrastOverlay");
+            if (!IsGameObjectInScene(highContrast, targetScene))
+            {
+                highContrast = null;
+            }
+
             if (highContrast == null)
             {
-                var existingHighContrast = FindObjectByNameIncludingInactive("HighContrastOverlay");
+                var existingHighContrast = FindObjectByNameIncludingInactive("HighContrastOverlay", targetScene);
                 if (existingHighContrast == null)
                 {
                     var canvas = Object.FindFirstObjectByType<Canvas>();
@@ -314,8 +334,14 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_highContrastOverlay", existingHighContrast);
                 }
             }
+            RemoveDuplicateNamedObjects("HighContrastOverlay", GetPrivateField<GameObject>(controller, "_highContrastOverlay"));
 
             var howToPlay = GetPrivateField<GameObject>(controller, "_howToPlayOverlay");
+            if (!IsGameObjectInScene(howToPlay, targetScene))
+            {
+                howToPlay = null;
+            }
+
             if (howToPlay == null || (options != null && !howToPlay.transform.IsChildOf(options.transform)))
             {
                 GameObject existingHowTo = options != null
@@ -324,7 +350,7 @@ namespace Decantra.Presentation
 
                 if (existingHowTo == null)
                 {
-                    existingHowTo = FindObjectByNameIncludingInactive("HowToPlayOverlay");
+                    existingHowTo = FindObjectByNameIncludingInactive("HowToPlayOverlay", targetScene);
                 }
 
                 if (existingHowTo == null)
@@ -352,8 +378,14 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_howToPlayOverlay", existingHowTo);
                 }
             }
+            RemoveDuplicateNamedObjects("HowToPlayOverlay", GetPrivateField<GameObject>(controller, "_howToPlayOverlay"));
 
             var privacy = GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay");
+            if (!IsGameObjectInScene(privacy, targetScene))
+            {
+                privacy = null;
+            }
+
             if (privacy == null || (options != null && !privacy.transform.IsChildOf(options.transform)))
             {
                 var existingPrivacy = options != null
@@ -362,7 +394,7 @@ namespace Decantra.Presentation
 
                 if (existingPrivacy == null)
                 {
-                    existingPrivacy = FindObjectByNameIncludingInactive("PrivacyPolicyOverlay");
+                    existingPrivacy = FindObjectByNameIncludingInactive("PrivacyPolicyOverlay", targetScene);
                 }
 
                 if (existingPrivacy == null)
@@ -389,8 +421,14 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_privacyPolicyOverlay", existingPrivacy);
                 }
             }
+            RemoveDuplicateNamedObjects("PrivacyPolicyOverlay", GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay"));
 
             var terms = GetPrivateField<GameObject>(controller, "_termsOverlay");
+            if (!IsGameObjectInScene(terms, targetScene))
+            {
+                terms = null;
+            }
+
             if (terms == null || (options != null && !terms.transform.IsChildOf(options.transform)))
             {
                 var existingTerms = options != null
@@ -399,7 +437,7 @@ namespace Decantra.Presentation
 
                 if (existingTerms == null)
                 {
-                    existingTerms = FindObjectByNameIncludingInactive("TermsOverlay");
+                    existingTerms = FindObjectByNameIncludingInactive("TermsOverlay", targetScene);
                 }
 
                 if (existingTerms == null)
@@ -426,6 +464,7 @@ namespace Decantra.Presentation
                     SetPrivateField(controller, "_termsOverlay", existingTerms);
                 }
             }
+            RemoveDuplicateNamedObjects("TermsOverlay", GetPrivateField<GameObject>(controller, "_termsOverlay"));
         }
 
         private static void ResetModalVisibility(GameController controller)
@@ -475,7 +514,7 @@ namespace Decantra.Presentation
         {
             if (controller == null) return;
             var existing = GetPrivateField<StarTradeInDialog>(controller, "starTradeInDialog");
-            if (existing != null)
+            if (IsComponentInScene(existing, controller.gameObject.scene))
             {
                 existing.Initialize();
                 existing.Hide();
@@ -524,13 +563,16 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "levelJumpDismissButton", dismissButton);
         }
 
-        private static GameObject FindObjectByNameIncludingInactive(string name)
+        private static GameObject FindObjectByNameIncludingInactive(string name, Scene preferredScene = default(Scene))
         {
             if (string.IsNullOrWhiteSpace(name))
             {
                 return null;
             }
 
+            bool hasPreferredScene = preferredScene.IsValid();
+            GameObject bestMatch = null;
+            int bestScore = int.MinValue;
             var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
             for (int i = 0; i < allObjects.Length; i++)
             {
@@ -540,13 +582,83 @@ namespace Decantra.Presentation
                     continue;
                 }
 
-                if (candidate.name == name)
+                if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
                 {
-                    return candidate;
+                    continue;
+                }
+
+                if (candidate.name != name)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (hasPreferredScene && candidate.scene == preferredScene)
+                {
+                    score += 1000;
+                }
+
+                if (candidate.activeInHierarchy)
+                {
+                    score += 100;
+                }
+                else if (candidate.activeSelf)
+                {
+                    score += 40;
+                }
+
+                if (candidate.transform.parent != null)
+                {
+                    score += 10;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = candidate;
                 }
             }
 
-            return null;
+            return bestMatch;
+        }
+
+        private static bool IsGameObjectInScene(GameObject gameObject, Scene scene)
+        {
+            return gameObject != null
+                && scene.IsValid()
+                && gameObject.scene.IsValid()
+                && gameObject.scene.isLoaded
+                && gameObject.scene == scene;
+        }
+
+        private static bool IsComponentInScene(Component component, Scene scene)
+        {
+            return component != null && IsGameObjectInScene(component.gameObject, scene);
+        }
+
+        private static void RemoveDuplicateNamedObjects(string name, GameObject keep)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            for (int i = 0; i < allObjects.Length; i++)
+            {
+                var candidate = allObjects[i];
+                if (candidate == null || candidate == keep)
+                {
+                    continue;
+                }
+
+                if (candidate.hideFlags != HideFlags.None || candidate.name != name)
+                {
+                    continue;
+                }
+
+                Object.DestroyImmediate(candidate);
+            }
         }
 
         private static bool HasRequiredWiring(GameController controller)
@@ -4224,7 +4336,7 @@ namespace Decantra.Presentation
             {
                 new ColorPalette.Entry { ColorId = ColorId.Red, Color = new Color(0.92f, 0.25f, 0.22f) },
                 new ColorPalette.Entry { ColorId = ColorId.Blue, Color = new Color(0.25f, 0.5f, 0.95f) },
-                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.2f, 0.78f, 0.38f) },
+                new ColorPalette.Entry { ColorId = ColorId.Green, Color = new Color(0.2f, 0.78039217f, 0.3882353f) },
                 new ColorPalette.Entry { ColorId = ColorId.Yellow, Color = new Color(0.98f, 0.88f, 0.2f) },
                 new ColorPalette.Entry { ColorId = ColorId.Purple, Color = new Color(0.65f, 0.38f, 0.85f) },
                 new ColorPalette.Entry { ColorId = ColorId.Orange, Color = new Color(0.97f, 0.55f, 0.2f) },

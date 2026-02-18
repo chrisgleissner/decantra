@@ -61,7 +61,7 @@ namespace Decantra.Presentation
     public sealed class BaseModal : MonoBehaviour
     {
         [SerializeField] private CanvasGroup canvasGroup;
-        [SerializeField] private bool hideOnAwake = true;
+        [SerializeField] private bool hideOnAwake;
 
         private bool _initialized;
 
@@ -78,9 +78,10 @@ namespace Decantra.Presentation
             }
         }
 
-        public void Configure(CanvasGroup group)
+        public void Configure(CanvasGroup group, bool shouldHideOnAwake = false)
         {
             canvasGroup = group;
+            hideOnAwake = shouldHideOnAwake;
             _initialized = true;
         }
 

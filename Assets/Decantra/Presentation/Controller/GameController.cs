@@ -995,6 +995,7 @@ namespace Decantra.Presentation.Controller
         public void ReplayTutorial()
         {
             HideOptionsOverlay();
+            ResolveTutorialManagerIfMissing();
             if (tutorialManager != null)
             {
                 tutorialManager.BeginReplay();
@@ -1219,6 +1220,63 @@ namespace Decantra.Presentation.Controller
             _termsOverlay = ResolveOverlayReference(_termsOverlay, "TermsOverlay", optionsParent);
         }
 
+        private void ResolveTutorialManagerIfMissing()
+        {
+            if (tutorialManager == null || tutorialManager.gameObject == null || tutorialManager.gameObject.scene != gameObject.scene)
+            {
+                tutorialManager = FindTutorialManagerInCurrentScene();
+            }
+
+            if (tutorialManager != null && _settingsStore != null)
+            {
+                tutorialManager.Initialize(this, _settingsStore);
+            }
+        }
+
+        private TutorialManager FindTutorialManagerInCurrentScene()
+        {
+            TutorialManager bestMatch = null;
+            int bestScore = int.MinValue;
+            var allManagers = Resources.FindObjectsOfTypeAll<TutorialManager>();
+            for (int i = 0; i < allManagers.Length; i++)
+            {
+                var candidate = allManagers[i];
+                if (candidate == null || candidate.hideFlags != HideFlags.None)
+                {
+                    continue;
+                }
+
+                var candidateObject = candidate.gameObject;
+                if (candidateObject == null || !candidateObject.scene.IsValid() || !candidateObject.scene.isLoaded)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (candidateObject.scene == gameObject.scene)
+                {
+                    score += 1000;
+                }
+
+                if (candidateObject.activeInHierarchy)
+                {
+                    score += 100;
+                }
+                else if (candidateObject.activeSelf)
+                {
+                    score += 50;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = candidate;
+                }
+            }
+
+            return bestMatch;
+        }
+
         private GameObject ResolveOverlayReference(GameObject current, string expectedName, Transform preferredParent)
         {
             if (IsOverlayReferenceValid(current, expectedName, preferredParent))
@@ -1229,7 +1287,7 @@ namespace Decantra.Presentation.Controller
             return FindOverlayByName(expectedName, preferredParent);
         }
 
-        private static bool IsOverlayReferenceValid(GameObject candidate, string expectedName, Transform preferredParent)
+        private bool IsOverlayReferenceValid(GameObject candidate, string expectedName, Transform preferredParent)
         {
             if (candidate == null || candidate.name != expectedName)
             {
@@ -1237,6 +1295,11 @@ namespace Decantra.Presentation.Controller
             }
 
             if (!candidate.scene.IsValid() || !candidate.scene.isLoaded)
+            {
+                return false;
+            }
+
+            if (candidate.scene != gameObject.scene)
             {
                 return false;
             }
