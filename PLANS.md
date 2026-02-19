@@ -1,238 +1,208 @@
 # PLANS
 
-Last updated: 2026-02-19 (UTC)
-Owner: GitHub Copilot (GPT-5.3-Codex)
-Objective: Production-ready iOS simulator build + Maestro CI pipeline on GitHub Actions (Unity project: Decantra/Cantra)
+Last updated: 2026-02-19 UTC (execution in progress)  
+Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
-## Execution Status Summary
+## Mission
 
-- Phase 1 (Research & gap analysis): **Completed**
-- Phase 2 (Unity iOS build configuration): **Completed (implementation), CI run pending**
-- Phase 3 (GitHub Actions macOS pipeline): **Completed (implementation), CI run pending**
-- Phase 4 (Maestro integration): **Completed (implementation), CI run pending**
-- Phase 5 (Stabilization): **Not started**
-- Phase 6 (Hardening/docs): **In progress**
-- CI state target: **Green**
+Stabilize and harden multi-platform CI for Decantra until all required pipelines are reproducible and green:
 
----
+- Unity C# tests (EditMode + PlayMode) in CI
+- Android CI green
+- iOS CI green with IPA artifact
+- iOS Maestro smoke green
+- WebGL build + GitHub Pages deploy green
+- Web Playwright smoke green
+- Two consecutive fully green cycles across Android + iOS + Web
 
-## Phase 1 — Research and Gap Analysis
+## Constraints and Invariants
 
-### Tasks (Phase 1)
+- Keep Android/iOS workflows non-regressive unless a targeted hardening fix is required.
+- Do not persist cross-job Unity platform changes (switch platform only in isolated job context).
+- CI must fail fast on test or build failures (non-zero exit path guaranteed).
+- Determinism: stable output paths and explicit versioning where artifacts are produced.
 
-- [x] Inspect Unity project structure and build entry points.
-- [x] Identify Unity version, Android build pipeline, and existing CI workflows.
-- [x] Inspect Player Settings for iOS readiness and simulator constraints.
-- [x] Inspect plugin/package landscape for iOS blockers.
-- [x] Study C64 Commander iOS + Maestro workflow patterns for simulator setup and test execution.
-- [x] Finalize architecture decisions and concrete change list.
+## Phase Plan
 
-### Findings (Evidence)
+### Phase 1 — Verify and Harden Unity C# Test Execution
 
-1. **Unity version**
-   - `ProjectSettings/ProjectVersion.txt`: `6000.3.5f2`.
+Tasks:
 
-2. **Current CI**
-   - Existing workflow: `.github/workflows/build.yml`.
-   - Contains:
-     - Unity license gate (`UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`).
-     - PlayMode/EditMode test jobs using `game-ci/unity-test-runner@v4`.
-     - Android build job using `game-ci/unity-builder@v4` and build method `Decantra.App.Editor.AndroidBuild.*`.
-   - No iOS workflow currently.
+1. Audit current test execution in CI and local scripts.
+2. Verify both EditMode and PlayMode run in CI.
+3. Ensure no test assemblies are silently skipped.
+4. Ensure CI returns non-zero on failures.
+5. Record evidence from runs.
 
-3. **Current build automation**
-   - Android editor build script exists: `Assets/Decantra/App/Editor/AndroidBuild.cs`.
-   - No iOS editor build script currently in project.
+Validation criteria:
 
-4. **iOS project configuration present**
-   - `ProjectSettings/ProjectSettings.asset` has iOS application identifier and minimum OS target configured:
-     - `applicationIdentifier.iPhone: uk.gleissner.decantra`
-     - `iOSTargetOSVersionString: 15.0`
-   - Signing fields present but empty/manual by default; simulator builds can use `CODE_SIGNING_ALLOWED=NO` in Xcode build step.
+- EditMode and PlayMode both executed.
+- Failure path exits non-zero.
+- Two consecutive green runs in CI.
 
-5. **Packages/plugins**
-   - `Packages/manifest.json` is Unity-first and does not show obvious iOS blockers.
-   - Mobile Dependency Resolver present; no immediate hard block detected.
+### Phase 2 — Review and Harden iOS Implementation
 
-6. **Reference pattern (C64 Commander)**
-   - Uses macOS runners, builds simulator app via `xcodebuild -sdk iphonesimulator` with `CODE_SIGNING_ALLOWED=NO`.
-   - Boots simulator via `xcrun simctl`, installs app, runs Maestro CLI.
-   - Archives artifacts and logs.
+Tasks:
 
-### Gap List
+1. Audit iOS workflows (`build.yml`, `ios.yml`) and Unity iOS build script.
+2. Verify macOS runner, Unity export, Xcode archive, IPA packaging/export.
+3. Ensure deterministic IPA naming/path and artifact upload.
+4. Eliminate silent signing drift by explicit build flags/log checks.
+5. Ensure iOS steps do not contaminate Android settings.
 
-- Missing iOS Unity build entry point (`BuildTarget.iOS`, Xcode export path).
-- Missing iOS GitHub Actions workflow.
-- Missing Maestro test folder and iOS flow(s) for this repo.
-- Missing simulator orchestration + app install + test artifact upload in CI.
-- Missing docs for iOS pipeline and required secrets.
+Validation criteria:
 
-### Validation (Phase 1)
+- iOS workflow green.
+- IPA artifact present and plausible size.
+- No hidden signing warnings causing false-green.
+- Two consecutive green runs.
 
-- A clear list of required changes is documented.
-- CI architecture decision is documented and executable.
-- Unity/macOS compatibility assumptions are explicitly stated.
+### Phase 3 — Minimal iOS Smoke Test (Maestro)
 
-### Risks & Mitigations
+Tasks:
 
-- Risk: Unity iOS module availability mismatch on runner.
-  - Mitigation: use `game-ci/unity-builder@v4` on `macos-latest` with pinned Unity version from project.
-- Risk: iOS simulator runtime mismatch.
-  - Mitigation: discover available runtime/device dynamically with `simctl list -j` and boot accordingly.
-- Risk: Unity UI discoverability by Maestro selectors.
-  - Mitigation: coordinate-driven interaction + deterministic waits + screenshot/log evidence assertions.
+1. Launch app on simulator.
+2. Wait for main menu/start context.
+3. Start game.
+4. Wait for board.
+5. Perform two bottle interactions.
+6. Assert board remains visible and app does not crash.
 
----
+Validation criteria:
 
-## Phase 2 — Unity iOS Build Configuration
+- Maestro exits 0.
+- Deterministic flow with low flake risk.
+- Two consecutive green runs.
 
-### Tasks (Phase 2)
+### Phase 4 — WebGL Build + GitHub Pages Deployment
 
-- [x] Add iOS editor build script in `Assets/Decantra/App/Editor`.
-- [x] Configure iOS build method for simulator Xcode project export.
-- [x] Ensure deterministic CLI args for output path and versioning.
-- [x] Ensure build exits non-zero on failure.
+Tasks:
 
-### Evidence (Phase 2)
+1. Create `.github/workflows/web.yml`.
+2. Trigger on `push` to `main` and `workflow_dispatch`.
+3. Build Unity WebGL in isolated job.
+4. Emit deterministic build output (e.g., `build/WebGL`).
+5. Deploy to GitHub Pages with `index.html` at root.
+6. Upload build artifacts for debugging.
 
-- Added `Assets/Decantra/App/Editor/IosBuild.cs` with build method `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
-- Build method exports `BuildTarget.iOS` Xcode project to configurable `-buildPath` (default `Builds/iOS/Xcode`).
-- Versioning reads `VERSION_NAME` and `VERSION_CODE`/`GITHUB_RUN_NUMBER`.
-- Build failure throws exception for deterministic non-zero CI failure.
+Validation criteria:
 
-### Validation (Phase 2)
+- Web workflow green.
+- GitHub Pages deployment success.
+- Root URL starts Unity app without manual navigation.
+- Two consecutive green runs.
 
-- CI can call Unity build method headlessly.
-- Xcode project artifact is generated at expected path.
-- Unity logs show platform switch/build success without iOS platform errors.
+### Phase 5 — Minimal Web Smoke Test (Playwright)
 
----
+Tasks:
 
-## Phase 3 — GitHub Actions macOS Pipeline
+1. Add Node/Playwright test harness.
+2. Serve built WebGL output locally in CI.
+3. Open with headless Chromium.
+4. Assert Unity canvas visible.
+5. Capture console errors and fail on fatal entries.
+6. Click two board positions and ensure page remains responsive.
 
-### Tasks (Phase 3)
+Validation criteria:
 
-- [x] Add `.github/workflows/ios.yml`.
-- [x] Gate execution on Unity license secrets.
-- [x] Build Unity iOS Xcode project on macOS runner.
-- [x] Build simulator `.app` via `xcodebuild` with no signing required.
-- [x] Upload Unity and Xcode artifacts.
+- Playwright test job green.
+- No fatal console/runtime errors.
+- Two consecutive green runs.
 
-### Evidence (Phase 3)
+### Phase 6 — Cross-Platform Regression Safeguards
 
-- New workflow: `.github/workflows/ios.yml`.
-- Uses `macos-latest` and Unity version `6000.3.5f2`.
-- Unity export step uses `game-ci/unity-builder@v4` with build method `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
-- Xcode simulator build step uses `CODE_SIGNING_ALLOWED=NO` and uploads simulator `.app` artifact.
+Tasks:
 
-### Validation (Phase 3)
+1. Confirm Android, iOS, Web jobs all trigger as intended.
+2. Verify no PlayerSettings contamination between platforms.
+3. Verify no shared build output collisions.
+4. Document isolation strategy and artifacts in this file.
 
-- Workflow produces simulator `.app` artifact.
-- Xcode build completes with `CODE_SIGNING_ALLOWED=NO`.
-- Job exits cleanly.
+Validation criteria:
 
----
+- Android + iOS + Web all green simultaneously.
+- No warnings/errors indicating mismatched platform state.
+- Two consecutive fully green cycles.
 
-## Phase 4 — Maestro Integration
+## Cross-Platform Isolation Strategy
 
-### Tasks (Phase 4)
+- Use separate jobs/runners per platform (`ubuntu` for Android/Web test runner where possible, `macos` for iOS and Unity builds).
+- Use platform-specific Unity cache keys (`...-android-...`, `...-ios-...`, `...-webgl-...`).
+- Use platform-specific build directories:
+  - `Builds/Android/...`
+  - `Builds/iOS/...`
+  - `build/WebGL/...`
+- Never reuse exported project directories across platforms.
+- Keep iOS signing flags explicit in simulator/device archive steps.
 
-- [x] Add Maestro config and iOS test flow(s) under `.maestro/`.
-- [x] Install Maestro CLI in workflow.
-- [x] Boot iOS simulator and install built app with `simctl`.
-- [x] Run Maestro tests against simulator.
-- [x] Archive Maestro logs/screenshots/artifacts.
+## Risk Register
 
-### Evidence (Phase 4)
+1. **Unity license/secrets missing**  
+   Impact: CI jobs skip/fail.  
+   Mitigation: explicit license gate + clear logs.
 
-- Added `.maestro/ios-cantra-smoke.yaml`.
-- Workflow installs Maestro, boots simulator, installs app, launches with `decantra_quiet decantra_ci_probe`.
-- Added development-only CI probe logging in `GameController` for `POUR_STARTED` and `POUR_COMPLETED`.
-- Workflow validates probe log after Maestro run and uploads Maestro artifacts.
+2. **iOS signing/export instability on hosted runners**  
+   Impact: archive/IPA failures.  
+   Mitigation: explicit `xcodebuild` flags + artifacted logs + deterministic archive path.
 
-### Validation (Phase 4)
+3. **WebGL build size/time instability**  
+   Impact: timeout/flaky deploy.  
+   Mitigation: targeted timeout + artifact upload + cache keying.
 
-- Maestro exits code `0`.
-- Evidence artifacts uploaded.
-- Flow covers: app launch, level context, at least one bottle interaction, and expected state assertion.
+4. **Playwright flakiness with Unity startup timing**  
+   Impact: intermittent false failures.  
+   Mitigation: robust waits for canvas/network idle, bounded retries only where safe.
 
----
+5. **Cross-workflow duplication/drift (build.yml vs ios.yml)**  
+   Impact: inconsistent green state.  
+   Mitigation: align shared iOS assumptions and keep one canonical smoke path.
 
-## Phase 5 — Stabilization
+## Execution Journal and Evidence
 
-### Tasks (Phase 5)
+### 2026-02-19 — Baseline audit
 
-- [ ] Address timing/race issues in flow or launch sequencing.
-- [ ] Tune waits/retries for Unity startup and animation windows.
-- [ ] Achieve two consecutive green iOS CI runs.
+- Found existing workflows: `.github/workflows/build.yml`, `.github/workflows/ios.yml`.
+- Found iOS Unity builder implementation: `Assets/Decantra/App/Editor/IosBuild.cs` with simulator/device export methods.
+- Found iOS Maestro flow: `.maestro/ios-cantra-smoke.yaml`.
+- Found no Web workflow and no Playwright harness yet.
 
-### Validation (Phase 5)
+### 2026-02-19 — Implementation completed locally
 
-- No intermittent failures in repeated runs.
-- iOS workflow remains green on rerun.
+- Added Unity WebGL build entry point: `Assets/Decantra/App/Editor/WebGlBuild.cs` (`Decantra.App.Editor.WebGlBuild.BuildRelease`).
+- Added Web CI workflow `.github/workflows/web.yml` for deterministic Unity WebGL build, output verification, Playwright smoke run, and GitHub Pages deployment from the same artifact.
+- Added Playwright smoke harness files: `tests/web-smoke/package.json`, `tests/web-smoke/package-lock.json`, `tests/web-smoke/playwright.config.ts`, `tests/web-smoke/web.smoke.spec.ts`.
+- Hardened iOS workflow `.github/workflows/ios.yml` with deterministic versioning for simulator/IPA jobs, a dedicated `build-ios-ipa` path, and artifact size checks.
+- Hardened iOS Maestro flow `.maestro/ios-cantra-smoke.yaml` with explicit launch, menu/board waits, two bottle taps, and board-visibility assertion.
 
----
+### 2026-02-19 — Local validation evidence
 
-## Phase 6 — Hardening and Documentation
+- Unity full headless test run succeeded via `scripts/test.sh` with `EXIT:0`; EditMode `282/282` passed, PlayMode `86` passed / `0` failed (`2` ignored), coverage gate `0.921` vs min `0.800`.
+- Web smoke dependency install is deterministic and clean: `tests/web-smoke` `npm ci` succeeded.
+- Static diagnostics report no issues in modified workflow/YAML/C#/TS files.
 
-### Tasks (Phase 6)
+### Current blocker to final completion gates
 
-- [x] Add safe caches (Library/maestro where appropriate).
-- [x] Add artifact retention and useful debug exports.
-- [x] Update `README.md` with iOS + Maestro CI usage.
-- [ ] Verify Android workflow remains unaffected.
+- Remote CI evidence (Android/iOS/Web green + two consecutive full green cycles + Pages live URL + IPA artifact in Actions) requires commit/push and workflow execution on GitHub.
+- Local environment cannot prove two consecutive green GitHub Action cycles without publishing these changes.
 
-### Validation (Phase 6)
+### Pending evidence to record during execution
 
-- Android workflow remains unchanged/green.
-- iOS workflow documented and reproducible from repo docs.
-- No open high-risk blockers.
+- Unity tests local/CI run IDs and outcomes.
+- iOS IPA artifact name and byte size from CI artifact.
+- iOS Maestro run logs proving stable pass.
+- Web build + Pages deploy run logs and URL evidence.
+- Playwright run logs proving canvas/render/no-fatal-error.
+- Two consecutive all-green cycle IDs.
 
----
+## Completion Gate Checklist
 
-## CI Architecture Decision (Current)
-
-1. Unity iOS export on macOS GitHub Actions using Unity build method.
-2. Xcode simulator build (`iphonesimulator`) from exported project with signing disabled.
-3. Simulator boot and app install via `xcrun simctl`.
-4. Maestro CLI executes iOS flow(s) against simulator.
-5. Upload artifacts: Xcode logs, simulator app, Maestro outputs.
-
-This architecture avoids local macOS dependencies and is fully CI-driven.
-
-## Current Blockers
-
-- Remote CI validation is pending because workflow execution requires these uncommitted changes to be pushed to GitHub first.
-- Once pushed, run `.github/workflows/ios.yml` at least twice consecutively to complete Phase 5 stability criteria.
-
-## Scope Extension (2026-02-19)
-
-- Added release artifact naming requirement in main build workflow:
-  - `decantra-android-$version.apk`
-  - `decantra-android-play-$version.aab`
-  - `decantra-ios-$version.ipa`
-- Implemented `$version` policy:
-  - Tagged build: tag name.
-  - Non-tag build: latest tag + `-` + first 8 chars of git SHA.
-- Constraint retained: Google Play AAB upload must continue to work.
-
----
-
-## Execution Journal (UTC)
-
-- 2026-02-19T00:00:00Z — Started iOS production pipeline task.
-- 2026-02-19T00:05:00Z — Audited Unity version (`6000.3.5f2`) and current CI (`build.yml`).
-- 2026-02-19T00:10:00Z — Verified existing Android build entry points and absence of iOS build script.
-- 2026-02-19T00:15:00Z — Verified iOS Player settings baseline and simulator-signing strategy viability.
-- 2026-02-19T00:20:00Z — Inspected C64 Commander iOS workflow patterns (simulator + Maestro structure).
-- 2026-02-19T00:25:00Z — Replaced `PLANS.md` with this authoritative iOS execution plan.
-- 2026-02-19T00:35:00Z — Implemented Unity iOS build automation at `Assets/Decantra/App/Editor/IosBuild.cs`.
-- 2026-02-19T00:40:00Z — Added workflow `.github/workflows/ios.yml` (Unity export, Xcode simulator build, Maestro test, artifact upload).
-- 2026-02-19T00:45:00Z — Added Maestro flow `.maestro/ios-cantra-smoke.yaml` for iOS simulator smoke interaction.
-- 2026-02-19T00:48:00Z — Added development-only CI probe instrumentation in `GameController` and probe validation step in workflow.
-- 2026-02-19T00:52:00Z — Updated README with iOS CI pipeline and required Unity secrets.
-- 2026-02-19T00:55:00Z — Local static checks passed for changed C# and workflow files; remote GitHub Actions execution pending.
-- 2026-02-19T01:00:00Z — Verified GitHub CLI authentication is available; remaining step is commit/push + workflow runs to reach green CI.
-- 2026-02-19T01:10:00Z — Updated `.github/workflows/build.yml` to use versioned Android filenames and keep Play upload path working.
-- 2026-02-19T01:14:00Z — Added `build-ios` job in `build.yml` to export iOS device Xcode project and package `decantra-ios-$version.ipa`.
-- 2026-02-19T01:18:00Z — Extended `Assets/Decantra/App/Editor/IosBuild.cs` with `BuildDeviceXcodeProject` for IPA pipeline.
+- [ ] Unity C# tests pass in CI (EditMode + PlayMode)
+- [ ] Android pipeline green
+- [ ] iOS pipeline green
+- [ ] IPA artifact produced and uploaded
+- [ ] iOS Maestro smoke passes
+- [ ] Web workflow (`web.yml`) green
+- [ ] GitHub Pages serves WebGL build at root
+- [ ] Web Playwright smoke passes
+- [ ] Two consecutive fully green runs across Android + iOS + Web
+- [ ] No open critical risks in this plan

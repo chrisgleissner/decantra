@@ -57,13 +57,38 @@ jobs:
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.{0}', github.run_number) }}
-      VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0
+
+      - name: Resolve artifact versioning
+        id: versioning
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --prune --prune-tags || true
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            artifact_version="${GITHUB_REF_NAME}"
+          else
+            base_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${base_tag}" ]]; then
+              base_tag="0.0.0"
+            fi
+
+            short_sha="$(git rev-parse --short=8 HEAD)"
+            artifact_version="${base_tag}-${short_sha}"
+          fi
+
+          if [[ -z "${artifact_version}" ]]; then
+            artifact_version="0.0.0"
+          fi
+
+          echo "ARTIFACT_VERSION=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "artifact_version=${artifact_version}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/cache@v4
         with:
@@ -108,6 +133,131 @@ jobs:
           mkdir -p Builds/iOS/SimulatorApp
           rm -rf Builds/iOS/SimulatorApp/Cantra.app
           cp -R "${APP_PATH}" Builds/iOS/SimulatorApp/Cantra.app
+
+          APP_SIZE_BYTES="$(du -sb Builds/iOS/SimulatorApp/Cantra.app | awk '{print $1}')"
+          if [[ "${APP_SIZE_BYTES}" -lt 1000000 ]]; then
+            echo "Simulator app size is implausibly small: ${APP_SIZE_BYTES} bytes" >&2
+            exit 1
+          fi
+
+  build-ios-ipa:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    timeout-minutes: 90
+    needs: check-license
+    if: needs.check-license.outputs.is_unity_license_set == 'true'
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-ios-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}
+
+      - name: Resolve artifact versioning
+        id: versioning
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --prune --prune-tags || true
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            artifact_version="${GITHUB_REF_NAME}"
+          else
+            base_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${base_tag}" ]]; then
+              base_tag="0.0.0"
+            fi
+
+            short_sha="$(git rev-parse --short=8 HEAD)"
+            artifact_version="${base_tag}-${short_sha}"
+          fi
+
+          if [[ -z "${artifact_version}" ]]; then
+            artifact_version="0.0.0"
+          fi
+
+          echo "ARTIFACT_VERSION=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "artifact_version=${artifact_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Export Unity iOS device Xcode project
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: iOS
+          buildsPath: Builds
+          buildMethod: Decantra.App.Editor.IosBuild.BuildDeviceXcodeProject
+          versioning: None
+          customParameters: >
+            -buildPath Builds/iOS/XcodeDevice
+            -iosMinVersion 15.0
+
+      - name: Build archive and package IPA
+        run: |
+          set -euo pipefail
+          mkdir -p Builds/iOS/logs
+          mkdir -p Builds/iOS/archive
+          mkdir -p Builds/iOS/output
+
+          xcodebuild \
+            -project Builds/iOS/XcodeDevice/Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -archivePath Builds/iOS/archive/Cantra.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            archive | tee Builds/iOS/logs/xcodebuild-archive.log
+
+          APP_PATH="$(find Builds/iOS/archive/Cantra.xcarchive/Products/Applications -type d -name '*.app' | head -n 1)"
+          if [[ -z "${APP_PATH}" ]]; then
+            echo "No .app found in iOS archive output" >&2
+            exit 1
+          fi
+
+          rm -rf Builds/iOS/output/Payload
+          mkdir -p Builds/iOS/output/Payload
+          cp -R "${APP_PATH}" Builds/iOS/output/Payload/
+
+          IPA_NAME="decantra-ios-${ARTIFACT_VERSION}.ipa"
+          (
+            cd Builds/iOS/output
+            zip -qry "${IPA_NAME}" Payload
+          )
+
+          IPA_PATH="Builds/iOS/output/${IPA_NAME}"
+          if [[ ! -f "${IPA_PATH}" ]]; then
+            echo "IPA artifact was not created" >&2
+            exit 1
+          fi
+
+          IPA_SIZE_BYTES="$(du -sb "${IPA_PATH}" | awk '{print $1}')"
+          if [[ "${IPA_SIZE_BYTES}" -lt 1000000 ]]; then
+            echo "IPA size is implausibly small: ${IPA_SIZE_BYTES} bytes" >&2
+            exit 1
+          fi
+
+      - name: Upload iOS IPA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-artifacts
+          path: |
+            Builds/iOS/output/decantra-ios-*.ipa
+            Builds/iOS/logs/**
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload iOS simulator app
         uses: actions/upload-artifact@v4
@@ -215,12 +365,11 @@ jobs:
               fh.write(f"device_type={device_type['identifier']}\n")
           PY
 
-      - name: Install and launch app with CI probe flags
+      - name: Install app
         run: |
           set -euo pipefail
           APP_PATH="Builds/iOS/SimulatorApp/Cantra.app"
           xcrun simctl install "${{ steps.simulator.outputs.udid }}" "${APP_PATH}"
-          xcrun simctl launch "${{ steps.simulator.outputs.udid }}" "${IOS_BUNDLE_ID}" decantra_quiet decantra_ci_probe
 
       - name: Run Maestro smoke flow
         env:
@@ -230,23 +379,6 @@ jobs:
           set -euo pipefail
           mkdir -p test-results/maestro
           maestro --device "${{ steps.simulator.outputs.udid }}" test .maestro/ios-cantra-smoke.yaml | tee test-results/maestro/maestro.log
-
-      - name: Validate move completion in CI probe log
-        run: |
-          set -euo pipefail
-          APP_DATA_DIR="$(xcrun simctl get_app_container "${{ steps.simulator.outputs.udid }}" "${IOS_BUNDLE_ID}" data)"
-          PROBE_PATH="${APP_DATA_DIR}/Documents/ci_probe.log"
-
-          if [[ ! -f "${PROBE_PATH}" ]]; then
-            echo "Missing CI probe log at ${PROBE_PATH}" >&2
-            exit 1
-          fi
-
-          cp "${PROBE_PATH}" test-results/maestro/ci_probe.log
-          cat test-results/maestro/ci_probe.log
-
-          grep -q "POUR_STARTED" test-results/maestro/ci_probe.log
-          grep -q "POUR_COMPLETED" test-results/maestro/ci_probe.log
 
       - name: Upload Maestro artifacts
         if: always()

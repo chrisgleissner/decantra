@@ -1,0 +1,143 @@
+name: WebGL Build + Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_VERSION: "6000.3.5f2"
+
+jobs:
+  check-license:
+    name: Check Unity license secrets
+    runs-on: ubuntu-latest
+    outputs:
+      is_unity_license_set: ${{ steps.check.outputs.is_unity_license_set }}
+    steps:
+      - name: Detect Unity license secrets
+        id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [[ -n "${UNITY_LICENSE}" && -n "${UNITY_EMAIL}" && -n "${UNITY_PASSWORD}" ]]; then
+            echo "is_unity_license_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_unity_license_set=false" >> "$GITHUB_OUTPUT"
+            echo "Unity license secrets are missing." >&2
+          fi
+
+  build-and-smoke:
+    name: Build WebGL and run smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    needs: check-license
+    if: needs.check-license.outputs.is_unity_license_set == 'true'
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-webgl-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}
+
+      - name: Build Unity WebGL
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: WebGL
+          buildsPath: build
+          buildMethod: Decantra.App.Editor.WebGlBuild.BuildRelease
+          versioning: None
+          customParameters: >
+            -buildPath build/WebGL
+
+      - name: Verify deterministic WebGL output
+        run: |
+          set -euo pipefail
+          test -f build/WebGL/index.html
+          test -f build/WebGL/Build/Decantra.loader.js
+          test -f build/WebGL/Build/Decantra.framework.js
+          test -f build/WebGL/Build/Decantra.data
+          test -f build/WebGL/Build/Decantra.wasm
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tests/web-smoke/package-lock.json
+
+      - name: Install web smoke dependencies
+        run: |
+          set -euo pipefail
+          cd tests/web-smoke
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright web smoke test
+        run: |
+          set -euo pipefail
+          cd tests/web-smoke
+          npm run test
+
+      - name: Upload WebGL build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-WebGL
+          path: build/WebGL
+
+      - name: Upload web smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke-artifacts
+          path: tests/web-smoke/artifacts/**
+          if-no-files-found: warn
+
+  deploy-pages:
+    name: Deploy WebGL to GitHub Pages
+    needs: build-and-smoke
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Decantra-WebGL
+          path: build/WebGL
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/WebGL
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

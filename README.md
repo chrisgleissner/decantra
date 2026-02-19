@@ -2,9 +2,10 @@
 
 [![Build](https://github.com/chrisgleissner/decantra/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chrisgleissner/decantra/actions/workflows/build.yml)
 [![iOS Build + Maestro](https://github.com/chrisgleissner/decantra/actions/workflows/ios.yml/badge.svg?branch=main)](https://github.com/chrisgleissner/decantra/actions/workflows/ios.yml)
+[![WebGL Build + Deploy](https://github.com/chrisgleissner/decantra/actions/workflows/web.yml/badge.svg?branch=main)](https://github.com/chrisgleissner/decantra/actions/workflows/web.yml)
 [![codecov](https://codecov.io/gh/chrisgleissner/decantra/graph/badge.svg)](https://codecov.io/gh/chrisgleissner/decantra)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![Platform](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-blue)](https://github.com/chrisgleissner/decantra/releases)
+[![Platform](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Web-blue)](https://github.com/chrisgleissner/decantra/releases)
 
 Bottle-sorting puzzle game for Android built with Unity.
 
@@ -63,9 +64,9 @@ The repository includes a dedicated iOS workflow at `.github/workflows/ios.yml` 
 
 1. Exports an iOS Xcode project from Unity using `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
 2. Builds a simulator `.app` (`iphonesimulator`, no code signing required).
-3. Boots an iOS simulator and installs the app.
-4. Runs Maestro smoke flow `.maestro/ios-cantra-smoke.yaml`.
-5. Validates a real in-game pour happened via CI probe log (`POUR_STARTED` + `POUR_COMPLETED`).
+3. Builds a device archive and packages an unsigned IPA artifact.
+4. Boots an iOS simulator and installs the app.
+5. Runs Maestro smoke flow `.maestro/ios-cantra-smoke.yaml`.
 
 ### Required GitHub Secrets
 
@@ -74,3 +75,12 @@ The repository includes a dedicated iOS workflow at `.github/workflows/ios.yml` 
 - `UNITY_PASSWORD`
 
 Without these secrets, the iOS workflow is skipped by design.
+
+## Web CI Pipeline (WebGL + Playwright + Pages)
+
+The repository includes a dedicated Web workflow at `.github/workflows/web.yml` that:
+
+1. Builds Unity WebGL using `Decantra.App.Editor.WebGlBuild.BuildRelease`.
+2. Verifies deterministic output at `build/WebGL`.
+3. Runs Playwright smoke tests from `tests/web-smoke` against a local server.
+4. Deploys the same WebGL output to GitHub Pages (root contains `index.html`).
