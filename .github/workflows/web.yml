@@ -74,6 +74,18 @@ jobs:
           docker system prune -af || true
           echo "Disk after cleanup:" && df -h
 
+      - name: Free disk space for Unity WebGL image
+        run: |
+          set -euo pipefail
+          echo "Disk before cleanup:" && df -h
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          echo "Disk after cleanup:" && df -h
+
       - name: Build Unity WebGL
         uses: game-ci/unity-builder@v4
         with:
