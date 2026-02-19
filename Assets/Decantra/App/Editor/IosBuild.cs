@@ -51,7 +51,11 @@ namespace Decantra.App.Editor
             {
                 Directory.Delete(outputPath, recursive: true);
             }
-            Directory.CreateDirectory(outputPath);
+            string parentDirectory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(parentDirectory))
+            {
+                Directory.CreateDirectory(parentDirectory);
+            }
             AssetDatabase.SaveAssets();
 
             var buildOptions = new BuildPlayerOptions
