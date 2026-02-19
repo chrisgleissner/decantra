@@ -1,9 +1,10 @@
 # Decantra
 
 [![Build](https://github.com/chrisgleissner/decantra/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chrisgleissner/decantra/actions/workflows/build.yml)
+[![iOS Build + Maestro](https://github.com/chrisgleissner/decantra/actions/workflows/ios.yml/badge.svg?branch=main)](https://github.com/chrisgleissner/decantra/actions/workflows/ios.yml)
 [![codecov](https://codecov.io/gh/chrisgleissner/decantra/graph/badge.svg)](https://codecov.io/gh/chrisgleissner/decantra)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![Platform](https://img.shields.io/badge/platforms-Android-blue)](https://github.com/chrisgleissner/decantra/releases)
+[![Platform](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-blue)](https://github.com/chrisgleissner/decantra/releases)
 
 Bottle-sorting puzzle game for Android built with Unity.
 
@@ -55,3 +56,21 @@ Bottle-sorting puzzle game for Android built with Unity.
 
 - Developer info and build instructions: [doc/developer.md](doc/developer.md)
 - [LICENSE](LICENSE)
+
+## iOS CI Pipeline (Simulator + Maestro)
+
+The repository includes a dedicated iOS workflow at `.github/workflows/ios.yml` that:
+
+1. Exports an iOS Xcode project from Unity using `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
+2. Builds a simulator `.app` (`iphonesimulator`, no code signing required).
+3. Boots an iOS simulator and installs the app.
+4. Runs Maestro smoke flow `.maestro/ios-cantra-smoke.yaml`.
+5. Validates a real in-game pour happened via CI probe log (`POUR_STARTED` + `POUR_COMPLETED`).
+
+### Required GitHub Secrets
+
+- `UNITY_LICENSE`
+- `UNITY_EMAIL`
+- `UNITY_PASSWORD`
+
+Without these secrets, the iOS workflow is skipped by design.

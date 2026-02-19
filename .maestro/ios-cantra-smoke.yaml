@@ -1,0 +1,42 @@
+appId: uk.gleissner.decantra
+---
+- waitForAnimationToEnd
+- tapOn:
+    point: "50%,50%"
+- waitForAnimationToEnd
+- takeScreenshot: ios-before-moves
+
+# Attempt a series of plausible bottle drags across the 3x3 grid.
+# At least one legal pour is expected on a fresh deterministic level.
+- swipe:
+    start: "20%,72%"
+    end: "50%,72%"
+    duration: 850
+- waitForAnimationToEnd
+- swipe:
+    start: "50%,72%"
+    end: "80%,72%"
+    duration: 850
+- waitForAnimationToEnd
+- swipe:
+    start: "80%,72%"
+    end: "50%,72%"
+    duration: 850
+- waitForAnimationToEnd
+- swipe:
+    start: "20%,58%"
+    end: "50%,58%"
+    duration: 850
+- waitForAnimationToEnd
+- swipe:
+    start: "50%,58%"
+    end: "80%,58%"
+    duration: 850
+- waitForAnimationToEnd
+- swipe:
+    start: "50%,58%"
+    end: "50%,72%"
+    duration: 850
+- waitForAnimationToEnd
+
+- takeScreenshot: ios-after-moves

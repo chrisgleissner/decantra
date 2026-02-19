@@ -1,113 +1,224 @@
 # PLANS
 
-Last updated: 2026-02-19
+Last updated: 2026-02-19 (UTC)
 Owner: GitHub Copilot (GPT-5.3-Codex)
-Scope: Autosolve move orchestration defect (Android-first)
+Objective: Production-ready iOS simulator build + Maestro CI pipeline on GitHub Actions (Unity project: Decantra/Cantra)
 
-## Reproduction Steps (Real Device)
+## Execution Status Summary
 
-1. Build/install Android app and launch on connected device.
-2. Open a level where auto-solve has at least one legal move.
-3. Open trade-in dialog and trigger auto-solve.
-4. Observe first move attempt.
-5. Capture video and logs.
+- Phase 1 (Research & gap analysis): **Completed**
+- Phase 2 (Unity iOS build configuration): **Completed (implementation), CI run pending**
+- Phase 3 (GitHub Actions macOS pipeline): **Completed (implementation), CI run pending**
+- Phase 4 (Maestro integration): **Completed (implementation), CI run pending**
+- Phase 5 (Stabilization): **Not started**
+- Phase 6 (Hardening/docs): **In progress**
+- CI state target: **Green**
 
-## Observed Behaviour
+---
 
-- Bottle animates toward target, then snaps back.
-- Target highlight may not visibly activate.
-- Pour may not start/complete even though source and target were selected by solver.
-- Level progress can stall due move not being committed.
+## Phase 1 — Research and Gap Analysis
 
-## Hypotheses (Ranked)
+### Tasks (Phase 1)
 
-1. **Highest**: Autosolve drag animation is decoupled from gameplay release/commit path, creating race/failure windows.
-2. **High**: Target activation/highlight is not part of authoritative move sequence, so release can occur without expected UI state.
-3. **Medium**: Autosolve completion waits on `_inputLocked` polling + timeout instead of explicit pour completion event.
-4. **Lower**: Move rejection paths are under-instrumented, making diagnosis difficult on Android.
+- [x] Inspect Unity project structure and build entry points.
+- [x] Identify Unity version, Android build pipeline, and existing CI workflows.
+- [x] Inspect Player Settings for iOS readiness and simulator constraints.
+- [x] Inspect plugin/package landscape for iOS blockers.
+- [x] Study C64 Commander iOS + Maestro workflow patterns for simulator setup and test execution.
+- [x] Finalize architecture decisions and concrete change list.
 
-## Instrumentation Plan
+### Findings (Evidence)
 
-Add structured diagnostics behind a dedicated autosolve debug flag:
+1. **Unity version**
+   - `ProjectSettings/ProjectVersion.txt`: `6000.3.5f2`.
 
-- `AutosolveStepStarted(stepId)`
-- `SourceSelected(bottleId)`
-- `TargetChosen(bottleId)`
-- `TargetActivated(bottleId)`
-- `ReleaseInvoked()`
-- `PourStarted(amount)`
-- `PourCompleted()`
-- `MoveRejected(reason)`
-- `StateTransition(oldState,newState)`
+2. **Current CI**
+   - Existing workflow: `.github/workflows/build.yml`.
+   - Contains:
+     - Unity license gate (`UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`).
+     - PlayMode/EditMode test jobs using `game-ci/unity-test-runner@v4`.
+     - Android build job using `game-ci/unity-builder@v4` and build method `Decantra.App.Editor.AndroidBuild.*`.
+   - No iOS workflow currently.
 
-Keep hooks (events + structured logger), default diagnostics off.
+3. **Current build automation**
+   - Android editor build script exists: `Assets/Decantra/App/Editor/AndroidBuild.cs`.
+   - No iOS editor build script currently in project.
 
-## Refactor Plan
+4. **iOS project configuration present**
+   - `ProjectSettings/ProjectSettings.asset` has iOS application identifier and minimum OS target configured:
+     - `applicationIdentifier.iPhone: uk.gleissner.decantra`
+     - `iOSTargetOSVersionString: 15.0`
+   - Signing fields present but empty/manual by default; simulator builds can use `CODE_SIGNING_ALLOWED=NO` in Xcode build step.
 
-1. Introduce one authoritative coroutine in `GameController`, `PerformMove(...)`, which validates + orchestrates animation and gameplay commit.
-2. Route autosolve path through `PerformMove(...)` only.
+5. **Packages/plugins**
+   - `Packages/manifest.json` is Unity-first and does not show obvious iOS blockers.
+   - Mobile Dependency Resolver present; no immediate hard block detected.
 
-3. Ensure order is deterministic:
+6. **Reference pattern (C64 Commander)**
+   - Uses macOS runners, builds simulator app via `xcodebuild -sdk iphonesimulator` with `CODE_SIGNING_ALLOWED=NO`.
+   - Boots simulator via `xcrun simctl`, installs app, runs Maestro CLI.
+   - Archives artifacts and logs.
 
-- validate legality
-- source select/lift/drag animation
-- target activate/highlight
-- release invoke
-- start real gameplay pour via existing logic
-- wait for explicit pour completion event
-- clear temporary visuals
+### Gap List
 
-1. Remove autosolve dependence on `_inputLocked` timeout polling for move completion.
+- Missing iOS Unity build entry point (`BuildTarget.iOS`, Xcode export path).
+- Missing iOS GitHub Actions workflow.
+- Missing Maestro test folder and iOS flow(s) for this repo.
+- Missing simulator orchestration + app install + test artifact upload in CI.
+- Missing docs for iOS pipeline and required secrets.
 
-## Test Plan
+### Validation (Phase 1)
 
-### Unit/EditMode
+- A clear list of required changes is documented.
+- CI architecture decision is documented and executable.
+- Unity/macOS compatibility assumptions are explicitly stated.
 
-- Keep existing domain move-rule tests as authority checks.
+### Risks & Mitigations
 
-### PlayMode
+- Risk: Unity iOS module availability mismatch on runner.
+  - Mitigation: use `game-ci/unity-builder@v4` on `macos-latest` with pinned Unity version from project.
+- Risk: iOS simulator runtime mismatch.
+  - Mitigation: discover available runtime/device dynamically with `simctl list -j` and boot accordingly.
+- Risk: Unity UI discoverability by Maestro selectors.
+  - Mitigation: coordinate-driven interaction + deterministic waits + screenshot/log evidence assertions.
 
-Add regression tests in `GameControllerPlayModeTests`:
+---
 
-1. Load deterministic level.
-2. Execute exactly one autosolve-orchestrated move.
-3. Assert source/target contents changed as expected.
-4. Assert `PourStarted` and `PourCompleted` lifecycle events fired.
-5. Assert no snap-back-without-state-change (state key changes after move).
-6. Assert target activation hook fired before completion.
+## Phase 2 — Unity iOS Build Configuration
 
-Use explicit event/state waits (bounded frame polling), avoid unbounded `WaitForSeconds` sleeps.
+### Tasks (Phase 2)
 
-## Risk Register
+- [x] Add iOS editor build script in `Assets/Decantra/App/Editor`.
+- [x] Configure iOS build method for simulator Xcode project export.
+- [x] Ensure deterministic CLI args for output path and versioning.
+- [x] Ensure build exits non-zero on failure.
 
-- **KR-1**: Regress manual drag/tap move path while refactoring shared move code.
-  - Mitigation: keep `TryStartMove` API stable; reuse internal method.
-- **KR-2**: Introduce deadlock while waiting for completion event.
-  - Mitigation: emit completion from one source (`AnimateMove` end), and guard null-state exits.
-- **KR-3**: Android-only timing differences reveal hidden assumptions.
-  - Mitigation: move to event-driven orchestration, remove timeout-driven success criteria.
-- **KR-4**: Excessive debug noise in production logs.
-  - Mitigation: diagnostics behind disabled-by-default flag.
+### Evidence (Phase 2)
 
-## Definition of Done Checklist
+- Added `Assets/Decantra/App/Editor/IosBuild.cs` with build method `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
+- Build method exports `BuildTarget.iOS` Xcode project to configurable `-buildPath` (default `Builds/iOS/Xcode`).
+- Versioning reads `VERSION_NAME` and `VERSION_CODE`/`GITHUB_RUN_NUMBER`.
+- Build failure throws exception for deterministic non-zero CI failure.
 
-- [x] Autosolve uses authoritative gameplay move execution path (no direct state mutation).
-- [x] Target highlight/activation is visible before release.
-- [x] Source/target bottle state changes correctly after each autosolve move.
-- [x] Level progresses toward completion through real move application.
-- [x] Snap-back-without-pour defect eliminated.
-- [x] PlayMode autosolve regression tests added and passing.
-- [x] EditMode tests passing.
-- [ ] Android validation executed with recording + structured logs.
+### Validation (Phase 2)
+
+- CI can call Unity build method headlessly.
+- Xcode project artifact is generated at expected path.
+- Unity logs show platform switch/build success without iOS platform errors.
+
+---
+
+## Phase 3 — GitHub Actions macOS Pipeline
+
+### Tasks (Phase 3)
+
+- [x] Add `.github/workflows/ios.yml`.
+- [x] Gate execution on Unity license secrets.
+- [x] Build Unity iOS Xcode project on macOS runner.
+- [x] Build simulator `.app` via `xcodebuild` with no signing required.
+- [x] Upload Unity and Xcode artifacts.
+
+### Evidence (Phase 3)
+
+- New workflow: `.github/workflows/ios.yml`.
+- Uses `macos-latest` and Unity version `6000.3.5f2`.
+- Unity export step uses `game-ci/unity-builder@v4` with build method `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
+- Xcode simulator build step uses `CODE_SIGNING_ALLOWED=NO` and uploads simulator `.app` artifact.
+
+### Validation (Phase 3)
+
+- Workflow produces simulator `.app` artifact.
+- Xcode build completes with `CODE_SIGNING_ALLOWED=NO`.
+- Job exits cleanly.
+
+---
+
+## Phase 4 — Maestro Integration
+
+### Tasks (Phase 4)
+
+- [x] Add Maestro config and iOS test flow(s) under `.maestro/`.
+- [x] Install Maestro CLI in workflow.
+- [x] Boot iOS simulator and install built app with `simctl`.
+- [x] Run Maestro tests against simulator.
+- [x] Archive Maestro logs/screenshots/artifacts.
+
+### Evidence (Phase 4)
+
+- Added `.maestro/ios-cantra-smoke.yaml`.
+- Workflow installs Maestro, boots simulator, installs app, launches with `decantra_quiet decantra_ci_probe`.
+- Added development-only CI probe logging in `GameController` for `POUR_STARTED` and `POUR_COMPLETED`.
+- Workflow validates probe log after Maestro run and uploads Maestro artifacts.
+
+### Validation (Phase 4)
+
+- Maestro exits code `0`.
+- Evidence artifacts uploaded.
+- Flow covers: app launch, level context, at least one bottle interaction, and expected state assertion.
+
+---
+
+## Phase 5 — Stabilization
+
+### Tasks (Phase 5)
+
+- [ ] Address timing/race issues in flow or launch sequencing.
+- [ ] Tune waits/retries for Unity startup and animation windows.
+- [ ] Achieve two consecutive green iOS CI runs.
+
+### Validation (Phase 5)
+
+- No intermittent failures in repeated runs.
+- iOS workflow remains green on rerun.
+
+---
+
+## Phase 6 — Hardening and Documentation
+
+### Tasks (Phase 6)
+
+- [x] Add safe caches (Library/maestro where appropriate).
+- [x] Add artifact retention and useful debug exports.
+- [x] Update `README.md` with iOS + Maestro CI usage.
+- [ ] Verify Android workflow remains unaffected.
+
+### Validation (Phase 6)
+
+- Android workflow remains unchanged/green.
+- iOS workflow documented and reproducible from repo docs.
+- No open high-risk blockers.
+
+---
+
+## CI Architecture Decision (Current)
+
+1. Unity iOS export on macOS GitHub Actions using Unity build method.
+2. Xcode simulator build (`iphonesimulator`) from exported project with signing disabled.
+3. Simulator boot and app install via `xcrun simctl`.
+4. Maestro CLI executes iOS flow(s) against simulator.
+5. Upload artifacts: Xcode logs, simulator app, Maestro outputs.
+
+This architecture avoids local macOS dependencies and is fully CI-driven.
+
+## Current Blockers
+
+- Remote CI validation is pending because workflow execution requires these uncommitted changes to be pushed to GitHub first.
+- Once pushed, run `.github/workflows/ios.yml` at least twice consecutively to complete Phase 5 stability criteria.
+
+---
 
 ## Execution Journal (UTC)
 
-- 2026-02-19T00:00:00Z — Started autosolve defect task; scoped requirements and constraints.
-- 2026-02-19T00:05:00Z — Audited `GameController` autosolve path; identified drag/return and move execution decoupling.
-- 2026-02-19T00:08:00Z — Verified connected Android device via `adb devices` (`2113b87f`).
-- 2026-02-19T00:10:00Z — Updated plan with instrumentation + authoritative `PerformMove` refactor approach.
-- 2026-02-19T12:05:00Z — Implemented `PerformMove(...)` orchestration and routed auto-solve execution through it.
-- 2026-02-19T12:06:00Z — Added pour lifecycle + autosolve activation/release diagnostics hooks behind debug flag.
-- 2026-02-19T12:09:00Z — Added PlayMode regression `AutoSolveSingleMove_TriggersPourLifecycleAndMutatesState`.
-- 2026-02-19T12:12:00Z — Ran EditMode suite: 274/274 passed (`Logs/TestResults-latest.xml`).
-- 2026-02-19T12:14:00Z — Ran full PlayMode suite: 85 passed, 2 ignored, 0 failed; new autosolve test passed (`Logs/PlayModeTestResults-latest.xml`).
+- 2026-02-19T00:00:00Z — Started iOS production pipeline task.
+- 2026-02-19T00:05:00Z — Audited Unity version (`6000.3.5f2`) and current CI (`build.yml`).
+- 2026-02-19T00:10:00Z — Verified existing Android build entry points and absence of iOS build script.
+- 2026-02-19T00:15:00Z — Verified iOS Player settings baseline and simulator-signing strategy viability.
+- 2026-02-19T00:20:00Z — Inspected C64 Commander iOS workflow patterns (simulator + Maestro structure).
+- 2026-02-19T00:25:00Z — Replaced `PLANS.md` with this authoritative iOS execution plan.
+- 2026-02-19T00:35:00Z — Implemented Unity iOS build automation at `Assets/Decantra/App/Editor/IosBuild.cs`.
+- 2026-02-19T00:40:00Z — Added workflow `.github/workflows/ios.yml` (Unity export, Xcode simulator build, Maestro test, artifact upload).
+- 2026-02-19T00:45:00Z — Added Maestro flow `.maestro/ios-cantra-smoke.yaml` for iOS simulator smoke interaction.
+- 2026-02-19T00:48:00Z — Added development-only CI probe instrumentation in `GameController` and probe validation step in workflow.
+- 2026-02-19T00:52:00Z — Updated README with iOS CI pipeline and required Unity secrets.
+- 2026-02-19T00:55:00Z — Local static checks passed for changed C# and workflow files; remote GitHub Actions execution pending.
+- 2026-02-19T01:00:00Z — Verified GitHub CLI authentication is available; remaining step is commit/push + workflow runs to reach green CI.
