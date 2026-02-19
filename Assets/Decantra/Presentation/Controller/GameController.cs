@@ -643,7 +643,8 @@ namespace Decantra.Presentation.Controller
 
             if (EnablePourDiagnostics)
             {
-                Debug.Log($"Decantra PourWindow start={Time.realtimeSinceStartup:0.000}s end~={Time.realtimeSinceStartup + duration:0.000}s startFill={previousFillRatio:0.###} endFill={newFillRatio:0.###} delta={(newFillRatio - previousFillRatio):0.###} duration={duration:0.###}");
+                string mode = _autoSolvePlaybackActive ? "auto-solve" : "manual";
+                Debug.Log($"Decantra PourWindow mode={mode} start={Time.realtimeSinceStartup:0.000}s end~={Time.realtimeSinceStartup + duration:0.000}s startFill={previousFillRatio:0.###} endFill={newFillRatio:0.###} delta={(newFillRatio - previousFillRatio):0.###} duration={duration:0.###}");
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -2207,11 +2208,6 @@ namespace Decantra.Presentation.Controller
 
         private float ResolvePourWindowDuration(float previousFillRatio, float newFillRatio, int poured)
         {
-            if (_autoSolvePlaybackActive)
-            {
-                return Mathf.Clamp(_autoSolveMoveDuration, 0.8f, 1.2f);
-            }
-
             if (_audioManager == null)
             {
                 return Mathf.Max(0.2f, 0.12f * poured);
