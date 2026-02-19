@@ -3100,15 +3100,16 @@ namespace Decantra.Presentation
             panelImage.color = ModalDesignTokens.Colors.Panel;
 
             var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+            int canonicalOverlaySpacing = ModalDesignTokens.Spacing.OuterPadding;
             panelLayout.childAlignment = TextAnchor.UpperCenter;
             panelLayout.childForceExpandWidth = true;
-            panelLayout.childForceExpandHeight = true;
-            panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            panelLayout.childForceExpandHeight = false;
+            panelLayout.spacing = canonicalOverlaySpacing;
             panelLayout.padding = new RectOffset(
                 ModalDesignTokens.Spacing.OuterPadding,
                 ModalDesignTokens.Spacing.OuterPadding,
-                ModalDesignTokens.Spacing.OuterPadding,
-                ModalDesignTokens.Spacing.OuterPadding);
+                canonicalOverlaySpacing,
+                canonicalOverlaySpacing);
 
             var title = CreateHudText(panel.transform, "Title");
             title.text = "OPTIONS";
@@ -3138,7 +3139,7 @@ namespace Decantra.Presentation
             listContainerImage.color = ModalDesignTokens.Colors.SectionSurface;
             var listContainerElement = listContainer.AddComponent<LayoutElement>();
             listContainerElement.flexibleHeight = 1f;
-            listContainerElement.minHeight = 400f;
+            listContainerElement.minHeight = 0f;
             var listScrollRect = listContainer.AddComponent<ScrollRect>();
             listScrollRect.horizontal = false;
             listScrollRect.vertical = true;
@@ -3385,6 +3386,12 @@ namespace Decantra.Presentation
             versionText.text = BuildVersionFooterText();
 
             var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", ModalDesignTokens.Colors.SecondaryAction);
+            var closeRowElement = closeButton.transform.parent.GetComponent<LayoutElement>();
+            if (closeRowElement != null)
+            {
+                closeRowElement.preferredHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+                closeRowElement.minHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+            }
             closeButton.onClick.AddListener(() =>
             {
                 if (controller != null) controller.HideOptionsOverlay();
@@ -3485,7 +3492,7 @@ namespace Decantra.Presentation
             return
                 "Drag one bottle onto another to pour liquid.\n\n" +
                 "You can only pour into an empty bottle or onto the same color.\n\n" +
-                "Some bottles have heavier, darker glass. These sink bottles can receive liquid but cannot be lifted.\n\n" +
+                "Some bottles have reinforced heavy glass. These sink bottles can receive liquid but cannot be lifted.\n\n" +
                 "A level is complete when every bottle is either empty or contains exactly one color.";
         }
 
