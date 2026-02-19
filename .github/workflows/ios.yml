@@ -134,7 +134,8 @@ jobs:
           rm -rf Builds/iOS/SimulatorApp/Cantra.app
           cp -R "${APP_PATH}" Builds/iOS/SimulatorApp/Cantra.app
 
-          APP_SIZE_BYTES="$(du -sb Builds/iOS/SimulatorApp/Cantra.app | awk '{print $1}')"
+          APP_SIZE_KB="$(du -sk Builds/iOS/SimulatorApp/Cantra.app | awk '{print $1}')"
+          APP_SIZE_BYTES="$((APP_SIZE_KB * 1024))"
           if [[ "${APP_SIZE_BYTES}" -lt 1000000 ]]; then
             echo "Simulator app size is implausibly small: ${APP_SIZE_BYTES} bytes" >&2
             exit 1
@@ -262,7 +263,7 @@ jobs:
             exit 1
           fi
 
-          IPA_SIZE_BYTES="$(du -sb "${IPA_PATH}" | awk '{print $1}')"
+          IPA_SIZE_BYTES="$(wc -c < "${IPA_PATH}" | tr -d '[:space:]')"
           if [[ "${IPA_SIZE_BYTES}" -lt 1000000 ]]; then
             echo "IPA size is implausibly small: ${IPA_SIZE_BYTES} bytes" >&2
             exit 1
