@@ -81,7 +81,7 @@ Tasks:
 1. Create `.github/workflows/web.yml`.
 2. Trigger on `push` to `main` and `workflow_dispatch`.
 3. Build Unity WebGL in isolated job.
-4. Emit deterministic build output (e.g., `build/WebGL`).
+4. Emit deterministic build output (e.g., `Builds/WebGL`).
 5. Deploy to GitHub Pages with `index.html` at root.
 6. Upload build artifacts for debugging.
 
@@ -131,7 +131,7 @@ Validation criteria:
 - Use platform-specific build directories:
   - `Builds/Android/...`
   - `Builds/iOS/...`
-  - `build/WebGL/...`
+   - `Builds/WebGL/...`
 - Never reuse exported project directories across platforms.
 - Keep iOS signing flags explicit in simulator/device archive steps.
 

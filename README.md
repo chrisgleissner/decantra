@@ -81,6 +81,6 @@ Without these secrets, the iOS workflow is skipped by design.
 The repository includes a dedicated Web workflow at `.github/workflows/web.yml` that:
 
 1. Builds Unity WebGL using `Decantra.App.Editor.WebGlBuild.BuildRelease`.
-2. Verifies deterministic output at `build/WebGL`.
+2. Verifies deterministic output at `Builds/WebGL`.
 3. Runs Playwright smoke tests from `tests/web-smoke` against a local server.
 4. Deploys the same WebGL output to GitHub Pages (root contains `index.html`).

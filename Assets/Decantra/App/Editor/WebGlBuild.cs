@@ -16,7 +16,7 @@ namespace Decantra.App.Editor
 {
     public static class WebGlBuild
     {
-        private const string DefaultWebGlBuildPath = "build/WebGL";
+        private const string DefaultWebGlBuildPath = "Builds/WebGL";
 
         [MenuItem("Decantra/Build/WebGL Release")]
         public static void BuildRelease()

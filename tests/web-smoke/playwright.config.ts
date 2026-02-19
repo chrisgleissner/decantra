@@ -15,7 +15,7 @@ export default defineConfig({
   },
   outputDir: 'artifacts/test-output',
   webServer: {
-    command: 'python3 -m http.server 4173 --directory ../../build/WebGL',
+    command: 'python3 -m http.server 4173 --directory ../../Builds/WebGL',
     timeout: 120000,
     reuseExistingServer: false,
     url: 'http://127.0.0.1:4173'

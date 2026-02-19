@@ -96,16 +96,16 @@ jobs:
           buildMethod: Decantra.App.Editor.WebGlBuild.BuildRelease
           versioning: None
           customParameters: >
-            -buildPath build/WebGL
+            -buildPath Builds/WebGL
 
       - name: Verify deterministic WebGL output
         run: |
           set -euo pipefail
-          test -f build/WebGL/index.html
-          test -f build/WebGL/Build/Decantra.loader.js
-          test -f build/WebGL/Build/Decantra.framework.js
-          test -f build/WebGL/Build/Decantra.data
-          test -f build/WebGL/Build/Decantra.wasm
+          test -f Builds/WebGL/index.html
+          test -f Builds/WebGL/Build/Decantra.loader.js
+          test -f Builds/WebGL/Build/Decantra.framework.js
+          test -f Builds/WebGL/Build/Decantra.data
+          test -f Builds/WebGL/Build/Decantra.wasm
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -131,7 +131,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Decantra-WebGL
-          path: build/WebGL
+          path: Builds/WebGL
 
       - name: Upload web smoke artifacts
         if: always()
@@ -155,18 +155,18 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Decantra-WebGL
-          path: build/WebGL
+          path: Builds/WebGL
 
       - name: Prepare Pages content
         run: |
           set -euo pipefail
-          rm -rf build/Pages
-          mkdir -p build/Pages/webgl
-          cp -R docs/. build/Pages/
-          cp -R build/WebGL/. build/Pages/webgl/
+          rm -rf Builds/Pages
+          mkdir -p Builds/Pages/webgl
+          cp -R docs/. Builds/Pages/
+          cp -R Builds/WebGL/. Builds/Pages/webgl/
 
-          test -f build/Pages/index.md
-          test -f build/Pages/webgl/index.html
+          test -f Builds/Pages/index.md
+          test -f Builds/Pages/webgl/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -174,7 +174,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/Pages
+          path: Builds/Pages
 
       - name: Deploy to GitHub Pages
         id: deployment
