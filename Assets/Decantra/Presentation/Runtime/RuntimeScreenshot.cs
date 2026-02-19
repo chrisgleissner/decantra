@@ -1063,87 +1063,144 @@ namespace Decantra.Presentation
 
             yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveStartFileName));
 
-            if (!TryGetCurrentStateSnapshot(controller, out var solveState))
+            if (!TryGetCurrentStateSnapshot(controller, out var beforeState))
             {
-                Debug.LogError("RuntimeScreenshot: Could not access level state for auto-solve evidence capture.");
+                Debug.LogError("RuntimeScreenshot: Could not capture state before auto-solve trade-in.");
                 _failed = true;
                 yield break;
             }
 
-            var solver = new BfsSolver();
-            var result = solver.SolveWithPath(solveState, 8_000_000, 8_000, allowSinkMoves: true);
-            if (result == null || result.Path == null || result.Path.Count == 0)
+            int autoSolveCost = ResolveAutoSolveCost(controller);
+            SetControllerStarBalance(controller, autoSolveCost + 20);
+
+            int pourStartedCount = 0;
+            int pourCompletedCount = 0;
+            int lastCapturedPour = 0;
+
+            void OnPourStarted(GameController.PourLifecycleEvent evt)
             {
-                Debug.LogError("RuntimeScreenshot: Solver returned no path for auto-solve evidence capture.");
-                _failed = true;
-                yield break;
+                pourStartedCount++;
             }
 
-            int successfulMoves = 0;
-            int capturedDragFrames = 0;
-            int capturedPourFrames = 0;
-
-            for (int i = 0; i < result.Path.Count; i++)
+            void OnPourCompleted(GameController.PourLifecycleEvent evt)
             {
-                var move = result.Path[i];
-                string stepIndex = (i + 1).ToString("D2");
-                string dragPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_drag.png");
-                string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_pour.png");
+                pourCompletedCount++;
+            }
 
-                bool dragCaptured = false;
-                yield return AnimateDragForCapture(controller, move.Source, move.Target, dragPath, () => dragCaptured = true);
-                if (dragCaptured)
-                {
-                    capturedDragFrames++;
-                }
+            controller.PourStarted += OnPourStarted;
+            controller.PourCompleted += OnPourCompleted;
 
-                if (!controller.TryStartMove(move.Source, move.Target, out float pourDuration))
+            try
+            {
+                if (!TryInvokeAutoSolveTradeIn(controller))
                 {
-                    Debug.LogError($"RuntimeScreenshot: Failed to start auto-solve move {i} ({move.Source}->{move.Target}).");
+                    Debug.LogError("RuntimeScreenshot: Failed to invoke ExecuteAutoSolveTradeIn.");
                     _failed = true;
                     yield break;
                 }
-                successfulMoves++;
 
-                Coroutine returnRoutine = StartCoroutine(AnimateDragReturnForCapture(pourDuration));
-
-                float pourCaptureDelay = Mathf.Clamp(pourDuration * 0.5f, 0.12f, 0.65f);
-                yield return new WaitForSeconds(pourCaptureDelay);
-                yield return CaptureScreenshot(pourPath);
-                capturedPourFrames++;
-
-                float timeout = 8f;
-                float elapsed = 0f;
-                while (controller.IsInputLocked && elapsed < timeout)
+                float startTimeout = 3f;
+                float startElapsed = 0f;
+                while (!IsAutoSolving(controller) && startElapsed < startTimeout)
                 {
-                    elapsed += Time.unscaledDeltaTime;
+                    startElapsed += Time.unscaledDeltaTime;
                     yield return null;
                 }
 
-                if (elapsed >= timeout)
+                if (!IsAutoSolving(controller))
                 {
-                    Debug.LogError("RuntimeScreenshot: Timed out waiting for auto-solve move animation to finish.");
+                    Debug.LogError("RuntimeScreenshot: Auto-solve trade-in did not start.");
                     _failed = true;
                     yield break;
                 }
 
-                if (returnRoutine != null)
+                float runTimeout = 60f;
+                float runElapsed = 0f;
+                while (IsAutoSolving(controller) && runElapsed < runTimeout)
                 {
-                    yield return returnRoutine;
+                    if (pourCompletedCount > lastCapturedPour)
+                    {
+                        lastCapturedPour = pourCompletedCount;
+                        string stepIndex = lastCapturedPour.ToString("D2");
+                        string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_pour.png");
+                        yield return CaptureScreenshot(pourPath);
+                    }
+
+                    runElapsed += Time.unscaledDeltaTime;
+                    yield return null;
                 }
 
-                yield return new WaitForSeconds(0.06f);
-            }
+                if (runElapsed >= runTimeout)
+                {
+                    Debug.LogError("RuntimeScreenshot: Timed out waiting for auto-solve trade-in to finish.");
+                    _failed = true;
+                    yield break;
+                }
 
-            if (successfulMoves <= 0 || capturedDragFrames <= 0 || capturedPourFrames <= 0)
+                if (pourStartedCount <= 0 || pourCompletedCount <= 0 || pourStartedCount != pourCompletedCount)
+                {
+                    Debug.LogError($"RuntimeScreenshot: Invalid pour lifecycle for auto-solve. started={pourStartedCount}, completed={pourCompletedCount}");
+                    _failed = true;
+                    yield break;
+                }
+
+                if (!TryGetCurrentStateSnapshot(controller, out var afterState))
+                {
+                    Debug.LogError("RuntimeScreenshot: Could not capture state after auto-solve trade-in.");
+                    _failed = true;
+                    yield break;
+                }
+
+                bool stateProgressed = !string.Equals(StateEncoder.Encode(beforeState), StateEncoder.Encode(afterState), StringComparison.Ordinal);
+                if (!stateProgressed)
+                {
+                    Debug.LogError("RuntimeScreenshot: Auto-solve trade-in finished without any state change.");
+                    _failed = true;
+                    yield break;
+                }
+            }
+            finally
             {
-                Debug.LogError("RuntimeScreenshot: Auto-solve evidence capture did not record move playback frames.");
-                _failed = true;
-                yield break;
+                controller.PourStarted -= OnPourStarted;
+                controller.PourCompleted -= OnPourCompleted;
             }
 
             yield return new WaitForSeconds(0.15f);
             yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
+        }
+
+        private static bool TryInvokeAutoSolveTradeIn(GameController controller)
+        {
+            if (controller == null)
+            {
+                return false;
+            }
+
+            var method = typeof(GameController).GetMethod("ExecuteAutoSolveTradeIn", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null)
+            {
+                return false;
+            }
+
+            method.Invoke(controller, null);
+            return true;
+        }
+
+        private static bool IsAutoSolving(GameController controller)
+        {
+            if (controller == null)
+            {
+                return false;
+            }
+
+            var field = typeof(GameController).GetField("_isAutoSolving", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null)
+            {
+                return false;
+            }
+
+            object value = field.GetValue(controller);
+            return value is bool solving && solving;
         }
 
         private static bool TryGetCurrentStateSnapshot(GameController controller, out LevelState snapshot)
