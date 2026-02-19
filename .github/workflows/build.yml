@@ -287,7 +287,7 @@ jobs:
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
           versioning: None
           customParameters: >
-            -buildPath Builds/Android/decantra-android-${{ steps.versioning.outputs.artifact_version }}.apk
+            -buildPath Builds/Android/decantra-${{ steps.versioning.outputs.artifact_version }}-android.apk
             -versionName ${{ steps.versioning.outputs.version_name }}
             -versionCode ${{ steps.versioning.outputs.version_code }}
           androidKeystoreName: ${{ steps.keystore.outputs.keystore_store_file }}
@@ -310,7 +310,7 @@ jobs:
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
           versioning: None
           customParameters: >
-            -buildPath Builds/Android/decantra-android-play-${{ steps.versioning.outputs.artifact_version }}.aab
+            -buildPath Builds/Android/decantra-${{ steps.versioning.outputs.artifact_version }}-android-play.aab
             -versionName ${{ steps.versioning.outputs.version_name }}
             -versionCode ${{ steps.versioning.outputs.version_code }}
           androidKeystoreName: ${{ steps.keystore.outputs.keystore_store_file }}
@@ -337,8 +337,8 @@ jobs:
         with:
           name: Decantra-Android
           path: |
-            Builds/Android/decantra-android-*.apk
-            Builds/Android/decantra-android-play-*.aab
+            Builds/Android/decantra-*-android.apk
+            Builds/Android/decantra-*-android-play.aab
 
   build-ios:
     name: Build iOS IPA
@@ -443,7 +443,7 @@ jobs:
           mkdir -p Builds/iOS/output/Payload
           cp -R "${APP_PATH}" Builds/iOS/output/Payload/
 
-          IPA_NAME="decantra-ios-${ARTIFACT_VERSION}.ipa"
+          IPA_NAME="decantra-${ARTIFACT_VERSION}-ios.ipa"
           (
             cd Builds/iOS/output
             zip -qry "${IPA_NAME}" Payload
@@ -453,7 +453,7 @@ jobs:
         with:
           name: Decantra-iOS
           path: |
-            Builds/iOS/output/decantra-ios-*.ipa
+            Builds/iOS/output/decantra-*-ios.ipa
             Builds/iOS/logs/**
 
   # ============================================================================

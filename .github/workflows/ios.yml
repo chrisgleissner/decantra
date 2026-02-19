@@ -250,7 +250,7 @@ jobs:
           mkdir -p Builds/iOS/output/Payload
           cp -R "${APP_PATH}" Builds/iOS/output/Payload/
 
-          IPA_NAME="decantra-ios-${ARTIFACT_VERSION}.ipa"
+          IPA_NAME="decantra-${ARTIFACT_VERSION}-ios.ipa"
           (
             cd Builds/iOS/output
             zip -qry "${IPA_NAME}" Payload
@@ -273,7 +273,7 @@ jobs:
         with:
           name: ios-ipa-artifacts
           path: |
-            Builds/iOS/output/decantra-ios-*.ipa
+            Builds/iOS/output/decantra-*-ios.ipa
             Builds/iOS/logs/**
           if-no-files-found: error
           retention-days: 14
