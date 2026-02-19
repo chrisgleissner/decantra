@@ -47,6 +47,10 @@ namespace Decantra.App.Editor
             PlayerSettings.iOS.targetOSVersionString = ResolveIosMinVersion();
 
             string outputPath = ResolveBuildPath();
+            if (Directory.Exists(outputPath))
+            {
+                Directory.Delete(outputPath, recursive: true);
+            }
             Directory.CreateDirectory(outputPath);
             AssetDatabase.SaveAssets();
 
