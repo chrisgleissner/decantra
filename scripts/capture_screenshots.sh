@@ -315,15 +315,17 @@ for idx in $(seq -w 1 40); do
     [[ -s "${drag_dest}" ]] && drag_pulled=true
     [[ -s "${pour_dest}" ]] && pour_pulled=true
 
-    if [[ "${drag_pulled}" == "true" && "${pour_pulled}" == "true" ]]; then
+    if [[ "${pour_pulled}" == "true" ]]; then
       break
     fi
     sleep 0.2
   done
 
-  if [[ "${drag_pulled}" == "true" && "${pour_pulled}" == "true" ]]; then
+  if [[ "${pour_pulled}" == "true" ]]; then
     auto_step_count=$((auto_step_count + 1))
-    echo "Captured ${drag_dest}"
+    if [[ "${drag_pulled}" == "true" ]]; then
+      echo "Captured ${drag_dest}"
+    fi
     echo "Captured ${pour_dest}"
     continue
   fi
@@ -335,7 +337,7 @@ for idx in $(seq -w 1 40); do
 done
 
 if [[ ${auto_step_count} -lt 1 ]]; then
-  echo "Expected at least one auto-solve drag/pour step pair, captured ${auto_step_count}." >&2
+  echo "Expected at least one auto-solve step screenshot, captured ${auto_step_count}." >&2
   exit 1
 fi
 

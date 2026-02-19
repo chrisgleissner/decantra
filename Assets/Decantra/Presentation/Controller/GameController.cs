@@ -68,6 +68,7 @@ namespace Decantra.Presentation.Controller
         private Vector2 _autoSolveStartAnchoredPosition;
         private Quaternion _autoSolveStartLocalRotation;
         private bool _autoSolveVisualActive;
+        private int _nextMoveId = 1;
         private int _levelSessionId;
         private int _currentLevel = 1;
         private int _currentSeed;
@@ -128,6 +129,42 @@ namespace Decantra.Presentation.Controller
         private const float AutoSolveReturnMinSeconds = 0.2f;
         private const string QuietAutomationFlag = "decantra_quiet";
         private static readonly bool EnablePourDiagnostics = false;
+        private static readonly bool EnableAutoSolveDiagnostics = false;
+
+        public readonly struct PourLifecycleEvent
+        {
+            public PourLifecycleEvent(int moveId, int sourceIndex, int targetIndex, int amount)
+            {
+                MoveId = moveId;
+                SourceIndex = sourceIndex;
+                TargetIndex = targetIndex;
+                Amount = amount;
+            }
+
+            public int MoveId { get; }
+            public int SourceIndex { get; }
+            public int TargetIndex { get; }
+            public int Amount { get; }
+        }
+
+        public readonly struct MoveExecutionResult
+        {
+            public MoveExecutionResult(bool success, int poured, string rejectionReason)
+            {
+                Success = success;
+                Poured = poured;
+                RejectionReason = rejectionReason;
+            }
+
+            public bool Success { get; }
+            public int Poured { get; }
+            public string RejectionReason { get; }
+        }
+
+        public event Action<PourLifecycleEvent> PourStarted;
+        public event Action<PourLifecycleEvent> PourCompleted;
+        public event Action<int> AutoSolveTargetActivated;
+        public event Action<int> AutoSolveReleaseInvoked;
 
         private readonly struct GeneratedLevel
         {
@@ -578,7 +615,13 @@ namespace Decantra.Presentation.Controller
 
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
         {
+            return TryStartMoveInternal(sourceIndex, targetIndex, out duration, out _);
+        }
+
+        private bool TryStartMoveInternal(int sourceIndex, int targetIndex, out float duration, out int moveId)
+        {
             duration = 0f;
+            moveId = -1;
             if ((_inputLocked && !_isAutoSolving) || _state == null) return false;
             if (sourceIndex == targetIndex) return false;
 
@@ -607,7 +650,12 @@ namespace Decantra.Presentation.Controller
             Debug.Log($"Decantra PourStart level={_state.LevelIndex} source={sourceIndex} target={targetIndex} poured={poured} color={(color.HasValue ? color.Value.ToString() : "none")}");
 #endif
 
-            StartCoroutine(AnimateMove(sourceIndex, targetIndex, poured, color, duration, sourceView, targetView));
+            moveId = _nextMoveId++;
+            var startedEvent = new PourLifecycleEvent(moveId, sourceIndex, targetIndex, poured);
+            PourStarted?.Invoke(startedEvent);
+            EmitAutoSolveDiagnostic($"PourStarted(amount={poured})", $"moveId={moveId} source={sourceIndex} target={targetIndex}");
+
+            StartCoroutine(AnimateMove(moveId, sourceIndex, targetIndex, poured, color, duration, sourceView, targetView));
             return true;
         }
 
@@ -624,7 +672,7 @@ namespace Decantra.Presentation.Controller
             _inputLocked = _state != null && (_state.IsWin() || _state.IsFail());
         }
 
-        private IEnumerator AnimateMove(int sourceIndex, int targetIndex, int poured, ColorId? color, float duration, BottleView sourceView, BottleView targetView)
+        private IEnumerator AnimateMove(int moveId, int sourceIndex, int targetIndex, int poured, ColorId? color, float duration, BottleView sourceView, BottleView targetView)
         {
             float time = 0f;
             while (time < duration)
@@ -648,7 +696,138 @@ namespace Decantra.Presentation.Controller
             Render();
             sourceView?.ClearOutgoing();
             targetView?.ClearIncoming();
+            var completedEvent = new PourLifecycleEvent(moveId, sourceIndex, targetIndex, applied);
+            PourCompleted?.Invoke(completedEvent);
+            EmitAutoSolveDiagnostic("PourCompleted()", $"moveId={moveId} source={sourceIndex} target={targetIndex} amount={applied}");
             _inputLocked = _state != null && (_state.IsWin() || _state.IsFail());
+        }
+
+        public IEnumerator PerformAutoSolveMove(int sourceIndex, int targetIndex, int stepId, Action<MoveExecutionResult> onCompleted = null)
+        {
+            yield return PerformMove(sourceIndex, targetIndex, stepId, animateDrag: true, onCompleted: onCompleted);
+        }
+
+        private IEnumerator PerformMove(int sourceIndex, int targetIndex, int stepId, bool animateDrag, Action<MoveExecutionResult> onCompleted)
+        {
+            string orchestrationState = "Idle";
+            MoveExecutionResult result;
+
+            void TransitionTo(string newState)
+            {
+                EmitAutoSolveDiagnostic($"StateTransition({orchestrationState},{newState})", $"stepId={stepId}");
+                orchestrationState = newState;
+            }
+
+            MoveExecutionResult Reject(string reason)
+            {
+                EmitAutoSolveDiagnostic($"MoveRejected(reason={reason})", $"stepId={stepId} source={sourceIndex} target={targetIndex}");
+                return new MoveExecutionResult(success: false, poured: 0, rejectionReason: reason);
+            }
+
+            EmitAutoSolveDiagnostic($"AutosolveStepStarted(stepId={stepId})", $"source={sourceIndex} target={targetIndex}");
+            if (_state == null)
+            {
+                result = Reject("state-null");
+                onCompleted?.Invoke(result);
+                yield break;
+            }
+
+            if (sourceIndex < 0 || sourceIndex >= _state.Bottles.Count)
+            {
+                result = Reject("source-index-out-of-range");
+                onCompleted?.Invoke(result);
+                yield break;
+            }
+
+            if (targetIndex < 0 || targetIndex >= _state.Bottles.Count)
+            {
+                result = Reject("target-index-out-of-range");
+                onCompleted?.Invoke(result);
+                yield break;
+            }
+
+            int pourAmount = GetPourAmount(sourceIndex, targetIndex);
+            if (pourAmount <= 0)
+            {
+                result = Reject("illegal-move");
+                onCompleted?.Invoke(result);
+                yield break;
+            }
+
+            TransitionTo("SourceSelected");
+            EmitAutoSolveDiagnostic($"SourceSelected(bottleId={sourceIndex})", $"stepId={stepId}");
+            EmitAutoSolveDiagnostic($"TargetChosen(bottleId={targetIndex})", $"stepId={stepId}");
+
+            var targetView = GetBottleView(targetIndex);
+            if (animateDrag)
+            {
+                TransitionTo("DragAnimating");
+                yield return AnimateAutoSolveDrag(sourceIndex, targetIndex);
+            }
+
+            TransitionTo("TargetActivation");
+            if (targetView != null)
+            {
+                targetView.SetHighlight(true);
+                AutoSolveTargetActivated?.Invoke(targetIndex);
+                EmitAutoSolveDiagnostic($"TargetActivated(bottleId={targetIndex})", $"stepId={stepId}");
+            }
+
+            yield return null;
+
+            TransitionTo("Release");
+            AutoSolveReleaseInvoked?.Invoke(targetIndex);
+            EmitAutoSolveDiagnostic("ReleaseInvoked()", $"stepId={stepId}");
+
+            bool started = TryStartMoveInternal(sourceIndex, targetIndex, out float moveDuration, out int moveId);
+            if (!started)
+            {
+                if (_autoSolveVisualActive)
+                {
+                    StartAutoSolveReturn(AutoSolveReturnMinSeconds);
+                }
+                if (targetView != null)
+                {
+                    targetView.SetHighlight(false);
+                }
+
+                result = Reject("release-rejected");
+                onCompleted?.Invoke(result);
+                yield break;
+            }
+
+            StartAutoSolveReturn(moveDuration);
+            TransitionTo("WaitingForPourCompletion");
+
+            bool pourCompleted = false;
+            void HandlePourCompleted(PourLifecycleEvent evt)
+            {
+                if (evt.MoveId == moveId)
+                {
+                    pourCompleted = true;
+                }
+            }
+
+            PourCompleted += HandlePourCompleted;
+            while (!pourCompleted)
+            {
+                if (_state == null)
+                {
+                    break;
+                }
+
+                yield return null;
+            }
+            PourCompleted -= HandlePourCompleted;
+
+            if (targetView != null)
+            {
+                targetView.SetHighlight(false);
+            }
+
+            TransitionTo("Completed");
+            result = new MoveExecutionResult(success: pourCompleted, poured: pourAmount, rejectionReason: pourCompleted ? string.Empty : "pour-not-completed");
+            onCompleted?.Invoke(result);
         }
 
         private BottleView GetBottleView(int index)
@@ -1737,6 +1916,7 @@ namespace Decantra.Presentation.Controller
             int cost = ResolveAutoSolveCost();
             if (!TrySpendStars(cost))
             {
+                Debug.LogWarning($"Decantra AutoSolveStartRejected reason=insufficient-stars-or-progress-null cost={cost} balance={_progress?.StarBalance ?? -1} level={_currentLevel}");
                 yield break;
             }
 
@@ -1746,14 +1926,23 @@ namespace Decantra.Presentation.Controller
             _levelResetCount++;
             RestartCurrentLevel();
 
+            // RestartCurrentLevel -> ApplyLoadedState resets runtime flags for normal gameplay.
+            // Re-assert auto-solve execution flags so the first orchestrated move is allowed.
+            _isCurrentLevelAssisted = true;
+            _isAutoSolving = true;
+            _inputLocked = true;
+
             var solveResult = _solver.SolveWithPath(_state, 8_000_000, 8_000, allowSinkMoves: true);
             if (solveResult == null || solveResult.OptimalMoves < 0 || solveResult.Path == null || solveResult.Path.Count == 0)
             {
+                Debug.LogWarning($"Decantra AutoSolveStartRejected reason=no-solver-path level={_state.LevelIndex} seed={_state.Seed} optimal={(solveResult != null ? solveResult.OptimalMoves : -999)} pathCount={(solveResult?.Path != null ? solveResult.Path.Count : -1)}");
                 RefundStars(cost);
                 _isAutoSolving = false;
                 _inputLocked = false;
                 yield break;
             }
+
+            Debug.Log($"Decantra AutoSolveStarted level={_state.LevelIndex} seed={_state.Seed} moves={solveResult.Path.Count} cost={cost}");
 
             for (int i = 0; i < solveResult.Path.Count; i++)
             {
@@ -1767,13 +1956,27 @@ namespace Decantra.Presentation.Controller
                 }
 
                 var move = solveResult.Path[i];
-                yield return AnimateAutoSolveDrag(move.Source, move.Target);
-
                 _autoSolveMoveDuration = ResolveAutoSolveMoveDuration(_state.LevelIndex, i);
                 _autoSolvePlaybackActive = true;
-                bool started = TryStartMove(move.Source, move.Target, out float moveDuration);
-                if (!started)
+                MoveExecutionResult stepResult = new MoveExecutionResult(success: false, poured: 0, rejectionReason: "not-started");
+                bool stepCompleted = false;
+                yield return PerformMove(
+                    move.Source,
+                    move.Target,
+                    i,
+                    animateDrag: true,
+                    onCompleted: result =>
+                    {
+                        stepResult = result;
+                        stepCompleted = true;
+                    });
+
+                if (!stepCompleted || !stepResult.Success)
                 {
+                    Debug.LogWarning($"Decantra AutoSolveStepRejected step={i} reason={stepResult.RejectionReason} source={move.Source} target={move.Target} level={_state?.LevelIndex ?? -1}");
+                    EmitAutoSolveDiagnostic(
+                        $"MoveRejected(reason={stepResult.RejectionReason})",
+                        $"stepId={i} source={move.Source} target={move.Target}");
                     RefundStars(cost);
                     ResetAutoSolveVisualStateImmediate();
                     _autoSolvePlaybackActive = false;
@@ -1783,18 +1986,7 @@ namespace Decantra.Presentation.Controller
                     yield break;
                 }
 
-                StartAutoSolveReturn(moveDuration);
-
-                float timeout = 6f;
-                float elapsed = 0f;
-                while (_inputLocked && elapsed < timeout)
-                {
-                    elapsed += Time.deltaTime;
-                    yield return null;
-                }
-
                 _autoSolvePlaybackActive = false;
-                yield return new WaitForSeconds(0.2f);
             }
 
             ResetAutoSolveVisualStateImmediate();
@@ -2874,6 +3066,18 @@ namespace Decantra.Presentation.Controller
                 int mix = baseSeed * 1103515245 + 12345 + level * 97;
                 return System.Math.Abs(mix == 0 ? level * 7919 : mix);
             }
+        }
+
+        private void EmitAutoSolveDiagnostic(string eventName, string context)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (!EnableAutoSolveDiagnostics) return;
+
+            string suffix = string.IsNullOrWhiteSpace(context) ? string.Empty : $" {context}";
+            string line = $"Decantra AutoSolve {eventName}{suffix}";
+            Debug.Log(line);
+            AppendDebugLog(line);
+#endif
         }
 
         private void CancelPrecompute()

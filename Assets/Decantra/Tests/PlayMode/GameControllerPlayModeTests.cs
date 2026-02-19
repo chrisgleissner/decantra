@@ -491,6 +491,205 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator AutoSolveSingleMove_TriggersPourLifecycleAndMutatesState()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            float readyTimeout = 8f;
+            float readyElapsed = 0f;
+            while (readyElapsed < readyTimeout && (!controller.HasActiveLevel || controller.IsInputLocked))
+            {
+                readyElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Controller did not load an active level in time.");
+            Assert.IsFalse(controller.IsInputLocked, "Controller remained input-locked after startup.");
+
+            var before = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(before);
+            Assert.IsTrue(TryFindValidMove(before, out int source, out int target), "No valid move found for autosolve single-step test.");
+
+            string beforeKey = StateEncoder.Encode(before);
+            int sourceCountBefore = before.Bottles[source].Count;
+            int targetCountBefore = before.Bottles[target].Count;
+            int movesUsedBefore = before.MovesUsed;
+            var sourceView = GetBottleViewForIndex(controller, source);
+            Assert.IsNotNull(sourceView);
+            var sourceRect = sourceView.transform as RectTransform;
+            Assert.IsNotNull(sourceRect);
+            Vector2 sourceStartPosition = sourceRect.anchoredPosition;
+
+            bool targetActivated = false;
+            bool releaseInvoked = false;
+            bool pourStarted = false;
+            bool pourCompleted = false;
+            int startedAmount = 0;
+            int completedAmount = 0;
+            var order = new System.Collections.Generic.List<string>();
+
+            void OnTargetActivated(int bottleId)
+            {
+                if (bottleId != target) return;
+                targetActivated = true;
+                order.Add("target");
+            }
+
+            void OnReleaseInvoked(int bottleId)
+            {
+                if (bottleId != target) return;
+                releaseInvoked = true;
+                order.Add("release");
+            }
+
+            void OnPourStarted(GameController.PourLifecycleEvent evt)
+            {
+                if (evt.SourceIndex != source || evt.TargetIndex != target) return;
+                pourStarted = true;
+                startedAmount = evt.Amount;
+                order.Add("pour-start");
+            }
+
+            void OnPourCompleted(GameController.PourLifecycleEvent evt)
+            {
+                if (evt.SourceIndex != source || evt.TargetIndex != target) return;
+                pourCompleted = true;
+                completedAmount = evt.Amount;
+                order.Add("pour-complete");
+            }
+
+            controller.AutoSolveTargetActivated += OnTargetActivated;
+            controller.AutoSolveReleaseInvoked += OnReleaseInvoked;
+            controller.PourStarted += OnPourStarted;
+            controller.PourCompleted += OnPourCompleted;
+
+            try
+            {
+                GameController.MoveExecutionResult execution = default;
+                bool callbackCalled = false;
+
+                yield return controller.PerformAutoSolveMove(source, target, stepId: 0, onCompleted: result =>
+                {
+                    execution = result;
+                    callbackCalled = true;
+                });
+
+                Assert.IsTrue(callbackCalled, "Autosolve move callback was not invoked.");
+                Assert.IsTrue(execution.Success, $"Autosolve move failed: {execution.RejectionReason}");
+                Assert.Greater(execution.Poured, 0, "Expected positive poured amount from autosolve move.");
+
+                var after = GetPrivateField(controller, "_state") as LevelState;
+                Assert.IsNotNull(after);
+                string afterKey = StateEncoder.Encode(after);
+
+                Assert.AreNotEqual(beforeKey, afterKey, "State must change after a successful autosolve move.");
+                Assert.Less(after.Bottles[source].Count, sourceCountBefore, "Source bottle should lose liquid after autosolve move.");
+                Assert.Greater(after.Bottles[target].Count, targetCountBefore, "Target bottle should gain liquid after autosolve move.");
+                Assert.Greater(after.MovesUsed, movesUsedBefore, "Moves used should increase after autosolve move.");
+
+                Assert.IsTrue(targetActivated, "Target activation event was not fired.");
+                Assert.IsTrue(releaseInvoked, "Release event was not fired.");
+                Assert.IsTrue(pourStarted, "PourStarted event was not fired.");
+                Assert.IsTrue(pourCompleted, "PourCompleted event was not fired.");
+                Assert.AreEqual(startedAmount, completedAmount, "Started and completed pour amounts should match.");
+
+                int targetIndex = order.IndexOf("target");
+                int releaseIndex = order.IndexOf("release");
+                int pourStartIndex = order.IndexOf("pour-start");
+                int pourCompleteIndex = order.IndexOf("pour-complete");
+
+                Assert.GreaterOrEqual(targetIndex, 0, "Target activation missing from event order.");
+                Assert.GreaterOrEqual(releaseIndex, 0, "Release missing from event order.");
+                Assert.GreaterOrEqual(pourStartIndex, 0, "Pour-start missing from event order.");
+                Assert.GreaterOrEqual(pourCompleteIndex, 0, "Pour-complete missing from event order.");
+                Assert.Less(targetIndex, releaseIndex, "Target must activate before release.");
+                Assert.Less(releaseIndex, pourStartIndex, "Release must happen before pour starts.");
+                Assert.Less(pourStartIndex, pourCompleteIndex, "Pour must complete after it starts.");
+
+                Assert.LessOrEqual(Vector2.Distance(sourceStartPosition, sourceRect.anchoredPosition), 0.5f,
+                    "Source bottle should return to start position after autosolve move animation.");
+            }
+            finally
+            {
+                controller.AutoSolveTargetActivated -= OnTargetActivated;
+                controller.AutoSolveReleaseInvoked -= OnReleaseInvoked;
+                controller.PourStarted -= OnPourStarted;
+                controller.PourCompleted -= OnPourCompleted;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoSolveTradeIn_FirstMoveDoesNotAbortBeforePour()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            float readyTimeout = 8f;
+            float readyElapsed = 0f;
+            while (readyElapsed < readyTimeout && (!controller.HasActiveLevel || controller.IsInputLocked))
+            {
+                readyElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Controller did not load an active level in time.");
+
+            var before = GetPrivateField(controller, "_state") as LevelState;
+            Assert.IsNotNull(before);
+            string beforeKey = StateEncoder.Encode(before);
+
+            int autoSolveCost = Decantra.Domain.Rules.StarEconomy.ResolveAutoSolveCost(
+                (int)GetPrivateField(controller, "_currentDifficulty100"));
+            ConfigureControllerProgress(controller, stars: autoSolveCost + 10, currentLevel: before.LevelIndex, seed: before.Seed);
+
+            int pourCompletedCount = 0;
+            void OnPourCompleted(GameController.PourLifecycleEvent evt)
+            {
+                pourCompletedCount++;
+            }
+
+            controller.PourCompleted += OnPourCompleted;
+            try
+            {
+                InvokePrivate(controller, "ExecuteAutoSolveTradeIn");
+
+                float timeout = 25f;
+                float elapsed = 0f;
+                while (elapsed < timeout)
+                {
+                    bool isAutoSolving = (bool)GetPrivateField(controller, "_isAutoSolving");
+                    if (!isAutoSolving && pourCompletedCount > 0)
+                    {
+                        break;
+                    }
+
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+
+                Assert.Greater(pourCompletedCount, 0,
+                    "Auto-solve trade-in should complete at least one real pour instead of aborting after drag.");
+
+                var after = GetPrivateField(controller, "_state") as LevelState;
+                Assert.IsNotNull(after);
+                string afterKey = StateEncoder.Encode(after);
+                Assert.AreNotEqual(beforeKey, afterKey,
+                    "State should change after auto-solve executes at least one move.");
+            }
+            finally
+            {
+                controller.PourCompleted -= OnPourCompleted;
+            }
+        }
+
+        [UnityTest]
         public IEnumerator StarTradeIn_HiddenOnStartup_AndTutorialReplayKeepsItHidden()
         {
             SceneBootstrap.EnsureScene();

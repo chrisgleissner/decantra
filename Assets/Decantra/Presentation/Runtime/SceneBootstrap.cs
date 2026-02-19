@@ -3484,7 +3484,25 @@ namespace Decantra.Presentation
         {
             string versionName = string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version;
             string versionNumber = GetRuntimeVersionNumber();
-            return $"Version {versionName} ({versionNumber})";
+            string buildUtc = GetRuntimeBuildUtcTimestamp();
+            return $"Version {versionName} ({versionNumber})\nBuild UTC {buildUtc}";
+        }
+
+        private static string GetRuntimeBuildUtcTimestamp()
+        {
+            var buildInfo = Resources.Load<TextAsset>("Build/build_utc");
+            if (buildInfo == null || string.IsNullOrWhiteSpace(buildInfo.text))
+            {
+                return "unknown";
+            }
+
+            string raw = buildInfo.text.Trim();
+            if (System.DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out System.DateTime parsed))
+            {
+                return parsed.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            }
+
+            return raw;
         }
 
         private static string BuildHowToPlayBodyText()
