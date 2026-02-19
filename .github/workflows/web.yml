@@ -3,7 +3,19 @@ name: WebGL Build + Deploy
 on:
   push:
     branches:
-      - main
+      - "**"
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths-ignore:
+      - "**.md"
+      - "doc/**"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
   workflow_dispatch:
 
 permissions:
@@ -133,6 +145,7 @@ jobs:
     name: Deploy docs + WebGL to GitHub Pages
     needs: build-and-smoke
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
