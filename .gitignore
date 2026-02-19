@@ -106,3 +106,7 @@ Assets/Resources/PerformanceTestRunSettings.json
 Assets/Resources/PerformanceTestRunSettings.json.meta
 solver-solutions-debug-sinks.txt
 c64commander
+
+# Web smoke test local dependencies and outputs
+tests/web-smoke/node_modules/
+tests/web-smoke/artifacts/
