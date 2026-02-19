@@ -3,7 +3,7 @@ appId: uk.gleissner.decantra
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: Decantra
+    visible: LEVEL
     timeout: 30000
 - tapOn:
     point: "50%,50%"
