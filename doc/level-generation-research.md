@@ -78,7 +78,7 @@ Use the empty-bottle count as a primary difficulty lever (supported by complexit
 
 Ideas:
 - For mid-band levels, prefer 1 empty bottle, but increase other complexity to avoid frustration.
-- If 2 empties are used, ensure their capacities differ (3 vs 4) or add a sink bottle that can't be used as a staging bin.
+- If 2 empties are used, ensure their capacities differ (3 vs 4) or add a black bottle that can't be used as a staging bin.
 - Penalize states where more than one empty bottle exists *and* both are immediately fillable by multiple sources (chain risk).
 
 ### E) Switch from Pure Random Scramble to Objective-Guided Scramble

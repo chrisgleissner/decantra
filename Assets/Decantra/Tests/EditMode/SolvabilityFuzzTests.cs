@@ -43,7 +43,7 @@ namespace Decantra.Tests.EditMode
                 foreach (var bottle in state.Bottles)
                 {
                     if (!bottle.IsSink) continue;
-                    Assert.IsTrue(bottle.IsSingleColorOrEmpty(), $"Sink bottle mixed at level {level} seed {seed}");
+                    Assert.IsTrue(bottle.IsSingleColorOrEmpty(), $"Black bottle mixed at level {level} seed {seed}");
                 }
 
                 var result = solver.SolveWithPath(state);

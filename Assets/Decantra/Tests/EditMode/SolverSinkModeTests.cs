@@ -31,7 +31,7 @@ namespace Decantra.Tests.EditMode
             var sinkEnabledResult = solver.SolveWithPath(state, 10000, 1000, allowSinkMoves: true);
             Assert.AreEqual(SolverStatus.Solved, sinkEnabledResult.Status);
             Assert.GreaterOrEqual(sinkEnabledResult.Path.Count, 1);
-            Assert.AreEqual(1, sinkEnabledResult.Path[0].Target, "Expected sink bottle to be used as target when enabled.");
+            Assert.AreEqual(1, sinkEnabledResult.Path[0].Target, "Expected black bottle to be used as target when enabled.");
         }
     }
 }

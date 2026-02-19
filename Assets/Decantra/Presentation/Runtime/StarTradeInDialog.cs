@@ -34,14 +34,14 @@ namespace Decantra.Presentation
             public const string Title = "STAR SOLUTIONS";
             public const string Prompt = "Choose an option below";
             public const string CurrentStarsFormat = "Current Stars: {0}";
-            public const string ConvertTitle = "Convert All Sink Bottles";
-            public const string ConvertSubtitle = "Sink bottles have heavier, darker glass: they can receive liquid but cannot pour.";
+            public const string ConvertTitle = "Convert All Black Bottles";
+            public const string ConvertSubtitle = "Black bottles have heavier, darker glass: they can receive liquid but cannot pour.";
             public const string AutoSolveTitle = "Auto-Solve Level";
             public const string AutoSolveSubtitle = "Plays a full solution for the current level.";
             public const string CostLabel = "Price";
             public const string StarsSuffix = "stars";
             public const string NotEnoughStars = "Not enough stars";
-            public const string NoSinkBottles = "No sink bottles in this level";
+            public const string NoSinkBottles = "No black bottles in this level";
             public const string Ready = "Ready";
             public const string ConfirmFormat = "Spend {0} stars to {1}?";
         }

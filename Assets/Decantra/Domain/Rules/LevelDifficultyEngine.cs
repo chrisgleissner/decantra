@@ -148,7 +148,7 @@ namespace Decantra.Domain.Rules
         }
 
         /// <summary>
-        /// Resolves the number of sink bottles for a level.
+        /// Resolves the number of black bottles for a level.
         /// Sinks cannot be poured from, creating strategic constraints.
         /// </summary>
         public static int ResolveSinkCount(int levelIndex)

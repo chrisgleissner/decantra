@@ -1078,20 +1078,20 @@ public class Program
     }
 
     // ========================================================================================
-    // SINK BOTTLE ANALYSIS
+    // BLACK BOTTLE ANALYSIS
     // ========================================================================================
 
     private const int SinkSolveNodes = 1_500_000;
     private const int SinkSolveMillis = 2000;
 
     /// <summary>
-    /// Analyzes sink bottles across levels 1..count.
-    /// For each level: identifies sink bottles, runs normal solver + no-sink solver,
-    /// and classifies sink bottles by whether sink moves are structurally required.
+    /// Analyzes black bottles across levels 1..count.
+    /// For each level: identifies black bottles, runs normal solver + no-sink solver,
+    /// and classifies black bottles by whether sink moves are structurally required.
     /// </summary>
     private static int SinkAnalysis(int count)
     {
-        Console.WriteLine($"=== SINK BOTTLE ANALYSIS: Levels 1..{count} ===");
+        Console.WriteLine($"=== BLACK BOTTLE ANALYSIS: Levels 1..{count} ===");
         Console.WriteLine($"Solver bounds: {SinkSolveNodes:N0} nodes, {SinkSolveMillis} ms");
         Console.WriteLine();
 
@@ -1124,7 +1124,7 @@ public class Program
                     sinkIndices.Add(i);
                 }
 
-                // Per-sink-bottle classification (level class applied to all sinks in the level).
+                // Per-black-bottle classification (level class applied to all sinks in the level).
                 var sinkClassifications = new List<SinkBottleClassification>();
 
                 foreach (var sinkIdx in sinkIndices)
@@ -1255,7 +1255,7 @@ public class Program
 
         // === Write debug output ===
         var debugLines = new List<string>();
-        debugLines.Add("# Decantra Sink Bottle Analysis");
+        debugLines.Add("# Decantra Black Bottle Analysis");
         debugLines.Add("# FormatVersion: 1");
         debugLines.Add($"# Levels: 1..{count}");
         debugLines.Add($"# Solver bounds: {SinkSolveNodes:N0} nodes, {SinkSolveMillis} ms");
@@ -1293,15 +1293,15 @@ public class Program
 
         // === Print distribution summary ===
         Console.WriteLine();
-        Console.WriteLine("=== SINK BOTTLE DISTRIBUTION ===");
+        Console.WriteLine("=== BLACK BOTTLE DISTRIBUTION ===");
         Console.WriteLine($"Total levels analyzed: {count}");
         Console.WriteLine("Mode: deterministic policy classification (solver-independent)");
         Console.WriteLine();
-        Console.WriteLine($"Levels with 0 sink bottles: {levelsWithZeroSinks} ({100.0 * levelsWithZeroSinks / count:F1}%)");
-        Console.WriteLine($"Levels with 1 sink bottle:  {levelsWithOneSink} ({100.0 * levelsWithOneSink / count:F1}%)");
-        Console.WriteLine($"Levels with 2+ sink bottles: {levelsWithMultipleSinks} ({100.0 * levelsWithMultipleSinks / count:F1}%)");
+        Console.WriteLine($"Levels with 0 black bottles: {levelsWithZeroSinks} ({100.0 * levelsWithZeroSinks / count:F1}%)");
+        Console.WriteLine($"Levels with 1 black bottle:  {levelsWithOneSink} ({100.0 * levelsWithOneSink / count:F1}%)");
+        Console.WriteLine($"Levels with 2+ black bottles: {levelsWithMultipleSinks} ({100.0 * levelsWithMultipleSinks / count:F1}%)");
         Console.WriteLine();
-        Console.WriteLine($"Total sink bottles across all levels: {totalSinkBottles}");
+        Console.WriteLine($"Total black bottles across all levels: {totalSinkBottles}");
         Console.WriteLine($"  must_be_used:   {sinksMustBeUsed} ({(totalSinkBottles > 0 ? 100.0 * sinksMustBeUsed / totalSinkBottles : 0):F1}%)");
         Console.WriteLine($"  can_be_avoided: {sinksCanBeAvoided} ({(totalSinkBottles > 0 ? 100.0 * sinksCanBeAvoided / totalSinkBottles : 0):F1}%)");
         Console.WriteLine();
@@ -1324,7 +1324,7 @@ public class Program
     }
 
     /// <summary>
-    /// BFS solver variant that DOES allow pouring into sink bottles.
+    /// BFS solver variant that DOES allow pouring into black bottles.
     /// Used only for the force-use experiment: can a solution be found when sinks are valid targets?
     /// This is implemented here (in the debug generator) to avoid modifying the production solver.
     /// </summary>

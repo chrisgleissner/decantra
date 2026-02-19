@@ -648,7 +648,7 @@ namespace Decantra.Domain.Generation
             {
                 var source = state.Bottles[i];
                 if (source.IsEmpty) continue;
-                // CRITICAL: Sink bottles cannot be sources in forward gameplay,
+                // CRITICAL: Black bottles cannot be sources in forward gameplay,
                 // so they must not be sources during reverse scrambling either
                 if (source.IsSink) continue;
 
@@ -905,7 +905,7 @@ namespace Decantra.Domain.Generation
                 {
                     var source = state.Bottles[i];
                     if (!source.IsSolvedBottle()) continue;
-                    // CRITICAL: Sink bottles cannot be sources in forward gameplay
+                    // CRITICAL: Black bottles cannot be sources in forward gameplay
                     if (source.IsSink) continue;
 
                     for (int j = 0; j < state.Bottles.Count; j++)

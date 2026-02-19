@@ -660,7 +660,7 @@ namespace Decantra.Domain.Export
                     {
                         if (distinctColors.Count > 1)
                         {
-                            error = "Sink bottle cannot start with multiple colors.";
+                            error = "Black bottle cannot start with multiple colors.";
                             return false;
                         }
                     }

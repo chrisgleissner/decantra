@@ -26,30 +26,9 @@ namespace Decantra.Tests.PlayMode
     {
         private const float SizeTolerance = 1.2f;
         private const float ColorTolerance = 0.02f;
-        private const float StrokeMultiplier = 1.8f;
-        private const float BottomStrokeMultiplier = 2.5f;
 
         [UnityTest]
-        public IEnumerator SinkHeavyGlass_DisablesBottomMarkerObjects()
-        {
-            SceneBootstrap.EnsureScene();
-            yield return null;
-
-            var bottle = FindBottleViews().First();
-            bottle.SetLevelMaxCapacity(4);
-            bottle.Render(CreateBottle(4, 2, isSink: true));
-            yield return null;
-
-            var basePlate = bottle.transform.Find("BasePlate")?.gameObject;
-            var anchorCollar = bottle.transform.Find("AnchorCollar")?.gameObject;
-            Assert.IsNotNull(basePlate, "BasePlate object not found.");
-            Assert.IsNotNull(anchorCollar, "AnchorCollar object not found.");
-            Assert.IsFalse(basePlate.activeSelf, "BasePlate must be disabled for sink bottles.");
-            Assert.IsFalse(anchorCollar.activeSelf, "AnchorCollar must be disabled for sink bottles.");
-        }
-
-        [UnityTest]
-        public IEnumerator SinkHeavyGlass_UsesNeutralStrokeColorAndBlackInternalMarkerLines()
+        public IEnumerator SinkStyle_UsesBlackContours_WithoutLegacyOverlayObjects()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
@@ -70,27 +49,32 @@ namespace Decantra.Tests.PlayMode
             {
                 var regularContour = FindContourImage(regular, contourName);
                 var sinkContour = FindContourImage(sink, contourName);
-                var outerStroke = FindSinkOverlayImage(sink, contourName, "_SinkOuterStroke");
-                var markerLine = FindSinkOverlayImage(sink, contourName, "_SinkMarkerLine");
                 Assert.IsNotNull(regularContour, $"Regular contour not found: {contourName}");
                 Assert.IsNotNull(sinkContour, $"Sink contour not found: {contourName}");
-                Assert.IsNotNull(outerStroke, $"Sink outer stroke not found: {contourName}");
-                Assert.IsNotNull(markerLine, $"Sink marker line not found: {contourName}");
 
-                Assert.AreEqual(regularContour.color.r, outerStroke.color.r, ColorTolerance, $"Outer stroke must keep regular red for {contourName}");
-                Assert.AreEqual(regularContour.color.g, outerStroke.color.g, ColorTolerance, $"Outer stroke must keep regular green for {contourName}");
-                Assert.AreEqual(regularContour.color.b, outerStroke.color.b, ColorTolerance, $"Outer stroke must keep regular blue for {contourName}");
-                Assert.AreEqual(regularContour.color.a, outerStroke.color.a, ColorTolerance, $"Outer stroke must keep regular alpha for {contourName}");
+                Assert.AreEqual(regularContour.rectTransform.rect.width, sinkContour.rectTransform.rect.width, SizeTolerance,
+                    $"Contour width changed for {contourName}");
+                Assert.AreEqual(regularContour.rectTransform.rect.height, sinkContour.rectTransform.rect.height, SizeTolerance,
+                    $"Contour height changed for {contourName}");
 
-                Assert.LessOrEqual(markerLine.color.r, 0.01f, $"Marker line must be black for {contourName}");
-                Assert.LessOrEqual(markerLine.color.g, 0.01f, $"Marker line must be black for {contourName}");
-                Assert.LessOrEqual(markerLine.color.b, 0.01f, $"Marker line must be black for {contourName}");
-                Assert.Greater(markerLine.color.a, 0.95f, $"Marker line should remain fully opaque for {contourName}");
+                Assert.LessOrEqual(sinkContour.color.r, 0.01f, $"Sink contour must be black for {contourName}");
+                Assert.LessOrEqual(sinkContour.color.g, 0.01f, $"Sink contour must be black for {contourName}");
+                Assert.LessOrEqual(sinkContour.color.b, 0.01f, $"Sink contour must be black for {contourName}");
+                Assert.AreEqual(regularContour.color.a, sinkContour.color.a, ColorTolerance,
+                    $"Sink contour alpha must match regular alpha for {contourName}");
+
+                Assert.IsNull(FindSinkOverlayImage(sink, contourName, "_SinkOuterStroke"),
+                    $"Legacy sink outer stroke overlay should not exist for {contourName}");
+                Assert.IsNull(FindSinkOverlayImage(sink, contourName, "_SinkMarkerLine"),
+                    $"Legacy sink marker line overlay should not exist for {contourName}");
             }
+
+            Assert.IsNull(sink.transform.Find("Outline_SinkBottomOuterBand"), "Legacy bottom outer band should not exist.");
+            Assert.IsNull(sink.transform.Find("Outline_SinkBottomMarkerBand"), "Legacy bottom marker band should not exist.");
         }
 
         [UnityTest]
-        public IEnumerator SinkHeavyGlass_ContourStrokeExpansionMatchesMultiplierRule()
+        public IEnumerator SinkStyle_HeavyBase_IsExactly2xAndExtendsDownwardOnly()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
@@ -106,90 +90,43 @@ namespace Decantra.Tests.PlayMode
             regular.Render(CreateBottle(4, 2, isSink: false));
             sink.Render(CreateBottle(4, 2, isSink: true));
             yield return null;
-
-            foreach (string contourName in ContourNames())
-            {
-                var regularContour = FindContourImage(regular, contourName);
-                var sinkOuter = FindSinkOverlayImage(sink, contourName, "_SinkOuterStroke");
-                Assert.IsNotNull(regularContour, $"Regular contour not found: {contourName}");
-                Assert.IsNotNull(sinkOuter, $"Sink outer stroke not found: {contourName}");
-
-                float strokeX = ResolveStrokeThicknessUnits(regularContour, horizontal: true);
-                float strokeY = ResolveStrokeThicknessUnits(regularContour, horizontal: false);
-                float expectedStrokeX = strokeX * StrokeMultiplier;
-                float expectedStrokeY = strokeY * StrokeMultiplier;
-
-                float regularInnerHalfWidth = regularContour.rectTransform.rect.width * 0.5f - strokeX;
-                float regularInnerHalfHeight = regularContour.rectTransform.rect.height * 0.5f - strokeY;
-                float sinkOuterHalfWidth = sinkOuter.rectTransform.rect.width * 0.5f;
-                float sinkOuterHalfHeight = sinkOuter.rectTransform.rect.height * 0.5f;
-
-                float actualStrokeX = sinkOuterHalfWidth - regularInnerHalfWidth;
-                float actualStrokeY = sinkOuterHalfHeight - regularInnerHalfHeight;
-
-                Assert.AreEqual(expectedStrokeX, actualStrokeX, SizeTolerance, $"Contour width stroke mismatch for {contourName}");
-                Assert.AreEqual(expectedStrokeY, actualStrokeY, SizeTolerance, $"Contour height stroke mismatch for {contourName}");
-            }
 
             var regularOutline = FindContourImage(regular, "Outline");
-            var sinkBottomBand = sink.transform.Find("Outline_SinkBottomOuterBand")?.GetComponent<Image>();
+            var sinkOutline = FindContourImage(sink, "Outline");
+            var heavyBase = sink.transform.Find("Outline_SinkHeavyBase")?.GetComponent<Image>();
+
             Assert.IsNotNull(regularOutline, "Regular outline not found.");
-            Assert.IsNotNull(sinkBottomBand, "Sink bottom outer band not found.");
+            Assert.IsNotNull(sinkOutline, "Sink outline not found.");
+            Assert.IsNotNull(heavyBase, "Sink heavy base band not found.");
+            Assert.IsTrue(heavyBase.gameObject.activeSelf, "Sink heavy base should be active.");
 
             float regularBottomStroke = ResolveStrokeThicknessUnits(regularOutline, horizontal: false);
-            float actualBottomStroke = regularBottomStroke * StrokeMultiplier + sinkBottomBand.rectTransform.rect.height;
-            float expectedBottomStroke = regularBottomStroke * BottomStrokeMultiplier;
-            Assert.AreEqual(expectedBottomStroke, actualBottomStroke, SizeTolerance, "Bottom stroke should be 2.5x regular thickness.");
+            float sinkBottomStroke = ResolveStrokeThicknessUnits(sinkOutline, horizontal: false);
+            Assert.AreEqual(regularBottomStroke, sinkBottomStroke, SizeTolerance,
+                "Sink base stroke thickness must match regular outline stroke thickness.");
+
+            Assert.AreEqual(regularBottomStroke, heavyBase.rectTransform.rect.height, SizeTolerance,
+                "Heavy base extension must equal one regular bottom stroke.");
+
+            float sinkOutlineBottom = RectBottom(sinkOutline.rectTransform);
+            float heavyBaseTop = RectTop(heavyBase.rectTransform);
+            float heavyBaseBottom = RectBottom(heavyBase.rectTransform);
+            float regularOutlineBottom = RectBottom(regularOutline.rectTransform);
+
+            Assert.AreEqual(regularOutlineBottom, sinkOutlineBottom, SizeTolerance,
+                "Sink outline geometry must match regular outline geometry.");
+            Assert.AreEqual(sinkOutlineBottom, heavyBaseTop, SizeTolerance,
+                "Extra heavy-base thickness must start at regular bottom edge and extend downward only.");
+            Assert.Less(heavyBaseBottom, sinkOutlineBottom - 0.1f,
+                "Heavy base bottom must be below the regular outline bottom edge.");
+
+            float sinkHeavyBaseTotalThickness = sinkBottomStroke + heavyBase.rectTransform.rect.height;
+            Assert.AreEqual(regularBottomStroke * 2f, sinkHeavyBaseTotalThickness, SizeTolerance,
+                "Sink heavy base must be exactly 2x regular bottom stroke thickness.");
         }
 
         [UnityTest]
-        public IEnumerator SinkHeadContours_AreLiftedWithoutBreakingBodyConnection()
-        {
-            SceneBootstrap.EnsureScene();
-            yield return null;
-
-            var pair = FindBottleViews().Take(2).ToArray();
-            Assert.AreEqual(2, pair.Length, "Expected at least two bottle views.");
-
-            var regular = pair[0];
-            var sink = pair[1];
-            regular.SetLevelMaxCapacity(4);
-            sink.SetLevelMaxCapacity(4);
-
-            regular.Render(CreateBottle(4, 2, isSink: false));
-            sink.Render(CreateBottle(4, 2, isSink: true));
-            yield return null;
-
-            foreach (string contourName in new[] { "Rim", "BottleNeck", "BottleFlange", "NeckInnerShadow" })
-            {
-                var regularContour = FindContourImage(regular, contourName);
-                var sinkContour = FindContourImage(sink, contourName);
-                Assert.IsNotNull(regularContour, $"{contourName} not found on regular bottle.");
-                Assert.IsNotNull(sinkContour, $"{contourName} not found on sink bottle.");
-                Assert.Greater(
-                    sinkContour.rectTransform.anchoredPosition.y,
-                    regularContour.rectTransform.anchoredPosition.y + 0.1f,
-                    $"{contourName} should move upward for sink stroke compensation.");
-            }
-
-            var outlineOuter = FindSinkOverlayImage(sink, "Outline", "_SinkOuterStroke");
-            var headOuters = new[]
-            {
-                FindSinkOverlayImage(sink, "Rim", "_SinkOuterStroke"),
-                FindSinkOverlayImage(sink, "BottleNeck", "_SinkOuterStroke"),
-                FindSinkOverlayImage(sink, "BottleFlange", "_SinkOuterStroke")
-            };
-
-            Assert.IsNotNull(outlineOuter, "Outline sink outer stroke missing.");
-            Assert.IsTrue(headOuters.All(h => h != null), "Head sink outer stroke overlays are required.");
-
-            float outlineTop = RectTop(outlineOuter.rectTransform);
-            float headBottom = headOuters.Min(h => RectBottom(h.rectTransform));
-            Assert.LessOrEqual(Mathf.Abs(headBottom - outlineTop), 3f, "Sink head must remain connected to the body without a visible gap or overlap.");
-        }
-
-        [UnityTest]
-        public IEnumerator SinkHeavyGlass_KeepsLiquidAreaPixelIdenticalToRegularBottle()
+        public IEnumerator SinkStyle_KeepsLiquidAreaPixelIdenticalToRegularBottle()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
@@ -211,10 +148,10 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(regularRoot, "Regular SlotRoot not found.");
             Assert.IsNotNull(sinkRoot, "Sink SlotRoot not found.");
 
-            Assert.AreEqual(regularRoot.rect.width, sinkRoot.rect.width, SizeTolerance, "Liquid width changed for sink bottle.");
-            Assert.AreEqual(regularRoot.rect.height, sinkRoot.rect.height, SizeTolerance, "Liquid height changed for sink bottle.");
-            Assert.AreEqual(regularRoot.anchoredPosition.x, sinkRoot.anchoredPosition.x, SizeTolerance, "Liquid X position changed for sink bottle.");
-            Assert.AreEqual(regularRoot.anchoredPosition.y, sinkRoot.anchoredPosition.y, SizeTolerance, "Liquid Y position changed for sink bottle.");
+            Assert.AreEqual(regularRoot.rect.width, sinkRoot.rect.width, SizeTolerance, "Liquid width changed for black bottle.");
+            Assert.AreEqual(regularRoot.rect.height, sinkRoot.rect.height, SizeTolerance, "Liquid height changed for black bottle.");
+            Assert.AreEqual(regularRoot.anchoredPosition.x, sinkRoot.anchoredPosition.x, SizeTolerance, "Liquid X position changed for black bottle.");
+            Assert.AreEqual(regularRoot.anchoredPosition.y, sinkRoot.anchoredPosition.y, SizeTolerance, "Liquid Y position changed for black bottle.");
         }
 
         [UnityTest]
