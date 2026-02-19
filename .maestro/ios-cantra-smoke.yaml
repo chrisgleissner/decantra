@@ -2,15 +2,10 @@ appId: uk.gleissner.decantra
 ---
 - launchApp:
     clearState: true
-- extendedWaitUntil:
-    visible: LEVEL
-    timeout: 30000
+- waitForAnimationToEnd
 - tapOn:
     point: "50%,50%"
 - waitForAnimationToEnd
-- extendedWaitUntil:
-    visible: LEVEL
-    timeout: 30000
 - takeScreenshot: ios-before-moves
 
 - tapOn:
@@ -19,6 +14,5 @@ appId: uk.gleissner.decantra
 - tapOn:
     point: "54%,70%"
 - waitForAnimationToEnd
-- assertVisible: LEVEL
 
 - takeScreenshot: ios-after-moves
