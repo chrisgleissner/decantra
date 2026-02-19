@@ -31,7 +31,7 @@ namespace Decantra.Presentation
 
         internal static class Copy
         {
-            public const string Title = "Star Trade-In";
+            public const string Title = "STAR SOLUTIONS";
             public const string Prompt = "Choose an option below";
             public const string CurrentStarsFormat = "Current Stars: {0}";
             public const string ConvertTitle = "Convert All Sink Bottles";

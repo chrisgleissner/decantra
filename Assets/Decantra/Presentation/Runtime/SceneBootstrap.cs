@@ -3116,8 +3116,8 @@ namespace Decantra.Presentation
             title.alignment = TextAnchor.MiddleCenter;
             title.color = ModalDesignTokens.Colors.PrimaryText;
             var titleElement = title.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = 56f;
-            titleElement.minHeight = 56f;
+            titleElement.preferredHeight = 40f;
+            titleElement.minHeight = 40f;
 
             var scrollHint = CreateHudText(panel.transform, "ScrollHint");
             scrollHint.text = "Scroll for more options";
@@ -3128,8 +3128,8 @@ namespace Decantra.Presentation
             scrollHint.horizontalOverflow = HorizontalWrapMode.Wrap;
             scrollHint.verticalOverflow = VerticalWrapMode.Overflow;
             var scrollHintElement = scrollHint.gameObject.AddComponent<LayoutElement>();
-            scrollHintElement.preferredHeight = 28f;
-            scrollHintElement.minHeight = 28f;
+            scrollHintElement.preferredHeight = 20f;
+            scrollHintElement.minHeight = 20f;
 
             var listContainer = CreateUiChild(panel.transform, "ListContainer");
             var listContainerImage = listContainer.AddComponent<Image>();

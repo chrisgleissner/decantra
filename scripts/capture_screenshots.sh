@@ -133,7 +133,7 @@ ensure_sink_count_csv() {
     fi
 
     echo "Generating sink count CSV for screenshot selection..."
-    (cd "${PROJECT_ROOT}" && dotnet run --project "${repro_project}" -- sinkanalysis 1000 >/tmp/decantra_sinkanalysis.log 2>&1)
+    (cd "${PROJECT_ROOT}" && dotnet run --project "${repro_project}" -- sinkanalysis 2000 >/tmp/decantra_sinkanalysis.log 2>&1)
   fi
 
   if [[ ! -s "${SINK_COUNT_CSV}" ]]; then

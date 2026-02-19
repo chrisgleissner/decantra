@@ -164,7 +164,7 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "stars",
                 "StarsButton",
-                "Earn stars by solving levels.\nTrade them for help when needed."
+                "Earn stars by solving levels.\nOpen STAR SOLUTIONS for help when needed."
             ));
         }
 
