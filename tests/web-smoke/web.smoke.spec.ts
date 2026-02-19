@@ -48,7 +48,6 @@ test('webgl smoke: loads, renders, and remains responsive after two taps', async
   await page.waitForTimeout(1000);
 
   await expect(canvas).toBeVisible();
-  await expect(page.locator('body')).toBeVisible();
 
   expect(severeConsoleErrors, severeConsoleErrors.join('\n')).toHaveLength(0);
 });

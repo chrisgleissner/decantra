@@ -1,23 +1,30 @@
 import { defineConfig } from '@playwright/test';
 
+const serverPort = Number(process.env.PLAYWRIGHT_PORT ?? '4173');
+const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ?? 'artifacts/test-output';
+const reportDir = process.env.PLAYWRIGHT_REPORT_DIR ?? 'artifacts/report';
+
 export default defineConfig({
   testDir: '.',
   testMatch: 'web.smoke.spec.ts',
   timeout: 120000,
   retries: 1,
-  reporter: [['list'], ['html', { outputFolder: 'artifacts/report', open: 'never' }]],
+  reporter: [['list'], ['html', { outputFolder: reportDir, open: 'never' }]],
+  outputDir,
+  workers: 1,
   use: {
     headless: true,
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${serverPort}`,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    video: 'retain-on-failure'
+    video: 'retain-on-failure',
+    actionTimeout: 20000,
+    navigationTimeout: 90000
   },
-  outputDir: 'artifacts/test-output',
   webServer: {
-    command: 'python3 -m http.server 4173 --directory ../../Builds/WebGL',
+    command: 'node ./server.mjs',
     timeout: 120000,
-    reuseExistingServer: false,
-    url: 'http://127.0.0.1:4173'
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
+    url: `http://127.0.0.1:${serverPort}`
   }
 });
