@@ -10,6 +10,7 @@ SCREENSHOTS_ONLY=false
 CAPTURE_MOTION=false
 DECANTRA_SCREENSHOT_TIMEOUT="${DECANTRA_SCREENSHOT_TIMEOUT:-240}"
 DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
+SINK_COUNT_CSV="${PROJECT_ROOT}/doc/sink-bottles-levels-1-1000.csv"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
 
@@ -107,6 +108,45 @@ if [[ -z "${DEVICE_ID}" ]]; then
   exit 1
 fi
 
+ensure_sink_count_csv() {
+  local repro_project="${PROJECT_ROOT}/Reproduction/Reproduction.csproj"
+  if [[ ! -f "${repro_project}" ]]; then
+    repro_project="${PROJECT_ROOT}/Reproduction"
+  fi
+
+  local need_generate=false
+  if [[ ! -s "${SINK_COUNT_CSV}" ]]; then
+    need_generate=true
+  else
+    for count in 1 2 3 4 5; do
+      if ! awk -F, -v c="${count}" 'NR>1 && $3==c { found=1; exit } END { exit(found?0:1) }' "${SINK_COUNT_CSV}"; then
+        need_generate=true
+        break
+      fi
+    done
+  fi
+
+  if [[ "${need_generate}" == "true" ]]; then
+    if ! command -v dotnet >/dev/null 2>&1; then
+      echo "dotnet not found; cannot generate ${SINK_COUNT_CSV}" >&2
+      exit 1
+    fi
+
+    echo "Generating sink count CSV for screenshot selection..."
+    (cd "${PROJECT_ROOT}" && dotnet run --project "${repro_project}" -- sinkanalysis 1000 >/tmp/decantra_sinkanalysis.log 2>&1)
+  fi
+
+  if [[ ! -s "${SINK_COUNT_CSV}" ]]; then
+    echo "Missing sink count CSV after generation: ${SINK_COUNT_CSV}" >&2
+    exit 1
+  fi
+}
+
+resolve_sink_target() {
+  local sink_count="$1"
+  awk -F, -v c="${sink_count}" 'NR>1 && $3==c && $1 ~ /^[0-9]+$/ && $2 ~ /^-?[0-9]+$/ { print $1 ":" $2; exit }' "${SINK_COUNT_CSV}"
+}
+
 mkdir -p "${OUTPUT_DIR}"
 rm -f "${OUTPUT_DIR}"/*.png || true
 
@@ -135,6 +175,20 @@ fi
 adb -s "${DEVICE_ID}" shell pm enable "${PACKAGE_NAME}" >/dev/null 2>&1 || true
 
 extras=(--ez decantra_screenshots true --ez decantra_quiet true)
+ensure_sink_count_csv
+for count in 1 2 3 4 5; do
+  target="$(resolve_sink_target "${count}")"
+  if [[ -z "${target}" ]]; then
+    echo "Could not resolve sink_count=${count} target from ${SINK_COUNT_CSV}" >&2
+    exit 1
+  fi
+
+  level="${target%%:*}"
+  seed="${target##*:}"
+  extras+=(--ei "decantra_sink_count_${count}_level" "${level}")
+  extras+=(--ei "decantra_sink_count_${count}_seed" "${seed}")
+done
+
 if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
   extras+=(--ez decantra_screenshots_only true)
 fi
@@ -151,9 +205,11 @@ expected=(
   "options_starfield_controls.png"
   "options_legal_privacy_terms.png"
   "star_trade_in_low_stars.png"
-  "sink_indicator_light.png"
-  "sink_indicator_dark.png"
-  "sink_indicator_comparison.png"
+  "sink_count_1.png"
+  "sink_count_2.png"
+  "sink_count_3.png"
+  "sink_count_4.png"
+  "sink_count_5.png"
   "auto_solve_start.png"
   "auto_solve_complete.png"
   "screenshot-01-launch.png"

@@ -38,9 +38,11 @@ namespace Decantra.Presentation
         private const string OptionsStarfieldControlsFileName = "options_starfield_controls.png";
         private const string OptionsLegalPrivacyTermsFileName = "options_legal_privacy_terms.png";
         private const string StarTradeInLowStarsFileName = "star_trade_in_low_stars.png";
-        private const string SinkIndicatorLightFileName = "sink_indicator_light.png";
-        private const string SinkIndicatorDarkFileName = "sink_indicator_dark.png";
-        private const string SinkIndicatorComparisonFileName = "sink_indicator_comparison.png";
+        private const string SinkCountOneFileName = "sink_count_1.png";
+        private const string SinkCountTwoFileName = "sink_count_2.png";
+        private const string SinkCountThreeFileName = "sink_count_3.png";
+        private const string SinkCountFourFileName = "sink_count_4.png";
+        private const string SinkCountFiveFileName = "sink_count_5.png";
         private const string AutoSolveStartFileName = "auto_solve_start.png";
         private const string AutoSolveStepPrefix = "auto_solve_step_";
         private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
@@ -50,7 +52,6 @@ namespace Decantra.Presentation
         private const float AutoSolveDragTiltDegrees = 30f;
         private const float AutoSolveTiltStartNormalized = 0.62f;
         private const float AutoSolveReturnMinSeconds = 0.2f;
-        private const float SinkCaptureMinLuminanceDelta = 0.30f;
         private const string LaunchFileName = "screenshot-01-launch.png";
         private const string IntroFileName = "screenshot-02-intro.png";
         private const string Level01FileName = "screenshot-03-level-01.png";
@@ -74,16 +75,16 @@ namespace Decantra.Presentation
 
         private readonly struct SinkCaptureTarget
         {
-            public SinkCaptureTarget(int level, int seed, float luminance)
+            public SinkCaptureTarget(int sinkCount, int level, int seed)
             {
+                SinkCount = sinkCount;
                 Level = level;
                 Seed = seed;
-                Luminance = luminance;
             }
 
+            public int SinkCount { get; }
             public int Level { get; }
             public int Seed { get; }
-            public float Luminance { get; }
         }
 
         private void Start()
@@ -134,7 +135,7 @@ namespace Decantra.Presentation
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, Level24FileName);
-            yield return CaptureSinkStyleScreenshots(controller, outputDir);
+            yield return CaptureSinkCountScreenshots(controller, outputDir);
             yield return CaptureAutoSolveEvidence(controller, outputDir);
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, Level36FileName);
@@ -937,7 +938,7 @@ namespace Decantra.Presentation
             yield return null;
         }
 
-        private IEnumerator CaptureSinkStyleScreenshots(GameController controller, string outputDir)
+        private IEnumerator CaptureSinkCountScreenshots(GameController controller, string outputDir)
         {
             if (controller == null)
             {
@@ -949,79 +950,95 @@ namespace Decantra.Presentation
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
 
-            var sinkCandidates = new List<SinkCaptureTarget>();
-            for (int level = 20; level <= 140 && sinkCandidates.Count < 18; level++)
+            var requestedTargets = ResolveSinkTargetsFromIntent();
+
+            for (int sinkCount = 1; sinkCount <= 5; sinkCount++)
             {
-                for (int seedVariant = 0; seedVariant < 3 && sinkCandidates.Count < 18; seedVariant++)
+                SinkCaptureTarget target = default;
+                bool foundTarget = requestedTargets.TryGetValue(sinkCount, out target);
+
+                if (!foundTarget)
                 {
-                    int seed = 900 + level + (seedVariant * 1000);
-                    controller.LoadLevel(level, seed);
-                    yield return WaitForControllerReady(controller);
-                    yield return new WaitForSeconds(0.1f);
-
-                    if (!CurrentLevelHasSinkBottle(controller))
+                    for (int level = 1; level <= 1200 && !foundTarget; level++)
                     {
-                        continue;
-                    }
+                        for (int seedVariant = 0; seedVariant < 4 && !foundTarget; seedVariant++)
+                        {
+                            int candidateSeed = 900 + level + (seedVariant * 1000);
+                            controller.LoadLevel(level, candidateSeed);
+                            yield return WaitForControllerReady(controller);
+                            yield return new WaitForSeconds(0.08f);
 
-                    var background = TryGetBackgroundImage();
-                    float luminance = background != null ? ResolveLuminance(background.color) : 0.5f;
-                    sinkCandidates.Add(new SinkCaptureTarget(level, seed, luminance));
+                            if (CurrentSinkBottleCount(controller) == sinkCount)
+                            {
+                                target = new SinkCaptureTarget(sinkCount, level, candidateSeed);
+                                foundTarget = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!foundTarget)
+                {
+                    Debug.LogError($"RuntimeScreenshot: Could not resolve sink-count screenshot target for sink_count={sinkCount}.");
+                    _failed = true;
+                    yield break;
+                }
+
+                controller.LoadLevel(target.Level, target.Seed);
+                yield return WaitForControllerReady(controller);
+                yield return new WaitForSeconds(0.25f);
+
+                int observedSinkCount = CurrentSinkBottleCount(controller);
+                if (observedSinkCount != sinkCount)
+                {
+                    Debug.LogError($"RuntimeScreenshot: sink-count mismatch for sink_count={sinkCount}. observed={observedSinkCount}, level={target.Level}, seed={target.Seed}");
+                    _failed = true;
+                    yield break;
+                }
+
+                Canvas.ForceUpdateCanvases();
+                yield return new WaitForEndOfFrame();
+                yield return CaptureScreenshot(Path.Combine(outputDir, ResolveSinkCountFileName(sinkCount)));
+            }
+        }
+
+        private static string ResolveSinkCountFileName(int sinkCount)
+        {
+            switch (sinkCount)
+            {
+                case 1:
+                    return SinkCountOneFileName;
+                case 2:
+                    return SinkCountTwoFileName;
+                case 3:
+                    return SinkCountThreeFileName;
+                case 4:
+                    return SinkCountFourFileName;
+                case 5:
+                    return SinkCountFiveFileName;
+                default:
+                    return $"sink_count_{sinkCount}.png";
+            }
+        }
+
+        private static Dictionary<int, SinkCaptureTarget> ResolveSinkTargetsFromIntent()
+        {
+            var targets = new Dictionary<int, SinkCaptureTarget>();
+            for (int sinkCount = 1; sinkCount <= 5; sinkCount++)
+            {
+                if (TryGetIntArgument($"decantra_sink_count_{sinkCount}_level", out int level)
+                    && TryGetIntArgument($"decantra_sink_count_{sinkCount}_seed", out int seed))
+                {
+                    targets[sinkCount] = new SinkCaptureTarget(sinkCount, level, seed);
                 }
             }
 
-            if (sinkCandidates.Count < 2)
+            if (targets.Count > 0)
             {
-                Debug.LogError("RuntimeScreenshot: Could not find enough sink levels to capture dark/light sink style variants.");
-                _failed = true;
-                yield break;
+                Debug.Log($"RuntimeScreenshot: sink-count targets from launch extras = {targets.Count}");
             }
 
-            sinkCandidates.Sort((a, b) => a.Luminance.CompareTo(b.Luminance));
-            SinkCaptureTarget darkest = sinkCandidates[0];
-            SinkCaptureTarget brightest = sinkCandidates[sinkCandidates.Count - 1];
-            SinkCaptureTarget comparison = sinkCandidates[sinkCandidates.Count / 2];
-
-            if (brightest.Level == darkest.Level && brightest.Seed == darkest.Seed && sinkCandidates.Count >= 2)
-            {
-                brightest = sinkCandidates[sinkCandidates.Count - 2];
-            }
-
-            if (Mathf.Abs(brightest.Luminance - darkest.Luminance) < SinkCaptureMinLuminanceDelta)
-            {
-                Debug.LogWarning($"RuntimeScreenshot: sink capture luminance delta is small ({Mathf.Abs(brightest.Luminance - darkest.Luminance):0.000}); using widest available range.");
-            }
-
-            Debug.Log($"RuntimeScreenshot SinkCapture dark(level={darkest.Level}, seed={darkest.Seed}, L={darkest.Luminance:0.000}) bright(level={brightest.Level}, seed={brightest.Seed}, L={brightest.Luminance:0.000}) compare(level={comparison.Level}, seed={comparison.Seed}, L={comparison.Luminance:0.000})");
-
-            // Dark background evidence shot.
-            controller.LoadLevel(darkest.Level, darkest.Seed);
-            yield return WaitForControllerReady(controller);
-            yield return new WaitForSeconds(0.25f);
-            Canvas.ForceUpdateCanvases();
-            yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorLightFileName));
-
-            // Light background evidence shot.
-            controller.LoadLevel(brightest.Level, brightest.Seed);
-            yield return WaitForControllerReady(controller);
-            yield return new WaitForSeconds(0.25f);
-            Canvas.ForceUpdateCanvases();
-            yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorDarkFileName));
-
-            // Third evidence shot from a separate sink/background scenario.
-            controller.LoadLevel(comparison.Level, comparison.Seed);
-            yield return WaitForControllerReady(controller);
-            yield return new WaitForSeconds(0.25f);
-            Canvas.ForceUpdateCanvases();
-            yield return new WaitForEndOfFrame();
-            yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorComparisonFileName));
-        }
-
-        private static float ResolveLuminance(Color color)
-        {
-            return 0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b;
+            return targets;
         }
 
         private IEnumerator CaptureAutoSolveEvidence(GameController controller, string outputDir)
@@ -1622,32 +1639,38 @@ namespace Decantra.Presentation
 
         private static bool CurrentLevelHasSinkBottle(GameController controller)
         {
+            return CurrentSinkBottleCount(controller) > 0;
+        }
+
+        private static int CurrentSinkBottleCount(GameController controller)
+        {
             if (controller == null)
             {
-                return false;
+                return 0;
             }
 
             var stateField = typeof(GameController).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
             if (stateField == null)
             {
-                return false;
+                return 0;
             }
 
             var levelState = stateField.GetValue(controller) as LevelState;
             if (levelState == null)
             {
-                return false;
+                return 0;
             }
 
+            int sinkCount = 0;
             for (int i = 0; i < levelState.Bottles.Count; i++)
             {
                 if (levelState.Bottles[i].IsSink)
                 {
-                    return true;
+                    sinkCount++;
                 }
             }
 
-            return false;
+            return sinkCount;
         }
 
         private static void SetControllerStarBalance(GameController controller, int starBalance)
@@ -1849,6 +1872,46 @@ namespace Decantra.Presentation
                 return false;
             }
 #endif
+            return false;
+        }
+
+        private static bool TryGetIntArgument(string key, out int value)
+        {
+            value = 0;
+
+            var args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], key, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(args[i], $"--{key}", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (int.TryParse(args[i + 1], out value))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var intent = activity.Call<AndroidJavaObject>("getIntent"))
+                {
+                    if (intent != null && intent.Call<bool>("hasExtra", key))
+                    {
+                        value = intent.Call<int>("getIntExtra", key, 0);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+#endif
+
             return false;
         }
     }
