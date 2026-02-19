@@ -389,6 +389,13 @@ jobs:
           fi
 
           APP_PATH="$(find Builds/iOS/SimulatorApp -type d -name '*.app' | head -n 1)"
+
+          if [[ -z "${APP_PATH}" && -f Builds/iOS/SimulatorApp/Info.plist ]]; then
+            REHYDRATED_APP="Builds/iOS/SimulatorApp/Cantra.app"
+            mkdir -p "${REHYDRATED_APP}"
+            find Builds/iOS/SimulatorApp -mindepth 1 -maxdepth 1 ! -name 'Cantra.app' -exec mv {} "${REHYDRATED_APP}/" \;
+            APP_PATH="${REHYDRATED_APP}"
+          fi
           if [[ -z "${APP_PATH}" ]]; then
             echo "No simulator .app found after artifact download" >&2
             find Builds/iOS/SimulatorApp -maxdepth 6 -print || true
