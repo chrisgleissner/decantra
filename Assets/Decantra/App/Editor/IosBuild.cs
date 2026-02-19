@@ -59,7 +59,7 @@ namespace Decantra.App.Editor
                 scenes = new[] { "Assets/Decantra/Scenes/Main.unity" },
                 locationPathName = outputPath,
                 target = BuildTarget.iOS,
-                options = BuildOptions.AcceptExternalModificationsToPlayer | BuildOptions.StrictMode
+                options = BuildOptions.StrictMode
             };
 
             Debug.Log($"IosBuild: exporting iOS {(sdkVersion == iOSSdkVersion.SimulatorSDK ? "simulator" : "device")} Xcode project to {outputPath}");
