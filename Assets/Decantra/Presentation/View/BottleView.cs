@@ -16,6 +16,9 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
+        private const float SinkStrokeWidthMultiplier = 1.6f;
+        private const float SinkGlassDarkenMultiplier = 0.8f;
+
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
         private const float RefOutlineHeight = 372f;
         private const float RefSlotRootHeight = 320f;
@@ -33,6 +36,9 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image glassBack;
         [SerializeField] private Image glassFront;
         [SerializeField] private Image rim;
+        [SerializeField] private Image bottleNeck;
+        [SerializeField] private Image bottleFlange;
+        [SerializeField] private Image neckInnerShadow;
         [SerializeField] private Image baseAccent;
         [SerializeField] private Image curvedHighlight;
         [SerializeField] private Image reflectionStrip;
@@ -55,6 +61,7 @@ namespace Decantra.Presentation.View
         private int _levelMaxCapacity = 4;
         private bool _originalLayoutCaptured;
         private readonly List<ChildLayoutInfo> _originalChildLayouts = new List<ChildLayoutInfo>();
+        private readonly Dictionary<Image, Color> _defaultContourColors = new Dictionary<Image, Color>();
 
         /// <summary>Cached original layout of a child RectTransform for capacity-based resizing.</summary>
         private struct ChildLayoutInfo
@@ -106,6 +113,10 @@ namespace Decantra.Presentation.View
             {
                 baseDefaultColor = basePlate.color;
             }
+
+            ResolveContourReferencesIfNeeded();
+            CacheDefaultContourColors();
+
             baseScale = transform.localScale;
             ConfigureGlassVisuals();
         }
@@ -386,62 +397,37 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
+            // Sink identity no longer uses a base marker band.
+            if (basePlate != null)
+            {
+                basePlate.gameObject.SetActive(false);
+            }
+            if (anchorCollar != null)
+            {
+                anchorCollar.gameObject.SetActive(false);
+            }
+
             if (bottle.IsSink)
             {
-                if (basePlate != null)
-                {
-                    basePlate.gameObject.SetActive(true);
-                    basePlate.color = SinkIndicatorDesignTokens.EdgeColor;
-                    basePlate.raycastTarget = false;
-                }
-
-                if (anchorCollar != null)
-                {
-                    anchorCollar.gameObject.SetActive(true);
-                    anchorCollar.color = SinkIndicatorDesignTokens.CoreColor;
-                    anchorCollar.raycastTarget = false;
-                }
-
-                if (body != null)
-                {
-                    body.color = Color.Lerp(bodyDefaultColor, new Color(0.05f, 0.05f, 0.08f, bodyDefaultColor.a), 0.35f);
-                }
-
-                if (outline != null)
-                {
-                    var sinkOutline = Color.Lerp(outlineDefaultColor, Color.black, 0.2f);
-                    outlineBaseColor = sinkOutline;
-                    outline.color = sinkOutline;
-                }
+                ApplySinkContourStyle();
 
                 if (normalShadow != null)
                 {
                     normalShadow.gameObject.SetActive(false);
                 }
 
-                UpdateSinkIndicatorLayout();
+                if (curvedHighlight != null)
+                {
+                    curvedHighlight.gameObject.SetActive(false);
+                }
             }
             else
             {
-                if (basePlate != null)
-                {
-                    basePlate.gameObject.SetActive(false);
-                }
+                RestoreContourDefaults();
 
-                if (body != null)
+                if (curvedHighlight != null)
                 {
-                    body.color = bodyDefaultColor;
-                }
-
-                if (outline != null)
-                {
-                    outlineBaseColor = outlineDefaultColor;
-                    outline.color = outlineDefaultColor;
-                }
-
-                if (anchorCollar != null)
-                {
-                    anchorCollar.gameObject.SetActive(false);
+                    curvedHighlight.gameObject.SetActive(true);
                 }
 
                 // Subtle 3D shadow beneath the bottle base
@@ -461,83 +447,122 @@ namespace Decantra.Presentation.View
             }
         }
 
-        /// <summary>
-        /// Positions sink indicator visuals inside the bottle bounds as a dual-tone stripe:
-        /// - outer light edge (basePlate)
-        /// - inner darker core (anchorCollar)
-        /// The marker is bottom-anchored, width-clamped to the liquid body, and height-clamped
-        /// to a fixed ratio band to avoid overlap with adjacent bottles.
-        /// </summary>
-        private void UpdateSinkIndicatorLayout()
+        private void ApplySinkContourStyle()
         {
-            if (slotRoot == null || outline == null)
+            ResolveContourReferencesIfNeeded();
+
+            foreach (var contour in EnumerateContourImages())
             {
-                return;
+                if (contour == null) continue;
+
+                var rect = contour.rectTransform;
+                float strokeX = ResolveStrokeThicknessUnits(contour, horizontal: true);
+                float strokeY = ResolveStrokeThicknessUnits(contour, horizontal: false);
+
+                float deltaX = 2f * strokeX * (SinkStrokeWidthMultiplier - 1f);
+                float deltaY = 2f * strokeY * (SinkStrokeWidthMultiplier - 1f);
+                rect.sizeDelta = new Vector2(rect.sizeDelta.x + deltaX, rect.sizeDelta.y + deltaY);
+
+                Color defaultColor = GetDefaultContourColor(contour);
+                contour.color = new Color(
+                    defaultColor.r * SinkGlassDarkenMultiplier,
+                    defaultColor.g * SinkGlassDarkenMultiplier,
+                    defaultColor.b * SinkGlassDarkenMultiplier,
+                    defaultColor.a);
             }
 
-            if (basePlate == null && anchorCollar == null)
+            outlineBaseColor = GetDefaultContourColor(outline);
+            outlineBaseColor = new Color(
+                outlineBaseColor.r * SinkGlassDarkenMultiplier,
+                outlineBaseColor.g * SinkGlassDarkenMultiplier,
+                outlineBaseColor.b * SinkGlassDarkenMultiplier,
+                outlineBaseColor.a);
+        }
+
+        private void RestoreContourDefaults()
+        {
+            ResolveContourReferencesIfNeeded();
+
+            foreach (var contour in EnumerateContourImages())
             {
-                return;
+                if (contour == null) continue;
+                contour.color = GetDefaultContourColor(contour);
             }
 
-            if (basePlate != null && basePlate.rectTransform.parent != slotRoot)
-            {
-                basePlate.rectTransform.SetParent(slotRoot, false);
-            }
+            outlineBaseColor = outlineDefaultColor;
+        }
 
-            if (anchorCollar != null && anchorCollar.rectTransform.parent != slotRoot)
+        private void CacheDefaultContourColors()
+        {
+            foreach (var contour in EnumerateContourImages())
             {
-                anchorCollar.rectTransform.SetParent(slotRoot, false);
-            }
-
-            if (basePlate != null)
-            {
-                basePlate.rectTransform.SetAsLastSibling();
-            }
-            if (anchorCollar != null)
-            {
-                anchorCollar.rectTransform.SetAsLastSibling();
-            }
-
-            float markerHeight = SinkIndicatorDesignTokens.ResolveIndicatorHeight(RefOutlineHeight, 0f);
-            float markerWidth = SinkIndicatorDesignTokens.ResolveIndicatorWidth(0f);
-
-            float markerCenterY = markerHeight * 0.5f;
-
-            if (basePlate != null)
-            {
-                var edgeRect = basePlate.rectTransform;
-                edgeRect.anchorMin = new Vector2(0.5f, 0f);
-                edgeRect.anchorMax = new Vector2(0.5f, 0f);
-                edgeRect.pivot = new Vector2(0.5f, 0.5f);
-                edgeRect.sizeDelta = new Vector2(markerWidth, markerHeight);
-                edgeRect.anchoredPosition = new Vector2(0f, markerCenterY);
-            }
-
-            if (anchorCollar != null)
-            {
-                var coreRect = anchorCollar.rectTransform;
-                coreRect.anchorMin = new Vector2(0.5f, 0f);
-                coreRect.anchorMax = new Vector2(0.5f, 0f);
-                coreRect.pivot = new Vector2(0.5f, 0.5f);
-                coreRect.sizeDelta = new Vector2(
-                    markerWidth,
-                    markerHeight * SinkIndicatorDesignTokens.InnerStripeHeightRatio);
-                coreRect.anchoredPosition = new Vector2(0f, markerCenterY);
+                if (contour == null) continue;
+                _defaultContourColors[contour] = contour.color;
             }
         }
 
-        private static float ResolveSinkBaseHeight(Image outlineImage)
+        private Color GetDefaultContourColor(Image contour)
         {
-            if (outlineImage == null) return 0f;
-            var sprite = outlineImage.sprite;
-            if (sprite == null) return 0f;
-            float bottomBorderPx = sprite.border.y;
-            if (bottomBorderPx <= 0f) return 0f;
-            float ppu = sprite.pixelsPerUnit;
-            if (ppu <= 0f) return 0f;
-            // Base height from bottle border thickness for deterministic scaling.
-            return bottomBorderPx / ppu;
+            if (contour == null) return Color.white;
+            if (_defaultContourColors.TryGetValue(contour, out Color color))
+            {
+                return color;
+            }
+
+            _defaultContourColors[contour] = contour.color;
+            return contour.color;
+        }
+
+        private static float ResolveStrokeThicknessUnits(Image contour, bool horizontal)
+        {
+            if (contour == null || contour.sprite == null)
+            {
+                return 4f;
+            }
+
+            float ppu = contour.sprite.pixelsPerUnit;
+            if (ppu <= 0f)
+            {
+                return 4f;
+            }
+
+            float borderPixels = horizontal
+                ? Mathf.Max(contour.sprite.border.x, contour.sprite.border.z)
+                : Mathf.Max(contour.sprite.border.y, contour.sprite.border.w);
+
+            if (borderPixels <= 0f)
+            {
+                borderPixels = 4f;
+            }
+
+            return borderPixels / ppu;
+        }
+
+        private IEnumerable<Image> EnumerateContourImages()
+        {
+            yield return outline;
+            yield return glassBack;
+            yield return glassFront;
+            yield return rim;
+            yield return bottleNeck;
+            yield return bottleFlange;
+            yield return neckInnerShadow;
+        }
+
+        private void ResolveContourReferencesIfNeeded()
+        {
+            if (bottleNeck == null)
+            {
+                bottleNeck = transform.Find("BottleNeck")?.GetComponent<Image>();
+            }
+            if (bottleFlange == null)
+            {
+                bottleFlange = transform.Find("BottleFlange")?.GetComponent<Image>();
+            }
+            if (neckInnerShadow == null)
+            {
+                neckInnerShadow = transform.Find("NeckInnerShadow")?.GetComponent<Image>();
+            }
         }
 
         private void EnsureColorsInitialized()

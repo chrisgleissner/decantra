@@ -13,7 +13,7 @@ Bottle-sorting puzzle game for Android built with Unity.
 
 - Drag one bottle onto another to pour liquid.
 - You can only pour into an empty bottle or onto the same color.
-- Some bottles are anchored as indicated by their dark bottom stripe. They can receive liquid but cannot be lifted.
+- Some bottles are sink bottles with heavier, darker glass. They can receive liquid but cannot be lifted.
 - A level is complete when all bottles are either empty or contain exactly one color.
 
 ## Features

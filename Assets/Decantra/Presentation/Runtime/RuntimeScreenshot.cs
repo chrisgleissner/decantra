@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Decantra.Domain.Model;
@@ -49,6 +50,7 @@ namespace Decantra.Presentation
         private const float AutoSolveDragTiltDegrees = 30f;
         private const float AutoSolveTiltStartNormalized = 0.62f;
         private const float AutoSolveReturnMinSeconds = 0.2f;
+        private const float SinkCaptureMinLuminanceDelta = 0.30f;
         private const string LaunchFileName = "screenshot-01-launch.png";
         private const string IntroFileName = "screenshot-02-intro.png";
         private const string Level01FileName = "screenshot-03-level-01.png";
@@ -69,6 +71,20 @@ namespace Decantra.Presentation
         private Vector2 _dragCaptureStartAnchoredPosition;
         private Quaternion _dragCaptureStartRotation;
         private bool _dragCaptureActive;
+
+        private readonly struct SinkCaptureTarget
+        {
+            public SinkCaptureTarget(int level, int seed, float luminance)
+            {
+                Level = level;
+                Seed = seed;
+                Luminance = luminance;
+            }
+
+            public int Level { get; }
+            public int Seed { get; }
+            public float Luminance { get; }
+        }
 
         private void Start()
         {
@@ -933,50 +949,79 @@ namespace Decantra.Presentation
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
 
-            controller.LoadLevel(20, 682415);
+            var sinkCandidates = new List<SinkCaptureTarget>();
+            for (int level = 20; level <= 140 && sinkCandidates.Count < 18; level++)
+            {
+                for (int seedVariant = 0; seedVariant < 3 && sinkCandidates.Count < 18; seedVariant++)
+                {
+                    int seed = 900 + level + (seedVariant * 1000);
+                    controller.LoadLevel(level, seed);
+                    yield return WaitForControllerReady(controller);
+                    yield return new WaitForSeconds(0.1f);
+
+                    if (!CurrentLevelHasSinkBottle(controller))
+                    {
+                        continue;
+                    }
+
+                    var background = TryGetBackgroundImage();
+                    float luminance = background != null ? ResolveLuminance(background.color) : 0.5f;
+                    sinkCandidates.Add(new SinkCaptureTarget(level, seed, luminance));
+                }
+            }
+
+            if (sinkCandidates.Count < 2)
+            {
+                Debug.LogError("RuntimeScreenshot: Could not find enough sink levels to capture dark/light sink indicator variants.");
+                _failed = true;
+                yield break;
+            }
+
+            sinkCandidates.Sort((a, b) => a.Luminance.CompareTo(b.Luminance));
+            SinkCaptureTarget darkest = sinkCandidates[0];
+            SinkCaptureTarget brightest = sinkCandidates[sinkCandidates.Count - 1];
+            SinkCaptureTarget comparison = sinkCandidates[sinkCandidates.Count / 2];
+
+            if (brightest.Level == darkest.Level && brightest.Seed == darkest.Seed && sinkCandidates.Count >= 2)
+            {
+                brightest = sinkCandidates[sinkCandidates.Count - 2];
+            }
+
+            if (Mathf.Abs(brightest.Luminance - darkest.Luminance) < SinkCaptureMinLuminanceDelta)
+            {
+                Debug.LogWarning($"RuntimeScreenshot: sink capture luminance delta is small ({Mathf.Abs(brightest.Luminance - darkest.Luminance):0.000}); using widest available range.");
+            }
+
+            Debug.Log($"RuntimeScreenshot SinkCapture dark(level={darkest.Level}, seed={darkest.Seed}, L={darkest.Luminance:0.000}) bright(level={brightest.Level}, seed={brightest.Seed}, L={brightest.Luminance:0.000}) compare(level={comparison.Level}, seed={comparison.Seed}, L={comparison.Luminance:0.000})");
+
+            // Dark background -> light sink marker variant.
+            controller.LoadLevel(darkest.Level, darkest.Seed);
             yield return WaitForControllerReady(controller);
             yield return new WaitForSeconds(0.25f);
+            Canvas.ForceUpdateCanvases();
+            yield return new WaitForEndOfFrame();
+            yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorLightFileName));
 
-            var background = TryGetBackgroundImage();
-            Color originalBackground = background != null ? background.color : Color.black;
+            // Light background -> dark sink marker variant.
+            controller.LoadLevel(brightest.Level, brightest.Seed);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.25f);
+            Canvas.ForceUpdateCanvases();
+            yield return new WaitForEndOfFrame();
+            yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorDarkFileName));
 
-            try
-            {
-                if (background != null)
-                {
-                    background.color = new Color(0.92f, 0.95f, 1f, 1f);
-                    background.SetAllDirty();
-                }
-                Canvas.ForceUpdateCanvases();
-                yield return new WaitForEndOfFrame();
-                yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorLightFileName));
+            // Third evidence shot from a separate sink/background scenario.
+            controller.LoadLevel(comparison.Level, comparison.Seed);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.25f);
+            Canvas.ForceUpdateCanvases();
+            yield return new WaitForEndOfFrame();
+            yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorComparisonFileName));
+        }
 
-                if (background != null)
-                {
-                    background.color = new Color(0.08f, 0.11f, 0.18f, 1f);
-                    background.SetAllDirty();
-                }
-                Canvas.ForceUpdateCanvases();
-                yield return new WaitForEndOfFrame();
-                yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorDarkFileName));
-
-                if (background != null)
-                {
-                    background.color = originalBackground;
-                    background.SetAllDirty();
-                }
-                Canvas.ForceUpdateCanvases();
-                yield return new WaitForEndOfFrame();
-                yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorComparisonFileName));
-            }
-            finally
-            {
-                if (background != null)
-                {
-                    background.color = originalBackground;
-                    background.SetAllDirty();
-                }
-            }
+        private static float ResolveLuminance(Color color)
+        {
+            return 0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b;
         }
 
         private IEnumerator CaptureAutoSolveEvidence(GameController controller, string outputDir)

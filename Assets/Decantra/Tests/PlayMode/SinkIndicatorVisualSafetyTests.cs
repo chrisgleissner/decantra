@@ -8,7 +8,6 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Decantra.Domain.Generation;
 using Decantra.Domain.Model;
@@ -25,55 +24,13 @@ namespace Decantra.Tests.PlayMode
 {
     public sealed class SinkIndicatorVisualSafetyTests
     {
-        private const float WidthTolerance = 0.5f;
-        private const float RatioTolerance = 0.005f;
-        private const float SpacingTolerance = 0.01f;
-        private const float MinContrastDelta = 0.1f;
+        private const float SizeTolerance = 0.8f;
+        private const float ColorTolerance = 0.03f;
+        private const float StrokeMultiplier = 1.6f;
+        private const float DarkenMultiplier = 0.8f;
 
         [UnityTest]
-        public IEnumerator SinkIndicator_Dimensions_AreIdenticalAcrossSinkCapacities()
-        {
-            SceneBootstrap.EnsureScene();
-            yield return null;
-
-            var bottles = FindBottleViews();
-            Assert.GreaterOrEqual(bottles.Count, 3, "Expected at least three bottle views.");
-
-            var sinkA = bottles[0];
-            var sinkB = bottles[1];
-            var sinkC = bottles[2];
-
-            const int levelMaxCapacity = 4;
-            sinkA.SetLevelMaxCapacity(levelMaxCapacity);
-            sinkB.SetLevelMaxCapacity(levelMaxCapacity);
-            sinkC.SetLevelMaxCapacity(levelMaxCapacity);
-
-            sinkA.Render(CreateBottle(2, 0, isSink: true));
-            sinkB.Render(CreateBottle(3, 0, isSink: true));
-            sinkC.Render(CreateBottle(4, 0, isSink: true));
-            yield return null;
-
-            var edgeA = FindSinkIndicatorEdge(sinkA);
-            var edgeB = FindSinkIndicatorEdge(sinkB);
-            var edgeC = FindSinkIndicatorEdge(sinkC);
-
-            Assert.IsNotNull(edgeA, "Sink A indicator edge not found.");
-            Assert.IsNotNull(edgeB, "Sink B indicator edge not found.");
-            Assert.IsNotNull(edgeC, "Sink C indicator edge not found.");
-
-            Assert.AreEqual(edgeB.rect.height, edgeA.rect.height, RatioTolerance,
-                $"Sink indicator height mismatch A vs B: {edgeA.rect.height} vs {edgeB.rect.height}");
-            Assert.AreEqual(edgeB.rect.height, edgeC.rect.height, RatioTolerance,
-                $"Sink indicator height mismatch C vs B: {edgeC.rect.height} vs {edgeB.rect.height}");
-
-            Assert.AreEqual(edgeB.rect.width, edgeA.rect.width, WidthTolerance,
-                $"Sink indicator width mismatch A vs B: {edgeA.rect.width} vs {edgeB.rect.width}");
-            Assert.AreEqual(edgeB.rect.width, edgeC.rect.width, WidthTolerance,
-                $"Sink indicator width mismatch C vs B: {edgeC.rect.width} vs {edgeB.rect.width}");
-        }
-
-        [UnityTest]
-        public IEnumerator SinkIndicator_StaysWithinBottleWidth_AndMaxHeightRatio()
+        public IEnumerator SinkHeavyGlass_DisablesBottomMarkerObjects()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
@@ -83,112 +40,121 @@ namespace Decantra.Tests.PlayMode
             bottle.Render(CreateBottle(4, 2, isSink: true));
             yield return null;
 
-            var indicatorEdge = FindSinkIndicatorEdge(bottle);
-            var outline = FindOutlineRect(bottle);
-            Assert.IsNotNull(indicatorEdge, "Sink indicator edge rect not found.");
-            Assert.IsNotNull(outline, "Bottle outline rect not found.");
-
-            float indicatorWidth = indicatorEdge.rect.width;
-            float outlineWidth = outline.rect.width;
-            Assert.LessOrEqual(indicatorWidth, outlineWidth + WidthTolerance,
-                $"Indicator width {indicatorWidth} exceeds outline width {outlineWidth}.");
-
-            float indicatorHeight = indicatorEdge.rect.height;
-            float maxAllowedHeight = outline.rect.height * SinkIndicatorDesignTokens.MaxHeightRatio;
-            Assert.LessOrEqual(indicatorHeight, maxAllowedHeight + RatioTolerance,
-                $"Indicator height {indicatorHeight} exceeds max ratio bound {maxAllowedHeight}.");
+            var basePlate = bottle.transform.Find("BasePlate")?.gameObject;
+            var anchorCollar = bottle.transform.Find("AnchorCollar")?.gameObject;
+            Assert.IsNotNull(basePlate, "BasePlate object not found.");
+            Assert.IsNotNull(anchorCollar, "AnchorCollar object not found.");
+            Assert.IsFalse(basePlate.activeSelf, "BasePlate must be disabled for sink bottles.");
+            Assert.IsFalse(anchorCollar.activeSelf, "AnchorCollar must be disabled for sink bottles.");
         }
 
         [UnityTest]
-        public IEnumerator SinkIndicator_DoesNotOverlapAdjacentBottle_AndSpacingUnchanged()
+        public IEnumerator SinkHeavyGlass_ContoursAreTwentyPercentDarkerThanRegularBottle()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
 
-            var bottles = FindBottleViews();
-            Assert.GreaterOrEqual(bottles.Count, 2, "Expected at least two bottle views.");
+            var pair = FindBottleViews().Take(2).ToArray();
+            Assert.AreEqual(2, pair.Length, "Expected at least two bottle views.");
 
-            var pair = bottles.OrderBy(v => v.transform.position.x).Take(2).ToArray();
-            var sinkView = pair[0];
-            var adjacentView = pair[1];
+            var regular = pair[0];
+            var sink = pair[1];
+            regular.SetLevelMaxCapacity(4);
+            sink.SetLevelMaxCapacity(4);
 
-            float spacingBefore = Mathf.Abs(adjacentView.transform.position.x - sinkView.transform.position.x);
-
-            sinkView.SetLevelMaxCapacity(4);
-            adjacentView.SetLevelMaxCapacity(4);
-            sinkView.Render(CreateBottle(4, 2, isSink: true));
-            adjacentView.Render(CreateBottle(4, 2, isSink: false));
+            regular.Render(CreateBottle(4, 2, isSink: false));
+            sink.Render(CreateBottle(4, 2, isSink: true));
             yield return null;
 
-            float spacingAfter = Mathf.Abs(adjacentView.transform.position.x - sinkView.transform.position.x);
-            Assert.AreEqual(spacingBefore, spacingAfter, SpacingTolerance,
-                "Bottle spacing changed after sink indicator rendering.");
+            foreach (string contourName in ContourNames())
+            {
+                var regularContour = FindContourImage(regular, contourName);
+                var sinkContour = FindContourImage(sink, contourName);
+                Assert.IsNotNull(regularContour, $"Regular contour not found: {contourName}");
+                Assert.IsNotNull(sinkContour, $"Sink contour not found: {contourName}");
 
-            var indicatorRect = GetWorldRect(FindSinkIndicatorEdge(sinkView));
-            var adjacentRect = GetWorldRect(adjacentView.transform as RectTransform);
-            Assert.IsFalse(indicatorRect.Overlaps(adjacentRect),
-                "Sink indicator overlaps adjacent bottle bounds.");
+                Assert.AreEqual(regularContour.color.r * DarkenMultiplier, sinkContour.color.r, ColorTolerance,
+                    $"Contour red channel not darkened by 20% for {contourName}");
+                Assert.AreEqual(regularContour.color.g * DarkenMultiplier, sinkContour.color.g, ColorTolerance,
+                    $"Contour green channel not darkened by 20% for {contourName}");
+                Assert.AreEqual(regularContour.color.b * DarkenMultiplier, sinkContour.color.b, ColorTolerance,
+                    $"Contour blue channel not darkened by 20% for {contourName}");
+                Assert.AreEqual(regularContour.color.a, sinkContour.color.a, ColorTolerance,
+                    $"Contour alpha should remain unchanged for {contourName}");
+            }
         }
 
         [UnityTest]
-        public IEnumerator SinkIndicator_ContrastVisibleOnLightAndDark_AndEvidenceCaptured()
+        public IEnumerator SinkHeavyGlass_ContourStrokeExpansionMatchesMultiplierRule()
         {
-            if (Application.isBatchMode)
-            {
-                Assert.Ignore("Screenshot capture and ReadPixels are skipped in Unity batch mode.");
-            }
-
             SceneBootstrap.EnsureScene();
             yield return null;
 
-            var bottles = FindBottleViews().OrderBy(v => v.transform.position.x).ToList();
-            Assert.GreaterOrEqual(bottles.Count, 2, "Expected at least two bottle views.");
+            var pair = FindBottleViews().Take(2).ToArray();
+            Assert.AreEqual(2, pair.Length, "Expected at least two bottle views.");
 
-            var sinkView = bottles[0];
-            var normalView = bottles[1];
-            sinkView.SetLevelMaxCapacity(4);
-            normalView.SetLevelMaxCapacity(4);
-            sinkView.Render(CreateBottle(4, 2, isSink: true));
-            normalView.Render(CreateBottle(4, 2, isSink: false));
+            var regular = pair[0];
+            var sink = pair[1];
+            regular.SetLevelMaxCapacity(4);
+            sink.SetLevelMaxCapacity(4);
 
-            var background = FindBackgroundImage();
-            Assert.IsNotNull(background, "Background image was not found.");
+            regular.Render(CreateBottle(4, 2, isSink: false));
+            sink.Render(CreateBottle(4, 2, isSink: true));
+            yield return null;
 
-            string outputDir = GetArtifactOutputDirectory();
-            Directory.CreateDirectory(outputDir);
-
-            Color original = background.color;
-            try
+            foreach (string contourName in ContourNames())
             {
-                yield return ValidateContrastAndCapture(
-                    sinkView,
-                    background,
-                    new Color(0.94f, 0.97f, 1f, 1f),
-                    Path.Combine(outputDir, "sink_indicator_light_test.png"),
-                    "light");
+                var regularContour = FindContourImage(regular, contourName);
+                var sinkContour = FindContourImage(sink, contourName);
+                Assert.IsNotNull(regularContour, $"Regular contour not found: {contourName}");
+                Assert.IsNotNull(sinkContour, $"Sink contour not found: {contourName}");
 
-                yield return ValidateContrastAndCapture(
-                    sinkView,
-                    background,
-                    new Color(0.08f, 0.1f, 0.16f, 1f),
-                    Path.Combine(outputDir, "sink_indicator_dark_test.png"),
-                    "dark");
+                float strokeX = ResolveStrokeThicknessUnits(regularContour, horizontal: true);
+                float strokeY = ResolveStrokeThicknessUnits(regularContour, horizontal: false);
+                float expectedDeltaX = 2f * strokeX * (StrokeMultiplier - 1f);
+                float expectedDeltaY = 2f * strokeY * (StrokeMultiplier - 1f);
 
-                background.color = original;
-                background.SetAllDirty();
-                Canvas.ForceUpdateCanvases();
-                yield return new WaitForEndOfFrame();
-                yield return CaptureAndAssertScreenshot(Path.Combine(outputDir, "sink_indicator_side_by_side_test.png"));
-            }
-            finally
-            {
-                background.color = original;
-                background.SetAllDirty();
+                float actualDeltaX = sinkContour.rectTransform.rect.width - regularContour.rectTransform.rect.width;
+                float actualDeltaY = sinkContour.rectTransform.rect.height - regularContour.rectTransform.rect.height;
+
+                Assert.AreEqual(expectedDeltaX, actualDeltaX, SizeTolerance,
+                    $"Contour width expansion mismatch for {contourName}");
+                Assert.AreEqual(expectedDeltaY, actualDeltaY, SizeTolerance,
+                    $"Contour height expansion mismatch for {contourName}");
             }
         }
 
         [UnityTest]
-        public IEnumerator SinkIndicator_Rendering_DoesNotChangeSolvabilityResults()
+        public IEnumerator SinkHeavyGlass_KeepsLiquidAreaPixelIdenticalToRegularBottle()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var pair = FindBottleViews().Take(2).ToArray();
+            Assert.AreEqual(2, pair.Length, "Expected at least two bottle views.");
+
+            var regular = pair[0];
+            var sink = pair[1];
+            regular.SetLevelMaxCapacity(4);
+            sink.SetLevelMaxCapacity(4);
+
+            regular.Render(CreateBottle(4, 2, isSink: false));
+            sink.Render(CreateBottle(4, 2, isSink: true));
+            yield return null;
+
+            var regularRoot = regular.SlotRoot;
+            var sinkRoot = sink.SlotRoot;
+            Assert.IsNotNull(regularRoot, "Regular SlotRoot not found.");
+            Assert.IsNotNull(sinkRoot, "Sink SlotRoot not found.");
+
+            Assert.AreEqual(regularRoot.rect.width, sinkRoot.rect.width, SizeTolerance, "Liquid width changed for sink bottle.");
+            Assert.AreEqual(regularRoot.rect.height, sinkRoot.rect.height, SizeTolerance, "Liquid height changed for sink bottle.");
+            Assert.AreEqual(regularRoot.anchoredPosition.x, sinkRoot.anchoredPosition.x, SizeTolerance, "Liquid X position changed for sink bottle.");
+            Assert.AreEqual(regularRoot.anchoredPosition.y, sinkRoot.anchoredPosition.y, SizeTolerance, "Liquid Y position changed for sink bottle.");
+        }
+
+        [UnityTest]
+        public IEnumerator SinkRendering_DoesNotChangeSolvabilityResults()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
@@ -213,123 +179,44 @@ namespace Decantra.Tests.PlayMode
             yield return null;
 
             var after = solver.Solve(level, 250_000, 1_500, allowSinkMoves: true);
-            Assert.AreEqual(before.Status, after.Status, "Solver status changed after sink visual rendering.");
-            Assert.AreEqual(before.OptimalMoves, after.OptimalMoves, "Optimal move count changed after sink visual rendering.");
+            Assert.AreEqual(before.Status, after.Status, "Solver status changed after sink rendering.");
+            Assert.AreEqual(before.OptimalMoves, after.OptimalMoves, "Optimal move count changed after sink rendering.");
         }
 
-        [UnityTest]
-        public IEnumerator SinkIndicator_AllSinksUseCanonicalDimensions()
+        private static IEnumerable<string> ContourNames()
         {
-            SceneBootstrap.EnsureScene();
-            yield return null;
-
-            var bottles = FindBottleViews().Take(3).ToArray();
-            Assert.AreEqual(3, bottles.Length, "Expected at least three bottle views.");
-
-            bottles[0].SetLevelMaxCapacity(4);
-            bottles[1].SetLevelMaxCapacity(6);
-            bottles[2].SetLevelMaxCapacity(8);
-
-            bottles[0].Render(CreateBottle(4, 2, isSink: true));
-            bottles[1].Render(CreateBottle(6, 2, isSink: true));
-            bottles[2].Render(CreateBottle(8, 2, isSink: true));
-            yield return null;
-
-            var first = FindSinkIndicatorEdge(bottles[0]);
-            var second = FindSinkIndicatorEdge(bottles[1]);
-            var third = FindSinkIndicatorEdge(bottles[2]);
-            Assert.IsNotNull(first);
-            Assert.IsNotNull(second);
-            Assert.IsNotNull(third);
-
-            Assert.AreEqual(second.rect.width, first.rect.width, WidthTolerance, "First sink indicator width differs from canonical second sink width.");
-            Assert.AreEqual(second.rect.width, third.rect.width, WidthTolerance, "Third sink indicator width differs from canonical second sink width.");
-            Assert.AreEqual(second.rect.height, first.rect.height, RatioTolerance, "First sink indicator height differs from canonical second sink height.");
-            Assert.AreEqual(second.rect.height, third.rect.height, RatioTolerance, "Third sink indicator height differs from canonical second sink height.");
+            yield return "Outline";
+            yield return "GlassBack";
+            yield return "GlassFront";
+            yield return "Rim";
+            yield return "BottleNeck";
+            yield return "BottleFlange";
+            yield return "NeckInnerShadow";
         }
 
-        private static IEnumerator ValidateContrastAndCapture(
-            BottleView sinkView,
-            Image background,
-            Color backgroundColor,
-            string screenshotPath,
-            string label)
+        private static float ResolveStrokeThicknessUnits(Image contour, bool horizontal)
         {
-            background.color = backgroundColor;
-            background.SetAllDirty();
-            Canvas.ForceUpdateCanvases();
-            yield return new WaitForEndOfFrame();
-
-            float contrast = MeasureIndicatorContrast(sinkView);
-            Assert.GreaterOrEqual(contrast, MinContrastDelta,
-                $"Sink indicator contrast too low on {label} background. Measured={contrast}.");
-
-            yield return CaptureAndAssertScreenshot(screenshotPath);
-        }
-
-        private static IEnumerator CaptureAndAssertScreenshot(string path)
-        {
-            if (File.Exists(path))
+            if (contour == null || contour.sprite == null)
             {
-                File.Delete(path);
+                return 4f;
             }
 
-            ScreenCapture.CaptureScreenshot(path);
-            float deadline = Time.realtimeSinceStartup + 5f;
-            while (Time.realtimeSinceStartup < deadline)
+            float ppu = contour.sprite.pixelsPerUnit;
+            if (ppu <= 0f)
             {
-                if (File.Exists(path))
-                {
-                    var info = new FileInfo(path);
-                    if (info.Length > 0)
-                    {
-                        yield break;
-                    }
-                }
-
-                yield return null;
+                return 4f;
             }
 
-            Assert.Fail($"Expected screenshot artifact was not written: {path}");
-        }
+            float borderPixels = horizontal
+                ? Mathf.Max(contour.sprite.border.x, contour.sprite.border.z)
+                : Mathf.Max(contour.sprite.border.y, contour.sprite.border.w);
 
-        private static float MeasureIndicatorContrast(BottleView sinkView)
-        {
-            var indicatorCore = FindSinkIndicatorCore(sinkView);
-            Assert.IsNotNull(indicatorCore, "Sink indicator core rect not found.");
+            if (borderPixels <= 0f)
+            {
+                borderPixels = 4f;
+            }
 
-            var canvas = indicatorCore.GetComponentInParent<Canvas>();
-            Camera uiCamera = canvas != null ? canvas.worldCamera : null;
-
-            var worldCenter = indicatorCore.TransformPoint(indicatorCore.rect.center);
-            Vector2 centerScreen = RectTransformUtility.WorldToScreenPoint(uiCamera, worldCenter);
-
-            float localBodyOffset = indicatorCore.rect.height * 2f;
-            var worldAbove = indicatorCore.TransformPoint(new Vector3(0f, localBodyOffset, 0f));
-            Vector2 aboveScreen = RectTransformUtility.WorldToScreenPoint(uiCamera, worldAbove);
-
-            var indicatorColor = ReadScreenPixel(centerScreen);
-            var bottleBodyColor = ReadScreenPixel(aboveScreen);
-
-            return Mathf.Abs(Luminance(indicatorColor) - Luminance(bottleBodyColor));
-        }
-
-        private static Color ReadScreenPixel(Vector2 screenPosition)
-        {
-            int x = Mathf.Clamp(Mathf.RoundToInt(screenPosition.x), 0, Screen.width - 1);
-            int y = Mathf.Clamp(Mathf.RoundToInt(screenPosition.y), 0, Screen.height - 1);
-
-            var texture = new Texture2D(1, 1, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(x, y, 1, 1), 0, 0);
-            texture.Apply();
-            Color pixel = texture.GetPixel(0, 0);
-            Object.Destroy(texture);
-            return pixel;
-        }
-
-        private static float Luminance(Color color)
-        {
-            return 0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b;
+            return borderPixels / ppu;
         }
 
         private static List<BottleView> FindBottleViews()
@@ -368,43 +255,9 @@ namespace Decantra.Tests.PlayMode
             return new Bottle(slots, isSink);
         }
 
-        private static RectTransform FindSinkIndicatorEdge(BottleView bottle)
+        private static Image FindContourImage(BottleView bottle, string contourName)
         {
-            return bottle.transform.Find("LiquidMask/LiquidRoot/BasePlate")?.GetComponent<RectTransform>();
-        }
-
-        private static RectTransform FindSinkIndicatorCore(BottleView bottle)
-        {
-            return bottle.transform.Find("LiquidMask/LiquidRoot/AnchorCollar")?.GetComponent<RectTransform>();
-        }
-
-        private static RectTransform FindOutlineRect(BottleView bottle)
-        {
-            return bottle.transform.Find("Outline")?.GetComponent<RectTransform>();
-        }
-
-        private static Image FindBackgroundImage()
-        {
-            return GameObject.Find("Background")?.GetComponent<Image>();
-        }
-
-        private static Rect GetWorldRect(RectTransform rect)
-        {
-            Assert.IsNotNull(rect, "Expected rect transform was null.");
-
-            var corners = new Vector3[4];
-            rect.GetWorldCorners(corners);
-            return new Rect(
-                corners[0].x,
-                corners[0].y,
-                corners[2].x - corners[0].x,
-                corners[2].y - corners[0].y);
-        }
-
-        private static string GetArtifactOutputDirectory()
-        {
-            string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            return Path.Combine(root, "Artifacts", "sink-indicator-validation");
+            return bottle.transform.Find(contourName)?.GetComponent<Image>();
         }
     }
 }
