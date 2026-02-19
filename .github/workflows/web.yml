@@ -102,10 +102,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f Builds/WebGL/index.html
-          test -f Builds/WebGL/Build/Decantra.loader.js
-          test -f Builds/WebGL/Build/Decantra.framework.js
-          test -f Builds/WebGL/Build/Decantra.data
-          test -f Builds/WebGL/Build/Decantra.wasm
+          ls Builds/WebGL/Build/*.loader.js >/dev/null
+          ls Builds/WebGL/Build/*.framework.js* >/dev/null
+          ls Builds/WebGL/Build/*.data* >/dev/null
+          ls Builds/WebGL/Build/*.wasm* >/dev/null
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
