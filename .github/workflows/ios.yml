@@ -380,7 +380,12 @@ jobs:
       - name: Install app
         run: |
           set -euo pipefail
-          APP_PATH="Builds/iOS/SimulatorApp/Cantra.app"
+          APP_PATH="$(find Builds/iOS/SimulatorApp -type d -name '*.app' | head -n 1)"
+          if [[ -z "${APP_PATH}" ]]; then
+            echo "No simulator .app found after artifact download" >&2
+            find Builds/iOS/SimulatorApp -maxdepth 6 -print || true
+            exit 1
+          fi
           xcrun simctl install "${{ steps.simulator.outputs.udid }}" "${APP_PATH}"
 
       - name: Run Maestro smoke flow
