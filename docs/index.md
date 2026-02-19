@@ -1,8 +1,12 @@
 # Decantra
 
-<img src="img/logo.png" alt="Decantra Logo" width="120"/>
+![Decantra Logo](img/logo.png)
 
 Decantra is a mobile-first bottle-sorting puzzle game built in Unity.
+
+## Play in Browser
+
+- WebGL version: [Play Decantra (WebGL)](webgl/)
 
 ## What it does
 

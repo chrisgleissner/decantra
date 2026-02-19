@@ -140,6 +140,25 @@ jobs:
             exit 1
           fi
 
+      - name: Upload iOS simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: Builds/iOS/SimulatorApp/Cantra.app
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload iOS simulator Xcode project + logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-build-artifacts
+          path: |
+            Builds/iOS/Xcode/**
+            Builds/iOS/logs/**
+          if-no-files-found: warn
+          retention-days: 14
+
   build-ios-ipa:
     name: Build iOS IPA
     runs-on: macos-latest
@@ -259,21 +278,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload iOS simulator app
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-simulator-app
-          path: Builds/iOS/SimulatorApp/Cantra.app
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload iOS Xcode project + logs
+      - name: Upload iOS device Xcode project + logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-build-artifacts
+          name: ios-device-build-artifacts
           path: |
-            Builds/iOS/Xcode/**
+            Builds/iOS/XcodeDevice/**
             Builds/iOS/logs/**
           if-no-files-found: warn
           retention-days: 14

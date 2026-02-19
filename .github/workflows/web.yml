@@ -74,18 +74,6 @@ jobs:
           docker system prune -af || true
           echo "Disk after cleanup:" && df -h
 
-      - name: Free disk space for Unity WebGL image
-        run: |
-          set -euo pipefail
-          echo "Disk before cleanup:" && df -h
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /usr/local/.ghcup || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          docker system prune -af || true
-          echo "Disk after cleanup:" && df -h
-
       - name: Build Unity WebGL
         uses: game-ci/unity-builder@v4
         with:
@@ -142,7 +130,7 @@ jobs:
           if-no-files-found: warn
 
   deploy-pages:
-    name: Deploy WebGL to GitHub Pages
+    name: Deploy docs + WebGL to GitHub Pages
     needs: build-and-smoke
     runs-on: ubuntu-latest
     environment:
@@ -156,13 +144,24 @@ jobs:
           name: Decantra-WebGL
           path: build/WebGL
 
+      - name: Prepare Pages content
+        run: |
+          set -euo pipefail
+          rm -rf build/Pages
+          mkdir -p build/Pages/webgl
+          cp -R docs/. build/Pages/
+          cp -R build/WebGL/. build/Pages/webgl/
+
+          test -f build/Pages/index.md
+          test -f build/Pages/webgl/index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/WebGL
+          path: build/Pages
 
       - name: Deploy to GitHub Pages
         id: deployment
