@@ -92,7 +92,7 @@ jobs:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: WebGL
-          buildsPath: build
+          buildsPath: Builds
           buildMethod: Decantra.App.Editor.WebGlBuild.BuildRelease
           versioning: None
           customParameters: >
