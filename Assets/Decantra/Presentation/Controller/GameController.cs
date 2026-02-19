@@ -537,6 +537,7 @@ namespace Decantra.Presentation.Controller
 
         private void RestartCurrentLevel(LevelState restartState = null)
         {
+            int preservedResetCount = _levelResetCount;
             var stateToUse = restartState;
             if (stateToUse == null && _initialState != null)
             {
@@ -555,6 +556,7 @@ namespace Decantra.Presentation.Controller
             }
 
             ApplyLoadedState(stateToUse, _currentLevel, stateToUse.Seed);
+            _levelResetCount = preservedResetCount;
         }
 
         private void CaptureInitialState(LevelState state)
@@ -919,7 +921,11 @@ namespace Decantra.Presentation.Controller
                 _scoreSession?.UpdateProvisional(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed, _currentDifficulty100, IsCleanSolve);
             }
 
-            int awardedScore = _isCurrentLevelAssisted ? 0 : (_scoreSession?.ProvisionalScore ?? 0);
+            int baseAwardedScore = _isCurrentLevelAssisted ? 0 : (_scoreSession?.ProvisionalScore ?? 0);
+            int awardedScore = ResolveAwardedScore(baseAwardedScore);
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Debug.Log($"Decantra AwardDegradation level={_state.LevelIndex} resetCount={_levelResetCount} baseStars={baseStars} awardedStars={_lastStars} baseScore={baseAwardedScore} awardedScore={awardedScore}");
+#endif
             // CommitLevel delayed to onScoreApply
             _completionStreak++;
 
@@ -929,7 +935,7 @@ namespace Decantra.Presentation.Controller
             {
                 if (!_isCurrentLevelAssisted)
                 {
-                    _scoreSession?.CommitLevel();
+                    _scoreSession?.CommitLevel(awardedScore);
                 }
                 else
                 {
@@ -1789,6 +1795,11 @@ namespace Decantra.Presentation.Controller
         private int ResolveAwardedStars(int baseStars)
         {
             return StarEconomy.ResolveAwardedStars(baseStars, _levelResetCount, _isCurrentLevelAssisted);
+        }
+
+        private int ResolveAwardedScore(int baseScore)
+        {
+            return StarEconomy.ResolveAwardedScore(baseScore, _levelResetCount, _isCurrentLevelAssisted);
         }
 
         private static float ResolveResetMultiplier(int resetCount)

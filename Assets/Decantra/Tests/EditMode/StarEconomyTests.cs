@@ -17,12 +17,13 @@ namespace Decantra.Tests.EditMode
         // ── Reset Multiplier ──────────────────────────────────────────
 
         [TestCase(0, 1.00f)]
-        [TestCase(1, 0.75f)]
-        [TestCase(2, 0.50f)]
-        [TestCase(3, 0.25f)]
-        [TestCase(4, 0.25f)]
-        [TestCase(10, 0.25f)]
-        [TestCase(100, 0.25f)]
+        [TestCase(1, 0.80f)]
+        [TestCase(2, 0.60f)]
+        [TestCase(3, 0.40f)]
+        [TestCase(4, 0.20f)]
+        [TestCase(5, 0.10f)]
+        [TestCase(10, 0.10f)]
+        [TestCase(100, 0.10f)]
         public void ResetMultiplier_MatchesSpec(int resets, float expected)
         {
             Assert.AreEqual(expected, StarEconomy.ResolveResetMultiplier(resets), 0.001f);
@@ -76,45 +77,101 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void AwardedStars_OneReset_75Percent()
+        public void AwardedStars_OneReset_LinearCapReduction()
         {
-            Assert.AreEqual(3, StarEconomy.ResolveAwardedStars(5, 1, false));
+            Assert.AreEqual(4, StarEconomy.ResolveAwardedStars(5, 1, false));
         }
 
         [Test]
-        public void AwardedStars_TwoResets_50Percent()
+        public void AwardedStars_TwoResets_LinearCapReduction()
         {
-            Assert.AreEqual(2, StarEconomy.ResolveAwardedStars(5, 2, false));
+            Assert.AreEqual(3, StarEconomy.ResolveAwardedStars(5, 2, false));
         }
 
         [Test]
-        public void AwardedStars_ThreeResets_25Percent()
+        public void AwardedStars_ThreeResets_LinearCapReduction()
         {
-            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(5, 3, false));
+            Assert.AreEqual(2, StarEconomy.ResolveAwardedStars(5, 3, false));
         }
 
         [Test]
-        public void AwardedStars_FloorsTruncation()
+        public void AwardedStars_ManyResets_FloorsAtOne()
         {
-            // 3 * 0.75 = 2.25 → floor = 2
-            Assert.AreEqual(2, StarEconomy.ResolveAwardedStars(3, 1, false));
-            // 1 * 0.25 = 0.25 → floor = 0
-            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(1, 3, false));
+            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(5, 4, false));
+            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(5, 20, false));
         }
 
         [Test]
-        public void AwardedStars_ZeroBase_AlwaysZero()
+        public void AwardedStars_SolvedFloor_NeverZeroForNonAssistedSolve()
         {
-            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(0, 0, false));
-            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(0, 2, false));
+            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(0, 0, false));
+            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(0, 50, false));
         }
 
         [Test]
-        public void AwardedStars_AlwaysClampedToZeroToFive()
+        public void AwardedStars_AlwaysClampedToOneToFive_WhenNotAssisted()
         {
             Assert.AreEqual(5, StarEconomy.ResolveAwardedStars(99, 0, false));
-            Assert.AreEqual(3, StarEconomy.ResolveAwardedStars(99, 1, false));
-            Assert.AreEqual(0, StarEconomy.ResolveAwardedStars(-3, 0, false));
+            Assert.AreEqual(4, StarEconomy.ResolveAwardedStars(99, 1, false));
+            Assert.AreEqual(1, StarEconomy.ResolveAwardedStars(-3, 0, false));
+        }
+
+        [Test]
+        public void AwardedStars_MonotonicNonIncreasing_WithIncreasingResetCount()
+        {
+            int previous = int.MaxValue;
+            for (int resets = 0; resets <= 20; resets++)
+            {
+                int stars = StarEconomy.ResolveAwardedStars(5, resets, false);
+                TestContext.WriteLine($"resetCount={resets} computedStars={stars}");
+                Assert.LessOrEqual(stars, previous);
+                previous = stars;
+            }
+        }
+
+        [Test]
+        public void AwardedScore_NoReset_IsFull()
+        {
+            Assert.AreEqual(200, StarEconomy.ResolveAwardedScore(200, 0, false));
+        }
+
+        [Test]
+        public void AwardedScore_OneReset_IsReduced()
+        {
+            int full = StarEconomy.ResolveAwardedScore(200, 0, false);
+            int degraded = StarEconomy.ResolveAwardedScore(200, 1, false);
+            Assert.Less(degraded, full);
+        }
+
+        [Test]
+        public void AwardedScore_ManyAndExtremeResets_RemainsPositive()
+        {
+            int many = StarEconomy.ResolveAwardedScore(200, 20, false);
+            int extreme = StarEconomy.ResolveAwardedScore(200, 1_000_000, false);
+            TestContext.WriteLine($"resetCount=20 computedScore={many}");
+            TestContext.WriteLine($"resetCount=1000000 computedScore={extreme}");
+            Assert.GreaterOrEqual(many, 1);
+            Assert.GreaterOrEqual(extreme, 1);
+        }
+
+        [Test]
+        public void AwardedScore_MonotonicNonIncreasing_WithIncreasingResetCount()
+        {
+            int previous = int.MaxValue;
+            for (int resets = 0; resets <= 20; resets++)
+            {
+                int score = StarEconomy.ResolveAwardedScore(200, resets, false);
+                TestContext.WriteLine($"resetCount={resets} computedScore={score}");
+                Assert.LessOrEqual(score, previous);
+                previous = score;
+            }
+        }
+
+        [Test]
+        public void AwardedScore_AssistedLevel_AlwaysZero()
+        {
+            Assert.AreEqual(0, StarEconomy.ResolveAwardedScore(200, 0, true));
+            Assert.AreEqual(0, StarEconomy.ResolveAwardedScore(200, 10, true));
         }
 
         // ── TrySpend ──────────────────────────────────────────────────

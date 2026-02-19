@@ -18,6 +18,10 @@ namespace Decantra.Domain.Rules
     public static class StarEconomy
     {
         public const int ConvertSinksCost = 10;
+        private const int MaxStars = 5;
+        private const int MinSolvedStars = 1;
+        private const int ScorePenaltyPercentPerReset = 20;
+        private const int MinimumScoreMultiplierPercent = 10;
 
         /// <summary>
         /// Returns the star multiplier for the given number of level resets.
@@ -25,10 +29,21 @@ namespace Decantra.Domain.Rules
         /// </summary>
         public static float ResolveResetMultiplier(int resetCount)
         {
-            if (resetCount <= 0) return 1f;
-            if (resetCount == 1) return 0.75f;
-            if (resetCount == 2) return 0.5f;
-            return 0.25f;
+            return ResolveScoreMultiplierPercent(resetCount) / 100f;
+        }
+
+        public static int ResolveMaxAchievableStars(int resetCount, int maxStars = MaxStars)
+        {
+            int safeResetCount = Math.Max(0, resetCount);
+            int safeMaxStars = Math.Max(MinSolvedStars, Math.Min(MaxStars, maxStars));
+            return Math.Max(MinSolvedStars, safeMaxStars - safeResetCount);
+        }
+
+        public static int ResolveScoreMultiplierPercent(int resetCount)
+        {
+            int safeResetCount = Math.Max(0, resetCount);
+            int degraded = 100 - safeResetCount * ScorePenaltyPercentPerReset;
+            return Math.Max(MinimumScoreMultiplierPercent, degraded);
         }
 
         /// <summary>
@@ -61,9 +76,20 @@ namespace Decantra.Domain.Rules
         public static int ResolveAwardedStars(int baseStars, int resetCount, bool isAssisted)
         {
             if (isAssisted) return 0;
-            int clampedBaseStars = Math.Max(0, Math.Min(5, baseStars));
-            float multiplier = ResolveResetMultiplier(resetCount);
-            return (int)Math.Floor(clampedBaseStars * multiplier);
+            int clampedBaseStars = Math.Max(0, Math.Min(MaxStars, baseStars));
+            int solvedBaseStars = Math.Max(MinSolvedStars, clampedBaseStars);
+            int maxAchievableStars = ResolveMaxAchievableStars(resetCount, MaxStars);
+            return Math.Max(MinSolvedStars, Math.Min(solvedBaseStars, maxAchievableStars));
+        }
+
+        public static int ResolveAwardedScore(int baseScore, int resetCount, bool isAssisted)
+        {
+            if (isAssisted) return 0;
+            int safeBaseScore = Math.Max(0, baseScore);
+            int multiplierPercent = ResolveScoreMultiplierPercent(resetCount);
+            long scaled = (long)safeBaseScore * multiplierPercent;
+            int degradedScore = (int)(scaled / 100);
+            return Math.Max(1, degradedScore);
         }
 
         /// <summary>
