@@ -134,7 +134,7 @@ namespace Decantra.Presentation
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, Level24FileName);
-            yield return CaptureSinkIndicatorScreenshots(controller, outputDir);
+            yield return CaptureSinkStyleScreenshots(controller, outputDir);
             yield return CaptureAutoSolveEvidence(controller, outputDir);
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, Level36FileName);
@@ -937,7 +937,7 @@ namespace Decantra.Presentation
             yield return null;
         }
 
-        private IEnumerator CaptureSinkIndicatorScreenshots(GameController controller, string outputDir)
+        private IEnumerator CaptureSinkStyleScreenshots(GameController controller, string outputDir)
         {
             if (controller == null)
             {
@@ -972,7 +972,7 @@ namespace Decantra.Presentation
 
             if (sinkCandidates.Count < 2)
             {
-                Debug.LogError("RuntimeScreenshot: Could not find enough sink levels to capture dark/light sink indicator variants.");
+                Debug.LogError("RuntimeScreenshot: Could not find enough sink levels to capture dark/light sink style variants.");
                 _failed = true;
                 yield break;
             }
@@ -994,7 +994,7 @@ namespace Decantra.Presentation
 
             Debug.Log($"RuntimeScreenshot SinkCapture dark(level={darkest.Level}, seed={darkest.Seed}, L={darkest.Luminance:0.000}) bright(level={brightest.Level}, seed={brightest.Seed}, L={brightest.Luminance:0.000}) compare(level={comparison.Level}, seed={comparison.Seed}, L={comparison.Luminance:0.000})");
 
-            // Dark background -> light sink marker variant.
+            // Dark background evidence shot.
             controller.LoadLevel(darkest.Level, darkest.Seed);
             yield return WaitForControllerReady(controller);
             yield return new WaitForSeconds(0.25f);
@@ -1002,7 +1002,7 @@ namespace Decantra.Presentation
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, SinkIndicatorLightFileName));
 
-            // Light background -> dark sink marker variant.
+            // Light background evidence shot.
             controller.LoadLevel(brightest.Level, brightest.Seed);
             yield return WaitForControllerReady(controller);
             yield return new WaitForSeconds(0.25f);
