@@ -137,7 +137,7 @@ namespace Decantra.Presentation
                 _steps.Add(new TutorialStepData(
                     "sink-only",
                     sinkBottleName,
-                    "Dark-base sink bottles can receive liquid but cannot be picked as sources."
+                    "Black bottles use heavier, darker glass. They can receive liquid but cannot be picked as sources."
                 ));
             }
 
@@ -164,7 +164,7 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "stars",
                 "StarsButton",
-                "Earn stars by solving levels.\nTrade them for help when needed."
+                "Earn stars by solving levels.\nOpen STAR SOLUTIONS for help when needed."
             ));
         }
 

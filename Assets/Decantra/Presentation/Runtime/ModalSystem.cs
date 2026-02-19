@@ -38,6 +38,7 @@ namespace Decantra.Presentation
             public static readonly Vector2 MediumMinimum = new Vector2(620f, 760f);
             public static readonly Vector2 CompactPreferred = new Vector2(920f, 780f);
             public static readonly Vector2 CompactMinimum = new Vector2(620f, 560f);
+            public const float ActionButtonHeight = 76f;
         }
 
         internal static class Colors

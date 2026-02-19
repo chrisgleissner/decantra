@@ -16,8 +16,7 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleView : MonoBehaviour
     {
-        private const float BaseHeightRatio = 0.42f;
-        private const float BaseWidthRatio = 1.1f;
+        private const float SinkBottomStrokeThicknessMultiplier = 2f;
 
         // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
         private const float RefOutlineHeight = 372f;
@@ -36,6 +35,9 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image glassBack;
         [SerializeField] private Image glassFront;
         [SerializeField] private Image rim;
+        [SerializeField] private Image bottleNeck;
+        [SerializeField] private Image bottleFlange;
+        [SerializeField] private Image neckInnerShadow;
         [SerializeField] private Image baseAccent;
         [SerializeField] private Image curvedHighlight;
         [SerializeField] private Image reflectionStrip;
@@ -58,6 +60,8 @@ namespace Decantra.Presentation.View
         private int _levelMaxCapacity = 4;
         private bool _originalLayoutCaptured;
         private readonly List<ChildLayoutInfo> _originalChildLayouts = new List<ChildLayoutInfo>();
+        private readonly Dictionary<Image, Color> _defaultContourColors = new Dictionary<Image, Color>();
+        private Image _sinkHeavyBaseBand;
 
         /// <summary>Cached original layout of a child RectTransform for capacity-based resizing.</summary>
         private struct ChildLayoutInfo
@@ -109,6 +113,10 @@ namespace Decantra.Presentation.View
             {
                 baseDefaultColor = basePlate.color;
             }
+
+            ResolveContourReferencesIfNeeded();
+            CacheDefaultContourColors();
+
             baseScale = transform.localScale;
             ConfigureGlassVisuals();
         }
@@ -389,165 +397,180 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
-            // Sink marker: pure black for maximum visual distinction
-            Color sinkMarkerColor = new Color(0f, 0f, 0f, 0.7f);
+            if (basePlate != null) basePlate.gameObject.SetActive(false);
+            if (anchorCollar != null) anchorCollar.gameObject.SetActive(false);
+            if (normalShadow != null) normalShadow.gameObject.SetActive(true);
+            if (curvedHighlight != null) curvedHighlight.gameObject.SetActive(true);
 
-            if (bottle.IsSink)
+            if (isSink)
             {
-                if (basePlate != null)
-                {
-                    basePlate.gameObject.SetActive(true);
-                    basePlate.color = sinkMarkerColor;
-                }
-
-                if (body != null)
-                {
-                    body.color = Color.Lerp(bodyDefaultColor, new Color(0.05f, 0.05f, 0.08f, bodyDefaultColor.a), 0.35f);
-                }
-
-                if (outline != null)
-                {
-                    var sinkOutline = Color.Lerp(outlineDefaultColor, Color.black, 0.2f);
-                    outlineBaseColor = sinkOutline;
-                    outline.color = sinkOutline;
-                }
-
-                if (normalShadow != null)
-                {
-                    normalShadow.gameObject.SetActive(false);
-                }
-            }
-            else
-            {
-                if (basePlate != null)
-                {
-                    basePlate.gameObject.SetActive(false);
-                }
-
-                if (body != null)
-                {
-                    body.color = bodyDefaultColor;
-                }
-
-                if (outline != null)
-                {
-                    outlineBaseColor = outlineDefaultColor;
-                    outline.color = outlineDefaultColor;
-                }
-
-                if (anchorCollar != null)
-                {
-                    anchorCollar.gameObject.SetActive(false);
-                }
-
-                // Subtle 3D shadow beneath the bottle base
-                if (normalShadow != null && outline != null)
-                {
-                    normalShadow.gameObject.SetActive(true);
-                    normalShadow.color = new Color(0f, 0f, 0f, 0.15f);
-                    var shadowRect = normalShadow.rectTransform;
-                    shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
-                    shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
-                    shadowRect.pivot = new Vector2(0.5f, 0.5f);
-                    float outlineBottom = outline.rectTransform.anchoredPosition.y
-                                          - outline.rectTransform.sizeDelta.y * 0.5f;
-                    shadowRect.sizeDelta = new Vector2(130f, 20f);
-                    shadowRect.anchoredPosition = new Vector2(0f, outlineBottom);
-                }
+                ApplySinkContourStyle();
+                ConfigureSinkHeavyBaseBand();
+                return;
             }
 
-            UpdateBaseLayout();
+            RestoreContourDefaults();
+            HideSinkHeavyBaseBand();
         }
 
-        /// <summary>
-        /// Positions the anchorCollar (marker band) so that it is vertically centered
-        /// within the first slot of liquid. When 1 unit of liquid is poured in, the
-        /// liquid above and below the band will have equal height.
-        /// Re-parents the collar into slotRoot and places it last in sibling order
-        /// so it renders on top of any liquid (it represents a marking in the glass).
-        /// </summary>
-        private void UpdateCollarLayout(int capacity)
+        private void ApplySinkContourStyle()
         {
-            if (anchorCollar == null || slotRoot == null) return;
+            ResolveContourReferencesIfNeeded();
 
-            // Re-parent into slotRoot if not already there, so coordinates match liquid
-            if (anchorCollar.rectTransform.parent != slotRoot)
+            foreach (var contour in EnumerateSinkStrokeContours())
             {
-                anchorCollar.rectTransform.SetParent(slotRoot, false);
+                if (contour == null) continue;
+                float alpha = GetDefaultContourColor(contour).a;
+                contour.color = new Color(0f, 0f, 0f, alpha);
             }
 
-            // Ensure collar renders on top of liquid segments (glass marking)
-            anchorCollar.rectTransform.SetAsLastSibling();
-
-            float height = slotRoot.rect.height;
-            if (height <= 0f) height = RefSlotRootHeight;
-            float width = slotRoot.rect.width;
-            if (width <= 0f) width = 112f;
-
-            // Height of 1 slot in local space
-            float oneSlotHeight = capacity > 0 ? height / capacity : height;
-
-            // Collar height is ~40% of one slot so liquid is visible above and below
-            float collarHeight = oneSlotHeight * 0.4f;
-            // Center the collar vertically within the first slot
-            float collarCenterY = oneSlotHeight * 0.5f;
-
-            var collarRect = anchorCollar.rectTransform;
-            collarRect.anchorMin = new Vector2(0.5f, 0f);
-            collarRect.anchorMax = new Vector2(0.5f, 0f);
-            collarRect.pivot = new Vector2(0.5f, 0.5f);
-            collarRect.sizeDelta = new Vector2(width, collarHeight);
-            collarRect.anchoredPosition = new Vector2(0f, collarCenterY);
+            float outlineAlpha = outline != null ? GetDefaultContourColor(outline).a : 1f;
+            outlineBaseColor = new Color(0f, 0f, 0f, outlineAlpha);
         }
 
-        /// <summary>
-        /// Positions the basePlate as a subtle foot beneath the bottle for sink bottles.
-        /// Directly attached (no gap), slightly wider than the bottle, height ≤ 10% of bottle.
-        /// For non-sink bottles, resets basePlate to default.
-        /// </summary>
-        private void UpdateBaseLayout()
+        private void RestoreContourDefaults()
         {
-            if (basePlate == null || outline == null) return;
-            if (!isSink) return; // Non-sink bottles keep default basePlate
+            ResolveContourReferencesIfNeeded();
 
-            var outlineRect = outline.rectTransform;
-            float outlineHeight = outlineRect.rect.height;
-            float outlineWidth = outlineRect.rect.width;
-            if (outlineHeight <= 0f || outlineWidth <= 0f) return;
-
-            float baseHeight = ResolveSinkBaseHeight(outline);
-            if (baseHeight <= 0f)
+            foreach (var contour in EnumerateSinkStrokeContours())
             {
-                baseHeight = outlineHeight * BaseHeightRatio;
+                if (contour == null) continue;
+                contour.color = GetDefaultContourColor(contour);
             }
-            else
-            {
-                baseHeight = Mathf.Max(baseHeight, outlineHeight * 0.03f);
-            }
-            baseHeight *= 2.5f;
-            float baseWidth = outlineWidth * BaseWidthRatio;
 
-            var baseRect = basePlate.rectTransform;
-            baseRect.anchorMin = new Vector2(0.5f, 0.5f);
-            baseRect.anchorMax = new Vector2(0.5f, 0.5f);
-            baseRect.pivot = new Vector2(0.5f, 1f);
-            baseRect.sizeDelta = new Vector2(baseWidth, baseHeight);
-
-            float outlineBottom = outlineRect.anchoredPosition.y - outlineHeight * outlineRect.pivot.y;
-            baseRect.anchoredPosition = new Vector2(0f, outlineBottom);
+            outlineBaseColor = outlineDefaultColor;
         }
 
-        private static float ResolveSinkBaseHeight(Image outlineImage)
+        private void CacheDefaultContourColors()
         {
-            if (outlineImage == null) return 0f;
-            var sprite = outlineImage.sprite;
-            if (sprite == null) return 0f;
-            float bottomBorderPx = sprite.border.y;
-            if (bottomBorderPx <= 0f) return 0f;
-            float ppu = sprite.pixelsPerUnit;
-            if (ppu <= 0f) return 0f;
-            // Base height is exactly 2x the bottom border thickness of the bottle body.
-            return 2f * (bottomBorderPx / ppu);
+            foreach (var contour in EnumerateSinkStrokeContours())
+            {
+                if (contour == null) continue;
+                _defaultContourColors[contour] = contour.color;
+            }
+        }
+
+        private Color GetDefaultContourColor(Image contour)
+        {
+            if (contour == null) return Color.white;
+            if (_defaultContourColors.TryGetValue(contour, out Color color))
+            {
+                return color;
+            }
+
+            _defaultContourColors[contour] = contour.color;
+            return contour.color;
+        }
+
+        private static float ResolveStrokeThicknessUnits(Image contour, bool horizontal)
+        {
+            if (contour == null || contour.sprite == null)
+            {
+                return 4f;
+            }
+
+            float borderPixels = horizontal
+                ? Mathf.Max(contour.sprite.border.x, contour.sprite.border.z)
+                : Mathf.Max(contour.sprite.border.y, contour.sprite.border.w);
+
+            if (borderPixels <= 0f)
+            {
+                borderPixels = 4f;
+            }
+
+            float referencePpu = contour.canvas != null ? contour.canvas.referencePixelsPerUnit : 100f;
+            float spritePpu = contour.sprite.pixelsPerUnit > 0f ? contour.sprite.pixelsPerUnit : referencePpu;
+            float unitsPerPixel = referencePpu / spritePpu;
+            return borderPixels * unitsPerPixel;
+        }
+
+        private IEnumerable<Image> EnumerateSinkStrokeContours()
+        {
+            yield return outline;
+            yield return rim;
+            yield return bottleNeck;
+            yield return bottleFlange;
+        }
+
+        private void ResolveContourReferencesIfNeeded()
+        {
+            if (bottleNeck == null)
+            {
+                bottleNeck = transform.Find("BottleNeck")?.GetComponent<Image>();
+            }
+            if (bottleFlange == null)
+            {
+                bottleFlange = transform.Find("BottleFlange")?.GetComponent<Image>();
+            }
+            if (neckInnerShadow == null)
+            {
+                neckInnerShadow = transform.Find("NeckInnerShadow")?.GetComponent<Image>();
+            }
+        }
+
+        private void ConfigureSinkHeavyBaseBand()
+        {
+            if (outline == null)
+            {
+                HideSinkHeavyBaseBand();
+                return;
+            }
+
+            if (_sinkHeavyBaseBand == null)
+            {
+                _sinkHeavyBaseBand = CreateSinkBandImage("Outline_SinkHeavyBase");
+            }
+
+            float regularBottomStroke = ResolveStrokeThicknessUnits(outline, horizontal: false);
+            float extraStroke = regularBottomStroke * (SinkBottomStrokeThicknessMultiplier - 1f);
+            if (extraStroke <= 0f)
+            {
+                HideSinkHeavyBaseBand();
+                return;
+            }
+
+            var sourceRect = outline.rectTransform;
+            var bandRect = _sinkHeavyBaseBand.rectTransform;
+            CopyRect(sourceRect, bandRect);
+            float outlineAlpha = GetDefaultContourColor(outline).a;
+            _sinkHeavyBaseBand.color = new Color(0f, 0f, 0f, outlineAlpha);
+            _sinkHeavyBaseBand.sprite = null;
+            _sinkHeavyBaseBand.type = Image.Type.Simple;
+            _sinkHeavyBaseBand.preserveAspect = false;
+            _sinkHeavyBaseBand.rectTransform.sizeDelta = new Vector2(sourceRect.sizeDelta.x, extraStroke);
+
+            float outlineBottomY = sourceRect.anchoredPosition.y - (sourceRect.sizeDelta.y * 0.5f);
+            bandRect.anchoredPosition = new Vector2(sourceRect.anchoredPosition.x, outlineBottomY - (extraStroke * 0.5f));
+
+            _sinkHeavyBaseBand.transform.SetSiblingIndex(outline.transform.GetSiblingIndex() + 1);
+            _sinkHeavyBaseBand.gameObject.SetActive(true);
+        }
+
+        private Image CreateSinkBandImage(string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            var rect = go.GetComponent<RectTransform>();
+            rect.SetParent(outline.transform.parent, false);
+            var image = go.AddComponent<Image>();
+            image.raycastTarget = false;
+            return image;
+        }
+
+        private void HideSinkHeavyBaseBand()
+        {
+            if (_sinkHeavyBaseBand != null) _sinkHeavyBaseBand.gameObject.SetActive(false);
+        }
+
+        private static void CopyRect(RectTransform source, RectTransform target)
+        {
+            if (source == null || target == null) return;
+            target.anchorMin = source.anchorMin;
+            target.anchorMax = source.anchorMax;
+            target.pivot = source.pivot;
+            target.anchoredPosition = source.anchoredPosition;
+            target.sizeDelta = source.sizeDelta;
+            target.localScale = source.localScale;
+            target.localRotation = source.localRotation;
         }
 
         private void EnsureColorsInitialized()

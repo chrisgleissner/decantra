@@ -167,11 +167,11 @@ namespace Decantra.Tests.EditMode
             bool expectedSink = LevelDifficultyEngine.DetermineSinkCount(profile.LevelIndex) > 0;
             if (expectedSink)
             {
-                Assert.IsTrue(hasSink, "Expected at least one sink bottle when profile allows it.");
+                Assert.IsTrue(hasSink, "Expected at least one black bottle when profile allows it.");
             }
             else
             {
-                Assert.IsFalse(hasSink, "Did not expect sink bottle when sink count resolves to zero.");
+                Assert.IsFalse(hasSink, "Did not expect black bottle when sink count resolves to zero.");
             }
         }
 
@@ -187,7 +187,7 @@ namespace Decantra.Tests.EditMode
             foreach (var bottle in state.Bottles)
             {
                 if (!bottle.IsSink) continue;
-                Assert.IsTrue(bottle.IsSingleColorOrEmpty(), "Sink bottle should be empty or monochrome at start.");
+                Assert.IsTrue(bottle.IsSingleColorOrEmpty(), "Black bottle should be empty or monochrome at start.");
             }
         }
 

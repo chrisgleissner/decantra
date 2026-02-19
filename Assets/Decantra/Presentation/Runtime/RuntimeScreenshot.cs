@@ -8,11 +8,13 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
+using Decantra.Domain.Solver;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
 using UnityEngine;
@@ -36,6 +38,20 @@ namespace Decantra.Presentation
         private const string OptionsStarfieldControlsFileName = "options_starfield_controls.png";
         private const string OptionsLegalPrivacyTermsFileName = "options_legal_privacy_terms.png";
         private const string StarTradeInLowStarsFileName = "star_trade_in_low_stars.png";
+        private const string SinkCountOneFileName = "sink_count_1.png";
+        private const string SinkCountTwoFileName = "sink_count_2.png";
+        private const string SinkCountThreeFileName = "sink_count_3.png";
+        private const string SinkCountFourFileName = "sink_count_4.png";
+        private const string SinkCountFiveFileName = "sink_count_5.png";
+        private const string AutoSolveStartFileName = "auto_solve_start.png";
+        private const string AutoSolveStepPrefix = "auto_solve_step_";
+        private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
+        private const float AutoSolveMinDragSeconds = 0.35f;
+        private const float AutoSolveMaxDragSeconds = 1.0f;
+        private const float AutoSolveDragSlowdownMultiplier = 1.5f;
+        private const float AutoSolveDragTiltDegrees = 30f;
+        private const float AutoSolveTiltStartNormalized = 0.62f;
+        private const float AutoSolveReturnMinSeconds = 0.2f;
         private const string LaunchFileName = "screenshot-01-launch.png";
         private const string IntroFileName = "screenshot-02-intro.png";
         private const string Level01FileName = "screenshot-03-level-01.png";
@@ -52,6 +68,24 @@ namespace Decantra.Presentation
         private const float MotionFrameIntervalMs = 600f;
 
         private bool _failed;
+        private RectTransform _dragCaptureRect;
+        private Vector2 _dragCaptureStartAnchoredPosition;
+        private Quaternion _dragCaptureStartRotation;
+        private bool _dragCaptureActive;
+
+        private readonly struct SinkCaptureTarget
+        {
+            public SinkCaptureTarget(int sinkCount, int level, int seed)
+            {
+                SinkCount = sinkCount;
+                Level = level;
+                Seed = seed;
+            }
+
+            public int SinkCount { get; }
+            public int Level { get; }
+            public int Seed { get; }
+        }
 
         private void Start()
         {
@@ -101,6 +135,8 @@ namespace Decantra.Presentation
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, Level24FileName);
+            yield return CaptureSinkCountScreenshots(controller, outputDir);
+            yield return CaptureAutoSolveEvidence(controller, outputDir);
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, Level36FileName);
             yield return CaptureOptionsScreenshot(controller, outputDir, OptionsPanelTypographyFileName);
@@ -902,6 +938,423 @@ namespace Decantra.Presentation
             yield return null;
         }
 
+        private IEnumerator CaptureSinkCountScreenshots(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            var requestedTargets = ResolveSinkTargetsFromIntent();
+
+            for (int sinkCount = 1; sinkCount <= 5; sinkCount++)
+            {
+                SinkCaptureTarget target = default;
+                bool foundTarget = requestedTargets.TryGetValue(sinkCount, out target);
+
+                if (!foundTarget)
+                {
+                    for (int level = 1; level <= 1200 && !foundTarget; level++)
+                    {
+                        for (int seedVariant = 0; seedVariant < 4 && !foundTarget; seedVariant++)
+                        {
+                            int candidateSeed = 900 + level + (seedVariant * 1000);
+                            controller.LoadLevel(level, candidateSeed);
+                            yield return WaitForControllerReady(controller);
+                            yield return new WaitForSeconds(0.08f);
+
+                            if (CurrentSinkBottleCount(controller) == sinkCount)
+                            {
+                                target = new SinkCaptureTarget(sinkCount, level, candidateSeed);
+                                foundTarget = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!foundTarget)
+                {
+                    Debug.LogError($"RuntimeScreenshot: Could not resolve sink-count screenshot target for sink_count={sinkCount}.");
+                    _failed = true;
+                    yield break;
+                }
+
+                controller.LoadLevel(target.Level, target.Seed);
+                yield return WaitForControllerReady(controller);
+                yield return new WaitForSeconds(0.25f);
+
+                int observedSinkCount = CurrentSinkBottleCount(controller);
+                if (observedSinkCount != sinkCount)
+                {
+                    Debug.LogError($"RuntimeScreenshot: sink-count mismatch for sink_count={sinkCount}. observed={observedSinkCount}, level={target.Level}, seed={target.Seed}");
+                    _failed = true;
+                    yield break;
+                }
+
+                Canvas.ForceUpdateCanvases();
+                yield return new WaitForEndOfFrame();
+                yield return CaptureScreenshot(Path.Combine(outputDir, ResolveSinkCountFileName(sinkCount)));
+            }
+        }
+
+        private static string ResolveSinkCountFileName(int sinkCount)
+        {
+            switch (sinkCount)
+            {
+                case 1:
+                    return SinkCountOneFileName;
+                case 2:
+                    return SinkCountTwoFileName;
+                case 3:
+                    return SinkCountThreeFileName;
+                case 4:
+                    return SinkCountFourFileName;
+                case 5:
+                    return SinkCountFiveFileName;
+                default:
+                    return $"sink_count_{sinkCount}.png";
+            }
+        }
+
+        private static Dictionary<int, SinkCaptureTarget> ResolveSinkTargetsFromIntent()
+        {
+            var targets = new Dictionary<int, SinkCaptureTarget>();
+            for (int sinkCount = 1; sinkCount <= 5; sinkCount++)
+            {
+                if (TryGetIntArgument($"decantra_sink_count_{sinkCount}_level", out int level)
+                    && TryGetIntArgument($"decantra_sink_count_{sinkCount}_seed", out int seed))
+                {
+                    targets[sinkCount] = new SinkCaptureTarget(sinkCount, level, seed);
+                }
+            }
+
+            if (targets.Count > 0)
+            {
+                Debug.Log($"RuntimeScreenshot: sink-count targets from launch extras = {targets.Count}");
+            }
+
+            return targets;
+        }
+
+        private IEnumerator CaptureAutoSolveEvidence(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.HideOptionsOverlay();
+            controller.HideHowToPlayOverlay();
+            controller.HideStarTradeInDialog();
+
+            controller.LoadLevel(24, 873193);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.25f);
+
+            yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveStartFileName));
+
+            if (!TryGetCurrentStateSnapshot(controller, out var solveState))
+            {
+                Debug.LogError("RuntimeScreenshot: Could not access level state for auto-solve evidence capture.");
+                _failed = true;
+                yield break;
+            }
+
+            var solver = new BfsSolver();
+            var result = solver.SolveWithPath(solveState, 8_000_000, 8_000, allowSinkMoves: true);
+            if (result == null || result.Path == null || result.Path.Count == 0)
+            {
+                Debug.LogError("RuntimeScreenshot: Solver returned no path for auto-solve evidence capture.");
+                _failed = true;
+                yield break;
+            }
+
+            int successfulMoves = 0;
+            int capturedDragFrames = 0;
+            int capturedPourFrames = 0;
+
+            for (int i = 0; i < result.Path.Count; i++)
+            {
+                var move = result.Path[i];
+                string stepIndex = (i + 1).ToString("D2");
+                string dragPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_drag.png");
+                string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_pour.png");
+
+                bool dragCaptured = false;
+                yield return AnimateDragForCapture(controller, move.Source, move.Target, dragPath, () => dragCaptured = true);
+                if (dragCaptured)
+                {
+                    capturedDragFrames++;
+                }
+
+                if (!controller.TryStartMove(move.Source, move.Target, out float pourDuration))
+                {
+                    Debug.LogError($"RuntimeScreenshot: Failed to start auto-solve move {i} ({move.Source}->{move.Target}).");
+                    _failed = true;
+                    yield break;
+                }
+                successfulMoves++;
+
+                Coroutine returnRoutine = StartCoroutine(AnimateDragReturnForCapture(pourDuration));
+
+                float pourCaptureDelay = Mathf.Clamp(pourDuration * 0.5f, 0.12f, 0.65f);
+                yield return new WaitForSeconds(pourCaptureDelay);
+                yield return CaptureScreenshot(pourPath);
+                capturedPourFrames++;
+
+                float timeout = 8f;
+                float elapsed = 0f;
+                while (controller.IsInputLocked && elapsed < timeout)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+
+                if (elapsed >= timeout)
+                {
+                    Debug.LogError("RuntimeScreenshot: Timed out waiting for auto-solve move animation to finish.");
+                    _failed = true;
+                    yield break;
+                }
+
+                if (returnRoutine != null)
+                {
+                    yield return returnRoutine;
+                }
+
+                yield return new WaitForSeconds(0.06f);
+            }
+
+            if (successfulMoves <= 0 || capturedDragFrames <= 0 || capturedPourFrames <= 0)
+            {
+                Debug.LogError("RuntimeScreenshot: Auto-solve evidence capture did not record move playback frames.");
+                _failed = true;
+                yield break;
+            }
+
+            yield return new WaitForSeconds(0.15f);
+            yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
+        }
+
+        private static bool TryGetCurrentStateSnapshot(GameController controller, out LevelState snapshot)
+        {
+            snapshot = null;
+            if (controller == null)
+            {
+                return false;
+            }
+
+            var stateField = typeof(GameController).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (stateField == null)
+            {
+                return false;
+            }
+
+            var levelState = stateField.GetValue(controller) as LevelState;
+            if (levelState == null)
+            {
+                return false;
+            }
+
+            snapshot = new LevelState(
+                levelState.Bottles,
+                levelState.MovesUsed,
+                levelState.MovesAllowed,
+                levelState.OptimalMoves,
+                levelState.LevelIndex,
+                levelState.Seed,
+                levelState.ScrambleMoves,
+                levelState.BackgroundPaletteIndex);
+            return true;
+        }
+
+        private IEnumerator AnimateDragForCapture(
+            GameController controller,
+            int sourceIndex,
+            int targetIndex,
+            string screenshotPath,
+            Action onDragCaptured)
+        {
+            if (!TryGetBottleRect(controller, sourceIndex, out var sourceRect)
+                || !TryGetBottleRect(controller, targetIndex, out var targetRect)
+                || sourceRect == null
+                || targetRect == null)
+            {
+                yield return CaptureScreenshot(screenshotPath);
+                onDragCaptured?.Invoke();
+                yield break;
+            }
+
+            Vector2 start = sourceRect.anchoredPosition;
+            Vector2 end = targetRect.anchoredPosition;
+            float maxDistance = Mathf.Max(1f, ResolveMaxBottleDistance(controller));
+            float distance = Vector2.Distance(start, end);
+            float normalizedDistance = Mathf.Clamp01(distance / maxDistance);
+            float duration = Mathf.Lerp(AutoSolveMinDragSeconds, AutoSolveMaxDragSeconds, normalizedDistance)
+                             * AutoSolveDragSlowdownMultiplier;
+            float lift = Mathf.Lerp(22f, 62f, normalizedDistance);
+            Quaternion startRotation = sourceRect.localRotation;
+
+            _dragCaptureRect = sourceRect;
+            _dragCaptureStartAnchoredPosition = start;
+            _dragCaptureStartRotation = startRotation;
+            _dragCaptureActive = true;
+
+            bool captured = false;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                Vector2 planar = Vector2.Lerp(start, end, t);
+                float arc = Mathf.Sin(t * Mathf.PI) * lift;
+                float tiltProgress = Mathf.Clamp01((t - AutoSolveTiltStartNormalized) / (1f - AutoSolveTiltStartNormalized));
+                float tiltAngle = Mathf.Lerp(0f, AutoSolveDragTiltDegrees, tiltProgress);
+                sourceRect.anchoredPosition = planar + Vector2.up * arc;
+                sourceRect.localRotation = Quaternion.Euler(0f, 0f, -tiltAngle);
+
+                if (!captured && t >= 0.5f)
+                {
+                    yield return CaptureScreenshot(screenshotPath);
+                    onDragCaptured?.Invoke();
+                    captured = true;
+                }
+
+                yield return null;
+            }
+
+            if (!captured)
+            {
+                yield return CaptureScreenshot(screenshotPath);
+                onDragCaptured?.Invoke();
+            }
+
+            sourceRect.anchoredPosition = end;
+            sourceRect.localRotation = Quaternion.Euler(0f, 0f, -AutoSolveDragTiltDegrees);
+            yield return null;
+        }
+
+        private IEnumerator AnimateDragReturnForCapture(float duration)
+        {
+            if (!_dragCaptureActive || _dragCaptureRect == null)
+            {
+                yield break;
+            }
+
+            RectTransform rect = _dragCaptureRect;
+            Vector2 fromPosition = rect.anchoredPosition;
+            Quaternion fromRotation = rect.localRotation;
+            Vector2 toPosition = _dragCaptureStartAnchoredPosition;
+            Quaternion toRotation = _dragCaptureStartRotation;
+            float returnDuration = Mathf.Max(AutoSolveReturnMinSeconds, duration);
+
+            float elapsed = 0f;
+            while (elapsed < returnDuration)
+            {
+                if (rect == null)
+                {
+                    ClearDragCaptureState();
+                    yield break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / returnDuration);
+                float eased = t * t * (3f - 2f * t);
+                rect.anchoredPosition = Vector2.Lerp(fromPosition, toPosition, eased);
+                rect.localRotation = Quaternion.Slerp(fromRotation, toRotation, eased);
+                yield return null;
+            }
+
+            if (rect != null)
+            {
+                rect.anchoredPosition = toPosition;
+                rect.localRotation = toRotation;
+            }
+
+            ClearDragCaptureState();
+        }
+
+        private void ClearDragCaptureState()
+        {
+            _dragCaptureRect = null;
+            _dragCaptureStartAnchoredPosition = Vector2.zero;
+            _dragCaptureStartRotation = Quaternion.identity;
+            _dragCaptureActive = false;
+        }
+
+        private static bool TryGetBottleRect(GameController controller, int index, out RectTransform rect)
+        {
+            rect = null;
+            if (controller == null || index < 0)
+            {
+                return false;
+            }
+
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null)
+            {
+                return false;
+            }
+
+            var list = field.GetValue(controller) as System.Collections.IList;
+            if (list == null || index >= list.Count)
+            {
+                return false;
+            }
+
+            var view = list[index] as BottleView;
+            if (view == null)
+            {
+                return false;
+            }
+
+            rect = view.transform as RectTransform;
+            return rect != null;
+        }
+
+        private static float ResolveMaxBottleDistance(GameController controller)
+        {
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            var list = field?.GetValue(controller) as System.Collections.IList;
+            if (list == null || list.Count < 2)
+            {
+                return 1f;
+            }
+
+            float maxDistance = 1f;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var a = list[i] as BottleView;
+                var aRect = a != null ? a.transform as RectTransform : null;
+                if (aRect == null || !a.gameObject.activeInHierarchy) continue;
+
+                for (int j = i + 1; j < list.Count; j++)
+                {
+                    var b = list[j] as BottleView;
+                    var bRect = b != null ? b.transform as RectTransform : null;
+                    if (bRect == null || !b.gameObject.activeInHierarchy) continue;
+
+                    float distance = Vector2.Distance(aRect.anchoredPosition, bRect.anchoredPosition);
+                    if (distance > maxDistance)
+                    {
+                        maxDistance = distance;
+                    }
+                }
+            }
+
+            return maxDistance;
+        }
+
         private IEnumerator CaptureOptionsCoverageScreenshots(GameController controller, string outputDir)
         {
             if (controller == null)
@@ -1186,32 +1639,38 @@ namespace Decantra.Presentation
 
         private static bool CurrentLevelHasSinkBottle(GameController controller)
         {
+            return CurrentSinkBottleCount(controller) > 0;
+        }
+
+        private static int CurrentSinkBottleCount(GameController controller)
+        {
             if (controller == null)
             {
-                return false;
+                return 0;
             }
 
             var stateField = typeof(GameController).GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
             if (stateField == null)
             {
-                return false;
+                return 0;
             }
 
             var levelState = stateField.GetValue(controller) as LevelState;
             if (levelState == null)
             {
-                return false;
+                return 0;
             }
 
+            int sinkCount = 0;
             for (int i = 0; i < levelState.Bottles.Count; i++)
             {
                 if (levelState.Bottles[i].IsSink)
                 {
-                    return true;
+                    sinkCount++;
                 }
             }
 
-            return false;
+            return sinkCount;
         }
 
         private static void SetControllerStarBalance(GameController controller, int starBalance)
@@ -1413,6 +1872,46 @@ namespace Decantra.Presentation
                 return false;
             }
 #endif
+            return false;
+        }
+
+        private static bool TryGetIntArgument(string key, out int value)
+        {
+            value = 0;
+
+            var args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], key, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(args[i], $"--{key}", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (int.TryParse(args[i + 1], out value))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var intent = activity.Call<AndroidJavaObject>("getIntent"))
+                {
+                    if (intent != null && intent.Call<bool>("hasExtra", key))
+                    {
+                        value = intent.Call<int>("getIntExtra", key, 0);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+#endif
+
             return false;
         }
     }

@@ -109,7 +109,7 @@ namespace Decantra.Domain.Rules
 
                 if (!found)
                 {
-                    error = $"No non-sink bottle can contain color {kvp.Key} volume {volume}.";
+                    error = $"No non-black bottle can contain color {kvp.Key} volume {volume}.";
                     return false;
                 }
             }
@@ -126,20 +126,20 @@ namespace Decantra.Domain.Rules
 
                 if (!bottle.IsSolvedBottle())
                 {
-                    error = $"Sink bottle {i} is sealed with mixed colors.";
+                    error = $"Black bottle {i} is sealed with mixed colors.";
                     return false;
                 }
 
                 var color = bottle.TopColor;
                 if (!color.HasValue)
                 {
-                    error = $"Sink bottle {i} is full but has no color.";
+                    error = $"Black bottle {i} is full but has no color.";
                     return false;
                 }
 
                 if (!volumes.TryGetValue(color.Value, out int volume) || volume != bottle.Capacity)
                 {
-                    error = $"Sink bottle {i} seals color {color.Value} volume {volume}, capacity {bottle.Capacity}.";
+                    error = $"Black bottle {i} seals color {color.Value} volume {volume}, capacity {bottle.Capacity}.";
                     return false;
                 }
             }
@@ -157,7 +157,7 @@ namespace Decantra.Domain.Rules
                 if (!bottle.IsSink) continue;
                 if (!bottle.IsSingleColorOrEmpty())
                 {
-                    error = $"Sink bottle {i} has mixed colors.";
+                    error = $"Black bottle {i} has mixed colors.";
                     return false;
                 }
             }

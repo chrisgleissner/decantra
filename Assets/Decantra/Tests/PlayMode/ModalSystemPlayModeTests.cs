@@ -85,6 +85,49 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator OptionsOverlay_UsesCanonicalVerticalSpacingAndExpandsScrollableArea()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var optionsOverlay = FindGameObjectByNameIncludingInactive("OptionsOverlay");
+            Assert.IsNotNull(optionsOverlay);
+
+            var panel = optionsOverlay.transform.Find("Panel") as RectTransform;
+            Assert.IsNotNull(panel, "Options panel not found.");
+            var panelParent = panel.parent as RectTransform;
+            Assert.IsNotNull(panelParent, "Options panel parent not found.");
+            float availableWidth = Mathf.Max(320f, panelParent.rect.width - (44f * 2f));
+            float availableHeight = Mathf.Max(360f, panelParent.rect.height - (56f * 2f));
+            float expectedWidth = Mathf.Clamp(920f, Mathf.Min(620f, availableWidth), availableWidth);
+            float expectedHeight = Mathf.Clamp(1320f, Mathf.Min(760f, availableHeight), availableHeight);
+            Assert.AreEqual(expectedWidth, panel.rect.width, 1f, "Options panel width must preserve configured responsive sizing.");
+            Assert.AreEqual(expectedHeight, panel.rect.height, 1f, "Options panel height must preserve configured responsive sizing.");
+
+            var panelLayout = panel.GetComponent<VerticalLayoutGroup>();
+            Assert.IsNotNull(panelLayout, "Options panel requires VerticalLayoutGroup.");
+            Assert.IsFalse(panelLayout.childForceExpandHeight, "Panel children must not force-expand vertically.");
+            Assert.AreEqual(28f, panelLayout.spacing, 0.01f, "Canonical spacing must match close-button horizontal inset.");
+            Assert.AreEqual(28, panelLayout.padding.top, "Top padding should use canonical spacing.");
+            Assert.AreEqual(28, panelLayout.padding.bottom, "Bottom padding should use canonical spacing.");
+
+            var listContainer = panel.Find("ListContainer") as RectTransform;
+            Assert.IsNotNull(listContainer, "Options list container not found.");
+            var listElement = listContainer.GetComponent<LayoutElement>();
+            Assert.IsNotNull(listElement);
+            Assert.AreEqual(1f, listElement.flexibleHeight, 0.001f, "Scrollable area should keep flexible height.");
+            Assert.AreEqual(0f, listElement.minHeight, 0.001f, "Scrollable area min-height should not constrain growth.");
+            Assert.Greater(listContainer.rect.height, expectedHeight * 0.55f, "Scrollable area should consume recovered vertical space.");
+
+            var closeButton = panel.Find("CloseRow/Button");
+            Assert.IsNotNull(closeButton);
+            var closeRowElement = closeButton.parent.GetComponent<LayoutElement>();
+            Assert.IsNotNull(closeRowElement);
+            Assert.AreEqual(76f, closeRowElement.preferredHeight, 0.01f, "Close row should match action button height.");
+            Assert.AreEqual(76f, closeRowElement.minHeight, 0.01f, "Close row should avoid extra vertical padding.");
+        }
+
+        [UnityTest]
         public IEnumerator TutorialAndStarModals_UseResponsiveAndScrollableStructures()
         {
             SceneBootstrap.EnsureScene();

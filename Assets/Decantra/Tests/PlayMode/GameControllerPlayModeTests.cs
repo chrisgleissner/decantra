@@ -435,7 +435,7 @@ namespace Decantra.Tests.PlayMode
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);
 
-            // Scan levels 20+ to find one that deterministically has a sink bottle.
+            // Scan levels 20+ to find one that deterministically has a black bottle.
             // DetermineSinkCount is hash-based; level 25 has sinkCount=1 with
             // the current hash, but we scan to be resilient if the hash changes.
             int sinkLevel = -1;
@@ -469,7 +469,7 @@ namespace Decantra.Tests.PlayMode
                 }
             }
 
-            Assert.GreaterOrEqual(sinkIndex, 0, $"Expected a sink bottle at level {sinkLevel}.");
+            Assert.GreaterOrEqual(sinkIndex, 0, $"Expected a black bottle at level {sinkLevel}.");
             Assert.GreaterOrEqual(normalIndex, 0, "Expected a normal bottle.");
 
             var sinkInput = GetBottleInputForIndex(controller, sinkIndex);
@@ -481,7 +481,7 @@ namespace Decantra.Tests.PlayMode
             };
 
             sinkInput.OnBeginDrag(eventData);
-            Assert.IsFalse(sinkInput.IsDragging, "Sink bottle should not start dragging.");
+            Assert.IsFalse(sinkInput.IsDragging, "Black bottle should not start dragging.");
 
             normalInput.OnBeginDrag(eventData);
             Assert.IsTrue(normalInput.IsDragging, "Normal bottle should start dragging.");
@@ -599,8 +599,8 @@ namespace Decantra.Tests.PlayMode
             Assert.AreEqual("Not enough stars", autoSolveStatusText.text);
             Assert.AreEqual("Price", convertCostLabelText.text);
             Assert.AreEqual("Price", autoSolveCostLabelText.text);
-            Assert.AreEqual("Sink bottles have dark bases: they can receive liquid but cannot pour.", convertSubtitleText.text);
-            Assert.IsFalse(sinkDefinitionText.gameObject.activeSelf, "Sink definition helper text should not render as a separate row.");
+            Assert.AreEqual("Black bottles have heavier, darker glass: they can receive liquid but cannot pour.", convertSubtitleText.text);
+            Assert.IsFalse(sinkDefinitionText.gameObject.activeSelf, "Black-bottle definition helper text should not render as a separate row.");
             StringAssert.Contains("stars", convertCostValueText.text);
             StringAssert.Contains("stars", autoSolveCostValueText.text);
         }
@@ -653,7 +653,7 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(state);
             for (int i = 0; i < state.Bottles.Count; i++)
             {
-                Assert.IsFalse(state.Bottles[i].IsSink, "All sink bottles should be converted to normal bottles.");
+                Assert.IsFalse(state.Bottles[i].IsSink, "All black bottles should be converted to normal bottles.");
             }
 
             Assert.IsFalse(controller.IsInputLocked, "Input should be restored after confirm-flow conversion.");

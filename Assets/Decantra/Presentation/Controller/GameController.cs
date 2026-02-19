@@ -63,6 +63,11 @@ namespace Decantra.Presentation.Controller
         private bool _isAutoSolving;
         private bool _autoSolvePlaybackActive;
         private float _autoSolveMoveDuration = 1f;
+        private Coroutine _autoSolveReturnRoutine;
+        private RectTransform _autoSolveActiveRect;
+        private Vector2 _autoSolveStartAnchoredPosition;
+        private Quaternion _autoSolveStartLocalRotation;
+        private bool _autoSolveVisualActive;
         private int _levelSessionId;
         private int _currentLevel = 1;
         private int _currentSeed;
@@ -115,6 +120,12 @@ namespace Decantra.Presentation.Controller
         private const float BannerTimeoutSeconds = 5.5f;
         private const float StartupFadeDurationSeconds = 0.55f;
         private const float StartupVisualSettleSeconds = 0.9f;
+        private const float AutoSolveMinDragSeconds = 0.35f;
+        private const float AutoSolveMaxDragSeconds = 1.0f;
+        private const float AutoSolveDragSlowdownMultiplier = 1.5f;
+        private const float AutoSolveDragTiltDegrees = 30f;
+        private const float AutoSolveTiltStartNormalized = 0.62f;
+        private const float AutoSolveReturnMinSeconds = 0.2f;
         private const string QuietAutomationFlag = "decantra_quiet";
         private static readonly bool EnablePourDiagnostics = false;
 
@@ -568,7 +579,7 @@ namespace Decantra.Presentation.Controller
         public bool TryStartMove(int sourceIndex, int targetIndex, out float duration)
         {
             duration = 0f;
-            if (_inputLocked || _state == null) return false;
+            if ((_inputLocked && !_isAutoSolving) || _state == null) return false;
             if (sourceIndex == targetIndex) return false;
 
             int poured = GetPourAmount(sourceIndex, targetIndex);
@@ -1749,25 +1760,30 @@ namespace Decantra.Presentation.Controller
                 if (_state == null)
                 {
                     RefundStars(cost);
+                    ResetAutoSolveVisualStateImmediate();
                     _isAutoSolving = false;
                     _autoSolvePlaybackActive = false;
                     yield break;
                 }
 
+                var move = solveResult.Path[i];
+                yield return AnimateAutoSolveDrag(move.Source, move.Target);
+
                 _autoSolveMoveDuration = ResolveAutoSolveMoveDuration(_state.LevelIndex, i);
                 _autoSolvePlaybackActive = true;
-
-                var move = solveResult.Path[i];
-                bool started = TryStartMove(move.Source, move.Target, out _);
+                bool started = TryStartMove(move.Source, move.Target, out float moveDuration);
                 if (!started)
                 {
                     RefundStars(cost);
+                    ResetAutoSolveVisualStateImmediate();
                     _autoSolvePlaybackActive = false;
                     RestartCurrentLevel();
                     _isAutoSolving = false;
                     _inputLocked = false;
                     yield break;
                 }
+
+                StartAutoSolveReturn(moveDuration);
 
                 float timeout = 6f;
                 float elapsed = 0f;
@@ -1781,8 +1797,178 @@ namespace Decantra.Presentation.Controller
                 yield return new WaitForSeconds(0.2f);
             }
 
+            ResetAutoSolveVisualStateImmediate();
             _isAutoSolving = false;
             _inputLocked = false;
+        }
+
+        private IEnumerator AnimateAutoSolveDrag(int sourceIndex, int targetIndex)
+        {
+            var sourceView = GetBottleView(sourceIndex);
+            var targetView = GetBottleView(targetIndex);
+            if (sourceView == null || targetView == null)
+            {
+                yield break;
+            }
+
+            var sourceRect = sourceView.transform as RectTransform;
+            var targetRect = targetView.transform as RectTransform;
+            if (sourceRect == null || targetRect == null)
+            {
+                yield break;
+            }
+
+            Vector2 start = sourceRect.anchoredPosition;
+            Vector2 end = targetRect.anchoredPosition;
+            float maxDistance = ResolveMaxBottleDistance();
+            float distance = Vector2.Distance(start, end);
+            float normalizedDistance = maxDistance > 0f ? Mathf.Clamp01(distance / maxDistance) : 0f;
+            float duration = Mathf.Lerp(AutoSolveMinDragSeconds, AutoSolveMaxDragSeconds, normalizedDistance)
+                             * AutoSolveDragSlowdownMultiplier;
+            float lift = Mathf.Lerp(18f, 52f, normalizedDistance);
+
+            if (_autoSolveReturnRoutine != null)
+            {
+                StopCoroutine(_autoSolveReturnRoutine);
+                _autoSolveReturnRoutine = null;
+            }
+
+            _autoSolveActiveRect = sourceRect;
+            _autoSolveStartAnchoredPosition = start;
+            _autoSolveStartLocalRotation = sourceRect.localRotation;
+            _autoSolveVisualActive = true;
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                Vector2 planar = Vector2.Lerp(start, end, t);
+                float arc = Mathf.Sin(t * Mathf.PI) * lift;
+                float tiltProgress = Mathf.Clamp01((t - AutoSolveTiltStartNormalized) / (1f - AutoSolveTiltStartNormalized));
+                float tiltAngle = Mathf.Lerp(0f, AutoSolveDragTiltDegrees, tiltProgress);
+                sourceRect.anchoredPosition = planar + Vector2.up * arc;
+                sourceRect.localRotation = Quaternion.Euler(0f, 0f, -tiltAngle);
+                yield return null;
+            }
+
+            sourceRect.anchoredPosition = end;
+            sourceRect.localRotation = Quaternion.Euler(0f, 0f, -AutoSolveDragTiltDegrees);
+            yield return null;
+        }
+
+        private void StartAutoSolveReturn(float duration)
+        {
+            if (!_autoSolveVisualActive || _autoSolveActiveRect == null)
+            {
+                return;
+            }
+
+            if (_autoSolveReturnRoutine != null)
+            {
+                StopCoroutine(_autoSolveReturnRoutine);
+            }
+
+            _autoSolveReturnRoutine = StartCoroutine(AnimateAutoSolveReturn(duration));
+        }
+
+        private IEnumerator AnimateAutoSolveReturn(float duration)
+        {
+            if (!_autoSolveVisualActive || _autoSolveActiveRect == null)
+            {
+                _autoSolveReturnRoutine = null;
+                yield break;
+            }
+
+            RectTransform rect = _autoSolveActiveRect;
+            Vector2 fromPosition = rect.anchoredPosition;
+            Quaternion fromRotation = rect.localRotation;
+            Vector2 toPosition = _autoSolveStartAnchoredPosition;
+            Quaternion toRotation = _autoSolveStartLocalRotation;
+            float returnDuration = Mathf.Max(AutoSolveReturnMinSeconds, duration);
+
+            float elapsed = 0f;
+            while (elapsed < returnDuration)
+            {
+                if (rect == null)
+                {
+                    ClearAutoSolveVisualState();
+                    _autoSolveReturnRoutine = null;
+                    yield break;
+                }
+
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / returnDuration);
+                float eased = t * t * (3f - 2f * t);
+                rect.anchoredPosition = Vector2.Lerp(fromPosition, toPosition, eased);
+                rect.localRotation = Quaternion.Slerp(fromRotation, toRotation, eased);
+                yield return null;
+            }
+
+            if (rect != null)
+            {
+                rect.anchoredPosition = toPosition;
+                rect.localRotation = toRotation;
+            }
+
+            ClearAutoSolveVisualState();
+            _autoSolveReturnRoutine = null;
+        }
+
+        private void ResetAutoSolveVisualStateImmediate()
+        {
+            if (_autoSolveReturnRoutine != null)
+            {
+                StopCoroutine(_autoSolveReturnRoutine);
+                _autoSolveReturnRoutine = null;
+            }
+
+            if (_autoSolveVisualActive && _autoSolveActiveRect != null)
+            {
+                _autoSolveActiveRect.anchoredPosition = _autoSolveStartAnchoredPosition;
+                _autoSolveActiveRect.localRotation = _autoSolveStartLocalRotation;
+            }
+
+            ClearAutoSolveVisualState();
+        }
+
+        private void ClearAutoSolveVisualState()
+        {
+            _autoSolveActiveRect = null;
+            _autoSolveStartAnchoredPosition = Vector2.zero;
+            _autoSolveStartLocalRotation = Quaternion.identity;
+            _autoSolveVisualActive = false;
+        }
+
+        private float ResolveMaxBottleDistance()
+        {
+            if (bottleViews == null || bottleViews.Count < 2)
+            {
+                return 1f;
+            }
+
+            float maxDistance = 1f;
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var a = bottleViews[i];
+                var aRect = a != null ? a.transform as RectTransform : null;
+                if (aRect == null || !a.gameObject.activeInHierarchy) continue;
+
+                for (int j = i + 1; j < bottleViews.Count; j++)
+                {
+                    var b = bottleViews[j];
+                    var bRect = b != null ? b.transform as RectTransform : null;
+                    if (bRect == null || !b.gameObject.activeInHierarchy) continue;
+
+                    float distance = Vector2.Distance(aRect.anchoredPosition, bRect.anchoredPosition);
+                    if (distance > maxDistance)
+                    {
+                        maxDistance = distance;
+                    }
+                }
+            }
+
+            return maxDistance;
         }
 
         private static float ResolveAutoSolveMoveDuration(int levelIndex, int moveIndex)

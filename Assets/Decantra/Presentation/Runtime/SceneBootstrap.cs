@@ -465,6 +465,54 @@ namespace Decantra.Presentation
                 }
             }
             RemoveDuplicateNamedObjects("TermsOverlay", GetPrivateField<GameObject>(controller, "_termsOverlay"));
+
+            NormalizeOverlayButtonSizing(GetPrivateField<GameObject>(controller, "_optionsOverlay"));
+            NormalizeOverlayButtonSizing(GetPrivateField<GameObject>(controller, "_howToPlayOverlay"));
+            NormalizeOverlayButtonSizing(GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay"));
+            NormalizeOverlayButtonSizing(GetPrivateField<GameObject>(controller, "_termsOverlay"));
+        }
+
+        private static void NormalizeOverlayButtonSizing(GameObject overlayRoot)
+        {
+            if (overlayRoot == null)
+            {
+                return;
+            }
+
+            float buttonHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+
+            var backRow = overlayRoot.transform.Find("Panel/BackRow")?.GetComponent<LayoutElement>();
+            if (backRow != null)
+            {
+                backRow.preferredHeight = buttonHeight;
+                backRow.minHeight = buttonHeight;
+            }
+
+            var optionButtons = overlayRoot.GetComponentsInChildren<Button>(true);
+            for (int i = 0; i < optionButtons.Length; i++)
+            {
+                var button = optionButtons[i];
+                if (button == null) continue;
+
+                var rect = button.transform as RectTransform;
+                if (rect == null) continue;
+
+                var parentName = button.transform.parent != null ? button.transform.parent.name : string.Empty;
+                if (!string.Equals(button.name, "Button", System.StringComparison.Ordinal)
+                    || !parentName.EndsWith("Row", System.StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var element = button.GetComponent<LayoutElement>();
+                if (element == null)
+                {
+                    element = button.gameObject.AddComponent<LayoutElement>();
+                }
+
+                element.preferredHeight = buttonHeight;
+                element.minHeight = buttonHeight;
+            }
         }
 
         private static void ResetModalVisibility(GameController controller)
@@ -1615,6 +1663,9 @@ namespace Decantra.Presentation
             SetPrivateField(bottleView, "glassFront", glassFront);
             SetPrivateField(bottleView, "reflectionStrip", reflectionStrip);
             SetPrivateField(bottleView, "rim", rim);
+            SetPrivateField(bottleView, "bottleNeck", neck);
+            SetPrivateField(bottleView, "bottleFlange", flange);
+            SetPrivateField(bottleView, "neckInnerShadow", neckInner);
             SetPrivateField(bottleView, "baseAccent", basePlate);
             SetPrivateField(bottleView, "curvedHighlight", highlight);
             SetPrivateField(bottleView, "anchorCollar", anchorCollar);
@@ -2554,7 +2605,7 @@ namespace Decantra.Presentation
             var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
             panelLayout.childAlignment = TextAnchor.UpperCenter;
             panelLayout.childForceExpandWidth = true;
-            panelLayout.childForceExpandHeight = true;
+            panelLayout.childForceExpandHeight = false;
             panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
             panelLayout.padding = new RectOffset(
                 ModalDesignTokens.Spacing.OuterPadding,
@@ -2628,8 +2679,8 @@ namespace Decantra.Presentation
             backButtonImage.type = Image.Type.Sliced;
             backButtonImage.color = ModalDesignTokens.Colors.SecondaryAction;
             var backElement = backRow.AddComponent<LayoutElement>();
-            backElement.preferredHeight = compact ? 84f : 92f;
-            backElement.minHeight = compact ? 84f : 92f;
+            backElement.preferredHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+            backElement.minHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
             var backButton = backRow.AddComponent<Button>();
             backButton.targetGraphic = backButtonImage;
             backButton.onClick.AddListener(() =>
@@ -3049,15 +3100,16 @@ namespace Decantra.Presentation
             panelImage.color = ModalDesignTokens.Colors.Panel;
 
             var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+            int canonicalOverlaySpacing = ModalDesignTokens.Spacing.OuterPadding;
             panelLayout.childAlignment = TextAnchor.UpperCenter;
             panelLayout.childForceExpandWidth = true;
-            panelLayout.childForceExpandHeight = true;
-            panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            panelLayout.childForceExpandHeight = false;
+            panelLayout.spacing = canonicalOverlaySpacing;
             panelLayout.padding = new RectOffset(
                 ModalDesignTokens.Spacing.OuterPadding,
                 ModalDesignTokens.Spacing.OuterPadding,
-                ModalDesignTokens.Spacing.OuterPadding,
-                ModalDesignTokens.Spacing.OuterPadding);
+                canonicalOverlaySpacing,
+                canonicalOverlaySpacing);
 
             var title = CreateHudText(panel.transform, "Title");
             title.text = "OPTIONS";
@@ -3065,8 +3117,8 @@ namespace Decantra.Presentation
             title.alignment = TextAnchor.MiddleCenter;
             title.color = ModalDesignTokens.Colors.PrimaryText;
             var titleElement = title.gameObject.AddComponent<LayoutElement>();
-            titleElement.preferredHeight = 74f;
-            titleElement.minHeight = 74f;
+            titleElement.preferredHeight = 40f;
+            titleElement.minHeight = 40f;
 
             var scrollHint = CreateHudText(panel.transform, "ScrollHint");
             scrollHint.text = "Scroll for more options";
@@ -3077,8 +3129,8 @@ namespace Decantra.Presentation
             scrollHint.horizontalOverflow = HorizontalWrapMode.Wrap;
             scrollHint.verticalOverflow = VerticalWrapMode.Overflow;
             var scrollHintElement = scrollHint.gameObject.AddComponent<LayoutElement>();
-            scrollHintElement.preferredHeight = 44f;
-            scrollHintElement.minHeight = 44f;
+            scrollHintElement.preferredHeight = 20f;
+            scrollHintElement.minHeight = 20f;
 
             var listContainer = CreateUiChild(panel.transform, "ListContainer");
             var listContainerImage = listContainer.AddComponent<Image>();
@@ -3087,7 +3139,7 @@ namespace Decantra.Presentation
             listContainerImage.color = ModalDesignTokens.Colors.SectionSurface;
             var listContainerElement = listContainer.AddComponent<LayoutElement>();
             listContainerElement.flexibleHeight = 1f;
-            listContainerElement.minHeight = 400f;
+            listContainerElement.minHeight = 0f;
             var listScrollRect = listContainer.AddComponent<ScrollRect>();
             listScrollRect.horizontal = false;
             listScrollRect.vertical = true;
@@ -3210,8 +3262,8 @@ namespace Decantra.Presentation
 
                 var element = panelGo.AddComponent<LayoutElement>();
                 element.flexibleWidth = 1f;
-                element.preferredHeight = 76f;
-                element.minHeight = 76f;
+                element.preferredHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+                element.minHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
 
                 var text = CreateHudText(panelGo.transform, "Label");
                 text.fontSize = ModalDesignTokens.Typography.ButtonText;
@@ -3334,6 +3386,12 @@ namespace Decantra.Presentation
             versionText.text = BuildVersionFooterText();
 
             var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", ModalDesignTokens.Colors.SecondaryAction);
+            var closeRowElement = closeButton.transform.parent.GetComponent<LayoutElement>();
+            if (closeRowElement != null)
+            {
+                closeRowElement.preferredHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+                closeRowElement.minHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+            }
             closeButton.onClick.AddListener(() =>
             {
                 if (controller != null) controller.HideOptionsOverlay();
@@ -3434,7 +3492,7 @@ namespace Decantra.Presentation
             return
                 "Drag one bottle onto another to pour liquid.\n\n" +
                 "You can only pour into an empty bottle or onto the same color.\n\n" +
-                "Some bottles are anchored by a dark base. Anchored bottles can receive liquid but cannot be lifted.\n\n" +
+                "Some bottles have reinforced heavy glass. These black bottles can receive liquid but cannot be lifted.\n\n" +
                 "A level is complete when every bottle is either empty or contains exactly one color.";
         }
 

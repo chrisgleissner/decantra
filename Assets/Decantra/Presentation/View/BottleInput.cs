@@ -16,6 +16,8 @@ namespace Decantra.Presentation.View
 {
     public sealed class BottleInput : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
+        private const float PourTiltDegrees = 30f;
+
         [SerializeField] private BottleView bottleView;
         [SerializeField] private Controller.GameController controller;
 
@@ -122,7 +124,7 @@ namespace Decantra.Presentation.View
                 if (amount > 0)
                 {
                     bottleView.PreviewPour(amount);
-                    bottleView.transform.rotation = Quaternion.Euler(0, 0, -15f);
+                    bottleView.transform.rotation = Quaternion.Euler(0, 0, -PourTiltDegrees);
                     currentTarget.bottleView.SetHighlight(true);
                 }
                 else
