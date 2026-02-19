@@ -205,6 +205,17 @@ This architecture avoids local macOS dependencies and is fully CI-driven.
 - Remote CI validation is pending because workflow execution requires these uncommitted changes to be pushed to GitHub first.
 - Once pushed, run `.github/workflows/ios.yml` at least twice consecutively to complete Phase 5 stability criteria.
 
+## Scope Extension (2026-02-19)
+
+- Added release artifact naming requirement in main build workflow:
+  - `decantra-android-$version.apk`
+  - `decantra-android-play-$version.aab`
+  - `decantra-ios-$version.ipa`
+- Implemented `$version` policy:
+  - Tagged build: tag name.
+  - Non-tag build: latest tag + `-` + first 8 chars of git SHA.
+- Constraint retained: Google Play AAB upload must continue to work.
+
 ---
 
 ## Execution Journal (UTC)
@@ -222,3 +233,6 @@ This architecture avoids local macOS dependencies and is fully CI-driven.
 - 2026-02-19T00:52:00Z — Updated README with iOS CI pipeline and required Unity secrets.
 - 2026-02-19T00:55:00Z — Local static checks passed for changed C# and workflow files; remote GitHub Actions execution pending.
 - 2026-02-19T01:00:00Z — Verified GitHub CLI authentication is available; remaining step is commit/push + workflow runs to reach green CI.
+- 2026-02-19T01:10:00Z — Updated `.github/workflows/build.yml` to use versioned Android filenames and keep Play upload path working.
+- 2026-02-19T01:14:00Z — Added `build-ios` job in `build.yml` to export iOS device Xcode project and package `decantra-ios-$version.ipa`.
+- 2026-02-19T01:18:00Z — Extended `Assets/Decantra/App/Editor/IosBuild.cs` with `BuildDeviceXcodeProject` for IPA pipeline.

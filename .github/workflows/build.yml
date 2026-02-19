@@ -24,6 +24,11 @@ on:
         required: false
         default: true
         type: boolean
+      run_ios_build:
+        description: "Run iOS build"
+        required: false
+        default: true
+        type: boolean
       build_debug_apk:
         description: "Build Debug APK (slow, skip by default)"
         required: false
@@ -220,21 +225,28 @@ jobs:
           echo "keystore_key_password=$KEYSTORE_KEY_PASSWORD" >> "$GITHUB_OUTPUT"
 
       # ------------------------------------------------------------
-      # Resolve Android versioning
+      # Resolve artifact versioning
       # ------------------------------------------------------------
-      - name: Resolve Android versioning
+      - name: Resolve artifact versioning
+        id: versioning
         run: |
           set -euo pipefail
           git fetch --tags --force --prune --prune-tags || true
 
           if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            version_name="${GITHUB_REF_NAME}"
+            artifact_version="${GITHUB_REF_NAME}"
           else
-            version_name="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            base_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${base_tag}" ]]; then
+              base_tag="0.0.0"
+            fi
+
+            short_sha="$(git rev-parse --short=8 HEAD)"
+            artifact_version="${base_tag}-${short_sha}"
           fi
 
-          if [[ -z "${version_name}" ]]; then
-            version_name="0.0.0"
+          if [[ -z "${artifact_version}" ]]; then
+            artifact_version="0.0.0"
           fi
 
           run_number="${GITHUB_RUN_NUMBER}"
@@ -247,10 +259,14 @@ jobs:
             exit 1
           fi
 
-          echo "VERSION_NAME=${version_name}" >> "$GITHUB_ENV"
+          echo "ARTIFACT_VERSION=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${artifact_version}" >> "$GITHUB_ENV"
           echo "VERSION_CODE=${version_code}" >> "$GITHUB_ENV"
+          echo "artifact_version=${artifact_version}" >> "$GITHUB_OUTPUT"
+          echo "version_name=${artifact_version}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
 
-          echo "Resolved VERSION_NAME=${version_name}"
+          echo "Resolved ARTIFACT_VERSION=${artifact_version}"
           echo "Resolved VERSION_CODE=${version_code}"
 
       # ------------------------------------------------------------
@@ -271,9 +287,9 @@ jobs:
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseApk
           versioning: None
           customParameters: >
-            -buildPath Builds/Android/Decantra-release.apk
-            -versionName ${{ env.VERSION_NAME }}
-            -versionCode ${{ env.VERSION_CODE }}
+            -buildPath Builds/Android/decantra-android-${{ steps.versioning.outputs.artifact_version }}.apk
+            -versionName ${{ steps.versioning.outputs.version_name }}
+            -versionCode ${{ steps.versioning.outputs.version_code }}
           androidKeystoreName: ${{ steps.keystore.outputs.keystore_store_file }}
           androidKeystorePass: ${{ steps.keystore.outputs.keystore_store_password }}
           androidKeyaliasName: ${{ steps.keystore.outputs.keystore_key_alias }}
@@ -294,9 +310,9 @@ jobs:
           buildMethod: Decantra.App.Editor.AndroidBuild.BuildReleaseAab
           versioning: None
           customParameters: >
-            -buildPath Builds/Android/Decantra-release.aab
-            -versionName ${{ env.VERSION_NAME }}
-            -versionCode ${{ env.VERSION_CODE }}
+            -buildPath Builds/Android/decantra-android-play-${{ steps.versioning.outputs.artifact_version }}.aab
+            -versionName ${{ steps.versioning.outputs.version_name }}
+            -versionCode ${{ steps.versioning.outputs.version_code }}
           androidKeystoreName: ${{ steps.keystore.outputs.keystore_store_file }}
           androidKeystorePass: ${{ steps.keystore.outputs.keystore_store_password }}
           androidKeyaliasName: ${{ steps.keystore.outputs.keystore_key_alias }}
@@ -314,13 +330,131 @@ jobs:
           versioning: None
           customParameters: >
             -buildPath Builds/Android/Decantra-debug.apk
-            -versionName ${{ env.VERSION_NAME }}
-            -versionCode ${{ env.VERSION_CODE }}
+            -versionName ${{ steps.versioning.outputs.version_name }}
+            -versionCode ${{ steps.versioning.outputs.version_code }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: Decantra-Android
-          path: Builds/Android
+          path: |
+            Builds/Android/decantra-android-*.apk
+            Builds/Android/decantra-android-play-*.aab
+
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    timeout-minutes: 90
+    needs: [check-license, test, solvability]
+    if: |
+      needs.check-license.outputs.is_unity_license_set == 'true' &&
+      needs.test.result == 'success' &&
+      needs.solvability.result == 'success' &&
+      (
+        github.event_name == 'push' ||
+        github.event_name == 'release' ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.run_ios_build == 'true')
+      )
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ env.UNITY_VERSION }}-ios-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}
+
+      - name: Resolve artifact versioning
+        id: versioning
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --prune --prune-tags || true
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            artifact_version="${GITHUB_REF_NAME}"
+          else
+            base_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -z "${base_tag}" ]]; then
+              base_tag="0.0.0"
+            fi
+
+            short_sha="$(git rev-parse --short=8 HEAD)"
+            artifact_version="${base_tag}-${short_sha}"
+          fi
+
+          if [[ -z "${artifact_version}" ]]; then
+            artifact_version="0.0.0"
+          fi
+
+          echo "ARTIFACT_VERSION=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${artifact_version}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "artifact_version=${artifact_version}" >> "$GITHUB_OUTPUT"
+          echo "version_name=${artifact_version}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved ARTIFACT_VERSION=${artifact_version}"
+
+      - name: Export Unity iOS device Xcode project
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: iOS
+          buildsPath: Builds
+          buildMethod: Decantra.App.Editor.IosBuild.BuildDeviceXcodeProject
+          versioning: None
+          customParameters: >
+            -buildPath Builds/iOS/Xcode
+            -iosMinVersion 15.0
+
+      - name: Build iOS app and package IPA
+        run: |
+          set -euo pipefail
+          mkdir -p Builds/iOS/logs
+          mkdir -p Builds/iOS/archive
+          mkdir -p Builds/iOS/output
+
+          xcodebuild \
+            -project Builds/iOS/Xcode/Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -archivePath Builds/iOS/archive/Cantra.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            archive | tee Builds/iOS/logs/xcodebuild-archive.log
+
+          APP_PATH="$(find Builds/iOS/archive/Cantra.xcarchive/Products/Applications -type d -name '*.app' | head -n 1)"
+          if [[ -z "${APP_PATH}" ]]; then
+            echo "No .app found in iOS archive output" >&2
+            exit 1
+          fi
+
+          rm -rf Builds/iOS/output/Payload
+          mkdir -p Builds/iOS/output/Payload
+          cp -R "${APP_PATH}" Builds/iOS/output/Payload/
+
+          IPA_NAME="decantra-ios-${ARTIFACT_VERSION}.ipa"
+          (
+            cd Builds/iOS/output
+            zip -qry "${IPA_NAME}" Payload
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-iOS
+          path: |
+            Builds/iOS/output/decantra-ios-*.ipa
+            Builds/iOS/logs/**
 
   # ============================================================================
   # Release
@@ -328,7 +462,7 @@ jobs:
   release:
     name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: build-android
+    needs: [build-android, build-ios]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -338,7 +472,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Decantra-Android
-          path: release-artifacts
+          path: release-artifacts/android
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Decantra-iOS
+          path: release-artifacts/ios
 
       - name: Require Play service account secret
         env:
@@ -354,11 +493,11 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: ${{ env.PLAY_PACKAGE_NAME }}
-          releaseFiles: release-artifacts/*.aab
+          releaseFiles: release-artifacts/android/*.aab
           track: internal
           status: draft
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/*
+          files: release-artifacts/**/*

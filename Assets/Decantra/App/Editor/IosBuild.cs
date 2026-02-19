@@ -21,18 +21,29 @@ namespace Decantra.App.Editor
         [MenuItem("Decantra/Build/iOS Simulator Xcode Project")]
         public static void BuildSimulatorXcodeProject()
         {
+            BuildXcodeProject(iOSSdkVersion.SimulatorSDK, developmentBuild: true);
+        }
+
+        [MenuItem("Decantra/Build/iOS Device Xcode Project")]
+        public static void BuildDeviceXcodeProject()
+        {
+            BuildXcodeProject(iOSSdkVersion.DeviceSDK, developmentBuild: false);
+        }
+
+        private static void BuildXcodeProject(iOSSdkVersion sdkVersion, bool developmentBuild)
+        {
             ConfigureVersioningFromEnv();
 
-            EditorUserBuildSettings.development = true;
-            EditorUserBuildSettings.allowDebugging = true;
+            EditorUserBuildSettings.development = developmentBuild;
+            EditorUserBuildSettings.allowDebugging = developmentBuild;
             EditorUserBuildSettings.connectProfiler = false;
 
             PlayerSettings.productName = "Cantra";
             PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
             PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, ManagedStrippingLevel.Medium);
-            PlayerSettings.stripEngineCode = false;
-            PlayerSettings.iOS.sdkVersion = iOSSdkVersion.SimulatorSDK;
+            PlayerSettings.stripEngineCode = !developmentBuild;
+            PlayerSettings.iOS.sdkVersion = sdkVersion;
             PlayerSettings.iOS.targetOSVersionString = ResolveIosMinVersion();
 
             string outputPath = ResolveBuildPath();
@@ -47,14 +58,14 @@ namespace Decantra.App.Editor
                 options = BuildOptions.AcceptExternalModificationsToPlayer | BuildOptions.StrictMode
             };
 
-            Debug.Log($"IosBuild: exporting iOS simulator Xcode project to {outputPath}");
+            Debug.Log($"IosBuild: exporting iOS {(sdkVersion == iOSSdkVersion.SimulatorSDK ? "simulator" : "device")} Xcode project to {outputPath}");
             BuildReport report = BuildPipeline.BuildPlayer(buildOptions);
             if (report.summary.result != BuildResult.Succeeded)
             {
                 throw new Exception($"iOS export failed: {report.summary.result}");
             }
 
-            Debug.Log($"IosBuild: iOS simulator Xcode project exported at {outputPath}");
+            Debug.Log($"IosBuild: iOS Xcode project exported at {outputPath}");
         }
 
         private static string ResolveBuildPath()
