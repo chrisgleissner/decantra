@@ -134,6 +134,9 @@ jobs:
           rm -rf Builds/iOS/SimulatorApp/Cantra.app
           cp -R "${APP_PATH}" Builds/iOS/SimulatorApp/Cantra.app
 
+          rm -f Builds/iOS/SimulatorApp/Cantra.app.zip
+          ditto -c -k --sequesterRsrc --keepParent Builds/iOS/SimulatorApp/Cantra.app Builds/iOS/SimulatorApp/Cantra.app.zip
+
           APP_SIZE_KB="$(du -sk Builds/iOS/SimulatorApp/Cantra.app | awk '{print $1}')"
           APP_SIZE_BYTES="$((APP_SIZE_KB * 1024))"
           if [[ "${APP_SIZE_BYTES}" -lt 1000000 ]]; then
@@ -145,7 +148,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-simulator-app
-          path: Builds/iOS/SimulatorApp/Cantra.app
+          path: Builds/iOS/SimulatorApp/Cantra.app.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -380,6 +383,11 @@ jobs:
       - name: Install app
         run: |
           set -euo pipefail
+          if [[ -f Builds/iOS/SimulatorApp/Cantra.app.zip ]]; then
+            rm -rf Builds/iOS/SimulatorApp/Cantra.app
+            unzip -q Builds/iOS/SimulatorApp/Cantra.app.zip -d Builds/iOS/SimulatorApp
+          fi
+
           APP_PATH="$(find Builds/iOS/SimulatorApp -type d -name '*.app' | head -n 1)"
           if [[ -z "${APP_PATH}" ]]; then
             echo "No simulator .app found after artifact download" >&2
