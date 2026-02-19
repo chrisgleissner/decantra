@@ -39,7 +39,13 @@ namespace Decantra.Domain.Scoring
 
         public void CommitLevel()
         {
-            TotalScore = ScoreCalculator.CalculateTotalScore(AttemptStartTotalScore, ProvisionalScore);
+            CommitLevel(ProvisionalScore);
+        }
+
+        public void CommitLevel(int awardedLevelScore)
+        {
+            if (awardedLevelScore < 0) throw new ArgumentOutOfRangeException(nameof(awardedLevelScore));
+            TotalScore = ScoreCalculator.CalculateTotalScore(AttemptStartTotalScore, awardedLevelScore);
             ProvisionalScore = 0;
             AttemptStartTotalScore = TotalScore;
         }

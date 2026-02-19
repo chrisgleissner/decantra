@@ -72,5 +72,21 @@ namespace Decantra.Tests.EditMode
             Assert.AreEqual(committed, session.TotalScore);
             Assert.AreEqual(0, session.ProvisionalScore);
         }
+
+        [Test]
+        public void Commit_WithExplicitAwardedScore_UsesProvidedValue()
+        {
+            var session = new ScoreSession(300);
+            session.BeginAttempt(300);
+            session.UpdateProvisional(10, 10, 20, 80, true);
+
+            int overrideAwardedScore = 17;
+            session.CommitLevel(overrideAwardedScore);
+
+            int expected = ScoreCalculator.CalculateTotalScore(300, overrideAwardedScore);
+            Assert.AreEqual(expected, session.TotalScore);
+            Assert.AreEqual(0, session.ProvisionalScore);
+            Assert.AreEqual(expected, session.AttemptStartTotalScore);
+        }
     }
 }
