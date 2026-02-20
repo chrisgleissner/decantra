@@ -7,80 +7,76 @@
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![Platform](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Web-blue)](https://github.com/chrisgleissner/decantra/releases)
 
-Bottle-sorting puzzle game for Android built with Unity.
+Procedural bottle-sorting puzzle game built with Unity.
 
 <img src="./doc/img/logo.png" alt="Decantra Logo" width="200"/>
 
-## How to Play
+> [!IMPORTANT]
+> iOS and Web are work in progress and experimental. Android is currently the only version tested thoroughly.
+
+## ✨ Features
+
+- Deterministic procedural level generation.
+- Domain-first architecture with Unity presentation layer separation.
+- Capacity-variant bottles and sink constraints for puzzle depth.
+- CI pipelines for Android, iOS, and WebGL builds.
+
+## 🧩 How to Play
 
 - Drag one bottle onto another to pour liquid.
 - You can only pour into an empty bottle or onto the same color.
-- Some bottles are black bottles with heavier, darker glass. They can receive liquid but cannot be lifted.
-- A level is complete when all bottles are either empty or contain exactly one color.
+- Black bottles can receive liquid but cannot be lifted.
+- A level is complete when every non-empty bottle contains one color.
 
-## Features
+## 🚀 Quick Start
 
-- Infinite, procedurally generated puzzles.
-- Move budgets that reward efficient play.
-- Varied bottle sizes and anchored black bottles for added challenge.
-- Smooth, mobile-first controls.
-- Configurable starfield effect.
+Install on your target platform:
 
-## Screenshots
+### Install on Android
 
-<table>
-  <tr>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-02-intro.png" alt="Intro screen" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png" alt="Level 1" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-06-interstitial.png" alt="Interstitial" width="180"/></td>
-  </tr>
-  <tr>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-04-level-12.png" alt="Level 12" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-05-level-24.png" alt="Level 24" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png" alt="Level 36" width="180"/></td>
-  </tr>
-  <tr>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-08-level-10.png" alt="Level 10" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/screenshot-10-options.png" alt="Options" width="180"/></td>
-    <td><img src="./doc/play-store-assets/screenshots/phone/help_overlay.png" alt="Help" width="180"/></td>
-  </tr>
-</table>
+1. Download the latest APK from [Releases](https://github.com/chrisgleissner/decantra/releases) (`decantra-<version>-android.apk`).
+2. Open the APK on your Android device.
+3. Allow installs from unknown sources if prompted.
+4. Tap **Install** and launch Decantra.
 
-## Installation
+### Install on iOS
 
-1. Download the APK from the latest GitHub release (`decantra-<version>.apk`).
-2. Open the downloaded file on your Android device (Files app or notification).
-3. If prompted, allow installs from unknown sources for the browser/files app.
-4. Tap Install to finish.
+1. Download the latest IPA from [Releases](https://github.com/chrisgleissner/decantra/releases) (`decantra-<version>-ios.ipa`).
+2. Set up [SideStore](https://docs.sidestore.io/).
+3. In **SideStore → My Apps**, tap **+** and select the IPA.
+4. Launch Decantra.
 
-## Further Information
+Notes:
 
-- Developer info and build instructions: [doc/developer.md](doc/developer.md)
-- [LICENSE](LICENSE)
+- iOS support is experimental.
+- iOS artifacts are generated in CI as unsigned IPA packages.
+- SideStore refreshes apps every 7 days to renew the signature.
 
-## iOS CI Pipeline (Simulator + Maestro)
+### Install for Web Access
 
-The repository includes a dedicated iOS workflow at `.github/workflows/ios.yml` that:
+- GitHub Pages path: [https://chrisgleissner.github.io/decantra/webgl/](https://chrisgleissner.github.io/decantra/webgl/)
+- Project site root: [https://chrisgleissner.github.io/decantra/](https://chrisgleissner.github.io/decantra/)
 
-1. Exports an iOS Xcode project from Unity using `Decantra.App.Editor.IosBuild.BuildSimulatorXcodeProject`.
-2. Builds a simulator `.app` (`iphonesimulator`, no code signing required).
-3. Builds a device archive and packages an unsigned IPA artifact.
-4. Boots an iOS simulator and installs the app.
-5. Runs Maestro smoke flow `.maestro/ios-cantra-smoke.yaml`.
+For self-hosting, serve the local WebGL build output at `Builds/WebGL`.
 
-### Required GitHub Secrets
+Run the repository web server (it handles Unity WebGL `.gz` assets and MIME types):
 
-- `UNITY_LICENSE`
-- `UNITY_EMAIL`
-- `UNITY_PASSWORD`
+```bash
+cd tests/web-smoke
+PLAYWRIGHT_WEB_ROOT=../../Builds/WebGL node ./server.mjs
+```
 
-Without these secrets, the iOS workflow is skipped by design.
+Then open `http://127.0.0.1:4173` in your browser.
 
-## Web CI Pipeline (WebGL + Playwright + Pages)
+Hosting requirement: serve Unity `.gz` files with `Content-Encoding: gzip` and correct content types (for example `.wasm` as `application/wasm`).
 
-The repository includes a dedicated Web workflow at `.github/workflows/web.yml` that:
+## 🛠️ For Developers
 
-1. Builds Unity WebGL using `Decantra.App.Editor.WebGlBuild.BuildRelease`.
-2. Verifies deterministic output at `Builds/WebGL`.
-3. Runs Playwright smoke tests from `tests/web-smoke` against a local server.
-4. Deploys the same WebGL output to GitHub Pages (root contains `index.html`).
+- Developer setup and local build commands: [doc/developer.md](doc/developer.md)
+- Android + release pipeline: [.github/workflows/build.yml](.github/workflows/build.yml)
+- iOS pipeline: [.github/workflows/ios.yml](.github/workflows/ios.yml)
+- WebGL + Pages pipeline: [.github/workflows/web.yml](.github/workflows/web.yml)
+
+## ⚖️ License
+
+This project is licensed under GPL v2. See [LICENSE](LICENSE) for details.
