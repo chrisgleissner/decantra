@@ -3845,7 +3845,7 @@ namespace Decantra.Presentation
             panelImage.color = new Color(1f, 1f, 1f, 0.18f);
             panelImage.raycastTarget = false;
 
-            var starsText = CreateTitleText(panel.transform, "StarsText", "★★★");
+            var starsText = CreateTitleText(panel.transform, "StarsText", "");
             starsText.fontSize = 104;
             starsText.color = new Color(1f, 0.95f, 0.75f, 1f);
 

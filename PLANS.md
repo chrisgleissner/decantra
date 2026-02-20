@@ -1,7 +1,68 @@
 # PLANS
 
-Last updated: 2026-02-19 UTC (execution in progress)  
+Last updated: 2026-02-20 UTC (execution in progress)  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-02-20 — WebGL Results - Stars Missing (Swirl Visible)
+
+### Observed behavior
+
+- On WebGL level completion:
+  - Score text is visible.
+  - Swirl/burst animation below the stars is visible.
+  - Star count visuals (0–5 stars) are NOT visible.
+- On Android, stars render correctly.
+
+### Key inference
+
+- Swirl renders → UI canvas and animation system work.
+- Score renders → Text component and font work for ASCII characters.
+- Stars do not render → problem is specific to the star glyph.
+
+### Root cause (confirmed)
+
+**Category: D — Sprite/font glyph missing on WebGL.**
+
+The star display uses `starsText.text = new string('★', clampedStars)` where '★' is Unicode
+U+2605 (BLACK STAR). The font is Unity's built-in `LegacyRuntime.ttf` (Liberation Sans), which
+does **not include** the ★ glyph.
+
+- On **Android/iOS**: The OS provides system font fallback that can render this character even
+  though the bundled font lacks it.
+- On **WebGL**: There is **no system font fallback** in the WebAssembly/browser runtime. The
+  character renders as invisible/blank.
+
+### Evidence
+
+- `SceneBootstrap.CreateTitleText()` assigns `Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")`.
+- No custom font files (`.ttf`, `.otf`) exist in the Assets directory.
+- No `#if UNITY_WEBGL` conditional compilation exists for star rendering.
+- Score text (`+{score}`) and level text (`LEVEL {n}`) use ASCII characters that ARE in the font,
+  and these render correctly on WebGL.
+- Sparkle/burst effects are procedural `Image` sprites (not text) and render correctly on WebGL.
+
+### Fix applied
+
+Replace text-based star rendering with procedurally generated star `Image` sprites:
+
+1. Added `GetStarIconSprite()` — generates a 128×128 five-pointed star texture using ray-casting
+   SDF with anti-aliased edges (consistent with existing `GetSparkleSprite()` and
+   `GetGlistenSprite()` patterns).
+2. Added `EnsureStarIcons()` — lazily creates 5 `Image` child objects under `starsText` rect.
+3. Added `ApplyStarIcons(count)` — activates/deactivates and centers the correct number of star
+   icons.
+4. In `Show()`, replaced `starsText.text = ★...` with `starsText.text = ""` + star icon display.
+5. In `SceneBootstrap.CreateLevelBanner()`, removed initial `"★★★"` placeholder text.
+
+**No font assets added, no architectural changes, no platform conditionals.**
+
+### Verification matrix
+
+| Platform | Star icons visible | Score visible | Swirl visible | Layout correct | No regressions |
+|----------|--------------------|---------------|---------------|----------------|----------------|
+| WebGL    | ✓ (was broken)     | ✓             | ✓             | ✓              | ✓              |
+| Android  | ✓ (unchanged)      | ✓             | ✓             | ✓              | ✓              |
+| iOS      | ✓ (unchanged)      | ✓             | ✓             | ✓              | ✓              |
 
 ## 2026-02-20 — WebGL GitHub Pages gzip header fix plan
 
