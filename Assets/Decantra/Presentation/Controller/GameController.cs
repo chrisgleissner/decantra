@@ -1100,8 +1100,6 @@ namespace Decantra.Presentation.Controller
             _nextLevel = _currentLevel + 1;
             _nextSeed = NextSeed(_nextLevel, _currentSeed);
 
-            var tokenSource = new CancellationTokenSource();
-            _precomputeCts = tokenSource;
             int level = _nextLevel;
             int seed = _nextSeed;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -1115,6 +1113,8 @@ namespace Decantra.Presentation.Controller
                 return;
             }
 
+            var tokenSource = new CancellationTokenSource();
+            _precomputeCts = tokenSource;
             _precomputeTask = Task.Run(() => GenerateLevelWithRetryThreadSafe(level, seed, 6, tokenSource.Token), tokenSource.Token);
         }
 
@@ -2419,7 +2419,15 @@ namespace Decantra.Presentation.Controller
             bool hasLoaded = false;
             int attempt = 0;
             int currentSeed = seed;
-            while (!hasLoaded && attempt < 2)
+            bool isWebGLPrecomputeMode = UseWebGlMainThreadPrecompute();
+
+            if (isWebGLPrecomputeMode)
+            {
+                loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 8);
+                hasLoaded = loaded.State != null;
+            }
+
+            while (!isWebGLPrecomputeMode && !hasLoaded && attempt < 2)
             {
                 int attemptSeed = currentSeed;
                 using (var tokenSource = new CancellationTokenSource())
@@ -2456,7 +2464,7 @@ namespace Decantra.Presentation.Controller
                 }
             }
 
-            if (!hasLoaded)
+            if (!isWebGLPrecomputeMode && !hasLoaded)
             {
                 using (var tokenSource = new CancellationTokenSource())
                 {
