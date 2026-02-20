@@ -19,7 +19,7 @@ Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
 ### Rollback strategy
 
-- If tap hardening causes new regressions, revert only `.maestro/ios-cantra-smoke.yaml` to prior commit and retain `gtimeout` workflow fix.
+- If tap hardening causes new regressions, revert only `.maestro/ios-decantra-smoke.yaml` to prior commit and retain `gtimeout` workflow fix.
 
 ## 2026-02-20 — WebGL next-level precomputation delay fix plan
 
@@ -295,7 +295,7 @@ Validation criteria:
 
 - Found existing workflows: `.github/workflows/build.yml`, `.github/workflows/ios.yml`.
 - Found iOS Unity builder implementation: `Assets/Decantra/App/Editor/IosBuild.cs` with simulator/device export methods.
-- Found iOS Maestro flow: `.maestro/ios-cantra-smoke.yaml`.
+- Found iOS Maestro flow: `.maestro/ios-decantra-smoke.yaml`.
 - Found no Web workflow and no Playwright harness yet.
 
 ### 2026-02-19 — Implementation completed locally
@@ -304,7 +304,7 @@ Validation criteria:
 - Added Web CI workflow `.github/workflows/web.yml` for deterministic Unity WebGL build, output verification, Playwright smoke run, and GitHub Pages deployment from the same artifact.
 - Added Playwright smoke harness files: `tests/web-smoke/package.json`, `tests/web-smoke/package-lock.json`, `tests/web-smoke/playwright.config.ts`, `tests/web-smoke/web.smoke.spec.ts`.
 - Hardened iOS workflow `.github/workflows/ios.yml` with deterministic versioning for simulator/IPA jobs, a dedicated `build-ios-ipa` path, and artifact size checks.
-- Hardened iOS Maestro flow `.maestro/ios-cantra-smoke.yaml` with explicit launch, menu/board waits, two bottle taps, and board-visibility assertion.
+- Hardened iOS Maestro flow `.maestro/ios-decantra-smoke.yaml` with explicit launch, menu/board waits, two bottle taps, and board-visibility assertion.
 
 ### 2026-02-19 — Local validation evidence
 
