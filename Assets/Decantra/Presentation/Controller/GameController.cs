@@ -2590,8 +2590,11 @@ namespace Decantra.Presentation.Controller
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra LevelLoaded level={_currentLevel} seed={_currentSeed}");
 #endif
-            TrackLevelLoadPrecomputeExpectations(_currentLevel);
-            StartCoroutine(EmitNextLevelFirstFrame(_levelSessionId, _currentLevel));
+            if (EnablePrecomputeDiagnostics)
+            {
+                TrackLevelLoadPrecomputeExpectations(_currentLevel);
+                StartCoroutine(EmitNextLevelFirstFrame(_levelSessionId, _currentLevel));
+            }
         }
 
         private void InitializeLevelAudio(int levelIndex, int seed)
