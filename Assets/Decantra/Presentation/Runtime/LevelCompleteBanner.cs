@@ -161,7 +161,7 @@ namespace Decantra.Presentation
             _lastStarCount = clampedStars;
             EnsureStarIcons();
             ApplyStarIcons(clampedStars);
-            starsText.text = "";
+            starsText.text = " ";
             var tag = messages[Mathf.Abs(level) % messages.Length];
             levelText.text = $"LEVEL {level + 1}\n{tag}";
             if (scoreText != null)
