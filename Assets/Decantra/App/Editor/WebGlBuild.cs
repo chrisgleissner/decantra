@@ -31,6 +31,8 @@ namespace Decantra.App.Editor
 
             PlayerSettings.productName = "Decantra";
             PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = false;
             AssetDatabase.SaveAssets();
 
             var options = new BuildPlayerOptions
