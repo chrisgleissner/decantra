@@ -3,6 +3,50 @@
 Last updated: 2026-02-19 UTC (execution in progress)  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
+## 2026-02-20 — WebGL GitHub Pages gzip header fix plan
+
+### Root cause analysis
+
+- Unity WebGL output currently uses gzip-compressed runtime files (`*.framework.js.gz`, `*.data.gz`, `*.wasm.gz`).
+- GitHub Pages is static hosting and serves `.gz` files without guaranteed `Content-Encoding: gzip`.
+- The deployed app therefore can attempt to execute compressed JavaScript as plain text and fail with:
+  `Unable to parse Build/WebGL.framework.js.gz ... missing HTTP header Content-Encoding: gzip`.
+
+### GitHub Pages constraints
+
+- No custom response-header configuration per path/file.
+- Static asset hosting only; no middleware/runtime server logic.
+- Solution must be self-contained in generated artifacts and CI pipeline.
+
+### Candidate solutions evaluated
+
+- **Option A: Disable compression in Unity**
+  - ✅ Works on static hosting with no header requirements.
+  - ✅ Deterministic and simple to validate (`no *.gz/*.br artifacts`).
+  - ⚠️ Larger WebGL payload.
+- **Option B: Switch to Brotli**
+  - ❌ Still requires correct `Content-Encoding: br`, unavailable on GitHub Pages static file serving.
+- **Option C: Enable Decompression Fallback**
+  - ⚠️ Can work without server headers but keeps compressed artifacts and adds runtime fallback complexity.
+  - ⚠️ More fragile than serving uncompressed assets directly.
+- **Option D: Rename/remove `.gz` artifacts and reference uncompressed JS**
+  - ❌ Non-standard/manual artifact surgery is brittle.
+- **Option E: Post-process build to strip compression**
+  - ⚠️ Possible, but more moving parts than setting Unity compression correctly at source.
+
+### Selected solution and justification
+
+- **Selected: Option A (Disable Unity WebGL compression)**.
+- Rationale: It is the most deterministic, static-host compatible approach for GitHub Pages, requires no server header control, minimizes runtime fragility, and is easiest to enforce in CI.
+
+### Verification strategy
+
+1. Enforce uncompressed WebGL output in build configuration.
+2. Tighten CI checks to require uncompressed runtime files and fail if compressed artifacts exist.
+3. Make smoke tests emulate GitHub Pages behavior by not injecting `Content-Encoding` for `.gz`; this guards against regressions.
+4. Verify latest workflow statuses for Android/iOS/Web remain green.
+5. Verify deployed Pages headers via `curl -I` where network resolution permits (record limitations if runner cannot resolve host).
+
 ## Mission
 
 Stabilize and harden multi-platform CI for Decantra until all required pipelines are reproducible and green:

@@ -47,10 +47,6 @@ const getHeadersForPath = (filePath) => {
   const filePathForMime = isGzip ? filePath.slice(0, -3) : filePath;
   headers['Content-Type'] = getMimeType(filePathForMime);
 
-  if (isGzip) {
-    headers['Content-Encoding'] = 'gzip';
-  }
-
   return headers;
 };
 

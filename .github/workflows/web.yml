@@ -103,9 +103,13 @@ jobs:
           set -euo pipefail
           test -f Builds/WebGL/index.html
           ls Builds/WebGL/Build/*.loader.js >/dev/null
-          ls Builds/WebGL/Build/*.framework.js* >/dev/null
-          ls Builds/WebGL/Build/*.data* >/dev/null
-          ls Builds/WebGL/Build/*.wasm* >/dev/null
+          ls Builds/WebGL/Build/*.framework.js >/dev/null
+          ls Builds/WebGL/Build/*.data >/dev/null
+          ls Builds/WebGL/Build/*.wasm >/dev/null
+          if find Builds/WebGL/Build -type f \( -name '*.gz' -o -name '*.br' \) | grep -q .; then
+            echo "Compressed WebGL artifacts detected; GitHub Pages cannot provide required Content-Encoding headers." >&2
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
