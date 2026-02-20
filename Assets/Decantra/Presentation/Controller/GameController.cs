@@ -1021,7 +1021,7 @@ namespace Decantra.Presentation.Controller
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             _levelCompleteRealtime = Time.realtimeSinceStartup;
-            bool precomputeReadyAtCompletion = _nextState != null;
+            bool precomputeReadyAtCompletion = _nextState != null || _webGlPrecomputeRoutine != null;
             EmitPrecomputeDiagnostic("LevelComplete",
                 $"level={_currentLevel} nextLevel={nextLevel} readyAtCompletion={precomputeReadyAtCompletion}");
             if (!precomputeReadyAtCompletion && _levelLoadRealtime >= 0f && (_levelCompleteRealtime - _levelLoadRealtime) >= PrecomputeReadyExpectedSeconds)
