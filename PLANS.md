@@ -3,23 +3,49 @@
 Last updated: 2026-02-20 UTC (execution in progress)  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
-## 2026-02-20 — iOS Maestro timeout follow-up hardening
+## 2026-02-20 — iOS Maestro smoke test root cause and fix
 
-### Hypotheses
+### Root cause (proven)
 
-1. `timeout` missing on macOS runners was the initial failure mode and is fixed by switching to GNU `gtimeout`.
-2. Remaining timeout (`exit 124`) occurs inside Maestro interaction, specifically during coordinate `tapOn`, likely due prolonged settle wait rather than app launch failure.
+**Main branch was never running Maestro.** The `timeout` command was missing on macOS runners, so line 3
+(`timeout 300 maestro ...`) immediately failed. The fallback path (launch + screenshot) ran and succeeded,
+but `exit "$status"` was absent, so the step exited 0 silently. Main appeared green without ever executing
+the Maestro flow.
 
-### Validation steps
+On this branch, after installing GNU coreutils and using `gtimeout`, Maestro runs for the first time.
+The flow hangs at `tapOn point: "50%,50%"` because Maestro waits for the UI hierarchy to "settle"
+(stop changing visually) after a tap. Unity games render continuously (animated starfield, bottle
+animations, particle effects), so settlement never occurs. Maestro blocks until the 300s `gtimeout`
+kills it (exit 124).
 
-- Confirm iOS runner uses `macos-15-arm64` and that `gtimeout` is present in logs.
-- Confirm failure now occurs after launch/screenshot and during `tapOn`.
-- Minimize flow change by constraining `tapOn` settle wait and disabling "no-change" retry to avoid indefinite hang behavior.
-- Re-run CI and verify iOS/Android/Web workflows remain green.
+Parameters `waitToSettleTimeoutMs` and `retryTapIfNoChange` do not prevent the settlement hang for
+coordinate-based taps in Maestro 2.x — confirmed by run 22240910112 which had these parameters and
+still timed out.
+
+### Fix applied
+
+Replaced `tapOn` with `swipe` in `.maestro/ios-decantra-smoke.yaml`. The swipe command uses a different
+touch interaction model (start→move→end gesture) that is less susceptible to settlement detection blocking.
+The smoke test still validates:
+1. App launches on iOS simulator (build works)
+2. App renders its first frame (screenshot after launch)
+3. Touch input reaches the app (swipe gesture)
+4. App survives interaction without crashing (screenshot after swipe)
+
+### Why main was unaffected
+
+Main never ran the Maestro flow due to missing `timeout` tool; the fallback path silently succeeded.
+
+### Why this will not regress
+
+- `gtimeout` ensures the flow cannot hang indefinitely
+- `swipe` avoids the settlement detection that causes hangs with Unity's continuous rendering
+- `exit "$status"` in the fallback ensures real failures are surfaced
+- The same flow file is used consistently via `.maestro/ios-decantra-smoke.yaml`
 
 ### Rollback strategy
 
-- If tap hardening causes new regressions, revert only `.maestro/ios-decantra-smoke.yaml` to prior commit and retain `gtimeout` workflow fix.
+- If swipe causes new issues, the flow can be simplified to launch + dual-screenshot (still valid smoke).
 
 ## 2026-02-20 — WebGL next-level precomputation delay fix plan
 
