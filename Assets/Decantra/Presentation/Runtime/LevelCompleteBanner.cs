@@ -35,6 +35,9 @@ namespace Decantra.Presentation
         [SerializeField] private int maxSparkles = 12;
         [SerializeField] private int maxFlyingStars = 8;
 
+        private const float StarIconSize = 80f;
+        private const float StarIconSpacing = 8f;
+
         private AudioManager _audioManager;
         private int _lastStarCount;
         private RectTransform _effectsRoot;
@@ -664,10 +667,8 @@ namespace Decantra.Presentation
 
             _starIcons = new Image[5];
             var parentRect = starsText.rectTransform;
-            float iconSize = 80f;
-            float spacing = 8f;
-            float totalWidth = 5 * iconSize + 4 * spacing;
-            float startX = -totalWidth * 0.5f + iconSize * 0.5f;
+            float totalWidth = 5 * StarIconSize + 4 * StarIconSpacing;
+            float startX = -totalWidth * 0.5f + StarIconSize * 0.5f;
 
             for (int i = 0; i < 5; i++)
             {
@@ -677,8 +678,8 @@ namespace Decantra.Presentation
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
                 rect.pivot = new Vector2(0.5f, 0.5f);
-                rect.sizeDelta = new Vector2(iconSize, iconSize);
-                rect.anchoredPosition = new Vector2(startX + i * (iconSize + spacing), 0f);
+                rect.sizeDelta = new Vector2(StarIconSize, StarIconSize);
+                rect.anchoredPosition = new Vector2(startX + i * (StarIconSize + StarIconSpacing), 0f);
                 var img = go.AddComponent<Image>();
                 img.sprite = GetStarIconSprite();
                 img.raycastTarget = false;
@@ -691,10 +692,8 @@ namespace Decantra.Presentation
         private void ApplyStarIcons(int count)
         {
             if (_starIcons == null) return;
-            float iconSize = 80f;
-            float spacing = 8f;
-            float totalWidth = count * iconSize + Mathf.Max(0, count - 1) * spacing;
-            float startX = -totalWidth * 0.5f + iconSize * 0.5f;
+            float totalWidth = count * StarIconSize + Mathf.Max(0, count - 1) * StarIconSpacing;
+            float startX = -totalWidth * 0.5f + StarIconSize * 0.5f;
 
             for (int i = 0; i < _starIcons.Length; i++)
             {
@@ -703,7 +702,7 @@ namespace Decantra.Presentation
                 _starIcons[i].gameObject.SetActive(active);
                 if (active)
                 {
-                    _starIcons[i].rectTransform.anchoredPosition = new Vector2(startX + i * (iconSize + spacing), 0f);
+                    _starIcons[i].rectTransform.anchoredPosition = new Vector2(startX + i * (StarIconSize + StarIconSpacing), 0f);
                 }
             }
         }
