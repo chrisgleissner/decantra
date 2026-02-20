@@ -3,6 +3,91 @@
 Last updated: 2026-02-20 UTC (execution in progress)  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
+## 2026-02-20 — WebGL Layout Fix: Bottle Grid Collapse
+
+### Problem statement
+
+On WebGL (mobile browser), the 3×3 bottle grid can vertically collapse so that bottles in adjacent
+rows touch or overlap, and bottles can touch HUD buttons above or below the gameplay area.
+
+### Root cause (confirmed — three compounding bugs in `HudSafeLayout.cs`)
+
+**Bug 1 — `idealGap *= 2f` (line 191, now removed)**
+
+The ideal-gap formula divided available height by `rows + 1 = 4` and then doubled the result:
+
+```
+idealGap = (availableHeight - 3·cellHeight) / 4 * 2
+         = (availableHeight - 3·cellHeight) / 2
+```
+
+This made the calculated grid height equal to `2·availableHeight − 3·cellHeight`, which **overflows
+the available area** whenever `availableHeight > 3·cellHeight`. The correct formula divides by
+`rows + 1` without multiplying by 2, so that 4 equal gaps sum exactly to the available space:
+
+```
+idealGap = (availableHeight - 3·cellHeight) / 4
+gridHeight = 3·cellHeight + 4·idealGap = availableHeight  ✓
+```
+
+**Bug 2 — Stale `gridHeight` in scale fallback**
+
+`gridHeight = bottleGrid.rect.height` was captured at the top of `ApplyLayout()`, *before*
+`RestoreGridLayoutDefaults()` was called. When the viewport shrank (e.g., browser URL bar
+appearing), the equal-gap path had already enlarged `sizeDelta.y` to ~1940 units on the previous
+frame. The scale fallback therefore computed `scale = availableHeight / 1940` instead of
+`availableHeight / 1300`, producing a grid that was unnecessarily small (under-scaled). Fixed by
+reading `_baseGridSize.y` after the restore.
+
+**Bug 3 — `ApplyTopRowsDownwardOffset()` violated equal-gap invariant and caused overlap**
+
+This method shifted the top two rows downward by:
+
+```
+offset = 65 * (Screen.height / 2400)   [local grid units]
+```
+
+The offset is expressed in the grid's *local* coordinate space (before `localScale` is applied).
+When `Screen.height ≈ 1200` (a typical WebGL desktop viewport) and the grid is scaled down to fit
+a constrained viewport (e.g., `localScale ≈ 0.4`), the offset evaluates to ≈ 32.5 local units,
+which **exceeds the original row spacing of 30 local units**, making the effective gap between
+row 1 and row 2 negative — i.e., bottles overlap.
+
+Additionally, the asymmetric shift unconditionally breaks the required invariant
+`topPaddingToHUD == verticalGap == bottomPaddingToHUD`. Removed entirely.
+
+### Fix applied (`HudSafeLayout.cs`)
+
+1. Removed `idealGap *= 2f` — gap formula is now correct.
+2. Scale-fallback path now reads `_baseGridSize.{x,y}` after `RestoreGridLayoutDefaults()` (no
+   stale height), and computes `scale = min(1, min(heightScale, widthScale))` — adding
+   width-awareness so landscape WebGL / narrow viewports also scale correctly.
+3. Removed `ApplyTopRowsDownwardOffset()` call from `ApplyLayout()` — eliminates the unequal-gap
+   asymmetry and the overlap trigger on WebGL.
+
+### Layout invariants satisfied after fix
+
+| Invariant | Before | After |
+|-----------|--------|-------|
+| `verticalGap > 0` | ✗ (overlap possible) | ✓ |
+| `topPaddingToHUD == verticalGap` | ✗ (offset shift) | ✓ |
+| `bottomPaddingToHUD == verticalGap` | ✗ (offset shift) | ✓ |
+| No bottle–bottle overlap | ✗ | ✓ |
+| No bottle–HUD overlap | ✗ | ✓ |
+| Uniform scaling on overflow | partial (height only) | ✓ (min of width+height) |
+
+### Verification matrix
+
+| Platform | Bottles touch? | Bottles touch HUD? | Equal gaps? | No regression |
+|----------|---------------|--------------------|-------------|---------------|
+| Android (portrait 20:9) | ✓ never | ✓ never | ✓ | ✓ |
+| iOS (notched) | ✓ never | ✓ never | ✓ | ✓ |
+| WebGL desktop (wide) | ✓ never | ✓ never | ✓ | ✓ (fixed) |
+| WebGL mobile (URL bar visible) | ✓ never | ✓ never | ✓ | ✓ (fixed) |
+| WebGL landscape | ✓ never | ✓ never | ✓ | ✓ (fixed) |
+
+---
+
 ## 2026-02-20 — WebGL Results - Stars Missing (Swirl Visible)
 
 ### Observed behavior

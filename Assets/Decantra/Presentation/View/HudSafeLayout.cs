@@ -188,7 +188,6 @@ namespace Decantra.Presentation.View
                 if (rows > 0 && cellHeight > 0f)
                 {
                     float idealGap = (availableHeight - (rows * cellHeight)) / (rows + 1f);
-                    idealGap *= 2f;
                     if (idealGap > 0f)
                     {
                         int gapPx = Mathf.RoundToInt(idealGap);
@@ -210,16 +209,16 @@ namespace Decantra.Presentation.View
             if (!appliedEqualGaps)
             {
                 RestoreGridLayoutDefaults();
-                if (availableHeight > 0f && gridHeight > 0f)
-                {
-                    scale = Mathf.Min(1f, availableHeight / gridHeight);
-                }
+                float scaleGridH = _gridLayoutCached ? _baseGridSize.y : gridHeight;
+                float scaleGridW = _gridLayoutCached ? _baseGridSize.x : bottleGrid.rect.width;
+                float heightScale = scaleGridH > 0f && availableHeight > 0f ? availableHeight / scaleGridH : 1f;
+                float widthScale = scaleGridW > 0f && rootRect.width > 0f ? rootRect.width / scaleGridW : 1f;
+                scale = Mathf.Min(1f, Mathf.Min(heightScale, widthScale));
             }
 
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
             bottleGrid.anchoredPosition = Vector2.zero;
             LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
-            ApplyTopRowsDownwardOffset();
         }
 
         private void EnsureGridLayoutCache()
