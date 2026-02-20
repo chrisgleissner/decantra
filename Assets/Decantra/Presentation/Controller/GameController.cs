@@ -135,7 +135,7 @@ namespace Decantra.Presentation.Controller
         private const string CiProbeFlag = "decantra_ci_probe";
         private static readonly bool EnablePourDiagnostics = false;
         private static readonly bool EnableAutoSolveDiagnostics = false;
-        private static readonly bool EnablePrecomputeDiagnostics = true;
+        private static readonly bool EnablePrecomputeDiagnostics = Application.isEditor || HasLaunchFlag(CiProbeFlag);
         private const int PrecomputeStartFrameBudget = 2;
         private const float PrecomputeReadyExpectedSeconds = 2f;
 
@@ -3223,10 +3223,10 @@ namespace Decantra.Presentation.Controller
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             _levelLoadRealtime = Time.realtimeSinceStartup;
             _levelCompleteRealtime = -1f;
-            int frameDelta = _precomputeStartFrame >= 0 ? Mathf.Max(0, Time.frameCount - _precomputeStartFrame) : int.MaxValue;
-            bool startedOnTime = frameDelta <= PrecomputeStartFrameBudget;
-            EmitPrecomputeDiagnostic("LevelStart", $"level={levelIndex} nextLevel={_nextLevel} precomputeStartedWithinFrames={startedOnTime} frameDelta={frameDelta} frameBudget={PrecomputeStartFrameBudget}");
-            if (!startedOnTime)
+            int frameDelta = _precomputeStartFrame >= 0 ? Time.frameCount - _precomputeStartFrame : -1;
+            bool precomputeStartedWithinBudget = frameDelta >= 0 && frameDelta <= PrecomputeStartFrameBudget;
+            EmitPrecomputeDiagnostic("LevelStart", $"level={levelIndex} nextLevel={_nextLevel} precomputeStartedWithinFrames={precomputeStartedWithinBudget} frameDelta={frameDelta} frameBudget={PrecomputeStartFrameBudget}");
+            if (!precomputeStartedWithinBudget)
             {
                 Debug.LogWarning($"Decantra Precompute assert failed: precompute did not start for level={levelIndex}");
             }
@@ -3238,7 +3238,7 @@ namespace Decantra.Presentation.Controller
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             if (_levelCompleteRealtime < 0f) return;
             float elapsed = Time.realtimeSinceStartup - _levelCompleteRealtime;
-            EmitPrecomputeDiagnostic("CompletionToReady", $"nextLevel={nextLevel} path={path} elapsedMs={(elapsed * 1000f):0.0}");
+            EmitPrecomputeDiagnostic("LevelCompleteToTransitionReady", $"nextLevel={nextLevel} path={path} elapsedMs={(elapsed * 1000f):0.0}");
 #endif
         }
 
