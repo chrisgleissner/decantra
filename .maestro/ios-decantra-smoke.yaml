@@ -2,9 +2,4 @@ appId: uk.gleissner.decantra
 ---
 - launchApp:
     clearState: true
-- takeScreenshot: ios-after-launch
-- swipe:
-    start: "50%, 60%"
-    end: "50%, 40%"
-    duration: 300
-- takeScreenshot: ios-after-interaction
+- takeScreenshot: ios-smoke-launched

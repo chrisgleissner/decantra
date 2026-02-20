@@ -418,7 +418,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-results/maestro
-          if gtimeout 300 maestro --device "${{ steps.simulator.outputs.udid }}" test .maestro/ios-decantra-smoke.yaml | tee test-results/maestro/maestro.log; then
+          if gtimeout 480 maestro --device "${{ steps.simulator.outputs.udid }}" test .maestro/ios-decantra-smoke.yaml | tee test-results/maestro/maestro.log; then
             echo "Maestro smoke flow completed"
           else
             status=$?

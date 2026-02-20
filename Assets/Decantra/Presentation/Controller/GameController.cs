@@ -3185,7 +3185,7 @@ namespace Decantra.Presentation.Controller
 #if UNITY_WEBGL && !UNITY_EDITOR
             return true;
 #else
-            return Application.platform == RuntimePlatform.WebGLPlayer;
+            return false;
 #endif
         }
 
