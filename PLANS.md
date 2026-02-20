@@ -1,7 +1,77 @@
 # PLANS
 
-Last updated: 2026-02-19 UTC (execution in progress)  
+Last updated: 2026-02-20 UTC (execution in progress)  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-02-20 — WebGL next-level precomputation delay fix plan
+
+### Hypotheses (explicit)
+
+1. WebGL runs single-threaded and `Task.Run` precompute work either does not execute truly in background or executes on the main loop, causing transition-time stalls.
+2. `_precomputeTask` may be started but not completed before level completion on WebGL, forcing synchronous fallback generation in `TransitionToLevel`.
+3. Precomputed result may complete but not be consumed due to task/session invalidation or state reset timing.
+4. WebGL-specific conditional behavior (directly or indirectly via runtime threading model) may defer heavy deterministic generation to completion flow.
+
+### Investigation steps
+
+- Inspect `GameController` call graph for precompute start, completion, cancellation, and transition consumption paths.
+- Audit all uses of `Task.Run`, `.Result`, cancellation, and timeout loops in level transition code.
+- Validate conditional compilation paths (`UNITY_WEBGL`, editor/dev guards) around precompute and transition.
+- Collect local instrumentation evidence for event ordering and readiness flags.
+
+### Root cause category and evidence
+
+- **Selected category: D (heavy deterministic calculation deferred until completion on WebGL due to platform execution model), with B as side effect**.
+- Evidence from code inspection:
+  - Next-level precompute relies on `Task.Run` (`GameController.StartPrecomputeNextLevel`).
+  - Transition fallback also relies on `Task.Run` and eventually synchronous generation if not ready (`GameController.TransitionToLevel`).
+  - On single-threaded WebGL runtime, `Task.Run` cannot provide true background execution; therefore precompute may not finish during gameplay and transition path can still generate synchronously.
+- Fix strategy:
+  - Keep existing Task-based path for non-WebGL.
+  - Add explicit WebGL main-thread precompute kickoff during gameplay (coroutine path) so generation is initiated before completion and reused at transition.
+
+### Instrumentation plan (temporary, guarded)
+
+- Add development-only instrumentation around:
+  - Precompute start.
+  - Precompute completion/fault/cancel status polling.
+  - Level completion event.
+  - Transition start.
+  - First rendered frame after next level load.
+- Include in every log line:
+  - UTC timestamp (ISO 8601).
+  - `Application.platform`.
+  - Managed thread id.
+  - Current level / next level / seed.
+  - Whether precompute result was ready at completion.
+- Keep instrumentation behind compile guards (`DEVELOPMENT_BUILD || UNITY_EDITOR`) and existing debug log sink.
+
+### Risk register (this task)
+
+1. **Android/iOS regression risk** if precompute path changes behavior.
+   - Mitigation: keep non-WebGL path intact where possible; verify unchanged logs/flow.
+2. **Determinism risk** if generation sequencing or seed usage changes.
+   - Mitigation: reuse existing seed logic and generation entry points only.
+3. **Frame hitch risk** if fallback generation still executes synchronously on WebGL.
+   - Mitigation: prefer precompute consumption path; avoid blocking waits.
+4. **Noise risk** from instrumentation affecting performance.
+   - Mitigation: dev-only logging and minimal string formatting.
+
+### Per-platform verification matrix
+
+- **WebGL**
+  - [ ] Precompute start log appears during level N gameplay.
+  - [ ] Precompute completion log appears before N completion in normal gameplay.
+  - [ ] Level completion log indicates precompute ready.
+  - [ ] Transition start to next level first-frame delay no longer exhibits multi-second stall.
+  - [ ] No new console/runtime errors.
+- **Android**
+  - [ ] Precompute behavior unchanged (still ready by completion in normal gameplay).
+  - [ ] Transition remains immediate.
+  - [ ] No performance regression indicated by instrumentation.
+- **iOS**
+  - [ ] Build path remains green.
+  - [ ] No transition/precompute behavior regression from code path changes.
 
 ## 2026-02-20 — WebGL GitHub Pages gzip header fix plan
 
