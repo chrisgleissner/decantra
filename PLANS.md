@@ -3,6 +3,24 @@
 Last updated: 2026-02-20 UTC (execution in progress)  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
+## 2026-02-20 — iOS Maestro timeout follow-up hardening
+
+### Hypotheses
+
+1. `timeout` missing on macOS runners was the initial failure mode and is fixed by switching to GNU `gtimeout`.
+2. Remaining timeout (`exit 124`) occurs inside Maestro interaction, specifically during coordinate `tapOn`, likely due prolonged settle wait rather than app launch failure.
+
+### Validation steps
+
+- Confirm iOS runner uses `macos-15-arm64` and that `gtimeout` is present in logs.
+- Confirm failure now occurs after launch/screenshot and during `tapOn`.
+- Minimize flow change by constraining `tapOn` settle wait and disabling "no-change" retry to avoid indefinite hang behavior.
+- Re-run CI and verify iOS/Android/Web workflows remain green.
+
+### Rollback strategy
+
+- If tap hardening causes new regressions, revert only `.maestro/ios-cantra-smoke.yaml` to prior commit and retain `gtimeout` workflow fix.
+
 ## 2026-02-20 — WebGL next-level precomputation delay fix plan
 
 ### Hypotheses (explicit)

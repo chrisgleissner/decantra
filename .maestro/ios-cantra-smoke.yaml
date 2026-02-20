@@ -5,4 +5,6 @@ appId: uk.gleissner.decantra
 - takeScreenshot: ios-after-launch
 - tapOn:
     point: "50%,50%"
+    waitToSettleTimeoutMs: 1500
+    retryTapIfNoChange: false
 - takeScreenshot: ios-after-tap
