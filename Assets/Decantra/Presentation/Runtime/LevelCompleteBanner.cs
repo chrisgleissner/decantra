@@ -35,12 +35,16 @@ namespace Decantra.Presentation
         [SerializeField] private int maxSparkles = 12;
         [SerializeField] private int maxFlyingStars = 8;
 
+        private const float StarIconSize = 80f;
+        private const float StarIconSpacing = 8f;
+
         private AudioManager _audioManager;
         private int _lastStarCount;
         private RectTransform _effectsRoot;
         private Image _glistenImage;
         private Image[] _sparkles;
         private Image[] _flyingStars;
+        private Image[] _starIcons;
         private bool _effectsReady;
         private Action _onScoreApply;
         private Vector2 _starsBasePosition;
@@ -49,6 +53,7 @@ namespace Decantra.Presentation
 
         private static Sprite _sparkleSpriteCache;
         private static Sprite _glistenSpriteCache;
+        private static Sprite _starIconCache;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
 #endif
@@ -154,7 +159,9 @@ namespace Decantra.Presentation
             _onScoreApply = onScoreApply;
             int clampedStars = Mathf.Clamp(stars, 0, 5);
             _lastStarCount = clampedStars;
-            starsText.text = new string('★', clampedStars);
+            EnsureStarIcons();
+            ApplyStarIcons(clampedStars);
+            starsText.text = " ";
             var tag = messages[Mathf.Abs(level) % messages.Length];
             levelText.text = $"LEVEL {level + 1}\n{tag}";
             if (scoreText != null)
@@ -651,6 +658,122 @@ namespace Decantra.Presentation
                     _flyingStars[i].gameObject.SetActive(false);
                 }
             }
+        }
+
+        private void EnsureStarIcons()
+        {
+            if (_starIcons != null) return;
+            if (starsText == null) return;
+
+            _starIcons = new Image[5];
+            var parentRect = starsText.rectTransform;
+            float totalWidth = 5 * StarIconSize + 4 * StarIconSpacing;
+            float startX = -totalWidth * 0.5f + StarIconSize * 0.5f;
+
+            for (int i = 0; i < 5; i++)
+            {
+                var go = new GameObject($"StarIcon_{i}", typeof(RectTransform));
+                var rect = go.GetComponent<RectTransform>();
+                rect.SetParent(parentRect, false);
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(StarIconSize, StarIconSize);
+                rect.anchoredPosition = new Vector2(startX + i * (StarIconSize + StarIconSpacing), 0f);
+                var img = go.AddComponent<Image>();
+                img.sprite = GetStarIconSprite();
+                img.raycastTarget = false;
+                img.color = starsText.color;
+                go.SetActive(false);
+                _starIcons[i] = img;
+            }
+        }
+
+        private void ApplyStarIcons(int count)
+        {
+            if (_starIcons == null) return;
+            float totalWidth = count * StarIconSize + Mathf.Max(0, count - 1) * StarIconSpacing;
+            float startX = -totalWidth * 0.5f + StarIconSize * 0.5f;
+
+            for (int i = 0; i < _starIcons.Length; i++)
+            {
+                if (_starIcons[i] == null) continue;
+                bool active = i < count;
+                _starIcons[i].gameObject.SetActive(active);
+                if (active)
+                {
+                    _starIcons[i].rectTransform.anchoredPosition = new Vector2(startX + i * (StarIconSize + StarIconSpacing), 0f);
+                }
+            }
+        }
+
+        private static Sprite GetStarIconSprite()
+        {
+            if (_starIconCache != null) return _starIconCache;
+
+            const int size = 128;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            float cx = (size - 1) * 0.5f;
+            float cy = (size - 1) * 0.5f;
+            float outer = size * 0.46f;
+            float inner = outer * 0.40f;
+
+            var verts = new Vector2[10];
+            for (int i = 0; i < 10; i++)
+            {
+                float angle = Mathf.PI * 0.5f + i * Mathf.PI / 5f;
+                float r = (i % 2 == 0) ? outer : inner;
+                verts[i] = new Vector2(cx + Mathf.Cos(angle) * r, cy + Mathf.Sin(angle) * r);
+            }
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float sd = StarSignedDist(x, y, verts);
+                    float alpha = Mathf.Clamp01(sd + 0.7f);
+
+                    float dx = (x - cx) / outer;
+                    float dy = (y - cy) / outer;
+                    float radial = Mathf.Clamp01(1f - (dx * dx + dy * dy) * 0.25f);
+                    float brightness = Mathf.Lerp(0.88f, 1f, radial);
+                    texture.SetPixel(x, y, new Color(brightness, brightness, brightness, alpha));
+                }
+            }
+
+            texture.Apply();
+            _starIconCache = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 128f);
+            return _starIconCache;
+        }
+
+        private static float StarSignedDist(float px, float py, Vector2[] verts)
+        {
+            int n = verts.Length;
+            bool inside = false;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                if (((verts[i].y > py) != (verts[j].y > py)) &&
+                    (px < (verts[j].x - verts[i].x) * (py - verts[i].y) / (verts[j].y - verts[i].y) + verts[i].x))
+                {
+                    inside = !inside;
+                }
+            }
+
+            float minDist = float.MaxValue;
+            var p = new Vector2(px, py);
+            for (int i = 0; i < n; i++)
+            {
+                int j = (i + 1) % n;
+                Vector2 ab = verts[j] - verts[i];
+                float t = Mathf.Clamp01(Vector2.Dot(p - verts[i], ab) / Vector2.Dot(ab, ab));
+                float d = Vector2.Distance(p, verts[i] + ab * t);
+                if (d < minDist) minDist = d;
+            }
+
+            return inside ? minDist : -minDist;
         }
 
         private static Sprite GetSparkleSprite()
