@@ -2,17 +2,7 @@ appId: uk.gleissner.decantra
 ---
 - launchApp:
     clearState: true
-- waitForAnimationToEnd
+- takeScreenshot: ios-after-launch
 - tapOn:
     point: "50%,50%"
-- waitForAnimationToEnd
-- takeScreenshot: ios-before-moves
-
-- tapOn:
-    point: "24%,70%"
-- waitForAnimationToEnd
-- tapOn:
-    point: "54%,70%"
-- waitForAnimationToEnd
-
-- takeScreenshot: ios-after-moves
+- takeScreenshot: ios-after-tap
