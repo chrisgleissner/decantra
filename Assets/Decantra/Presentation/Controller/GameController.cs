@@ -450,7 +450,12 @@ namespace Decantra.Presentation.Controller
             Render();
             _inputLocked = false;
             TrackLevelLoadPrecomputeExpectations(_currentLevel);
-            StartCoroutine(EmitNextLevelFirstFrame(_levelSessionId, _currentLevel));
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (EnablePrecomputeDiagnostics)
+            {
+                StartCoroutine(EmitNextLevelFirstFrame(_levelSessionId, _currentLevel));
+            }
+#endif
         }
 
         public void ShowLevelJumpOverlay()
