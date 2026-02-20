@@ -1,0 +1,12 @@
+{
+  "name": "decantra-web-smoke",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "serve": "node ./server.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2"
+  }
+}

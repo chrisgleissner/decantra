@@ -128,6 +128,7 @@ namespace Decantra.Presentation.Controller
         private const float AutoSolveTiltStartNormalized = 0.62f;
         private const float AutoSolveReturnMinSeconds = 0.2f;
         private const string QuietAutomationFlag = "decantra_quiet";
+        private const string CiProbeFlag = "decantra_ci_probe";
         private static readonly bool EnablePourDiagnostics = false;
         private static readonly bool EnableAutoSolveDiagnostics = false;
 
@@ -344,6 +345,11 @@ namespace Decantra.Presentation.Controller
 
         private void Start()
         {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            CiProbeClearIfEnabled();
+            CiProbeAppendIfEnabled("SESSION_STARTED");
+#endif
+
             for (int i = 0; i < bottleViews.Count; i++)
             {
                 bottleViews[i].Initialize(i);
@@ -657,6 +663,9 @@ namespace Decantra.Presentation.Controller
             var startedEvent = new PourLifecycleEvent(moveId, sourceIndex, targetIndex, poured);
             PourStarted?.Invoke(startedEvent);
             EmitAutoSolveDiagnostic($"PourStarted(amount={poured})", $"moveId={moveId} source={sourceIndex} target={targetIndex}");
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            CiProbeAppendIfEnabled($"POUR_STARTED moveId={moveId} source={sourceIndex} target={targetIndex} amount={poured}");
+#endif
 
             StartCoroutine(AnimateMove(moveId, sourceIndex, targetIndex, poured, color, duration, sourceView, targetView));
             return true;
@@ -702,6 +711,12 @@ namespace Decantra.Presentation.Controller
             var completedEvent = new PourLifecycleEvent(moveId, sourceIndex, targetIndex, applied);
             PourCompleted?.Invoke(completedEvent);
             EmitAutoSolveDiagnostic("PourCompleted()", $"moveId={moveId} source={sourceIndex} target={targetIndex} amount={applied}");
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (_state != null)
+            {
+                CiProbeAppendIfEnabled($"POUR_COMPLETED moveId={moveId} source={sourceIndex} target={targetIndex} amount={applied} movesUsed={_state.MovesUsed}");
+            }
+#endif
             _inputLocked = _state != null && (_state.IsWin() || _state.IsFail());
         }
 
@@ -1569,6 +1584,46 @@ namespace Decantra.Presentation.Controller
 
             return false;
         }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private static void CiProbeClearIfEnabled()
+        {
+            if (!HasLaunchFlag(CiProbeFlag))
+            {
+                return;
+            }
+
+            try
+            {
+                string path = Path.Combine(Application.persistentDataPath, "ci_probe.log");
+                File.WriteAllText(path, string.Empty);
+                Debug.Log($"Decantra CI Probe reset: {path}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Decantra CI Probe reset failed: {ex.Message}");
+            }
+        }
+
+        private static void CiProbeAppendIfEnabled(string line)
+        {
+            if (!HasLaunchFlag(CiProbeFlag))
+            {
+                return;
+            }
+
+            try
+            {
+                string path = Path.Combine(Application.persistentDataPath, "ci_probe.log");
+                string timestamp = DateTime.UtcNow.ToString("O");
+                File.AppendAllText(path, $"{timestamp} {line}{Environment.NewLine}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Decantra CI Probe append failed: {ex.Message}");
+            }
+        }
+#endif
 
         private void ResolveOverlayReferencesIfMissing()
         {

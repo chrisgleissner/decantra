@@ -1,0 +1,181 @@
+name: WebGL Build + Deploy
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths-ignore:
+      - "**.md"
+      - "doc/**"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_VERSION: "6000.3.5f2"
+
+jobs:
+  check-license:
+    name: Check Unity license secrets
+    runs-on: ubuntu-latest
+    outputs:
+      is_unity_license_set: ${{ steps.check.outputs.is_unity_license_set }}
+    steps:
+      - name: Detect Unity license secrets
+        id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [[ -n "${UNITY_LICENSE}" && -n "${UNITY_EMAIL}" && -n "${UNITY_PASSWORD}" ]]; then
+            echo "is_unity_license_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_unity_license_set=false" >> "$GITHUB_OUTPUT"
+            echo "Unity license secrets are missing." >&2
+          fi
+
+  build-and-smoke:
+    name: Build WebGL and run smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    needs: check-license
+    if: needs.check-license.outputs.is_unity_license_set == 'true'
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Free disk space for Unity WebGL image
+        run: |
+          set -euo pipefail
+          echo "Disk before cleanup:" && df -h
+          sudo rm -rf /usr/local/lib/android/sdk || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/graalvm || true
+          sudo rm -rf /usr/local/share/powershell || true
+          sudo rm -rf /usr/local/share/chromium || true
+          sudo rm -rf /usr/local/lib/node_modules || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean || true
+          sudo rm -rf /var/lib/apt/lists/* || true
+          docker system prune -af || true
+          echo "Disk after cleanup:" && df -h
+
+      - name: Build Unity WebGL
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: .
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: WebGL
+          buildsPath: Builds
+          buildMethod: Decantra.App.Editor.WebGlBuild.BuildRelease
+          versioning: None
+          customParameters: >
+            -buildPath Builds/WebGL
+
+      - name: Verify deterministic WebGL output
+        run: |
+          set -euo pipefail
+          test -f Builds/WebGL/index.html
+          ls Builds/WebGL/Build/*.loader.js >/dev/null
+          ls Builds/WebGL/Build/*.framework.js* >/dev/null
+          ls Builds/WebGL/Build/*.data* >/dev/null
+          ls Builds/WebGL/Build/*.wasm* >/dev/null
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tests/web-smoke/package-lock.json
+
+      - name: Install web smoke dependencies
+        run: |
+          set -euo pipefail
+          cd tests/web-smoke
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright web smoke test
+        run: |
+          set -euo pipefail
+          cd tests/web-smoke
+          npm run test
+
+      - name: Upload WebGL build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Decantra-WebGL
+          path: Builds/WebGL
+
+      - name: Upload web smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke-artifacts
+          path: tests/web-smoke/artifacts/**
+          if-no-files-found: warn
+
+  deploy-pages:
+    name: Deploy docs + WebGL to GitHub Pages
+    needs: build-and-smoke
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Decantra-WebGL
+          path: Builds/WebGL
+
+      - name: Prepare Pages content
+        run: |
+          set -euo pipefail
+          rm -rf Builds/Pages
+          mkdir -p Builds/Pages/webgl
+          cp -R docs/. Builds/Pages/
+          cp -R Builds/WebGL/. Builds/Pages/webgl/
+
+          test -f Builds/Pages/index.md
+          test -f Builds/Pages/webgl/index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: Builds/Pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
