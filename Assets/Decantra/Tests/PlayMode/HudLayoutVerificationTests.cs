@@ -28,15 +28,13 @@ namespace Decantra.Tests.PlayMode
     {
         private const float WidthTolerancePx = 1f;
         private const float ExpectedTopTileMinWidth = 300f;
-        private const float ExpectedBottomTileMinWidth = 458f;  // Wider to fit "HIGH SCORE" on single line
         private const float ExpectedTileMinHeight = 140f;
-        private const int ExpectedHudTileCount = 5; // Level, Moves, Score, MaxLevel, HighScore (Reset is a button, not a stat tile)
+        private const int ExpectedHudTileCount = 3; // Level, Moves, Score (Max Level and High Score moved to Score Details overlay)
         private const float TextPaddingPx = 64f; // Approximate padding from panel edge to text area (32px left + 32px right)
         private const float MinRowPaddingPx = 6f;
         private const float MinHudClearancePx = 6f;
         private const float RowAlignmentTolerancePx = 1f;
         private const float TopControlVisualTolerancePx = 14f;
-        private const float BottomHudVisualTolerancePx = 14f;
 
         /// <summary>
         /// Identifies HUD stat panels by their structure: Image + LayoutElement + specific children (Shadow, GlassHighlight, Value text).
@@ -184,8 +182,6 @@ namespace Decantra.Tests.PlayMode
                 Assert.IsNotNull(bottleGrid, $"Bottle grid not found for level {level}.");
                 var topControls = ResolveTopControlRects(controller);
                 Assert.GreaterOrEqual(topControls.Count, 2, $"Top controls not found for level {level}.");
-                var bottomHud = ResolveBottomHudRect(controller);
-                Assert.IsNotNull(bottomHud, $"Bottom HUD not found for level {level}.");
 
                 var rows = CollectBottleRows(bottleViews, bottleGrid);
                 var bottleByRect = BuildBottleLookupByRect(bottleViews);
@@ -231,14 +227,6 @@ namespace Decantra.Tests.PlayMode
                 float topEffectiveClearance = topClearance + TopControlVisualTolerancePx;
                 Assert.GreaterOrEqual(topEffectiveClearance, MinHudClearancePx,
                     $"Top-row clearance to top controls too small at level {level}: raw={topClearance}px effective={topEffectiveClearance}px.");
-
-                var bottomRow = rows[rows.Count - 1];
-                float bottomHudUpper = GetBottomHudVisualTopInWorld(bottomHud);
-                float bottomRowVisualBottom = GetRowVisualBottomInWorld(bottomRow, bottleByRect);
-                float bottomClearance = bottomRowVisualBottom - bottomHudUpper;
-                float bottomEffectiveClearance = bottomClearance + BottomHudVisualTolerancePx;
-                Assert.GreaterOrEqual(bottomEffectiveClearance, MinHudClearancePx,
-                    $"Bottom-row clearance to bottom HUD too small at level {level}: raw={bottomClearance}px effective={bottomEffectiveClearance}px.");
             }
 
             Assert.Greater(validatedThreeRowLevels, 0, "No 3-row levels were available to validate bottle spacing invariants.");
@@ -280,19 +268,6 @@ namespace Decantra.Tests.PlayMode
                         $"Top HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {topWidth} (±{WidthTolerancePx}px)");
                 }
             }
-
-            // Check bottom tiles have identical widths
-            var bottomTileMetrics = metrics.Where(m =>
-                m.Name == "MaxLevelPanel" || m.Name == "HighScorePanel").ToList();
-            if (bottomTileMetrics.Count > 0)
-            {
-                var bottomWidth = bottomTileMetrics[0].LayoutMinWidth;
-                foreach (var m in bottomTileMetrics)
-                {
-                    Assert.AreEqual(bottomWidth, m.LayoutMinWidth, WidthTolerancePx,
-                        $"Bottom HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {bottomWidth} (±{WidthTolerancePx}px)");
-                }
-            }
         }
 
         [UnityTest]
@@ -310,39 +285,22 @@ namespace Decantra.Tests.PlayMode
             {
                 Assert.IsTrue(m.HasLayoutElement, $"HUD tile '{m.Name}' missing LayoutElement component");
 
-                // Bottom tiles (MaxLevelPanel, HighScorePanel) are wider than top tiles
-                bool isBottomTile = m.Name == "MaxLevelPanel" || m.Name == "HighScorePanel";
-                float expectedWidth = isBottomTile ? ExpectedBottomTileMinWidth : ExpectedTopTileMinWidth;
-
-                Assert.AreEqual(expectedWidth, m.LayoutMinWidth, WidthTolerancePx,
-                    $"HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {expectedWidth}");
+                Assert.AreEqual(ExpectedTopTileMinWidth, m.LayoutMinWidth, WidthTolerancePx,
+                    $"HUD tile '{m.Name}' has minWidth={m.LayoutMinWidth}, expected {ExpectedTopTileMinWidth}");
                 Assert.AreEqual(ExpectedTileMinHeight, m.LayoutMinHeight, WidthTolerancePx,
                     $"HUD tile '{m.Name}' has minHeight={m.LayoutMinHeight}, expected {ExpectedTileMinHeight}");
             }
         }
 
         [UnityTest]
-        public IEnumerator HudTiles_BottomNotNarrowerThanTop()
+        public IEnumerator ScoreDetails_OverlayExists()
         {
             SceneBootstrap.EnsureScene();
             yield return null;
 
-            var hudPanels = FindHudStatPanels();
-            Assert.IsTrue(hudPanels.Count > 0, "No HUD tiles found");
-
-            var topTiles = hudPanels.Where(p =>
-                p.name == "LevelPanel" || p.name == "MovesPanel" || p.name == "ScorePanel").ToList();
-            var bottomTiles = hudPanels.Where(p =>
-                p.name == "MaxLevelPanel" || p.name == "HighScorePanel").ToList();
-
-            Assert.IsTrue(topTiles.Count > 0, "No top HUD tiles found");
-            Assert.IsTrue(bottomTiles.Count > 0, "No bottom HUD tiles found");
-
-            var topMinWidth = topTiles.Select(t => t.GetComponent<LayoutElement>()?.minWidth ?? 0f).Min();
-            var bottomMinWidth = bottomTiles.Select(t => t.GetComponent<LayoutElement>()?.minWidth ?? 0f).Min();
-
-            Assert.GreaterOrEqual(bottomMinWidth, topMinWidth - WidthTolerancePx,
-                $"Bottom HUD tiles (minWidth={bottomMinWidth}) are narrower than top tiles (minWidth={topMinWidth})");
+            var scoreDetailsOverlay = Resources.FindObjectsOfTypeAll<GameObject>()
+                .FirstOrDefault(g => g.name == "ScoreDetailsOverlay" && g.hideFlags == HideFlags.None);
+            Assert.IsNotNull(scoreDetailsOverlay, "ScoreDetailsOverlay should exist in scene.");
         }
 
         [UnityTest]
@@ -639,14 +597,6 @@ namespace Decantra.Tests.PlayMode
             return result;
         }
 
-        private static RectTransform ResolveBottomHudRect(GameController controller)
-        {
-            var hudRoot = ResolveHudRoot(controller);
-            if (hudRoot == null) return null;
-            var child = FindDescendantByName(hudRoot, "BottomHud");
-            return child != null ? child.GetComponent<RectTransform>() : null;
-        }
-
         private static Transform ResolveHudRoot(GameController controller)
         {
             var hudField = typeof(GameController).GetField("hudView", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -809,26 +759,6 @@ namespace Decantra.Tests.PlayMode
             return top;
         }
 
-        private static float GetRowVisualBottomInWorld(RowBounds row, Dictionary<RectTransform, BottleView> bottleByRect)
-        {
-            float bottom = float.MaxValue;
-            for (int i = 0; i < row.ChildRects.Count; i++)
-            {
-                var rect = row.ChildRects[i];
-                if (rect == null) continue;
-                if (!bottleByRect.TryGetValue(rect, out var view) || view == null)
-                {
-                    bottom = Mathf.Min(bottom, GetBoundsInWorld(rect).Bottom);
-                    continue;
-                }
-
-                var bounds = GetBottleVisualBoundsInWorld(view);
-                bottom = Mathf.Min(bottom, bounds.Bottom);
-            }
-
-            return bottom;
-        }
-
         private static VerticalBounds GetBottleVisualBoundsInWorld(BottleView view)
         {
             var fallbackRect = view.GetComponent<RectTransform>();
@@ -866,20 +796,5 @@ namespace Decantra.Tests.PlayMode
             return Mathf.Max(bounds.Top, bounds.Bottom);
         }
 
-        private static float GetBottomHudVisualTopInWorld(RectTransform bottomHud)
-        {
-            float top = float.MinValue;
-            bool found = false;
-            for (int i = 0; i < bottomHud.childCount; i++)
-            {
-                if (!(bottomHud.GetChild(i) is RectTransform childRect)) continue;
-                if (!childRect.gameObject.activeInHierarchy) continue;
-                var bounds = GetBoundsInWorld(childRect);
-                top = Mathf.Max(top, bounds.Top);
-                found = true;
-            }
-
-            return found ? top : GetRectTopInWorld(bottomHud);
-        }
     }
 }

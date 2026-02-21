@@ -117,6 +117,9 @@ namespace Decantra.Presentation.Controller
         private GameObject _privacyPolicyOverlay;
         private GameObject _termsOverlay;
         private GameObject _highContrastOverlay;
+        private GameObject _scoreDetailsOverlay;
+        private Text _scoreDetailsHighScoreText;
+        private Text _scoreDetailsMaxLevelText;
         private Toggle _accessibleColorsToggle;
         private AudioManager _audioManager;
         private int _lastStageUnlockSfxLevel = int.MinValue;
@@ -385,6 +388,7 @@ namespace Decantra.Presentation.Controller
             HideModal(_howToPlayOverlay);
             HideModal(_privacyPolicyOverlay);
             HideModal(_termsOverlay);
+            HideModal(_scoreDetailsOverlay);
 
             if (starTradeInDialog != null)
             {
@@ -1349,6 +1353,31 @@ namespace Decantra.Presentation.Controller
 
         public bool IsOptionsOverlayVisible => IsModalVisible(_optionsOverlay);
 
+        public void ShowScoreDetailsOverlay()
+        {
+            ResolveOverlayReferencesIfMissing();
+            int highScore = _progress != null ? _progress.HighScore : (_scoreSession?.TotalScore ?? 0);
+            int maxLevel = _progress != null ? _progress.HighestUnlockedLevel : _currentLevel;
+            if (_scoreDetailsHighScoreText != null)
+            {
+                _scoreDetailsHighScoreText.text = $"HIGH SCORE\n{highScore}";
+            }
+            if (_scoreDetailsMaxLevelText != null)
+            {
+                _scoreDetailsMaxLevelText.text = $"MAX LEVEL\n{maxLevel}";
+            }
+            ShowModal(_scoreDetailsOverlay);
+            PlayButtonSfx();
+        }
+
+        public void HideScoreDetailsOverlay()
+        {
+            ResolveOverlayReferencesIfMissing();
+            HideModal(_scoreDetailsOverlay);
+        }
+
+        public bool IsScoreDetailsOverlayVisible => IsModalVisible(_scoreDetailsOverlay);
+
         public void ShowStarTradeInDialog()
         {
             if (_state == null || starTradeInDialog == null || _isAutoSolving) return;
@@ -1659,6 +1688,7 @@ namespace Decantra.Presentation.Controller
         private void ResolveOverlayReferencesIfMissing()
         {
             _optionsOverlay = ResolveOverlayReference(_optionsOverlay, "OptionsOverlay", null);
+            _scoreDetailsOverlay = ResolveOverlayReference(_scoreDetailsOverlay, "ScoreDetailsOverlay", null);
 
             Transform optionsParent = _optionsOverlay != null ? _optionsOverlay.transform : null;
             _howToPlayOverlay = ResolveOverlayReference(_howToPlayOverlay, "HowToPlayOverlay", optionsParent);
