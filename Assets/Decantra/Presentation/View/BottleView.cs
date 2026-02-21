@@ -841,9 +841,14 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
-            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, units));
 
             float yOffset = BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, unitsBefore);
+            // When this segment completes the bottle, snap to exact remaining height to
+            // eliminate float stacking errors that would cause underfill or overflow.
+            float segHeight = unitsBefore + units == capacity
+                ? Mathf.Max(0f, height - yOffset)
+                : BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, units);
+            rect.sizeDelta = new Vector2(width, segHeight);
             rect.anchoredPosition = new Vector2(0, yOffset);
 
             if (color.HasValue && palette != null)

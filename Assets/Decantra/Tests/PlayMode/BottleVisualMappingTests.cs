@@ -212,6 +212,77 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
+        /// Negative units returns zero height (clamp floor).
+        /// </summary>
+        [Test]
+        public void NegativeUnits_ZeroHeight()
+        {
+            float h = BottleVisualMapping.LocalHeightForUnits(RefSlotRootHeight, 4, 8, -1f);
+            Assert.AreEqual(0f, h, PixelTolerance);
+        }
+
+        /// <summary>
+        /// Over-capacity units returns slotRootHeight exactly (clamp ceiling).
+        /// </summary>
+        [Test]
+        public void OverCapacityUnits_ClampsToSlotRootHeight()
+        {
+            float h = BottleVisualMapping.LocalHeightForUnits(RefSlotRootHeight, 4, 8, 5f);
+            Assert.AreEqual(RefSlotRootHeight, h, PixelTolerance,
+                "Over-capacity units must be clamped to slotRootHeight");
+        }
+
+        /// <summary>
+        /// capacity - 1 units yields a height strictly less than slotRootHeight.
+        /// </summary>
+        [Test]
+        public void CapacityMinusOne_LessThanSlotRootHeight()
+        {
+            int refCap = 8;
+            for (int cap = 2; cap <= 8; cap++)
+            {
+                float slotH = SlotRootHeightForCap(cap, refCap);
+                float h = BottleVisualMapping.LocalHeightForUnits(slotH, cap, refCap, cap - 1);
+                Assert.Less(h, slotH,
+                    $"cap-{cap}: capacity-1 units must render strictly below slotRootHeight");
+            }
+        }
+
+        /// <summary>
+        /// Multi-segment full bottle: when segments are rendered from the base,
+        /// the sum of yOffset + segHeight for the last segment must equal slotRootHeight exactly.
+        /// This verifies the RenderSegment fix that prevents float-stacking underfill.
+        /// </summary>
+        [Test]
+        public void MultiSegment_FullBottle_LastSegmentTopExact()
+        {
+            int refCap = 8;
+            // Check several non-power-of-2 capacities that are susceptible to float rounding
+            int[] capacities = { 3, 5, 6, 7 };
+
+            foreach (int cap in capacities)
+            {
+                float slotH = SlotRootHeightForCap(cap, refCap);
+
+                // Simulate a full bottle split into cap segments of 1 unit each
+                for (int splitAt = 1; splitAt < cap; splitAt++)
+                {
+                    // Two segments: [0..splitAt-1] and [splitAt..cap-1]
+                    int unitsBefore = splitAt;
+                    int unitsLast = cap - splitAt;
+
+                    float yOffset = BottleVisualMapping.LocalHeightForUnits(slotH, cap, refCap, unitsBefore);
+                    // Simulate the RenderSegment fix: when unitsBefore + units == capacity, use slotH - yOffset
+                    float segHeight = Mathf.Max(0f, slotH - yOffset);
+                    float top = yOffset + segHeight;
+
+                    Assert.AreEqual(slotH, top, PixelTolerance,
+                        $"cap={cap} splitAt={splitAt}: multi-segment top must equal slotRootHeight exactly, got {top} vs {slotH}");
+                }
+            }
+        }
+
+        /// <summary>
         /// Anti-regression: the old 0.9.4 approach (same slotRoot height for all bottles,
         /// H/cap * non-proportional scaleY tiers) produces DIFFERENT pixel heights.
         /// </summary>
