@@ -369,7 +369,7 @@ jobs:
               print("No preferred iPhone simulator device type available", file=sys.stderr)
               sys.exit(1)
 
-          sim_name = f"Cantra-iOS-{os.environ.get('GITHUB_RUN_ID', 'local')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
+          sim_name = f"Decantra-iOS-{os.environ.get('GITHUB_RUN_ID', 'local')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
           udid = subprocess.check_output(["xcrun", "simctl", "create", sim_name, device_type["identifier"], runtime], text=True).strip()
           subprocess.check_call(["xcrun", "simctl", "boot", udid])
           subprocess.check_call(["xcrun", "simctl", "bootstatus", udid, "-b"])
@@ -403,6 +403,14 @@ jobs:
           fi
           xcrun simctl install "${{ steps.simulator.outputs.udid }}" "${APP_PATH}"
 
+      - name: Ensure GNU timeout is available
+        run: |
+          set -euo pipefail
+          if ! command -v gtimeout >/dev/null 2>&1; then
+            brew install coreutils
+          fi
+          gtimeout --version | head -n 1
+
       - name: Run Maestro smoke flow
         env:
           MAESTRO_CLI_NO_ANALYTICS: 1
@@ -410,14 +418,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-results/maestro
-          if timeout 300 maestro --device "${{ steps.simulator.outputs.udid }}" test .maestro/ios-cantra-smoke.yaml | tee test-results/maestro/maestro.log; then
+          if gtimeout 480 maestro --device "${{ steps.simulator.outputs.udid }}" test .maestro/ios-decantra-smoke.yaml | tee test-results/maestro/maestro.log; then
             echo "Maestro smoke flow completed"
           else
+            status=$?
             echo "Maestro smoke flow timed out or failed, running simulator fallback smoke" | tee -a test-results/maestro/maestro.log
             xcrun simctl terminate "${{ steps.simulator.outputs.udid }}" "${IOS_BUNDLE_ID}" || true
             xcrun simctl launch "${{ steps.simulator.outputs.udid }}" "${IOS_BUNDLE_ID}" | tee -a test-results/maestro/maestro.log
             sleep 5
             xcrun simctl io "${{ steps.simulator.outputs.udid }}" screenshot test-results/maestro/ios-fallback-smoke.png
+            exit "${status}"
           fi
 
       - name: Upload Maestro artifacts

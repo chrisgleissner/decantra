@@ -1,8 +1,0 @@
-appId: uk.gleissner.decantra
----
-- launchApp:
-    clearState: true
-- takeScreenshot: ios-after-launch
-- tapOn:
-    point: "50%,50%"
-- takeScreenshot: ios-after-tap
