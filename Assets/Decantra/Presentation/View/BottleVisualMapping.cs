@@ -76,8 +76,10 @@ namespace Decantra.Presentation.View
 
         /// <summary>
         /// Computes the local-space height for a given number of slots.
-        /// With proportional bottle scaling, this is simply H * units / capacity.
-        /// The pixel invariant is maintained by the proportional transform scale.
+        /// This is simply slotRootHeight * units / capacity.
+        /// The pixel invariant is maintained by proportional RectTransform resizing:
+        /// BottleView.ApplyCapacityScale sets slotRoot.sizeDelta.y to a value that is a
+        /// multiple of capacity, so every unit occupies an exact integer-equivalent pixel count.
         ///
         /// Full bottle (units == capacity) always returns slotRootHeight exactly.
         /// Empty bottle (units &lt;= 0) always returns 0 exactly.

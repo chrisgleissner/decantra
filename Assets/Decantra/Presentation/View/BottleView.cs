@@ -312,7 +312,10 @@ namespace Decantra.Presentation.View
                 // Bottom elements (shadow, basePlate) stay at their original positions
             }
 
-            // Resize slotRoot and its parent liquidMask proportionally (bottom-anchored)
+            // Resize slotRoot and its parent liquidMask (bottom-anchored).
+            // slotRoot is snapped to a multiple of capacity; liquidMask uses proportional
+            // scaling from its own original height, floored to snappedSlotRootHeight so
+            // full liquid is never clipped.
             if (slotRoot != null)
             {
                 // Snap to nearest multiple of capacity so each unit occupies an exact number
