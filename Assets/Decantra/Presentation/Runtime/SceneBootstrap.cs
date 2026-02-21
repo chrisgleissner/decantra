@@ -118,11 +118,11 @@ namespace Decantra.Presentation
             var backgroundLayers = CreateBackground(backgroundCanvas.transform);
             CreateEventSystem();
 
-            var hudView = CreateHud(uiCanvas.transform, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect, out var layoutPadding);
+            var hudView = CreateHud(uiCanvas.transform, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect);
             var gridRoot = CreateGridRoot(gameCanvas.transform, out var bottleAreaRect);
 
             var hudSafeLayout = uiCanvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
-            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding + 12f, 0f);
+            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), 0f, 0f);
 
             var palette = CreatePalette();
 
@@ -230,7 +230,7 @@ namespace Decantra.Presentation
             }
 
             // Match runtime bootstrap defaults when wiring an existing scene.
-            safeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, bottleGridRect, 36f, 0f);
+            safeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, bottleGridRect, 0f, 0f);
         }
 
         private static void EnsureRestartDialog(GameController controller)
@@ -1205,7 +1205,7 @@ namespace Decantra.Presentation
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
         }
 
-        private static HudView CreateHud(Transform parent, out RectTransform topHudRect, out RectTransform secondaryHudRect, out RectTransform brandLockupRect, out RectTransform bottomHudRect, out float layoutPadding)
+        private static HudView CreateHud(Transform parent, out RectTransform topHudRect, out RectTransform secondaryHudRect, out RectTransform brandLockupRect, out RectTransform bottomHudRect)
         {
             var hudRoot = CreateUiChild(parent, "HUD");
             var hudRect = hudRoot.GetComponent<RectTransform>();
@@ -1337,8 +1337,6 @@ namespace Decantra.Presentation
 
             topShiftRect.offsetMin = new Vector2(0f, -movesHeight + resetHeight);
             topShiftRect.offsetMax = new Vector2(0f, -movesHeight + resetHeight);
-
-            layoutPadding = Mathf.Clamp(movesHeight * 0.18f, 18f, 32f);
 
             if (brandLayout != null)
             {
@@ -2787,81 +2785,6 @@ namespace Decantra.Presentation
             return text;
         }
 
-        /// <summary>
-        /// Creates a wider stat panel for the bottom HUD buttons (MAX LEVEL, HIGH SCORE).
-        /// Width = 458px = (3 * 300 + 2 * 16) / 2 to match combined top panels width.
-        /// Font size matches top panels (56px).
-        /// </summary>
-        private static Text CreateBottomStatPanel(Transform parent, string name, string label, out GameObject panel)
-        {
-            panel = CreateUiChild(parent, name);
-
-            // Main panel background
-            var image = panel.AddComponent<Image>();
-            image.sprite = GetRoundedSprite();
-            image.type = Image.Type.Sliced;
-            image.color = new Color(0.08f, 0.1f, 0.14f, 0.88f);
-            image.raycastTarget = false;
-
-            // Shadow effect (dark, slightly offset)
-            var shadowGo = CreateUiChild(panel.transform, "Shadow");
-            var shadowImage = shadowGo.AddComponent<Image>();
-            shadowImage.sprite = GetRoundedSprite();
-            shadowImage.type = Image.Type.Sliced;
-            shadowImage.color = new Color(0f, 0f, 0f, 0.45f);
-            shadowImage.raycastTarget = false;
-            var shadowRect = shadowGo.GetComponent<RectTransform>();
-            shadowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            shadowRect.anchorMax = new Vector2(0.5f, 0.5f);
-            shadowRect.pivot = new Vector2(0.5f, 0.5f);
-            shadowRect.sizeDelta = new Vector2(466, 148);  // Wider shadow for bottom panel
-            shadowRect.anchoredPosition = new Vector2(4f, -4f);
-            shadowGo.transform.SetAsFirstSibling();
-
-            // Glass highlight effect (light, top portion)
-            var glassGo = CreateUiChild(panel.transform, "GlassHighlight");
-            var glassImage = glassGo.AddComponent<Image>();
-            glassImage.sprite = GetRoundedSprite();
-            glassImage.type = Image.Type.Sliced;
-            glassImage.color = new Color(1f, 1f, 1f, 0.08f);
-            glassImage.raycastTarget = false;
-            var glassRect = glassGo.GetComponent<RectTransform>();
-            glassRect.anchorMin = new Vector2(0.5f, 0.5f);
-            glassRect.anchorMax = new Vector2(0.5f, 0.5f);
-            glassRect.pivot = new Vector2(0.5f, 0.5f);
-            glassRect.sizeDelta = new Vector2(442, 64);  // Wider glass for bottom panel
-            glassRect.anchoredPosition = new Vector2(0f, 32f);
-
-            // Panel size and layout - wider to fit "HIGH SCORE" on single line
-            // Width = 458px = (3 * 300 + 2 * 16) / 2 = 932 / 2 = 466 each
-            var rect = panel.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(458, 140);
-            var element = panel.AddComponent<LayoutElement>();
-            element.minWidth = 458;
-            element.minHeight = 140;
-
-            // Value text - same font size as top panels (56px)
-            var text = CreateHudText(panel.transform, "Value");
-            text.fontSize = 56;
-            text.resizeTextForBestFit = true;
-            text.resizeTextMinSize = 32;  // Higher minimum for readability
-            text.resizeTextMaxSize = 56;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Truncate;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.text = label;
-            text.color = new Color(1f, 0.98f, 0.92f, 1f);
-
-            // Add horizontal padding
-            var textRect = text.GetComponent<RectTransform>();
-            textRect.offsetMin = new Vector2(32, 0);
-            textRect.offsetMax = new Vector2(-32, 0);
-
-            AddTextEffects(text, new Color(0f, 0f, 0f, 0.75f));
-
-            return text;
-        }
-
         private static Button AddPanelButton(GameObject panel)
         {
             if (panel == null) return null;
@@ -3166,8 +3089,9 @@ namespace Decantra.Presentation
                 return text;
             }
 
-            var highScoreText = CreateStatRow("HighScoreRow", "HIGH SCORE\n0");
-            var maxLevelText = CreateStatRow("MaxLevelRow", "MAX LEVEL\n1");
+            // Initial text is replaced immediately when ShowScoreDetailsOverlay() updates the values.
+            var highScoreText = CreateStatRow("HighScoreRow", "HIGH SCORE\n–");
+            var maxLevelText = CreateStatRow("MaxLevelRow", "MAX LEVEL\n–");
 
             var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", ModalDesignTokens.Colors.SecondaryAction);
             closeButton.onClick.AddListener(() =>

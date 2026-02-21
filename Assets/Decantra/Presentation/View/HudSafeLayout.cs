@@ -8,7 +8,6 @@ See <https://www.gnu.org/licenses/> for details.
 
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
 
 namespace Decantra.Presentation.View
 {
@@ -17,12 +16,6 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
-        private const float TopRowsDownwardOffsetPx = 65f;
-        private const float TopRowsDownwardReferenceHeightPx = 2400f;
-        private const float TopHudClearanceExtraPx = 30f;
-        private const int ShiftedTopRowCount = 2;
-        private const float RowAnchoredMergeTolerance = 8f;
-
         [SerializeField] private RectTransform topHud;
         [SerializeField] private RectTransform secondaryHud;
         [SerializeField] private RectTransform brandLockup;
@@ -30,12 +23,11 @@ namespace Decantra.Presentation.View
         [SerializeField] private RectTransform bottleArea;
         [SerializeField] private RectTransform bottleGrid;
         [SerializeField] private GridLayoutGroup bottleGridLayout;
-        [SerializeField] private float topPadding = 24f;
-        [SerializeField] private float bottomPadding = 24f;
+        [SerializeField] private float topPadding = 0f;
+        [SerializeField] private float bottomPadding = 0f;
 
         private RectTransform _root;
         private readonly Vector3[] _corners = new Vector3[4];
-        private readonly Vector3[] _childCorners = new Vector3[4];
         private Vector2 _lastScreenSize;
         private bool _dirty = true;
         private int _lastActiveBottleCount = -1;
@@ -76,10 +68,6 @@ namespace Decantra.Presentation.View
         private void OnEnable()
         {
             _dirty = true;
-        }
-
-        private void OnDisable()
-        {
         }
 
         private void OnRectTransformDimensionsChange()
@@ -161,7 +149,7 @@ namespace Decantra.Presentation.View
 
             float bottomTop = GetMaxY(bottomHud);
 
-            float desiredTop = topBottom - topPadding - TopHudClearanceExtraPx;
+            float desiredTop = topBottom - topPadding;
             float desiredBottom = bottomTop + bottomPadding;
 
             var rootRect = _root.rect;
@@ -288,89 +276,6 @@ namespace Decantra.Presentation.View
                 max = Mathf.Max(max, local.y);
             }
             return max;
-        }
-
-        private void ApplyTopRowsDownwardOffset()
-        {
-            if (bottleGrid == null || secondaryHud == null) return;
-            if (bottleGridLayout != null && !bottleGridLayout.enabled) return;
-            var rows = new List<RowInfo>(3);
-            for (int i = 0; i < bottleGrid.childCount; i++)
-            {
-                if (!(bottleGrid.GetChild(i) is RectTransform childRect)) continue;
-                if (!childRect.gameObject.activeSelf) continue;
-                AddChildToRows(rows, childRect);
-            }
-
-            if (rows.Count < 2) return;
-            // Row order follows anchored Y so all bottles in the same visual grid row
-            // stay grouped even when their rendered heights differ by capacity.
-            rows.Sort((a, b) => b.RowY.CompareTo(a.RowY));
-
-            int maxShiftedRow = Mathf.Min(ShiftedTopRowCount, rows.Count) - 1;
-            if (maxShiftedRow < 0) return;
-
-            float screenHeight = Mathf.Max(1f, Screen.height);
-            float offset = TopRowsDownwardOffsetPx * (screenHeight / TopRowsDownwardReferenceHeightPx);
-            if (offset <= 0f) return;
-
-            for (int rowIndex = 0; rowIndex <= maxShiftedRow; rowIndex++)
-            {
-                var row = rows[rowIndex];
-                for (int childIndex = 0; childIndex < row.Children.Count; childIndex++)
-                {
-                    var child = row.Children[childIndex];
-                    var anchored = child.anchoredPosition;
-                    child.anchoredPosition = new Vector2(anchored.x, anchored.y - offset);
-                }
-            }
-        }
-
-        private void AddChildToRows(List<RowInfo> rows, RectTransform childRect)
-        {
-            childRect.GetWorldCorners(_childCorners);
-            float top = float.MinValue;
-            float bottom = float.MaxValue;
-            for (int i = 0; i < _childCorners.Length; i++)
-            {
-                var local = bottleGrid.InverseTransformPoint(_childCorners[i]);
-                top = Mathf.Max(top, local.y);
-                bottom = Mathf.Min(bottom, local.y);
-            }
-
-            float rowY = childRect.anchoredPosition.y;
-            for (int i = 0; i < rows.Count; i++)
-            {
-                if (Mathf.Abs(rows[i].RowY - rowY) <= RowAnchoredMergeTolerance)
-                {
-                    rows[i].Children.Add(childRect);
-                    rows[i].RowY = (rows[i].RowY * (rows[i].Children.Count - 1) + rowY) / rows[i].Children.Count;
-                    rows[i].TopY = Mathf.Max(rows[i].TopY, top);
-                    rows[i].BottomY = Mathf.Min(rows[i].BottomY, bottom);
-                    rows[i].CenterY = (rows[i].TopY + rows[i].BottomY) * 0.5f;
-                    return;
-                }
-            }
-
-            rows.Add(new RowInfo(rowY, top, bottom, childRect));
-        }
-
-        private sealed class RowInfo
-        {
-            public float RowY;
-            public float CenterY;
-            public float TopY;
-            public float BottomY;
-            public readonly List<RectTransform> Children;
-
-            public RowInfo(float rowY, float topY, float bottomY, RectTransform child)
-            {
-                RowY = rowY;
-                CenterY = (topY + bottomY) * 0.5f;
-                TopY = topY;
-                BottomY = bottomY;
-                Children = new List<RectTransform>(3) { child };
-            }
         }
     }
 }

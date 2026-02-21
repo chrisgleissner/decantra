@@ -597,14 +597,6 @@ namespace Decantra.Tests.PlayMode
             return result;
         }
 
-        private static RectTransform ResolveBottomHudRect(GameController controller)
-        {
-            var hudRoot = ResolveHudRoot(controller);
-            if (hudRoot == null) return null;
-            var child = FindDescendantByName(hudRoot, "BottomHud");
-            return child != null ? child.GetComponent<RectTransform>() : null;
-        }
-
         private static Transform ResolveHudRoot(GameController controller)
         {
             var hudField = typeof(GameController).GetField("hudView", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -767,26 +759,6 @@ namespace Decantra.Tests.PlayMode
             return top;
         }
 
-        private static float GetRowVisualBottomInWorld(RowBounds row, Dictionary<RectTransform, BottleView> bottleByRect)
-        {
-            float bottom = float.MaxValue;
-            for (int i = 0; i < row.ChildRects.Count; i++)
-            {
-                var rect = row.ChildRects[i];
-                if (rect == null) continue;
-                if (!bottleByRect.TryGetValue(rect, out var view) || view == null)
-                {
-                    bottom = Mathf.Min(bottom, GetBoundsInWorld(rect).Bottom);
-                    continue;
-                }
-
-                var bounds = GetBottleVisualBoundsInWorld(view);
-                bottom = Mathf.Min(bottom, bounds.Bottom);
-            }
-
-            return bottom;
-        }
-
         private static VerticalBounds GetBottleVisualBoundsInWorld(BottleView view)
         {
             var fallbackRect = view.GetComponent<RectTransform>();
@@ -824,20 +796,5 @@ namespace Decantra.Tests.PlayMode
             return Mathf.Max(bounds.Top, bounds.Bottom);
         }
 
-        private static float GetBottomHudVisualTopInWorld(RectTransform bottomHud)
-        {
-            float top = float.MinValue;
-            bool found = false;
-            for (int i = 0; i < bottomHud.childCount; i++)
-            {
-                if (!(bottomHud.GetChild(i) is RectTransform childRect)) continue;
-                if (!childRect.gameObject.activeInHierarchy) continue;
-                var bounds = GetBoundsInWorld(childRect);
-                top = Mathf.Max(top, bounds.Top);
-                found = true;
-            }
-
-            return found ? top : GetRectTopInWorld(bottomHud);
-        }
     }
 }

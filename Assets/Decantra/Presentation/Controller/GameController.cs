@@ -1355,8 +1355,8 @@ namespace Decantra.Presentation.Controller
 
         public void ShowScoreDetailsOverlay()
         {
-            int highScore = _progress?.HighScore ?? (_scoreSession?.TotalScore ?? 0);
-            int maxLevel = _progress?.HighestUnlockedLevel ?? _currentLevel;
+            int highScore = _progress != null ? _progress.HighScore : (_scoreSession?.TotalScore ?? 0);
+            int maxLevel = _progress != null ? _progress.HighestUnlockedLevel : _currentLevel;
             if (_scoreDetailsHighScoreText != null)
             {
                 _scoreDetailsHighScoreText.text = $"HIGH SCORE\n{highScore}";
