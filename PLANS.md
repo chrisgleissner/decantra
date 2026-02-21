@@ -79,9 +79,8 @@ where precompute was not ready.
 #### Tests added
 
 Two new PlayMode tests in `GameControllerPlayModeTests.cs`:
-- `Precompute_CompletesWithinReasonableTime` — verifies `_nextState` becomes non-null within 8 s.
-- `Precompute_CancelledAndRestartedOnLevelReload` — verifies a new precompute starts after
-  `LoadLevel` is called, confirming cancellation semantics.
+- `Precompute_CompletesWithinReasonableTime` — polls `_precomputeTask.IsCompleted` (non-WebGL) or waits for `_webGlPrecomputeRoutine` to be cleared (WebGL) within 8 s of level load. Handles the non-WebGL Task path correctly: `_nextState` is only populated at `TryApplyCompletedPrecompute` call sites (level-complete / transition-start), so we track task completion via `IsCompleted` instead.
+- `Precompute_CancelledAndRestartedOnLevelReload` — captures the initial task/coroutine reference, calls `LoadLevel`, then waits up to 8 s for the new task/coroutine to be a *different* reference, confirming that `CancelPrecompute` ran and a new precompute was started.
 
 Both tests run on non-WebGL (Task path) in CI; the same mechanism is exercised at the WebGL
 execution path on device.

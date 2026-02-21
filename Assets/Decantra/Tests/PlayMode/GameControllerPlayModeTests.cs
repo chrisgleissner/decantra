@@ -1221,15 +1221,33 @@ namespace Decantra.Tests.PlayMode
             float precomputeTimeout = 8f;
             float precomputeElapsed = 0f;
             bool completed = false;
+            bool sawPrecomputeTask = false;
+            bool sawWebGlRoutine = false;
             while (precomputeElapsed < precomputeTimeout)
             {
-                var nextState = GetPrivateField(controller, "_nextState") as LevelState;
                 var precomputeTask = GetPrivateField(controller, "_precomputeTask") as Task;
                 var webGlRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
-                if (nextState != null || (precomputeTask == null && webGlRoutine == null))
+
+                if (precomputeTask != null)
                 {
-                    completed = true;
-                    break;
+                    sawPrecomputeTask = true;
+                    if (precomputeTask.IsCompleted)
+                    {
+                        completed = true;
+                        break;
+                    }
+                }
+                else if (webGlRoutine != null)
+                {
+                    sawWebGlRoutine = true;
+                }
+                else
+                {
+                    if (sawPrecomputeTask || sawWebGlRoutine)
+                    {
+                        completed = true;
+                        break;
+                    }
                 }
 
                 precomputeElapsed += Time.unscaledDeltaTime;
@@ -1266,9 +1284,30 @@ namespace Decantra.Tests.PlayMode
             controller.LoadLevel(2, 12345);
             yield return null;
 
-            var newTask = GetPrivateField(controller, "_precomputeTask") as Task;
-            var newRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
-            Assert.IsTrue(newTask != null || newRoutine != null, "Precompute should restart after level reload.");
+            float restartTimeout = 8f;
+            float restartElapsed = 0f;
+            Task newTask = null;
+            Coroutine newRoutine = null;
+            while (restartElapsed < restartTimeout)
+            {
+                yield return null;
+                restartElapsed += Time.unscaledDeltaTime;
+
+                newTask = GetPrivateField(controller, "_precomputeTask") as Task;
+                newRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
+
+                bool restarted =
+                    (newTask != null && !ReferenceEquals(newTask, initialTask)) ||
+                    (newRoutine != null && !ReferenceEquals(newRoutine, initialRoutine));
+
+                if (restarted)
+                    break;
+            }
+
+            Assert.IsTrue(
+                (newTask != null && !ReferenceEquals(newTask, initialTask)) ||
+                (newRoutine != null && !ReferenceEquals(newRoutine, initialRoutine)),
+                "Precompute should restart with a new task/coroutine after level reload.");
         }
 
         [UnityTest]
