@@ -2595,14 +2595,18 @@ namespace Decantra.Presentation.Controller
             _isCompleting = false;
             _isFailing = false;
 
+            // Preserve lifetime stats across the session reset.
+            int preservedHighScore = _progress?.HighScore ?? 0;
+            int preservedMaxLevel = _progress?.HighestUnlockedLevel ?? 1;
+
             _progress = new ProgressData
             {
-                HighestUnlockedLevel = 1,
+                HighestUnlockedLevel = preservedMaxLevel,
                 CurrentLevel = 1,
                 CurrentSeed = 0,
                 CurrentScore = 0,
                 StarBalance = 0,
-                HighScore = 0,
+                HighScore = preservedHighScore,
                 CompletedLevels = new List<int>(),
                 BestPerformances = new List<LevelPerformanceRecord>()
             };

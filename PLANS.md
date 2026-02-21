@@ -841,3 +841,72 @@ Although the invariants held mathematically, the interior bounds were **implicit
 - [x] New EmptyBottle_FirstSegment test added and passes
 - [x] All existing liquid-rendering tests pass
 - [x] CI green
+
+---
+
+## 2026-02-21 — Reset Game: Preserve Lifetime Progression Stats
+
+### Problem statement
+
+The "Reset Game" action (triggered from the Options overlay) was wiping all `ProgressData`
+fields, including `HighScore` and `HighestUnlockedLevel`. These are lifetime progression
+stats displayed in the Score Details HUD panel and must be preserved across a session reset.
+
+### Root cause
+
+In `GameController.RestartGameConfirmed()`:
+```csharp
+_progress = new ProgressData
+{
+    HighestUnlockedLevel = 1,  // ← erases all-time max level
+    HighScore = 0,             // ← erases all-time high score
+    ...
+};
+```
+
+### Fix
+
+Capture `HighScore` and `HighestUnlockedLevel` from the existing `_progress` before
+replacing it:
+```csharp
+int preservedHighScore = _progress?.HighScore ?? 0;
+int preservedMaxLevel  = _progress?.HighestUnlockedLevel ?? 1;
+_progress = new ProgressData
+{
+    HighScore              = preservedHighScore,
+    HighestUnlockedLevel   = preservedMaxLevel,
+    CurrentLevel           = 1,   // session reset
+    CurrentScore           = 0,   // session reset
+    StarBalance            = 0,   // session reset
+    ...
+};
+```
+
+### Affected fields
+
+| Field | Behaviour after fix |
+|-------|---------------------|
+| `HighScore` | Preserved (lifetime stat) |
+| `HighestUnlockedLevel` | Preserved (max level ever reached, lifetime stat) |
+| `CurrentLevel` | Reset to 1 (session) |
+| `CurrentScore` | Reset to 0 (session) |
+| `StarBalance` | Reset to 0 (session) |
+| `CurrentSeed` | Reset to 0 (session) |
+| `CompletedLevels` | Cleared (session) |
+| `BestPerformances` | Cleared (session) |
+
+### Tests
+
+- `RestartGame_ConfirmationResetsProgress` — updated assertions: `HighScore` must equal 200
+  (preserved from fixture), `HighestUnlockedLevel` must equal 7 (preserved); `CurrentLevel`
+  and `CurrentScore` must still be reset to 1 and 0 respectively.
+- `RestartGame_WithNoPriorProgress_ResetsToDefaults` — new test verifying that reset with
+  no prior progress yields `CurrentLevel == 1`, `CurrentScore == 0`, `StarBalance == 0`,
+  and that `HighScore >= 0` / `HighestUnlockedLevel >= 1`.
+
+### Completion checklist
+
+- [x] `RestartGameConfirmed()` preserves `HighScore` and `HighestUnlockedLevel`
+- [x] `RestartGame_ConfirmationResetsProgress` test updated
+- [x] `RestartGame_WithNoPriorProgress_ResetsToDefaults` test added
+- [x] PLANS.md updated
