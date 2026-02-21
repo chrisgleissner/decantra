@@ -96,9 +96,11 @@ namespace Decantra.Presentation
                 EnsureResetLevelDialog(existingController);
                 EnsureTutorialOverlay(existingController);
                 EnsureOptionsOverlays(existingController);
+                EnsureScoreDetailsOverlay(existingController);
                 EnsureHudSafeLayout();
                 WireResetButton(existingController);
                 WireOptionsButton(existingController);
+                WireScorePanelButton(existingController);
                 EnsureStarTradeInDialog(existingController);
                 WireStarsButton(existingController);
                 EnsureLevelJumpOverlay(existingController);
@@ -120,7 +122,7 @@ namespace Decantra.Presentation
             var gridRoot = CreateGridRoot(gameCanvas.transform, out var bottleAreaRect);
 
             var hudSafeLayout = uiCanvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
-            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding + 12f, layoutPadding);
+            hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), layoutPadding + 12f, 0f);
 
             var palette = CreatePalette();
 
@@ -180,6 +182,12 @@ namespace Decantra.Presentation
             WireOptionsButton(controller);
             WireStarsButton(controller);
 
+            var scoreDetailsResult = CreateScoreDetailsOverlay(uiCanvas.transform, controller);
+            SetPrivateField(controller, "_scoreDetailsOverlay", scoreDetailsResult.Root);
+            SetPrivateField(controller, "_scoreDetailsHighScoreText", scoreDetailsResult.HighScoreText);
+            SetPrivateField(controller, "_scoreDetailsMaxLevelText", scoreDetailsResult.MaxLevelText);
+            WireScorePanelButton(controller);
+
             var restartDialog = CreateRestartDialog(uiCanvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
             var tutorial = CreateTutorialOverlay(uiCanvas.transform);
@@ -222,7 +230,7 @@ namespace Decantra.Presentation
             }
 
             // Match runtime bootstrap defaults when wiring an existing scene.
-            safeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, bottleGridRect, 36f, 24f);
+            safeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, bottleGridRect, 36f, 0f);
         }
 
         private static void EnsureRestartDialog(GameController controller)
@@ -526,6 +534,7 @@ namespace Decantra.Presentation
             HideModalRoot(GetPrivateField<GameObject>(controller, "_howToPlayOverlay"));
             HideModalRoot(GetPrivateField<GameObject>(controller, "_privacyPolicyOverlay"));
             HideModalRoot(GetPrivateField<GameObject>(controller, "_termsOverlay"));
+            HideModalRoot(GetPrivateField<GameObject>(controller, "_scoreDetailsOverlay"));
 
             var tutorial = GetPrivateField<TutorialManager>(controller, "tutorialManager");
             if (tutorial != null)
@@ -1243,6 +1252,7 @@ namespace Decantra.Presentation
             var scoreText = CreateStatPanel(topHud.transform, "ScorePanel", "SCORE", out var scorePanel);
 
             _ = AddPanelButton(levelPanel);
+            _ = AddPanelButton(scorePanel);
 
             var brandGo = CreateUiChild(topShiftRoot.transform, "BrandLockup");
             var brandRect = brandGo.GetComponent<RectTransform>();
@@ -1298,33 +1308,18 @@ namespace Decantra.Presentation
             bottomRect.anchorMin = new Vector2(0.5f, 0f);
             bottomRect.anchorMax = new Vector2(0.5f, 0f);
             bottomRect.pivot = new Vector2(0.5f, 0f);
-            bottomRect.anchoredPosition = new Vector2(0f, 60f);
-            // Width matches top HUD (1000px) for pixel-perfect horizontal alignment
-            bottomRect.sizeDelta = new Vector2(1000, 150);
-
-            var bottomLayout = bottomHud.AddComponent<HorizontalLayoutGroup>();
-            bottomLayout.childAlignment = TextAnchor.MiddleCenter;
-            bottomLayout.childForceExpandWidth = false;
-            bottomLayout.childForceExpandHeight = false;
-            bottomLayout.spacing = 16f;
-
-            var bottomImage = bottomHud.GetComponent<Image>();
-            if (bottomImage != null)
-            {
-                Object.Destroy(bottomImage);
-            }
-
-            // Use wider bottom stat panels for "MAX LEVEL" and "HIGH SCORE"
-            // Each panel width = 458px to match combined width of top 3 panels (932px total)
-            var maxLevelText = CreateBottomStatPanel(bottomHud.transform, "MaxLevelPanel", "MAX LEVEL", out _);
-            var highScoreText = CreateBottomStatPanel(bottomHud.transform, "HighScorePanel", "HIGH SCORE", out _);
+            bottomRect.anchoredPosition = new Vector2(0f, 0f);
+            // Zero-height spacer at the canvas bottom edge. HudSafeLayout uses this as the
+            // lower boundary; with bottomPadding=0 the idealGap formula distributes vertical
+            // space so the gap below the last bottle row equals the inter-row gap.
+            bottomRect.sizeDelta = new Vector2(0f, 0f);
 
             SetPrivateField(hudView, "levelText", levelText);
             SetPrivateField(hudView, "movesText", movesText);
             SetPrivateField(hudView, "scoreText", scoreText);
             SetPrivateField(hudView, "starsText", starsButton != null ? starsButton.transform.Find("Label")?.GetComponent<Text>() : null);
-            SetPrivateField(hudView, "highScoreText", highScoreText);
-            SetPrivateField(hudView, "maxLevelText", maxLevelText);
+            SetPrivateField<Text>(hudView, "highScoreText", null);
+            SetPrivateField<Text>(hudView, "maxLevelText", null);
             SetPrivateField<Text>(hudView, "titleText", null);
 
             float ResolveRectHeight(RectTransform rect, float fallback)
@@ -3059,6 +3054,162 @@ namespace Decantra.Presentation
             button.onClick.AddListener(controller.ShowStarTradeInDialog);
         }
 
+        private static void WireScorePanelButton(GameController controller)
+        {
+            if (controller == null) return;
+            var topHud = GameObject.Find("TopHud");
+            var scorePanel = topHud != null ? topHud.transform.Find("ScorePanel") : null;
+            if (scorePanel == null) return;
+            var button = scorePanel.GetComponent<Button>() ?? AddPanelButton(scorePanel.gameObject);
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(controller.ShowScoreDetailsOverlay);
+        }
+
+        private struct ScoreDetailsOverlayResult
+        {
+            public GameObject Root;
+            public Text HighScoreText;
+            public Text MaxLevelText;
+        }
+
+        private static ScoreDetailsOverlayResult CreateScoreDetailsOverlay(Transform parent, GameController controller)
+        {
+            var root = CreateUiChild(parent, "ScoreDetailsOverlay");
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var dimmer = CreateUiChild(root.transform, "Dimmer");
+            var dimmerRect = dimmer.GetComponent<RectTransform>();
+            dimmerRect.anchorMin = Vector2.zero;
+            dimmerRect.anchorMax = Vector2.one;
+            dimmerRect.offsetMin = Vector2.zero;
+            dimmerRect.offsetMax = Vector2.zero;
+            var dimmerImage = dimmer.AddComponent<Image>();
+            dimmerImage.color = ModalDesignTokens.Colors.Backdrop;
+            var dimmerButton = dimmer.AddComponent<Button>();
+            dimmerButton.transition = Selectable.Transition.None;
+
+            var modal = AttachBaseModal(root);
+            dimmerButton.onClick.AddListener(() =>
+            {
+                if (modal != null) modal.Hide();
+                else root.SetActive(false);
+            });
+
+            var panel = CreateUiChild(root.transform, "Panel");
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = ModalDesignTokens.Sizing.CompactPreferred;
+            AttachResponsiveModalPanel(panelRect, ModalDesignTokens.Sizing.CompactPreferred, ModalDesignTokens.Sizing.CompactMinimum);
+
+            var panelImage = panel.AddComponent<Image>();
+            panelImage.sprite = GetRoundedSprite();
+            panelImage.type = Image.Type.Sliced;
+            panelImage.color = ModalDesignTokens.Colors.Panel;
+
+            var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+            panelLayout.childAlignment = TextAnchor.UpperCenter;
+            panelLayout.childForceExpandWidth = true;
+            panelLayout.childForceExpandHeight = false;
+            panelLayout.spacing = ModalDesignTokens.Spacing.SectionGap;
+            panelLayout.padding = new RectOffset(
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding,
+                ModalDesignTokens.Spacing.OuterPadding);
+
+            var title = CreateHudText(panel.transform, "Title");
+            title.text = "SCORE DETAILS";
+            title.fontSize = ModalDesignTokens.Typography.ModalHeader;
+            title.fontStyle = FontStyle.Bold;
+            title.alignment = TextAnchor.MiddleCenter;
+            title.color = ModalDesignTokens.Colors.PrimaryText;
+            var titleElement = title.gameObject.AddComponent<LayoutElement>();
+            titleElement.preferredHeight = 64f;
+            titleElement.minHeight = 64f;
+
+            var statsSection = CreateUiChild(panel.transform, "StatsSection");
+            var statsSectionImage = statsSection.AddComponent<Image>();
+            statsSectionImage.sprite = GetRoundedSprite();
+            statsSectionImage.type = Image.Type.Sliced;
+            statsSectionImage.color = ModalDesignTokens.Colors.SectionSurface;
+            var statsSectionLayout = statsSection.AddComponent<VerticalLayoutGroup>();
+            statsSectionLayout.childAlignment = TextAnchor.UpperCenter;
+            statsSectionLayout.childForceExpandWidth = true;
+            statsSectionLayout.childForceExpandHeight = false;
+            statsSectionLayout.spacing = ModalDesignTokens.Spacing.ControlGap;
+            statsSectionLayout.padding = new RectOffset(
+                ModalDesignTokens.Spacing.InnerPadding,
+                ModalDesignTokens.Spacing.InnerPadding,
+                ModalDesignTokens.Spacing.InnerPadding,
+                ModalDesignTokens.Spacing.InnerPadding);
+
+            Text CreateStatRow(string rowName, string initialText)
+            {
+                var row = CreateUiChild(statsSection.transform, rowName);
+                var rowElement = row.AddComponent<LayoutElement>();
+                rowElement.preferredHeight = 80f;
+                rowElement.minHeight = 70f;
+                var text = CreateHudText(row.transform, "Value");
+                text.fontSize = ModalDesignTokens.Typography.SectionTitle;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.color = ModalDesignTokens.Colors.PrimaryText;
+                text.text = initialText;
+                text.horizontalOverflow = HorizontalWrapMode.Wrap;
+                text.verticalOverflow = VerticalWrapMode.Overflow;
+                return text;
+            }
+
+            var highScoreText = CreateStatRow("HighScoreRow", "HIGH SCORE\n0");
+            var maxLevelText = CreateStatRow("MaxLevelRow", "MAX LEVEL\n1");
+
+            var closeButton = CreateActionButton(panel.transform, "CloseRow", "CLOSE", ModalDesignTokens.Colors.SecondaryAction);
+            closeButton.onClick.AddListener(() =>
+            {
+                if (controller != null) controller.HideScoreDetailsOverlay();
+                else if (modal != null) modal.Hide();
+                else root.SetActive(false);
+            });
+
+            if (modal != null) modal.Hide();
+            else root.SetActive(false);
+
+            return new ScoreDetailsOverlayResult
+            {
+                Root = root,
+                HighScoreText = highScoreText,
+                MaxLevelText = maxLevelText
+            };
+        }
+
+        private static void EnsureScoreDetailsOverlay(GameController controller)
+        {
+            if (controller == null) return;
+            var targetScene = controller.gameObject.scene;
+            var existing = GetPrivateField<GameObject>(controller, "_scoreDetailsOverlay");
+            if (IsGameObjectInScene(existing, targetScene)) return;
+
+            var found = FindObjectByNameIncludingInactive("ScoreDetailsOverlay", targetScene);
+            if (found != null)
+            {
+                SetPrivateField(controller, "_scoreDetailsOverlay", found);
+                return;
+            }
+
+            var canvas = Object.FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+            var result = CreateScoreDetailsOverlay(canvas.transform, controller);
+            SetPrivateField(controller, "_scoreDetailsOverlay", result.Root);
+            SetPrivateField(controller, "_scoreDetailsHighScoreText", result.HighScoreText);
+            SetPrivateField(controller, "_scoreDetailsMaxLevelText", result.MaxLevelText);
+        }
+
         private static GameObject CreateOptionsOverlay(Transform parent, GameController controller)
         {
             var root = CreateUiChild(parent, "OptionsOverlay");
@@ -3368,6 +3519,11 @@ namespace Decantra.Presentation
                 StarfieldConfig.BrightnessMin, StarfieldConfig.BrightnessMax,
                 controller != null && controller.StarfieldConfiguration != null ? controller.StarfieldConfiguration.Brightness : StarfieldConfig.BrightnessDefault);
 
+            CreateSectionTitle(list.transform, "ResetHeader", "RESET");
+            var resetSection = CreateSectionSurface(list.transform, "ResetSection");
+            var resetLevelButton = CreateActionButton(resetSection.transform, "ResetLevelRow", "RESET LEVEL", ModalDesignTokens.Colors.SecondaryAction);
+            var resetGameButton = CreateActionButton(resetSection.transform, "ResetGameRow", "RESET GAME", ModalDesignTokens.Colors.DestructiveAction);
+
             CreateSectionTitle(list.transform, "LegalHeader", "LEGAL");
             var legalSection = CreateSectionSurface(list.transform, "LegalSection");
             var privacyButton = CreateActionButton(legalSection.transform, "PrivacyRow", "PRIVACY POLICY", ModalDesignTokens.Colors.SecondaryAction);
@@ -3420,6 +3576,17 @@ namespace Decantra.Presentation
                 howToPlayButton.onClick.AddListener(controller.ShowHowToPlayOverlay);
                 privacyButton.onClick.AddListener(controller.ShowPrivacyPolicyOverlay);
                 termsButton.onClick.AddListener(controller.ShowTermsOverlay);
+
+                resetLevelButton.onClick.AddListener(() =>
+                {
+                    controller.HideOptionsOverlay();
+                    controller.ResetCurrentLevel();
+                });
+                resetGameButton.onClick.AddListener(() =>
+                {
+                    controller.HideOptionsOverlay();
+                    controller.RequestRestartGame();
+                });
 
                 SetPrivateField(controller, "_howToPlayOverlay", howToPlayOverlay);
                 SetPrivateField(controller, "_privacyPolicyOverlay", privacyOverlay);
