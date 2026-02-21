@@ -18,11 +18,9 @@ namespace Decantra.Presentation.View
     {
         private const float SinkBottomStrokeThicknessMultiplier = 2f;
 
-        // Reference bottle dimensions from SceneBootstrap (for the "default" bottle).
-        // RefSlotRootHeight matches RefOutlineHeight so that a full bottle's liquid top
-        // always aligns with the inner body top regardless of bottle capacity scale.
+        // Reference outline height from SceneBootstrap. Used to compute how much the body
+        // shrinks when capacity is below the level maximum.
         private const float RefOutlineHeight = 372f;
-        private const float RefSlotRootHeight = 372f;
 
         // Explicit interior fill bounds: the straight-sided region of the bottle body.
         // These exclude border thickness, rounded corners, neck, flange, and decorative geometry.

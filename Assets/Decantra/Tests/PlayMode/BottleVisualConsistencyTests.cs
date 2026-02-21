@@ -213,8 +213,8 @@ namespace Decantra.Tests.PlayMode
 
         /// <summary>
         /// Test: the first filled segment's bottom must align with the LiquidRoot bottom edge,
-        /// which represents the interior bottom of the bottle (Invariant 3 — segment placement
-        /// starts at interiorBottomY, not above it).
+        /// which represents the interior bottom of the bottle (Invariant 1 — Interior Fill Bounds:
+        /// segments start at interiorBottomY, not above it).
         ///
         /// Verifies for bottles of different capacities in the same level.
         /// </summary>
