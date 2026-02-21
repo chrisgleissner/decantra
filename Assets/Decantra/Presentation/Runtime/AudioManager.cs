@@ -35,6 +35,13 @@ namespace Decantra.Presentation
         private bool _isEnabled = true;
         private float _volume01 = 1f;
         private int _nextSourceIndex;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // On WebGL, the browser AudioContext starts in "suspended" state. Unity calls
+        // audioContext.resume() on the first user interaction, but that is async (Promise).
+        // The very first source.Play() fires before the Promise resolves, so no sound is heard.
+        // Scheduling a one-frame retry ensures the second attempt runs after the Promise resolves.
+        private bool _firstPlayLaunched;
+#endif
 
         private struct ClipSampleData
         {
@@ -242,19 +249,45 @@ namespace Decantra.Presentation
                 playbackClip = safeClip;
             }
 
-            source.Stop();
-            source.clip = playbackClip;
-            source.pitch = 1f;
-            source.volume = Mathf.Clamp01(gain) * _volume01;
-            source.mute = !_isEnabled || _volume01 <= 0.0001f;
-            source.time = 0f;
-            source.Play();
+            StartSegmentPlayback(source, playbackClip, Mathf.Clamp01(gain));
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // On the very first pour the WebGL AudioContext may still be resuming (async).
+            // Schedule a one-frame retry so the sound plays after the Promise resolves.
+            if (!_firstPlayLaunched)
+            {
+                _firstPlayLaunched = true;
+                StartCoroutine(RetryFirstPlayIfNeeded(source, playbackClip, Mathf.Clamp01(gain)));
+            }
+#endif
 
             if (playbackClip != null && playbackClip != safeClip)
             {
                 StartCoroutine(DestroyWhenFinished(playbackClip, playbackClip.length + 0.05f));
             }
         }
+
+        private void StartSegmentPlayback(AudioSource source, AudioClip clip, float gain)
+        {
+            source.Stop();
+            source.clip = clip;
+            source.pitch = 1f;
+            source.volume = gain * _volume01;
+            source.mute = !_isEnabled || _volume01 <= 0.0001f;
+            source.time = 0f;
+            source.Play();
+        }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        private IEnumerator RetryFirstPlayIfNeeded(AudioSource source, AudioClip clip, float gain)
+        {
+            yield return null; // Wait one frame for audioContext.resume() Promise to resolve
+            if (source != null && !source.isPlaying)
+            {
+                StartSegmentPlayback(source, clip, gain);
+            }
+        }
+#endif
 
         private static void ComputeSegmentBounds(float clipLengthSeconds, float startFillRatio, float endFillRatio, out float segmentStart, out float segmentEnd)
         {

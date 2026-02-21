@@ -18,9 +18,11 @@ namespace Decantra.Presentation.View
     {
         private const float SinkBottomStrokeThicknessMultiplier = 2f;
 
-        // Reference bottle dimensions from SceneBootstrap (for the "default" bottle)
+        // Reference bottle dimensions from SceneBootstrap (for the "default" bottle).
+        // RefSlotRootHeight matches RefOutlineHeight so that a full bottle's liquid top
+        // always aligns with the inner body top regardless of bottle capacity scale.
         private const float RefOutlineHeight = 372f;
-        private const float RefSlotRootHeight = 320f;
+        private const float RefSlotRootHeight = 372f;
         // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
         // Elements at or below are "body" elements whose height stretches.
         private const float TopFixedThreshold = 120f;
@@ -312,33 +314,34 @@ namespace Decantra.Presentation.View
                 // Bottom elements (shadow, basePlate) stay at their original positions
             }
 
-            // Resize slotRoot and its parent liquidMask (bottom-anchored).
-            // slotRoot is snapped to a multiple of capacity; liquidMask uses proportional
-            // scaling from its own original height, floored to snappedSlotRootHeight so
-            // full liquid is never clipped.
+            // Resize slotRoot and its parent liquidMask together.
+            // Both are scaled to the same height (origMask.SizeDelta.y * ratio) so that
+            // the liquid top always tracks the inner body top regardless of capacity ratio,
+            // keeping the full-fill top gap constant at zero across all bottle sizes.
             if (slotRoot != null)
             {
-                // Snap to nearest multiple of capacity so each unit occupies an exact number
-                // of pixels, preventing float-stacking underfill when segments accumulate.
-                float rawSlotRootHeight = RefSlotRootHeight * ratio;
-                float snappedSlotRootHeight = Mathf.Round(rawSlotRootHeight / capacity) * capacity;
-                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, snappedSlotRootHeight);
-
                 var liquidMask = slotRoot.parent as RectTransform;
                 if (liquidMask != null)
                 {
                     var origMask = FindOriginalLayout(liquidMask);
                     if (origMask.Rect != null)
                     {
-                        float rawMaskHeight = origMask.SizeDelta.y * ratio;
-                        // Ensure mask is at least as tall as the snapped slotRoot so liquid is never clipped.
-                        float maskHeight = Mathf.Max(rawMaskHeight, snappedSlotRootHeight);
-                        float maskHalfDelta = (origMask.SizeDelta.y - maskHeight) * 0.5f;
-                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, maskHeight);
+                        float liquidHeight = origMask.SizeDelta.y * ratio;
+                        float maskHalfDelta = (origMask.SizeDelta.y - liquidHeight) * 0.5f;
+                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, liquidHeight);
                         liquidMask.anchoredPosition = new Vector2(
                             origMask.AnchoredPosition.x,
                             origMask.AnchoredPosition.y - maskHalfDelta);
+                        slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, liquidHeight);
                     }
+                    else
+                    {
+                        slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
+                    }
+                }
+                else
+                {
+                    slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
                 }
             }
         }

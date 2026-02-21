@@ -17,6 +17,12 @@ namespace Decantra.App.Services
     {
         private const string FileName = "progress.json";
         private const string PublicDirName = "Decantra";
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // On WebGL, Application.persistentDataPath writes to an in-memory IDBFS that is NOT
+        // flushed to IndexedDB unless FS.syncfs() is called explicitly.  PlayerPrefs uses
+        // localStorage instead, which persists automatically — no flush required.
+        private const string WebGlProgressKey = "decantra.progress.v1";
+#endif
         private readonly string[] _overridePaths;
 
         public ProgressStore(IEnumerable<string> overridePaths = null)
@@ -26,6 +32,22 @@ namespace Decantra.App.Services
 
         public ProgressData Load()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (_overridePaths == null || _overridePaths.Length == 0)
+            {
+                string json = PlayerPrefs.GetString(WebGlProgressKey, null);
+                if (!string.IsNullOrEmpty(json))
+                {
+                    var data = JsonUtility.FromJson<ProgressData>(json);
+                    if (data != null)
+                    {
+                        EnsureDefaults(data);
+                        return data;
+                    }
+                }
+                return CreateDefaultProgressData();
+            }
+#endif
             foreach (string path in GetPaths())
             {
                 if (!File.Exists(path)) continue;
@@ -38,21 +60,21 @@ namespace Decantra.App.Services
                 }
             }
 
-            return new ProgressData
-            {
-                HighestUnlockedLevel = 1,
-                CurrentLevel = 1,
-                CurrentSeed = 0,
-                CurrentScore = 0,
-                HighScore = 0,
-                StarBalance = 0
-            };
+            return CreateDefaultProgressData();
         }
 
         public void Save(ProgressData data)
         {
             EnsureDefaults(data);
             string json = JsonUtility.ToJson(data, true);
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (_overridePaths == null || _overridePaths.Length == 0)
+            {
+                PlayerPrefs.SetString(WebGlProgressKey, json);
+                PlayerPrefs.Save();
+                return;
+            }
+#endif
             foreach (string path in GetPaths())
             {
                 try
@@ -94,6 +116,19 @@ namespace Decantra.App.Services
                 yield return Path.Combine(publicRoot, PublicDirName, FileName);
             }
 #endif
+        }
+
+        private static ProgressData CreateDefaultProgressData()
+        {
+            return new ProgressData
+            {
+                HighestUnlockedLevel = 1,
+                CurrentLevel = 1,
+                CurrentSeed = 0,
+                CurrentScore = 0,
+                HighScore = 0,
+                StarBalance = 0
+            };
         }
 
         private static void EnsureDefaults(ProgressData data)
