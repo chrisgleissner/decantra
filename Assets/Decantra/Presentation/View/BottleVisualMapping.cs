@@ -76,21 +76,27 @@ namespace Decantra.Presentation.View
 
         /// <summary>
         /// Computes the local-space height for a given number of slots.
-        /// With proportional bottle scaling, this is simply H * units / capacity.
-        /// The pixel invariant is maintained by the proportional transform scale.
+        /// This is simply slotRootHeight * units / capacity.
+        /// The pixel invariant is maintained by proportional RectTransform resizing:
+        /// BottleView.ApplyCapacityScale sets slotRoot.sizeDelta.y to a value that is a
+        /// multiple of capacity, so every unit occupies an exact integer-equivalent pixel count.
         ///
-        /// Full bottle (units == capacity) always returns slotRootHeight, ensuring
-        /// every bottle looks completely full at capacity.
+        /// Full bottle (units == capacity) always returns slotRootHeight exactly.
+        /// Empty bottle (units &lt;= 0) always returns 0 exactly.
+        /// Result is hard-clamped to [0, slotRootHeight] to prevent overflow into neck
+        /// and to avoid float accumulation errors.
         /// </summary>
         /// <param name="slotRootHeight">slotRoot.rect.height (local-space, pre-scale)</param>
         /// <param name="capacity">This bottle's capacity</param>
         /// <param name="refCapacity">Max capacity across all bottles in the current level (unused, kept for API stability)</param>
         /// <param name="units">Number of slots to convert to height</param>
-        /// <returns>Local-space height for the given number of slots</returns>
+        /// <returns>Local-space height for the given number of slots, clamped to [0, slotRootHeight]</returns>
         public static float LocalHeightForUnits(float slotRootHeight, int capacity, int refCapacity, float units)
         {
             if (capacity <= 0 || slotRootHeight <= 0f) return 0f;
-            return slotRootHeight * units / capacity;
+            if (units <= 0f) return 0f;
+            if (units >= capacity) return slotRootHeight;
+            return Mathf.Clamp(slotRootHeight * units / capacity, 0f, slotRootHeight);
         }
     }
 }

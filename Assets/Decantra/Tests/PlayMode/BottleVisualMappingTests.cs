@@ -212,6 +212,73 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
+        /// Negative units returns zero height (clamp floor).
+        /// </summary>
+        [Test]
+        public void NegativeUnits_ZeroHeight()
+        {
+            float h = BottleVisualMapping.LocalHeightForUnits(RefSlotRootHeight, 4, 8, -1f);
+            Assert.AreEqual(0f, h, PixelTolerance);
+        }
+
+        /// <summary>
+        /// Over-capacity units returns slotRootHeight exactly (clamp ceiling).
+        /// </summary>
+        [Test]
+        public void OverCapacityUnits_ClampsToSlotRootHeight()
+        {
+            float h = BottleVisualMapping.LocalHeightForUnits(RefSlotRootHeight, 4, 8, 5f);
+            Assert.AreEqual(RefSlotRootHeight, h, PixelTolerance,
+                "Over-capacity units must be clamped to slotRootHeight");
+        }
+
+        /// <summary>
+        /// capacity - 1 units yields a height strictly less than slotRootHeight.
+        /// </summary>
+        [Test]
+        public void CapacityMinusOne_LessThanSlotRootHeight()
+        {
+            int refCap = 8;
+            for (int cap = 2; cap <= 8; cap++)
+            {
+                float slotH = SlotRootHeightForCap(cap, refCap);
+                float h = BottleVisualMapping.LocalHeightForUnits(slotH, cap, refCap, cap - 1);
+                Assert.Less(h, slotH,
+                    $"cap-{cap}: capacity-1 units must render strictly below slotRootHeight");
+            }
+        }
+
+        /// <summary>
+        /// When slotRootHeight is snapped to a multiple of capacity (as ApplyCapacityScale does),
+        /// any split of a full bottle into two segments produces heights that sum exactly to
+        /// snappedH. This is the invariant that eliminates float-stacking underfill without
+        /// any per-segment snapping logic.
+        /// </summary>
+        [Test]
+        public void SnappedSlotRootHeight_SegmentsSum_ExactlyToFullHeight()
+        {
+            int refCap = 8;
+            // Non-power-of-2 capacities are most susceptible to float rounding
+            int[] capacities = { 3, 5, 6, 7 };
+
+            foreach (int cap in capacities)
+            {
+                float rawH = SlotRootHeightForCap(cap, refCap);
+                // Simulate the snapping done by ApplyCapacityScale
+                float snappedH = Mathf.Round(rawH / cap) * cap;
+
+                for (int splitAt = 1; splitAt < cap; splitAt++)
+                {
+                    float h1 = BottleVisualMapping.LocalHeightForUnits(snappedH, cap, refCap, splitAt);
+                    float h2 = BottleVisualMapping.LocalHeightForUnits(snappedH, cap, refCap, cap - splitAt);
+
+                    Assert.AreEqual(snappedH, h1 + h2, PixelTolerance,
+                        $"cap={cap} splitAt={splitAt}: h1={h1} + h2={h2} must equal snapped height {snappedH}");
+                }
+            }
+        }
+
+        /// <summary>
         /// Anti-regression: the old 0.9.4 approach (same slotRoot height for all bottles,
         /// H/cap * non-proportional scaleY tiers) produces DIFFERENT pixel heights.
         /// </summary>

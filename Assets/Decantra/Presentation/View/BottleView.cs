@@ -312,10 +312,17 @@ namespace Decantra.Presentation.View
                 // Bottom elements (shadow, basePlate) stay at their original positions
             }
 
-            // Resize slotRoot and its parent liquidMask proportionally (bottom-anchored)
+            // Resize slotRoot and its parent liquidMask (bottom-anchored).
+            // slotRoot is snapped to a multiple of capacity; liquidMask uses proportional
+            // scaling from its own original height, floored to snappedSlotRootHeight so
+            // full liquid is never clipped.
             if (slotRoot != null)
             {
-                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
+                // Snap to nearest multiple of capacity so each unit occupies an exact number
+                // of pixels, preventing float-stacking underfill when segments accumulate.
+                float rawSlotRootHeight = RefSlotRootHeight * ratio;
+                float snappedSlotRootHeight = Mathf.Round(rawSlotRootHeight / capacity) * capacity;
+                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, snappedSlotRootHeight);
 
                 var liquidMask = slotRoot.parent as RectTransform;
                 if (liquidMask != null)
@@ -323,8 +330,11 @@ namespace Decantra.Presentation.View
                     var origMask = FindOriginalLayout(liquidMask);
                     if (origMask.Rect != null)
                     {
-                        float maskHalfDelta = origMask.SizeDelta.y * (1f - ratio) * 0.5f;
-                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, origMask.SizeDelta.y * ratio);
+                        float rawMaskHeight = origMask.SizeDelta.y * ratio;
+                        // Ensure mask is at least as tall as the snapped slotRoot so liquid is never clipped.
+                        float maskHeight = Mathf.Max(rawMaskHeight, snappedSlotRootHeight);
+                        float maskHalfDelta = (origMask.SizeDelta.y - maskHeight) * 0.5f;
+                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, maskHeight);
                         liquidMask.anchoredPosition = new Vector2(
                             origMask.AnchoredPosition.x,
                             origMask.AnchoredPosition.y - maskHalfDelta);

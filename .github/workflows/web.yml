@@ -169,7 +169,7 @@ jobs:
           cp -R docs/. Builds/Pages/
           cp -R Builds/WebGL/. Builds/Pages/webgl/
 
-          test -f Builds/Pages/index.md
+          test -f Builds/Pages/index.html
           test -f Builds/Pages/webgl/index.html
 
       - name: Configure Pages
