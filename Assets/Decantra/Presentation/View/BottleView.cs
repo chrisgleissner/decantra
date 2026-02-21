@@ -315,7 +315,11 @@ namespace Decantra.Presentation.View
             // Resize slotRoot and its parent liquidMask proportionally (bottom-anchored)
             if (slotRoot != null)
             {
-                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
+                // Snap to nearest multiple of capacity so each unit occupies an exact number
+                // of pixels, preventing float-stacking underfill when segments accumulate.
+                float rawSlotRootHeight = RefSlotRootHeight * ratio;
+                float snappedSlotRootHeight = Mathf.Round(rawSlotRootHeight / capacity) * capacity;
+                slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, snappedSlotRootHeight);
 
                 var liquidMask = slotRoot.parent as RectTransform;
                 if (liquidMask != null)
@@ -323,8 +327,11 @@ namespace Decantra.Presentation.View
                     var origMask = FindOriginalLayout(liquidMask);
                     if (origMask.Rect != null)
                     {
-                        float maskHalfDelta = origMask.SizeDelta.y * (1f - ratio) * 0.5f;
-                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, origMask.SizeDelta.y * ratio);
+                        float rawMaskHeight = origMask.SizeDelta.y * ratio;
+                        // Ensure mask is at least as tall as the snapped slotRoot so liquid is never clipped.
+                        float maskHeight = Mathf.Max(rawMaskHeight, snappedSlotRootHeight);
+                        float maskHalfDelta = (origMask.SizeDelta.y - maskHeight) * 0.5f;
+                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, maskHeight);
                         liquidMask.anchoredPosition = new Vector2(
                             origMask.AnchoredPosition.x,
                             origMask.AnchoredPosition.y - maskHalfDelta);
@@ -841,14 +848,9 @@ namespace Decantra.Presentation.View
             rect.anchorMin = new Vector2(0.5f, 0);
             rect.anchorMax = new Vector2(0.5f, 0);
             rect.pivot = new Vector2(0.5f, 0);
+            rect.sizeDelta = new Vector2(width, BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, units));
 
             float yOffset = BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, unitsBefore);
-            // When this segment completes the bottle, snap to exact remaining height to
-            // eliminate float stacking errors that would cause underfill or overflow.
-            float segHeight = unitsBefore + units == capacity
-                ? Mathf.Max(0f, height - yOffset)
-                : BottleVisualMapping.LocalHeightForUnits(height, capacity, refCapacity, units);
-            rect.sizeDelta = new Vector2(width, segHeight);
             rect.anchoredPosition = new Vector2(0, yOffset);
 
             if (color.HasValue && palette != null)
