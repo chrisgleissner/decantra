@@ -23,20 +23,21 @@ namespace Decantra.Presentation.View
         private const float RefOutlineHeight = 372f;
 
         // Explicit interior fill bounds: the straight-sided region of the bottle body.
-        // These exclude border thickness, rounded corners, neck, flange, and decorative geometry.
-        // Defined in the bottle container's local canvas space (bottle RectTransform, centre-pivot).
-        //
-        //   Outline/LiquidMask: height 372, anchoredPosition.y = -6
+        // These are the bounds of the LiquidMask RectTransform (centre-pivot, local canvas space).
+        //   LiquidMask: height 372, anchoredPosition.y = -6
         //   InteriorBottomY = -6 - 372/2 = -192
         //   InteriorTopY    = -6 + 372/2 =  180
         //
         // The BottleFlange bottom edge is at Y = 187 - 14/2 = 180 = InteriorTopY, confirming
         // that InteriorTopY is exactly the boundary between the straight body and the neck/flange.
-        // Liquid is clipped by LiquidMask which is sized to [InteriorBottomY, InteriorTopY].
-        internal const float InteriorBottomY = -192f;
-        internal const float InteriorTopY = 180f;
-        internal const float InteriorHeight = InteriorTopY - InteriorBottomY; // = 372f
-        internal const float InteriorCenterY = (InteriorBottomY + InteriorTopY) * 0.5f; // = -6f
+        // Liquid segments are clipped by LiquidMask, which is sized to [InteriorBottomY, InteriorTopY].
+        //
+        // Segment height invariant: every segment has height = InteriorHeight / levelMaxCapacity.
+        // This is constant across all bottle types and positions in the same level.
+        public const float InteriorBottomY = -192f;
+        public const float InteriorTopY = 180f;
+        public const float InteriorHeight = InteriorTopY - InteriorBottomY; // = 372f
+        public const float InteriorCenterY = (InteriorBottomY + InteriorTopY) * 0.5f; // = -6f
 
         // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
         // Elements at or below are "body" elements whose height stretches.
