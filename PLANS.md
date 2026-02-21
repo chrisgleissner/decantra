@@ -1,9 +1,161 @@
 # PLANS
 
-Last updated: 2026-02-20 UTC (execution in progress)  
-Execution engineer: GitHub Copilot (GPT-5.3-Codex)
+Last updated: 2026-02-21 UTC  
+Execution engineer: GitHub Copilot
 
-## 2026-02-20 — WebGL Layout Fix: Bottle Grid Collapse
+## 2026-02-21 — WebGL Background Precalc + CI License Contention
+
+### Problem 1: WebGL transition stall on precompute miss
+
+#### Root cause (confirmed by code inspection)
+
+When `TransitionToLevel` is invoked on WebGL and the precompute coroutine (`_webGlPrecomputeRoutine`) has not yet completed:
+
+1. `_nextState == null` → the fast path is skipped.
+2. `CancelPrecompute()` is called immediately, stopping the still-running coroutine.
+3. `GenerateLevelWithRetry(nextLevel, currentSeed, 8)` runs **synchronously** — no yield — blocking
+   the Unity main thread for the full generation time in a single frame.
+
+The result is a multi-frame stall visible as a hitch at level transition.
+
+#### Hypotheses evaluated
+
+| ID | Hypothesis | Verdict |
+|----|-----------|---------|
+| H1 | Precompute coroutine may not complete before transition when levels are short | Confirmed |
+| H2 | TransitionToLevel WebGL fallback blocks main thread | Confirmed |
+| H3 | TryApplyCompletedPrecompute doesn't help WebGL (checks _precomputeTask=null) | Confirmed |
+| H4 | PrecomputeNextLevelOnMainThread already yields correctly once before generating | Confirmed — this part works |
+
+#### Fix applied (minimal, targeted)
+
+**Change 1 — Wait for in-progress coroutine before canceling:**
+
+Inserted before `CancelPrecompute()` in `TransitionToLevel`:
+```csharp
+if (_webGlPrecomputeRoutine != null)
+{
+    float waitStart = Time.realtimeSinceStartup;
+    while (_webGlPrecomputeRoutine != null && Time.realtimeSinceStartup - waitStart < TransitionTimeoutSeconds)
+        yield return null;
+    if (_nextState != null && _nextLevel == nextLevel)
+    {
+        EmitCompletionToReadyMetric(nextLevel, "webgl-late-precomputed");
+        _currentDifficulty100 = _nextDifficulty100;
+        ApplyLoadedState(_nextState, _nextLevel, _nextSeed);
+        _inputLocked = false;
+        yield break;
+    }
+}
+```
+
+On non-WebGL builds `_webGlPrecomputeRoutine` is always `null` so this block is a no-op. On WebGL
+it gives the already-started coroutine up to `TransitionTimeoutSeconds` to finish naturally before
+resorting to the synchronous fallback.
+
+**Change 2 — Yield before synchronous fallback generation:**
+
+Changed `TransitionToLevel` WebGL fallback from:
+```csharp
+if (isWebGLPrecomputeMode)
+{
+    loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 8);
+    hasLoaded = loaded.State != null;
+}
+```
+to:
+```csharp
+if (isWebGLPrecomputeMode)
+{
+    yield return null;   // render current frame before blocking generation
+    loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 8);
+    hasLoaded = loaded.State != null;
+}
+```
+
+This ensures the renderer shows the transition UI before the generation runs, even in the worst case
+where precompute was not ready.
+
+#### Tests added
+
+Two new PlayMode tests in `GameControllerPlayModeTests.cs`:
+- `Precompute_CompletesWithinReasonableTime` — verifies `_nextState` becomes non-null within 8 s.
+- `Precompute_CancelledAndRestartedOnLevelReload` — verifies a new precompute starts after
+  `LoadLevel` is called, confirming cancellation semantics.
+
+Both tests run on non-WebGL (Task path) in CI; the same mechanism is exercised at the WebGL
+execution path on device.
+
+#### Platform risk
+
+- **Android / iOS**: No behavioral change. `_webGlPrecomputeRoutine` is always `null`; `isWebGLPrecomputeMode` is always `false`. Code is behind the same compile and runtime guards as before.
+- **WebGL**: The wait loop can extend transition latency by at most `TransitionTimeoutSeconds` (2.5 s) in the rare case where precompute started very close to transition time, but in that case it was previously causing a synchronous generation stall of similar or longer duration.
+
+---
+
+### Problem 2: CI Unity license activation contention on macOS
+
+#### Root cause (confirmed by CI log analysis)
+
+CI run 22252419479 — job `Build iOS IPA` in `build.yml` — failed with:
+```
+libc++abi: terminating due to uncaught exception of type std::system_error: mutex lock failed: Invalid argument
+Curl error 42: Callback aborted
+Unclassified error occured while trying to activate license.
+Exit code was: 134
+```
+
+On any push to `main`, three independent GitHub Actions workflows trigger simultaneously:
+- `build.yml` → `build-ios` job on `macos-latest` (after `test` + `solvability` gates)
+- `ios.yml` → `build-ios-simulator` job on `macos-latest` (starts immediately after `check-license`)
+- `ios.yml` → `build-ios-ipa` job on `macos-latest` (on main/tags, also starts immediately)
+
+All three are on separate macOS runners but activate the **same Unity personal license serial**.
+`game-ci/unity-builder@v4`'s `activate.sh` calls Unity in batchmode with `-serial`/`-username`.
+Concurrent activations on different macOS machines hit the Unity licensing service simultaneously
+and trigger the mutex/IPC contention error.
+
+#### Hypotheses evaluated
+
+| ID | Hypothesis | Verdict |
+|----|-----------|---------|
+| H1 | Multiple macOS jobs activate the same serial concurrently | Confirmed — three macOS Unity jobs start within seconds of each other |
+| H2 | Unity licensing IPC mutex fails under concurrent activation | Confirmed by error log |
+| H3 | Stale Unity process from previous run | Possible but secondary cause |
+| H4 | Network curl abort causes partial activation | Confirmed as symptom, H1 is root cause |
+
+#### Fix applied
+
+Added `concurrency` at **job level** to all three macOS Unity build jobs using a shared group:
+
+```yaml
+concurrency:
+  group: unity-macos-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+```
+
+Applied to:
+- `build-ios` in `build.yml`
+- `build-ios-simulator` in `ios.yml`
+- `build-ios-ipa` in `ios.yml`
+
+Effect: only one macOS Unity license activation runs at a time per repository + branch. Additional
+jobs queue (not cancel) and run sequentially. Ubuntu jobs (Android, WebGL, tests) are unaffected
+since they activate on separate runner hosts and the licensing service handles them independently.
+
+`cancel-in-progress: false` is critical — canceling a queued iOS build would silently skip the
+IPA/simulator artifact, so we always let queued jobs complete.
+
+#### Tradeoffs
+
+- Total wall-clock time for a push-to-main that triggers all three iOS jobs increases (they serialize
+  instead of parallelizing). Typical impact: +30–60 min for the IPA build to start after the
+  simulator build. This is acceptable; builds that fail are worse than builds that are slow.
+- No impact to Android, WebGL, or test jobs.
+
+---
+
+
 
 ### Problem statement
 

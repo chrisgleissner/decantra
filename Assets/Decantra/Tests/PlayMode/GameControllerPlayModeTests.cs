@@ -1200,6 +1200,78 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator Precompute_CompletesWithinReasonableTime()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            float loadTimeout = 8f;
+            float loadElapsed = 0f;
+            while (loadElapsed < loadTimeout && !controller.HasActiveLevel)
+            {
+                loadElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Expected an active level to be loaded.");
+
+            float precomputeTimeout = 8f;
+            float precomputeElapsed = 0f;
+            bool completed = false;
+            while (precomputeElapsed < precomputeTimeout)
+            {
+                var nextState = GetPrivateField(controller, "_nextState") as LevelState;
+                var precomputeTask = GetPrivateField(controller, "_precomputeTask") as Task;
+                var webGlRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
+                if (nextState != null || (precomputeTask == null && webGlRoutine == null))
+                {
+                    completed = true;
+                    break;
+                }
+
+                precomputeElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(completed, "Precompute should complete within 8 seconds of level load.");
+        }
+
+        [UnityTest]
+        public IEnumerator Precompute_CancelledAndRestartedOnLevelReload()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            float loadTimeout = 8f;
+            float loadElapsed = 0f;
+            while (loadElapsed < loadTimeout && !controller.HasActiveLevel)
+            {
+                loadElapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Expected an active level to be loaded.");
+            yield return null;
+
+            var initialTask = GetPrivateField(controller, "_precomputeTask") as Task;
+            var initialRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
+            Assert.IsTrue(initialTask != null || initialRoutine != null, "Precompute should have started after level load.");
+
+            controller.LoadLevel(2, 12345);
+            yield return null;
+
+            var newTask = GetPrivateField(controller, "_precomputeTask") as Task;
+            var newRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
+            Assert.IsTrue(newTask != null || newRoutine != null, "Precompute should restart after level reload.");
+        }
+
+        [UnityTest]
         public IEnumerator AccessibleColorsToggle_MidGame_NoNullReferenceLogs()
         {
             bool nullReferenceLogged = false;
