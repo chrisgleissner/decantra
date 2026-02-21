@@ -188,5 +188,74 @@ namespace Decantra.Tests.PlayMode
 
             return maxLocal * slotRoot.lossyScale.y;
         }
+
+        /// <summary>
+        /// Returns the world-space Y of the top edge of a RectTransform.
+        /// </summary>
+        private static float GetWorldTopY(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            // corners[1] = top-left, corners[2] = top-right
+            return corners[1].y;
+        }
+
+        /// <summary>
+        /// Test: a full bottle's liquid top must align with the outline inner body top,
+        /// with a constant gap across all bottle capacities in the same level.
+        ///
+        /// Invariant A: for a 100%-filled bottle, abs(outlineTop - slotRootTop) ≤ tolerance
+        /// Invariant B: the gap is consistent across capacities (max-min ≤ tolerance)
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var bottleViews = FindBottleViews();
+            Assert.GreaterOrEqual(bottleViews.Count, 4, "Expected at least 4 bottle views.");
+
+            int[] capacities = { 4, 6, 8, 10 };
+            int maxCapacity = 10;
+
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                bottleViews[i].SetLevelMaxCapacity(maxCapacity);
+                bottleViews[i].Render(CreateBottle(capacities[i], capacities[i]));
+            }
+
+            yield return null;
+
+            var gaps = new float[capacities.Length];
+
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                var outlineRect = bottleViews[i].transform.Find("Outline")?.GetComponent<RectTransform>();
+                var slotRoot = FindSlotRoot(bottleViews[i]);
+
+                Assert.IsNotNull(outlineRect, $"Bottle_{i + 1}: Outline RectTransform not found.");
+                Assert.IsNotNull(slotRoot, $"Bottle_{i + 1}: LiquidRoot RectTransform not found.");
+
+                float outlineTopWorld = GetWorldTopY(outlineRect);
+                float slotRootTopWorld = GetWorldTopY(slotRoot);
+
+                gaps[i] = outlineTopWorld - slotRootTopWorld;
+
+                Assert.LessOrEqual(gaps[i], 2.0f,
+                    $"Full cap-{capacities[i]} bottle: outline top is {gaps[i]} world units above liquid top (expected ≤ 2).");
+            }
+
+            float minGap = gaps[0];
+            float maxGap = gaps[0];
+            for (int i = 1; i < gaps.Length; i++)
+            {
+                if (gaps[i] < minGap) minGap = gaps[i];
+                if (gaps[i] > maxGap) maxGap = gaps[i];
+            }
+
+            Assert.LessOrEqual(maxGap - minGap, 2.0f,
+                $"Top gap is not consistent across capacities: min={minGap:F2}, max={maxGap:F2} world units.");
+        }
     }
 }

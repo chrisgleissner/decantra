@@ -1443,15 +1443,15 @@ namespace Decantra.Presentation
             liquidMaskRect.anchorMin = new Vector2(0.5f, 0.5f);
             liquidMaskRect.anchorMax = new Vector2(0.5f, 0.5f);
             liquidMaskRect.pivot = new Vector2(0.5f, 0.5f);
-            liquidMaskRect.sizeDelta = new Vector2(128, 320);
-            liquidMaskRect.anchoredPosition = new Vector2(0, -10);
+            liquidMaskRect.sizeDelta = new Vector2(128, 372);
+            liquidMaskRect.anchoredPosition = new Vector2(0, -6);
 
             var liquidRoot = CreateUiChild(liquidMaskGo.transform, "LiquidRoot");
             var liquidRect = liquidRoot.GetComponent<RectTransform>();
             liquidRect.anchorMin = new Vector2(0.5f, 0f);
             liquidRect.anchorMax = new Vector2(0.5f, 0f);
             liquidRect.pivot = new Vector2(0.5f, 0f);
-            liquidRect.sizeDelta = new Vector2(112, 320);
+            liquidRect.sizeDelta = new Vector2(112, 372);
             liquidRect.anchoredPosition = new Vector2(0, 0);
 
             var liquidSurfaceGo = CreateUiChild(liquidMaskGo.transform, "LiquidSurface");

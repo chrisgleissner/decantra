@@ -3,6 +3,101 @@
 Last updated: 2026-02-21 UTC  
 Execution engineer: GitHub Copilot
 
+## 2026-02-21 — Liquid Fill Top-Gap Invariance Fix
+
+### Problem statement
+
+On WebGL mobile (and to a lesser extent on other platforms), the gap between the top of the
+colored liquid stack and the inner top border of the straight bottle body varies with bottle size.
+
+- Tall (high-capacity) bottle: ~9–11 px empty gap visible above the liquid.
+- Small (low-capacity) bottle: ~0–2 px gap.
+- Gap is not constant → violates the "full bottle should fill to the top" invariant.
+
+### Root cause (confirmed by code inspection)
+
+In `SceneBootstrap.CreateBottle()` the initial RectTransform dimensions are:
+
+| Element     | Height | Center Y | Top Y       | Bottom Y    |
+|-------------|--------|----------|-------------|-------------|
+| Outline     |  372   |   -6     | 180         | -192        |
+| LiquidMask  |  320   |  -10     | 150         | -170        |
+
+After `BottleView.ApplyCapacityScale(ratio)` both elements shrink from their bottom edge:
+
+```
+outlineTop(r)    = -192 + 372 * r
+liquidMaskTop(r) = -170 + 320 * r
+```
+
+The full-fill gap:
+
+```
+gap(r) = outlineTop(r) - liquidMaskTop(r) = -22 + 52 * r
+```
+
+For r = 1.0 (max-capacity / "tall" bottle): **gap = 30 canvas units** ≈ 9–11 screen px  
+For r = 0.5 (half-capacity / "small" bottle): **gap = 4 canvas units** ≈ 1–2 screen px  
+
+The gap is proportional to `ratio`, so it scales with bottle size — this is the observed defect.
+The root cause is that `LiquidMask.height (320) ≠ Outline.height (372)` and the two elements
+have different initial Y-centers (`-10` vs `-6`), so their tops diverge after proportional scaling.
+
+### Fix (minimal, targeted)
+
+Make the `LiquidMask` and `LiquidRoot` match the outline dimensions exactly:
+
+1. **`SceneBootstrap.CreateBottle()`**: change  
+   - `liquidMaskRect.sizeDelta = new Vector2(128, 372)` (was 320)  
+   - `liquidMaskRect.anchoredPosition = new Vector2(0, -6)` (was -10)  
+   - `liquidRect.sizeDelta = new Vector2(112, 372)` (was 320)
+
+2. **`BottleView.cs`**: change  
+   - `RefSlotRootHeight = 372f` (was 320f)  
+   - Simplify `ApplyCapacityScale` slotRoot/liquidMask block: derive liquid height from
+     `origMask.SizeDelta.y * ratio` (the outline-aligned mask height) and set both mask and
+     slotRoot to the same value, removing the old snap-to-capacity rounding (which could
+     introduce a 2–4-unit rounding error for maxCap=8).
+
+After the fix:
+
+```
+liquidMaskTop(r) = -192 + 372 * r = outlineTop(r)
+gap(r) = 0  ∀ r    (invariant A satisfied)
+```
+
+Pixel-per-slot invariance is preserved:
+```
+unitHeight = (372 * ratio) / capacity = 372 / maxCapacity   (constant across bottles ✓)
+```
+
+### Measurable invariants and acceptance criteria
+
+| # | Invariant | Target |
+|---|-----------|--------|
+| A | Full-bottle gap: `outlineTopWorld - slotRootTopWorld ≤ 2 world units` | for all capacities |
+| B | Consistent gap across capacities (same `maxCap`): max(gap) - min(gap) ≤ 2 world units | ✓ |
+| C | Pixel-invariant liquid heights (existing test `LiquidHeights_MatchSlotCountsAcrossCapacities`) | still pass |
+| D | Proportional slotRoot heights (existing test `SlotRootHeights_AreProportionalToCapacity`) | still pass |
+| E | All EditMode + PlayMode tests green in CI | ✓ |
+
+### Risk register and rollback plan
+
+| Risk | Mitigation | Rollback |
+|------|------------|---------|
+| Bottom of bottle fills 22 more canvas units (previously empty at bottom) | Visually correct — liquid fills to the glass bottom; rounded mask clips corners naturally | Revert three-line change to SceneBootstrap + RefSlotRootHeight |
+| Snapping removed may accumulate float error | 372/maxCap is representable for typical maxCap; error < 0.001 units | Re-add snap if visible artifacts appear |
+| Android layout regression | No change to bottle/grid sizing or HUD; only liquid fill region moves | Revert |
+| Existing BottleVisualMappingTests use 300 as local RefSlotRootHeight | Those tests are parameterized; they don't reference BottleView's constant | N/A |
+
+### Verification (automated)
+
+New test `FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities` added to
+`BottleVisualConsistencyTests.cs` validates invariant A and B for capacities {4,6,8} with
+maxCap=8.
+
+---
+
 ## 2026-02-21 — WebGL Background Precalc + CI License Contention
 
 ### Problem 1: WebGL transition stall on precompute miss
