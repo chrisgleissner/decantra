@@ -957,10 +957,60 @@ namespace Decantra.Tests.PlayMode
 
             var updated = GetPrivateField(controller, "_progress") as ProgressData;
             Assert.IsNotNull(updated);
-            Assert.AreEqual(1, updated.HighestUnlockedLevel);
+            // Session state is reset
             Assert.AreEqual(1, updated.CurrentLevel);
             Assert.AreEqual(0, updated.CurrentScore);
-            Assert.AreEqual(0, updated.HighScore);
+            Assert.AreEqual(0, updated.StarBalance);
+            // Lifetime stats are preserved
+            Assert.AreEqual(200, updated.HighScore, "HighScore must be preserved across a game reset.");
+            Assert.AreEqual(7, updated.HighestUnlockedLevel, "HighestUnlockedLevel must be preserved across a game reset.");
+        }
+
+        [UnityTest]
+        public IEnumerator RestartGame_WithNoPriorProgress_ResetsToDefaults()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            // Inject a known zero-baseline so the test is deterministic regardless of
+            // what previous tests may have left in the controller's progress.
+            string root = Path.Combine(Path.GetTempPath(), "decantra-tests", System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            string path = Path.Combine(root, "progress.json");
+            SetPrivateField(controller, "_progressStore", new ProgressStore(new[] { path }));
+            SetPrivateField(controller, "_progress", new ProgressData
+            {
+                HighestUnlockedLevel = 1,
+                CurrentLevel = 1,
+                CurrentSeed = 0,
+                CurrentScore = 0,
+                StarBalance = 0,
+                HighScore = 0,
+                CompletedLevels = new System.Collections.Generic.List<int>(),
+                BestPerformances = new System.Collections.Generic.List<LevelPerformanceRecord>()
+            });
+
+            controller.RequestRestartGame();
+            yield return null;
+
+            var confirmGo = GameObject.Find("ConfirmRestartButton");
+            Assert.IsNotNull(confirmGo, "Confirm restart button should exist.");
+            var confirmButton = confirmGo.GetComponent<Button>();
+            Assert.IsNotNull(confirmButton);
+            confirmButton.onClick.Invoke();
+            yield return null;
+
+            var updated = GetPrivateField(controller, "_progress") as ProgressData;
+            Assert.IsNotNull(updated);
+            Assert.AreEqual(1, updated.CurrentLevel);
+            Assert.AreEqual(0, updated.CurrentScore);
+            Assert.AreEqual(0, updated.StarBalance);
+            // With zero as prior high score, zero is the preserved value
+            Assert.AreEqual(0, updated.HighScore, "HighScore with no prior progress should preserve as 0.");
+            Assert.AreEqual(1, updated.HighestUnlockedLevel, "HighestUnlockedLevel with no prior progress should preserve as 1.");
         }
 
         [UnityTest]

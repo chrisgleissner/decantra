@@ -201,6 +201,77 @@ namespace Decantra.Tests.PlayMode
         }
 
         /// <summary>
+        /// Returns the world-space Y of the bottom edge of a RectTransform.
+        /// </summary>
+        private static float GetWorldBottomY(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            // corners[0] = bottom-left, corners[3] = bottom-right
+            return corners[0].y;
+        }
+
+        /// <summary>
+        /// Test: the first filled segment's bottom must align with the LiquidRoot bottom edge,
+        /// which represents the interior bottom of the bottle (Invariant 1 — Interior Fill Bounds:
+        /// segments start at interiorBottomY, not above it).
+        ///
+        /// Verifies for bottles of different capacities in the same level.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator EmptyBottle_FirstSegment_AlignsToInteriorBottom()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var bottleViews = FindBottleViews();
+            Assert.GreaterOrEqual(bottleViews.Count, 4, "Expected at least 4 bottle views.");
+
+            int[] capacities = { 4, 6, 8, 10 };
+            int maxCapacity = 10;
+
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                bottleViews[i].SetLevelMaxCapacity(maxCapacity);
+                // Render exactly 1 filled slot so we can check the first segment's bottom
+                bottleViews[i].Render(CreateBottle(capacities[i], 1));
+            }
+
+            yield return null;
+
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                var slotRoot = FindSlotRoot(bottleViews[i]);
+                Assert.IsNotNull(slotRoot, $"Bottle_{i + 1}: LiquidRoot RectTransform not found.");
+
+                // Find the first active Segment_1
+                Transform segmentTransform = null;
+                for (int c = 0; c < slotRoot.childCount; c++)
+                {
+                    var child = slotRoot.GetChild(c);
+                    if (child.gameObject.activeSelf && child.name.StartsWith("Segment_"))
+                    {
+                        segmentTransform = child;
+                        break;
+                    }
+                }
+
+                Assert.IsNotNull(segmentTransform,
+                    $"Bottle_{i + 1} cap-{capacities[i]}: No active Segment_ child found in LiquidRoot.");
+
+                var segmentRect = segmentTransform.GetComponent<RectTransform>();
+                Assert.IsNotNull(segmentRect);
+
+                float slotRootBottomWorld = GetWorldBottomY(slotRoot);
+                float segmentBottomWorld = GetWorldBottomY(segmentRect);
+
+                Assert.AreEqual(slotRootBottomWorld, segmentBottomWorld, HeightTolerance,
+                    $"cap-{capacities[i]}: first segment bottom ({segmentBottomWorld:F3}) must align " +
+                    $"with LiquidRoot bottom / interior bottom ({slotRootBottomWorld:F3}).");
+            }
+        }
+
+        /// <summary>
         /// Test: a full bottle's liquid top must align with the outline inner body top,
         /// with a constant gap across all bottle capacities in the same level.
         ///

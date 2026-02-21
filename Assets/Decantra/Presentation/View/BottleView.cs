@@ -18,11 +18,26 @@ namespace Decantra.Presentation.View
     {
         private const float SinkBottomStrokeThicknessMultiplier = 2f;
 
-        // Reference bottle dimensions from SceneBootstrap (for the "default" bottle).
-        // RefSlotRootHeight matches RefOutlineHeight so that a full bottle's liquid top
-        // always aligns with the inner body top regardless of bottle capacity scale.
+        // Reference outline height from SceneBootstrap. Used to compute how much the body
+        // shrinks when capacity is below the level maximum.
         private const float RefOutlineHeight = 372f;
-        private const float RefSlotRootHeight = 372f;
+
+        // Explicit interior fill bounds: the straight-sided region of the bottle body.
+        // These exclude border thickness, rounded corners, neck, flange, and decorative geometry.
+        // Defined in the bottle container's local canvas space (bottle RectTransform, centre-pivot).
+        //
+        //   Outline/LiquidMask: height 372, anchoredPosition.y = -6
+        //   InteriorBottomY = -6 - 372/2 = -192
+        //   InteriorTopY    = -6 + 372/2 =  180
+        //
+        // The BottleFlange bottom edge is at Y = 187 - 14/2 = 180 = InteriorTopY, confirming
+        // that InteriorTopY is exactly the boundary between the straight body and the neck/flange.
+        // Liquid is clipped by LiquidMask which is sized to [InteriorBottomY, InteriorTopY].
+        internal const float InteriorBottomY = -192f;
+        internal const float InteriorTopY = 180f;
+        internal const float InteriorHeight = InteriorTopY - InteriorBottomY; // = 372f
+        internal const float InteriorCenterY = (InteriorBottomY + InteriorTopY) * 0.5f; // = -6f
+
         // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
         // Elements at or below are "body" elements whose height stretches.
         private const float TopFixedThreshold = 120f;
@@ -315,33 +330,30 @@ namespace Decantra.Presentation.View
             }
 
             // Resize slotRoot and its parent liquidMask together.
-            // Both are scaled to the same height (origMask.SizeDelta.y * ratio) so that
-            // the liquid top always tracks the inner body top regardless of capacity ratio,
-            // keeping the full-fill top gap constant at zero across all bottle sizes.
+            // Both are scaled to InteriorHeight * ratio so that the liquid top always tracks
+            // the inner body top regardless of capacity ratio, keeping the full-fill top gap
+            // constant at zero across all bottle sizes.
+            // InteriorHeight is the authoritative interior bound — liquid sizing is derived
+            // from this explicit constant, not from the mask sprite's runtime sizeDelta.
             if (slotRoot != null)
             {
                 var liquidMask = slotRoot.parent as RectTransform;
                 if (liquidMask != null)
                 {
                     var origMask = FindOriginalLayout(liquidMask);
-                    if (origMask.Rect != null)
-                    {
-                        float liquidHeight = origMask.SizeDelta.y * ratio;
-                        float maskHalfDelta = (origMask.SizeDelta.y - liquidHeight) * 0.5f;
-                        liquidMask.sizeDelta = new Vector2(origMask.SizeDelta.x, liquidHeight);
-                        liquidMask.anchoredPosition = new Vector2(
-                            origMask.AnchoredPosition.x,
-                            origMask.AnchoredPosition.y - maskHalfDelta);
-                        slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, liquidHeight);
-                    }
-                    else
-                    {
-                        slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
-                    }
+                    float liquidHeight = InteriorHeight * ratio;
+                    float maskHalfDelta = InteriorHeight * (1f - ratio) * 0.5f;
+                    float maskWidth = origMask.Rect != null ? origMask.SizeDelta.x : liquidMask.sizeDelta.x;
+                    float maskCenterY = origMask.Rect != null ? origMask.AnchoredPosition.y : InteriorCenterY;
+                    liquidMask.sizeDelta = new Vector2(maskWidth, liquidHeight);
+                    liquidMask.anchoredPosition = new Vector2(
+                        liquidMask.anchoredPosition.x,
+                        maskCenterY - maskHalfDelta);
+                    slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, liquidHeight);
                 }
                 else
                 {
-                    slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, RefSlotRootHeight * ratio);
+                    slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, InteriorHeight * ratio);
                 }
             }
         }
