@@ -1355,6 +1355,7 @@ namespace Decantra.Presentation.Controller
 
         public void ShowScoreDetailsOverlay()
         {
+            ResolveOverlayReferencesIfMissing();
             int highScore = _progress != null ? _progress.HighScore : (_scoreSession?.TotalScore ?? 0);
             int maxLevel = _progress != null ? _progress.HighestUnlockedLevel : _currentLevel;
             if (_scoreDetailsHighScoreText != null)
@@ -1371,6 +1372,7 @@ namespace Decantra.Presentation.Controller
 
         public void HideScoreDetailsOverlay()
         {
+            ResolveOverlayReferencesIfMissing();
             HideModal(_scoreDetailsOverlay);
         }
 

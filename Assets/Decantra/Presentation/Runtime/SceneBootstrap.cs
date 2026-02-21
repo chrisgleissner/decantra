@@ -3123,6 +3123,12 @@ namespace Decantra.Presentation
             if (found != null)
             {
                 SetPrivateField(controller, "_scoreDetailsOverlay", found);
+                var highScoreTransform = found.transform.Find("Panel/StatsSection/HighScoreRow/Value");
+                if (highScoreTransform != null)
+                    SetPrivateField(controller, "_scoreDetailsHighScoreText", highScoreTransform.GetComponent<Text>());
+                var maxLevelTransform = found.transform.Find("Panel/StatsSection/MaxLevelRow/Value");
+                if (maxLevelTransform != null)
+                    SetPrivateField(controller, "_scoreDetailsMaxLevelText", maxLevelTransform.GetComponent<Text>());
                 return;
             }
 
@@ -3132,6 +3138,31 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "_scoreDetailsOverlay", result.Root);
             SetPrivateField(controller, "_scoreDetailsHighScoreText", result.HighScoreText);
             SetPrivateField(controller, "_scoreDetailsMaxLevelText", result.MaxLevelText);
+        }
+
+        private static Button CreateActionButton(Transform buttonParent, string rowName, string label, Color color)
+        {
+            var row = CreateOptionsRow(buttonParent, rowName);
+            var panelGo = CreateUiChild(row.transform, "Button");
+            var image = panelGo.AddComponent<Image>();
+            image.sprite = GetRoundedSprite();
+            image.type = Image.Type.Sliced;
+            image.color = color;
+            var button = panelGo.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var element = panelGo.AddComponent<LayoutElement>();
+            element.flexibleWidth = 1f;
+            element.preferredHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+            element.minHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
+
+            var text = CreateHudText(panelGo.transform, "Label");
+            text.fontSize = ModalDesignTokens.Typography.ButtonText;
+            text.fontStyle = FontStyle.Bold;
+            text.text = label;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = ModalDesignTokens.Colors.PrimaryText;
+            return button;
         }
 
         private static GameObject CreateOptionsOverlay(Transform parent, GameController controller)
@@ -3324,30 +3355,6 @@ namespace Decantra.Presentation
                 return section;
             }
 
-            Button CreateActionButton(Transform buttonParent, string rowName, string label, Color color)
-            {
-                var row = CreateOptionsRow(buttonParent, rowName);
-                var panelGo = CreateUiChild(row.transform, "Button");
-                var image = panelGo.AddComponent<Image>();
-                image.sprite = GetRoundedSprite();
-                image.type = Image.Type.Sliced;
-                image.color = color;
-                var button = panelGo.AddComponent<Button>();
-                button.targetGraphic = image;
-
-                var element = panelGo.AddComponent<LayoutElement>();
-                element.flexibleWidth = 1f;
-                element.preferredHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
-                element.minHeight = ModalDesignTokens.Sizing.ActionButtonHeight;
-
-                var text = CreateHudText(panelGo.transform, "Label");
-                text.fontSize = ModalDesignTokens.Typography.ButtonText;
-                text.fontStyle = FontStyle.Bold;
-                text.text = label;
-                text.alignment = TextAnchor.MiddleCenter;
-                text.color = ModalDesignTokens.Colors.PrimaryText;
-                return button;
-            }
 
             Toggle CreateToggleRow(Transform rowParent, string rowName, string label, bool initial)
             {
