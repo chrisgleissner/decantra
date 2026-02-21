@@ -242,8 +242,8 @@ namespace Decantra.Tests.PlayMode
 
                 gaps[i] = outlineTopWorld - slotRootTopWorld;
 
-                Assert.LessOrEqual(gaps[i], 2.0f,
-                    $"Full cap-{capacities[i]} bottle: outline top is {gaps[i]} world units above liquid top (expected ≤ 2).");
+                Assert.LessOrEqual(Mathf.Abs(gaps[i]), 2.0f,
+                    $"Full cap-{capacities[i]} bottle: vertical offset between outline top and liquid top is {gaps[i]:F2} world units (expected |gap| ≤ 2).");
             }
 
             float minGap = gaps[0];

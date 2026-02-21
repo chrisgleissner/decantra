@@ -278,18 +278,27 @@ jobs:
             exit 1
           fi
 
-      - name: Upload iOS IPA artifacts
+      - name: Upload iOS IPA
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-artifacts
-          path: |
-            Builds/iOS/output/decantra-*-ios.ipa
-            Builds/iOS/logs/**
+          path: Builds/iOS/output/decantra-*-ios.ipa
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload iOS IPA build logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-build-logs
+          path: Builds/iOS/logs/**
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload iOS device Xcode project + logs
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ios-device-build-artifacts

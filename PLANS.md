@@ -75,7 +75,7 @@ unitHeight = (372 * ratio) / capacity = 372 / maxCapacity   (constant across bot
 
 | # | Invariant | Target |
 |---|-----------|--------|
-| A | Full-bottle gap: `outlineTopWorld - slotRootTopWorld ≤ 2 world units` | for all capacities |
+| A | Full-bottle gap: `abs(outlineTopWorld - slotRootTopWorld) ≤ 2 world units` | for all capacities |
 | B | Consistent gap across capacities (same `maxCap`): max(gap) - min(gap) ≤ 2 world units | ✓ |
 | C | Pixel-invariant liquid heights (existing test `LiquidHeights_MatchSlotCountsAcrossCapacities`) | still pass |
 | D | Proportional slotRoot heights (existing test `SlotRootHeights_AreProportionalToCapacity`) | still pass |
@@ -93,8 +93,8 @@ unitHeight = (372 * ratio) / capacity = 372 / maxCapacity   (constant across bot
 ### Verification (automated)
 
 New test `FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities` added to
-`BottleVisualConsistencyTests.cs` validates invariant A and B for capacities {4,6,8} with
-maxCap=8.
+`BottleVisualConsistencyTests.cs` validates invariant A and B for capacities {4,6,8,10} with
+maxCap=10.
 
 ---
 
