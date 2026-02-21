@@ -3,6 +3,42 @@
 Last updated: 2026-02-21 UTC  
 Execution engineer: GitHub Copilot
 
+## 2026-02-21 — WebGL: First Pour Silent + Progress Not Persisted
+
+### Problem 1: First pour after startup is silent on WebGL
+
+#### Root cause
+
+Browsers enforce an autoplay policy: the Web Audio API `AudioContext` starts in `"suspended"` state. Unity's WebGL audio backend calls `audioContext.resume()` in response to the first user interaction. However, `resume()` returns a Promise that resolves **asynchronously**. When the first bottle click triggers `PlayPourSfx → PlayTransientSegment → source.Play()`, the Promise has not yet resolved, so the AudioContext is still suspended and `source.Play()` is silently dropped.
+
+From the second interaction onwards the AudioContext is already `"running"`, so all subsequent pours play normally. Android is unaffected (native audio, no browser Promise).
+
+#### Fix
+
+Added `_firstPlayLaunched` flag + `RetryFirstPlayIfNeeded` coroutine (gated by `#if UNITY_WEBGL && !UNITY_EDITOR`) in `AudioManager.PlayTransientSegment`. On the very first `source.Play()`:
+- The call fires immediately (works on Android, is a no-op on WebGL if context still suspended).
+- A one-frame coroutine is scheduled. After the frame, if `source.isPlaying` is still false (WebGL AudioContext resume pending), we retry `source.Play()` — by this time the Promise has resolved.
+
+The flag ensures the retry coroutine is only scheduled once, adding zero overhead to all subsequent plays.
+
+### Problem 2: Progress (level / score / stars) not persisted on WebGL
+
+#### Root cause
+
+`ProgressStore.Save()` uses `File.WriteAllText(Application.persistentDataPath, ...)`. On WebGL, Unity maps `Application.persistentDataPath` to `/idbfs`, an Emscripten IDBFS (IndexedDB-backed virtual filesystem). However, writes to IDBFS are **in-memory only** unless explicitly flushed to IndexedDB with `FS.syncfs(false, callback)`. Without this flush, all progress is lost when the browser tab is closed or refreshed.
+
+`SettingsStore` (audio toggle, accessibility, starfield settings) already uses `PlayerPrefs`, which on WebGL maps to `localStorage` and persists automatically — no flush needed.
+
+#### Fix
+
+Added `#if UNITY_WEBGL && !UNITY_EDITOR` guards in `ProgressStore.Load()` and `ProgressStore.Save()` to use `PlayerPrefs` (key `"decantra.progress.v1"`) instead of file I/O. `PlayerPrefs.Save()` is called after each write to ensure `localStorage` is flushed synchronously.
+
+Existing file-based tests use the `ProgressStore(overridePaths)` constructor, which is unaffected by the WebGL guard (the guard only triggers when no override paths are set and we're in a WebGL runtime build, not the Editor).
+
+No change to `SettingsStore` — it already works correctly on WebGL.
+
+---
+
 ## 2026-02-21 — Liquid Fill Top-Gap Invariance Fix
 
 ### Problem statement
