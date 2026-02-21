@@ -84,10 +84,14 @@ namespace Decantra.Presentation.Controller
         private Coroutine _backgroundTransition;
         private CancellationTokenSource _precomputeCts;
         private Task<GeneratedLevel> _precomputeTask;
+        private Coroutine _webGlPrecomputeRoutine;
         private bool _wasInputLockedBeforeOverlay;
         private bool _wasInputLockedBeforeStarTradeIn;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         private string _debugLogPath;
+        private int _precomputeStartFrame = -1;
+        private float _levelLoadRealtime = -1f;
+        private float _levelCompleteRealtime = -1f;
 #endif
 
         private BfsSolver _solver;
@@ -131,6 +135,9 @@ namespace Decantra.Presentation.Controller
         private const string CiProbeFlag = "decantra_ci_probe";
         private static readonly bool EnablePourDiagnostics = false;
         private static readonly bool EnableAutoSolveDiagnostics = false;
+        private static readonly bool EnablePrecomputeDiagnostics = Application.isEditor || HasLaunchFlag(CiProbeFlag);
+        private const int PrecomputeStartFrameBudget = 2;
+        private const float PrecomputeReadyExpectedSeconds = 2f;
 
         public readonly struct PourLifecycleEvent
         {
@@ -442,6 +449,13 @@ namespace Decantra.Presentation.Controller
             InitializeLevelAudio(_currentLevel, _currentSeed);
             Render();
             _inputLocked = false;
+            TrackLevelLoadPrecomputeExpectations(_currentLevel);
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (EnablePrecomputeDiagnostics)
+            {
+                StartCoroutine(EmitNextLevelFirstFrame(_levelSessionId, _currentLevel));
+            }
+#endif
         }
 
         public void ShowLevelJumpOverlay()
@@ -1008,12 +1022,18 @@ namespace Decantra.Presentation.Controller
                 yield return new WaitForSeconds(0.5f);
             }
 
-            if (_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully)
+            TryApplyCompletedPrecompute("level-complete");
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            _levelCompleteRealtime = Time.realtimeSinceStartup;
+            bool precomputeReadyAtCompletion = _nextState != null || _webGlPrecomputeRoutine != null;
+            EmitPrecomputeDiagnostic("LevelComplete",
+                $"level={_currentLevel} nextLevel={nextLevel} readyAtCompletion={precomputeReadyAtCompletion}");
+            if (!precomputeReadyAtCompletion && _levelLoadRealtime >= 0f && (_levelCompleteRealtime - _levelLoadRealtime) >= PrecomputeReadyExpectedSeconds)
             {
-                var precomputed = _precomputeTask.Result;
-                _nextState = precomputed.State;
-                _nextDifficulty100 = precomputed.Difficulty100;
+                Debug.LogWarning($"Decantra Precompute assert failed: next level not ready by completion level={_currentLevel} elapsed={(_levelCompleteRealtime - _levelLoadRealtime):0.000}s");
             }
+#endif
 
             int targetSeed = _progress?.CurrentSeed ?? NextSeed(nextLevel, _currentSeed);
             if (sessionId != _levelSessionId) yield break;
@@ -1080,10 +1100,21 @@ namespace Decantra.Presentation.Controller
             _nextLevel = _currentLevel + 1;
             _nextSeed = NextSeed(_nextLevel, _currentSeed);
 
-            var tokenSource = new CancellationTokenSource();
-            _precomputeCts = tokenSource;
             int level = _nextLevel;
             int seed = _nextSeed;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            _precomputeStartFrame = Time.frameCount;
+#endif
+            EmitPrecomputeDiagnostic("Start", $"level={_currentLevel} nextLevel={level} seed={seed}");
+
+            if (UseWebGlMainThreadPrecompute())
+            {
+                _webGlPrecomputeRoutine = StartCoroutine(PrecomputeNextLevelOnMainThread(level, seed));
+                return;
+            }
+
+            var tokenSource = new CancellationTokenSource();
+            _precomputeCts = tokenSource;
             _precomputeTask = Task.Run(() => GenerateLevelWithRetryThreadSafe(level, seed, 6, tokenSource.Token), tokenSource.Token);
         }
 
@@ -2369,20 +2400,13 @@ namespace Decantra.Presentation.Controller
 
         private IEnumerator TransitionToLevel(int nextLevel, int seed)
         {
-#if UNITY_EDITOR
-            Debug.Log($"TransitionToLevel start level={nextLevel} seed={seed} precomputeReady={_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully}");
-#endif
+            TryApplyCompletedPrecompute("transition-start");
+            EmitPrecomputeDiagnostic("TransitionStart", $"nextLevel={nextLevel} seed={seed} precomputeReady={_nextState != null}");
             ApplyBackgroundVariation(nextLevel, seed, ResolveBackgroundPaletteIndex(nextLevel, seed));
-
-            if (_precomputeTask != null && _precomputeTask.IsCompletedSuccessfully)
-            {
-                var precomputed = _precomputeTask.Result;
-                _nextState = precomputed.State;
-                _nextDifficulty100 = precomputed.Difficulty100;
-            }
 
             if (_nextState != null && _nextLevel == nextLevel)
             {
+                EmitCompletionToReadyMetric(nextLevel, "precomputed");
                 _currentDifficulty100 = _nextDifficulty100;
                 ApplyLoadedState(_nextState, _nextLevel, _nextSeed);
                 _inputLocked = false;
@@ -2395,7 +2419,15 @@ namespace Decantra.Presentation.Controller
             bool hasLoaded = false;
             int attempt = 0;
             int currentSeed = seed;
-            while (!hasLoaded && attempt < 2)
+            bool isWebGLPrecomputeMode = UseWebGlMainThreadPrecompute();
+
+            if (isWebGLPrecomputeMode)
+            {
+                loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 8);
+                hasLoaded = loaded.State != null;
+            }
+
+            while (!isWebGLPrecomputeMode && !hasLoaded && attempt < 2)
             {
                 int attemptSeed = currentSeed;
                 using (var tokenSource = new CancellationTokenSource())
@@ -2432,7 +2464,7 @@ namespace Decantra.Presentation.Controller
                 }
             }
 
-            if (!hasLoaded)
+            if (!isWebGLPrecomputeMode && !hasLoaded)
             {
                 using (var tokenSource = new CancellationTokenSource())
                 {
@@ -2488,6 +2520,7 @@ namespace Decantra.Presentation.Controller
                 yield break;
             }
 
+            EmitCompletionToReadyMetric(nextLevel, "synchronous-fallback");
             _currentDifficulty100 = loaded.Difficulty100;
             ApplyLoadedState(loaded.State, nextLevel, currentSeed);
             _inputLocked = false;
@@ -2565,6 +2598,11 @@ namespace Decantra.Presentation.Controller
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             Debug.Log($"Decantra LevelLoaded level={_currentLevel} seed={_currentSeed}");
 #endif
+            if (EnablePrecomputeDiagnostics)
+            {
+                TrackLevelLoadPrecomputeExpectations(_currentLevel);
+                StartCoroutine(EmitNextLevelFirstFrame(_levelSessionId, _currentLevel));
+            }
         }
 
         private void InitializeLevelAudio(int levelIndex, int seed)
@@ -3142,6 +3180,96 @@ namespace Decantra.Presentation.Controller
 #endif
         }
 
+        private static bool UseWebGlMainThreadPrecompute()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        private IEnumerator PrecomputeNextLevelOnMainThread(int level, int seed)
+        {
+            yield return null;
+            var generated = GenerateLevelWithRetry(level, seed, 6);
+            if (_nextLevel != level || _nextSeed != seed) yield break;
+            _nextState = generated.State;
+            _nextDifficulty100 = generated.Difficulty100;
+            _webGlPrecomputeRoutine = null;
+            EmitPrecomputeDiagnostic("Complete", $"mode=webgl-mainthread nextLevel={level} hasState={generated.State != null}");
+        }
+
+        private void TryApplyCompletedPrecompute(string context)
+        {
+            if (_nextState != null) return;
+            if (_precomputeTask == null) return;
+            if (!_precomputeTask.IsCompleted) return;
+
+            if (_precomputeTask.IsCompletedSuccessfully)
+            {
+                var precomputed = _precomputeTask.Result;
+                _nextState = precomputed.State;
+                _nextDifficulty100 = precomputed.Difficulty100;
+                EmitPrecomputeDiagnostic("Complete", $"mode=task context={context} nextLevel={_nextLevel} hasState={precomputed.State != null}");
+                return;
+            }
+
+            if (_precomputeTask.IsCanceled)
+            {
+                EmitPrecomputeDiagnostic("Canceled", $"context={context} nextLevel={_nextLevel}");
+                return;
+            }
+
+            if (_precomputeTask.IsFaulted)
+            {
+                EmitPrecomputeDiagnostic("Faulted", $"context={context} nextLevel={_nextLevel} exception={_precomputeTask.Exception?.GetBaseException().Message}");
+            }
+        }
+
+        private IEnumerator EmitNextLevelFirstFrame(int sessionId, int levelIndex)
+        {
+            yield return new WaitForEndOfFrame();
+            if (sessionId != _levelSessionId) yield break;
+            EmitPrecomputeDiagnostic("NextLevelFirstFrame", $"level={levelIndex} session={sessionId}");
+        }
+
+        private void TrackLevelLoadPrecomputeExpectations(int levelIndex)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            _levelLoadRealtime = Time.realtimeSinceStartup;
+            _levelCompleteRealtime = -1f;
+            int frameDelta = _precomputeStartFrame >= 0 ? Time.frameCount - _precomputeStartFrame : -1;
+            bool precomputeStartedWithinBudget = frameDelta >= 0 && frameDelta <= PrecomputeStartFrameBudget;
+            EmitPrecomputeDiagnostic("LevelStart", $"level={levelIndex} nextLevel={_nextLevel} precomputeStartedWithinFrames={precomputeStartedWithinBudget} frameDelta={frameDelta} frameBudget={PrecomputeStartFrameBudget}");
+            if (!precomputeStartedWithinBudget)
+            {
+                Debug.LogWarning($"Decantra Precompute assert failed: precompute did not start for level={levelIndex}");
+            }
+#endif
+        }
+
+        private void EmitCompletionToReadyMetric(int nextLevel, string path)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (_levelCompleteRealtime < 0f) return;
+            float elapsed = Time.realtimeSinceStartup - _levelCompleteRealtime;
+            EmitPrecomputeDiagnostic("LevelCompleteToTransitionReady", $"nextLevel={nextLevel} path={path} elapsedMs={(elapsed * 1000f):0.0}");
+#endif
+        }
+
+        private void EmitPrecomputeDiagnostic(string eventName, string context)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (!EnablePrecomputeDiagnostics) return;
+            string suffix = string.IsNullOrWhiteSpace(context) ? string.Empty : $" {context}";
+            int threadId = Thread.CurrentThread.ManagedThreadId;
+            string line = $"Decantra Precompute {eventName} ts={DateTime.UtcNow:O} platform={Application.platform} thread={threadId}{suffix}";
+            Debug.Log(line);
+            AppendDebugLog(line);
+#endif
+        }
+
         private void CancelPrecompute()
         {
             if (_precomputeCts != null)
@@ -3149,6 +3277,11 @@ namespace Decantra.Presentation.Controller
                 _precomputeCts.Cancel();
                 _precomputeCts.Dispose();
                 _precomputeCts = null;
+            }
+            if (_webGlPrecomputeRoutine != null)
+            {
+                StopCoroutine(_webGlPrecomputeRoutine);
+                _webGlPrecomputeRoutine = null;
             }
             _precomputeTask = null;
             _nextState = null;

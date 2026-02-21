@@ -1171,6 +1171,35 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ActiveLevel_StartsNextLevelPrecompute()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            float timeout = 8f;
+            float elapsed = 0f;
+            while (elapsed < timeout && !controller.HasActiveLevel)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Assert.IsTrue(controller.HasActiveLevel, "Expected an active level to be loaded.");
+
+            var precomputeTask = GetPrivateField(controller, "_precomputeTask") as Task;
+            var webGlRoutine = GetPrivateField(controller, "_webGlPrecomputeRoutine") as Coroutine;
+            Assert.IsTrue(precomputeTask != null || webGlRoutine != null, "Expected next-level precompute to start when a level is active.");
+
+            if (Application.platform != RuntimePlatform.WebGLPlayer)
+            {
+                Assert.IsNotNull(precomputeTask, "Non-WebGL runtime should use Task-based precompute path.");
+            }
+        }
+
+        [UnityTest]
         public IEnumerator AccessibleColorsToggle_MidGame_NoNullReferenceLogs()
         {
             bool nullReferenceLogged = false;
