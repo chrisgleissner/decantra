@@ -2413,6 +2413,21 @@ namespace Decantra.Presentation.Controller
                 yield break;
             }
 
+            if (_webGlPrecomputeRoutine != null)
+            {
+                float waitStart = Time.realtimeSinceStartup;
+                while (_webGlPrecomputeRoutine != null && Time.realtimeSinceStartup - waitStart < TransitionTimeoutSeconds)
+                    yield return null;
+                if (_nextState != null && _nextLevel == nextLevel)
+                {
+                    EmitCompletionToReadyMetric(nextLevel, "webgl-late-precomputed");
+                    _currentDifficulty100 = _nextDifficulty100;
+                    ApplyLoadedState(_nextState, _nextLevel, _nextSeed);
+                    _inputLocked = false;
+                    yield break;
+                }
+            }
+
             CancelPrecompute();
 
             GeneratedLevel loaded = default;
@@ -2423,6 +2438,7 @@ namespace Decantra.Presentation.Controller
 
             if (isWebGLPrecomputeMode)
             {
+                yield return null;
                 loaded = GenerateLevelWithRetry(nextLevel, currentSeed, 8);
                 hasLoaded = loaded.State != null;
             }
