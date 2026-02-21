@@ -31,8 +31,6 @@ Procedural bottle-sorting puzzle game built with Unity for Android, iOS and Web
 
 To play in your browser, simply open [https://chrisgleissner.github.io/decantra/webgl/](https://chrisgleissner.github.io/decantra/webgl/)
 
-Please note that Web support is experimental and may have bugs. The only thoroughly tested version right now is for Android. 
-
 ### Install on Android
 
 1. Download the latest APK from [Releases](https://github.com/chrisgleissner/decantra/releases) (`decantra-<version>-android.apk`).
