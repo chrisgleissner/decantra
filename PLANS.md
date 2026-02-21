@@ -749,3 +749,95 @@ Validation criteria:
 - [ ] Web Playwright smoke passes
 - [ ] Two consecutive fully green runs across Android + iOS + Web
 - [ ] No open critical risks in this plan
+
+---
+
+## 2026-02-21 — Liquid Rendering Invariants: Explicit Interior Bounds
+
+### Problem statement
+
+The liquid rendering system must strictly enforce four invariants:
+
+1. **Interior Fill Bounds**: Liquid segments are rendered within the straight-sided interior region only (excludes border, neck, flange, decorative geometry).
+2. **Pixel Conservation**: Pouring N segments removes exactly N × segmentPixelHeight rows from source and adds the same to target.
+3. **Deterministic Segment Height**: `segmentPixelHeight = interiorHeight / maxSegments` — computed fresh every frame, no incremental float accumulation.
+4. **Fullness Logic**: A bottle is full when `segmentCount == maxSegments`; rendering reflects state, it does not define state.
+
+### Current rendering architecture
+
+Bottle hierarchy (per bottle in the 3 × 3 grid):
+
+```
+Bottle_N (RectTransform, 220 × 420)
+├── GlassBack  (height 350, center Y -8)
+├── LiquidMask (height 372, center Y -6)  ← Mask clipping region
+│   ├── LiquidRoot (height 372, bottom-anchored)  ← Segment container
+│   │   ├── Segment_1 .. Segment_N  (bottom-stacked)
+│   │   └── Incoming  (pour preview)
+│   └── LiquidSurface
+├── GlassFront (height 356, center Y -8)
+├── Outline    (height 372, center Y -6)  ← border-only (fillCenter=false)
+├── BottleNeck (height  56, center Y 211) ← above body
+├── BottleFlange (height 14, center Y 187)← at body/neck junction
+└── Rim, NeckInnerShadow, Stopper, …
+```
+
+Interior bounds (bottle local space, centre-pivot parent):
+
+| Property        | Value  | Derivation                               |
+|-----------------|--------|------------------------------------------|
+| InteriorBottomY | -192   | = -(InteriorHeight / 2) + CenterOffset   |
+| InteriorTopY    |  180   | = +(InteriorHeight / 2) + CenterOffset   |
+| InteriorHeight  |  372   | = Outline.height = LiquidMask.height     |
+| CenterOffset    |   -6   | = Outline/LiquidMask.anchoredPosition.y  |
+
+The BottleFlange bottom edge is at Y = 187 − 14/2 = 180 = InteriorTopY, confirming that
+InteriorTopY is exactly the boundary between the straight body and the neck/flange geometry.
+
+Segment height invariant:
+```
+segmentPixelHeight = InteriorHeight × (capacity / maxCapacity) / capacity
+                   = InteriorHeight / maxCapacity          (constant across all bottles ✓)
+```
+
+### Identified root cause
+
+Although the invariants held mathematically, the interior bounds were **implicit**:
+
+- `ApplyCapacityScale` read `origMask.SizeDelta.y` (runtime saved value of LiquidMask.sizeDelta.y)
+  to derive `liquidHeight`. This couples liquid sizing to the mask sprite's runtime dimensions
+  rather than to a named, purpose-built constant.
+- `RefSlotRootHeight = 372f` duplicated the interior height value without naming its semantic role.
+- No tests explicitly verified that the first filled segment's bottom aligns with InteriorBottomY.
+
+### Corrective plan
+
+| # | Change | File |
+|---|--------|------|
+| 1 | Add `InteriorBottomY = -192f`, `InteriorTopY = 180f`, `InteriorHeight = 372f` constants | BottleView.cs |
+| 2 | Replace `origMask.SizeDelta.y * ratio` with `InteriorHeight * ratio` in `ApplyCapacityScale` | BottleView.cs |
+| 3 | Replace `InteriorHeight * (1f − ratio) * 0.5f` for `maskHalfDelta` (explicit formula) | BottleView.cs |
+| 4 | Replace `RefSlotRootHeight * ratio` fallback with `InteriorHeight * ratio` | BottleView.cs |
+| 5 | Add PlayMode test `EmptyBottle_FirstSegment_AlignsToInteriorBottom` | BottleVisualConsistencyTests.cs |
+
+### Risk register
+
+| Risk | Mitigation |
+|------|------------|
+| Value mismatch between constants and CreateBottle setup | InteriorHeight = 372 matches CreateBottle liquidMaskRect.sizeDelta.y exactly; asserted by new test |
+| Float precision regression | Using InteriorHeight directly removes a layer of runtime indirection; no new float ops introduced |
+| Existing tests broken | All existing tests depend on same pixel invariant; constants produce identical values |
+
+### Validation
+
+- All existing PlayMode + EditMode tests must remain green.
+- New test `EmptyBottle_FirstSegment_AlignsToInteriorBottom`: verifies that for a bottle with 1 filled slot, the world-space bottom of the first segment aligns with the world-space bottom of the LiquidRoot (= InteriorBottomY after scale).
+- `FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities`: remains the canonical validation for Invariant 1 top-edge correctness.
+
+### Completion checklist
+
+- [x] InteriorBottomY / InteriorTopY / InteriorHeight constants added to BottleView.cs
+- [x] ApplyCapacityScale decoupled from origMask.SizeDelta.y
+- [x] New EmptyBottle_FirstSegment test added and passes
+- [x] All existing liquid-rendering tests pass
+- [x] CI green
