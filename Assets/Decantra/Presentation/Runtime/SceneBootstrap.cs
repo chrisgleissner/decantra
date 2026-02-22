@@ -3613,7 +3613,7 @@ namespace Decantra.Presentation
                 "Drag one bottle onto another to pour liquid.\n\n" +
                 "You can only pour into an empty bottle or onto the same color.\n\n" +
                 "Some bottles have reinforced heavy glass. These black bottles can receive liquid but cannot be lifted.\n\n" +
-                "A level is complete when every bottle is either empty or contains exactly one color.";
+                "A level is complete when every bottle is either empty or completely filled with exactly one color.";
         }
 
         private static string GetRuntimeVersionNumber()
