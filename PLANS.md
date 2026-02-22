@@ -3,6 +3,36 @@
 Last updated: 2026-02-21 UTC  
 Execution engineer: GitHub Copilot
 
+## 2026-02-22 — UX reset/tutorial/HUD adjustments
+
+- [x] Inspect reset, tutorial, HUD, and options wiring to identify minimal touch points.
+- [x] Remove reset-button long-press behavior and active wiring so only options-driven game reset remains.
+- [x] Update reset-game confirmation copy to accurately describe reset semantics (score/stars reset, high score/max level preserved).
+- [x] Extend tutorial with score-button and options-button instructional highlights per UX requirements.
+- [x] Remove gameplay HUD SFX control while preserving options-based audio controls.
+- [x] Update focused PlayMode tests for long-press removal, reset dialog wording, tutorial step content/order, and HUD settings panel removal.
+- [x] Run verification:
+  - [x] Investigate recent CI workflow runs/logs (GitHub Actions MCP): latest non-success runs were cancellations, no failure conclusion found.
+  - [x] Attempt baseline local tests before changes (blocked: Unity executable unavailable in sandbox; `./scripts/test.sh` reported Unity not found).
+  - [x] Attempt targeted local tests (blocked by same Unity executable limitation).
+  - [x] Capture deterministic UI screenshot artifact for review: https://github.com/user-attachments/assets/adc03a24-98c5-475a-aca6-45fcbbf206ea
+- [x] Run `code_review`, then `codeql_checker`; addressed comments and re-ran review clean.
+
+### Touched files
+
+- `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs`
+- `Assets/Decantra/Presentation/Runtime/RestartGameDialog.cs`
+- `Assets/Decantra/Presentation/Runtime/TutorialManager.cs`
+- `Assets/Decantra/Tests/PlayMode/GameControllerPlayModeTests.cs`
+- `Assets/Decantra/Tests/PlayMode/OptionsNavigationPlayModeTests.cs`
+
+### Deterministic verification notes
+
+- **A (remove long-press reset):** `WireResetButton` now removes any `LongPressButton` from `ResetButton` and only wires short click to `ResetCurrentLevel`. Test asserts `ResetButton` has no `LongPressButton`.
+- **B (reset wording + semantics):** reset dialog copy updated in both bootstrap creation and runtime `Show()`. Existing and updated PlayMode assertions verify reset preserves `HighScore` and `HighestUnlockedLevel` while resetting current level/score/stars.
+- **C (tutorial extension):** tutorial step list now includes new `score` step targeting `ScorePanel`; `options` instruction updated to describe new-game semantics. Tests verify step order, targets, and exact text.
+- **D (remove gameplay HUD SFX button):** `CreateSettingsPanel(...)` is no longer created in scene setup; options overlay still contains `AudioSection/SfxRow` and `SfxVolumeRow` (validated by existing options test assertions).
+
 ## 2026-02-21 — WebGL: First Pour Silent + Progress Not Persisted
 
 ### Problem 1: First pour after startup is silent on WebGL

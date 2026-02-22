@@ -36,7 +36,7 @@ namespace Decantra.Presentation
 
             if (messageText != null)
             {
-                messageText.text = "This will start the game from Level 1 and permanently clear your progress and high score.";
+                messageText.text = "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.";
             }
 
             canvasGroup.alpha = 1f;

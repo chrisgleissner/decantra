@@ -935,17 +935,24 @@ namespace Decantra.Tests.PlayMode
             var resetGo = GameObject.Find("ResetButton");
             Assert.IsNotNull(resetGo, "Reset button should exist in scene.");
 
-            // Get the LongPressButton component and trigger the long-press action directly
+            // Long-press reset behavior is removed; reset remains available via options only.
             var longPress = resetGo.GetComponent<LongPressButton>();
-            Assert.IsNotNull(longPress, "Reset button should have LongPressButton component.");
+            Assert.IsNull(longPress, "Reset button must not have LongPressButton component.");
 
-            // Simulate long-press by directly invoking the callback (RequestRestartGame)
+            // Trigger reset confirmation through the options-driven reset path API.
             controller.RequestRestartGame();
 
             yield return null;
 
             var dialog = GetPrivateField(controller, "restartDialog");
             Assert.IsNotNull(dialog, "Restart dialog should be wired.");
+            var restartDialogGo = GameObject.Find("RestartDialog");
+            Assert.IsNotNull(restartDialogGo, "Restart dialog root should exist.");
+            var restartMessage = restartDialogGo.transform.Find("Panel/MessageText")?.GetComponent<Text>();
+            Assert.IsNotNull(restartMessage, "Restart dialog message text should exist.");
+            Assert.AreEqual(
+                "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.",
+                restartMessage.text);
 
             var confirmGo = GameObject.Find("ConfirmRestartButton");
             Assert.IsNotNull(confirmGo, "Confirm restart button should exist.");

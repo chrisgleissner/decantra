@@ -170,7 +170,6 @@ namespace Decantra.Presentation
             var outOfMoves = CreateOutOfMovesBanner(uiCanvas.transform);
             SetPrivateField(controller, "outOfMovesBanner", outOfMoves);
 
-            var settings = CreateSettingsPanel(uiCanvas.transform, controller);
             WireResetButton(controller);
             var resetLevelDialog = CreateResetLevelDialog(uiCanvas.transform);
             SetPrivateField(controller, "resetLevelDialog", resetLevelDialog);
@@ -1928,7 +1927,7 @@ namespace Decantra.Presentation
 
             var message = CreateHudText(panel.transform, "MessageText");
             message.fontSize = 32;
-            message.text = "This will start the game from Level 1 and permanently clear your progress and high score.";
+            message.text = "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.";
             message.color = new Color(1f, 0.95f, 0.7f, 1f);
             var msgRect = message.GetComponent<RectTransform>();
             msgRect.anchorMin = new Vector2(0.1f, 0.25f);
@@ -3824,9 +3823,11 @@ namespace Decantra.Presentation
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(controller.ResetCurrentLevel);
 
-            // Add long-press component for 8 second hold to trigger full game reset
-            var longPress = resetGo.GetComponent<LongPressButton>() ?? resetGo.AddComponent<LongPressButton>();
-            longPress.Configure(8f, controller.RequestRestartGame);
+            var longPress = resetGo.GetComponent<LongPressButton>();
+            if (longPress != null)
+            {
+                Object.Destroy(longPress);
+            }
         }
 
         private static void WireRestartButton(GameController controller)

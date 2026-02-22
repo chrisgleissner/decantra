@@ -152,6 +152,11 @@ namespace Decantra.Presentation
                 "MOVES\nCurrent moves versus allowed moves.\nFewer moves give a higher score."
             ));
             _steps.Add(new TutorialStepData(
+                "score",
+                "ScorePanel",
+                "SCORE\nPress SCORE to view your high score and maximum level reached."
+            ));
+            _steps.Add(new TutorialStepData(
                 "reset",
                 "ResetButton",
                 "Use RESET to restart only the current level."
@@ -159,7 +164,7 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "options",
                 "OptionsButton",
-                "Open OPTIONS to replay this tutorial, adjust sound, modify video effects, and read the documentation."
+                "OPTIONS\nStart a new game from OPTIONS.\nThis resets current score and stars, but preserves high score and maximum level reached."
             ));
             _steps.Add(new TutorialStepData(
                 "stars",
