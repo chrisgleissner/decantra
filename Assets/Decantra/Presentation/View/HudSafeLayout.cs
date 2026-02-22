@@ -17,6 +17,7 @@ namespace Decantra.Presentation.View
     public sealed class HudSafeLayout : MonoBehaviour
     {
         private const int GridRows = 3;
+        private const int TwoRowBottleThreshold = 6;
         private const int ExternalGridPadding = 0;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float LayoutAssertTolerance = 0.5f;
@@ -110,15 +111,7 @@ namespace Decantra.Presentation.View
         private bool HasBottleActivationChanged()
         {
             if (bottleGrid == null) return false;
-
-            int activeCount = 0;
-            for (int i = 0; i < bottleGrid.childCount; i++)
-            {
-                if (bottleGrid.GetChild(i).gameObject.activeSelf)
-                {
-                    activeCount++;
-                }
-            }
+            int activeCount = CountActiveBottles();
 
             if (activeCount == _lastActiveBottleCount)
             {
@@ -176,7 +169,7 @@ namespace Decantra.Presentation.View
             bool appliedEqualGaps = false;
             if (bottleGridLayout != null && availableHeight > 0f)
             {
-                int rows = GridRows;
+                int rows = ResolveGridRows();
                 float maxBottleHeight = ResolveMaxBottleHeight();
                 if (rows > 0 && maxBottleHeight > 0f)
                 {
@@ -195,7 +188,7 @@ namespace Decantra.Presentation.View
                         gridHeight = bottleGrid.sizeDelta.y;
                         appliedEqualGaps = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                        AssertEqualGapModel(desiredTop, desiredBottom, maxBottleHeight, idealGap, topBottom);
+                        AssertEqualGapModel(desiredTop, desiredBottom, rows, maxBottleHeight, idealGap, topBottom);
 #endif
                     }
                 }
@@ -231,18 +224,48 @@ namespace Decantra.Presentation.View
             return 0f;
         }
 
+        private int ResolveGridRows()
+        {
+            int activeBottleCount = CountActiveBottles();
+            if (activeBottleCount <= 0)
+            {
+                // Keep canonical board height when no bottles are active (startup/transient state).
+                return GridRows;
+            }
+
+            return activeBottleCount <= TwoRowBottleThreshold ? 2 : GridRows;
+        }
+
+        private int CountActiveBottles()
+        {
+            if (bottleGrid == null) return 0;
+            int activeCount = 0;
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                if (bottleGrid.GetChild(i).gameObject.activeSelf)
+                {
+                    activeCount++;
+                }
+            }
+
+            return activeCount;
+        }
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private void AssertEqualGapModel(float screenTopY, float screenBottomY, float maxBottleHeight, float gapHeight, float hudBottomY)
+        private void AssertEqualGapModel(float screenTopY, float screenBottomY, int rows, float maxBottleHeight, float gapHeight, float hudBottomY)
         {
             Debug.Assert(gapHeight > 0f, $"HudSafeLayout gapHeight must be positive. gap={gapHeight}");
 
             float row1Top = screenTopY - gapHeight;
-            float row1Bottom = row1Top - maxBottleHeight;
-            float row2Top = row1Bottom - gapHeight;
-            float row2Bottom = row2Top - maxBottleHeight;
-            float row3Top = row2Bottom - gapHeight;
-            float row3Bottom = row3Top - maxBottleHeight;
-            float bottomGap = row3Bottom - screenBottomY;
+            float currentTop = row1Top;
+            float rowBottom = currentTop;
+            for (int i = 0; i < rows; i++)
+            {
+                rowBottom = currentTop - maxBottleHeight;
+                currentTop = rowBottom - gapHeight;
+            }
+
+            float bottomGap = rowBottom - screenBottomY;
 
             Debug.Assert(Mathf.Abs(bottomGap - gapHeight) <= LayoutAssertTolerance,
                 $"HudSafeLayout bottom gap mismatch. expected={gapHeight} actual={bottomGap}");

@@ -170,8 +170,8 @@ namespace Decantra.Tests.PlayMode
             var controller = ResolvePrimaryController();
             Assert.IsNotNull(controller, "GameController not found.");
 
-            // Includes level 21 (reported regression) and other known 3-row layouts.
-            int[] levels = { 21, 24, 36 };
+            // Includes 2-row and 3-row levels, including level 21 (reported regression).
+            int[] levels = { 1, 10, 21, 24, 36 };
             foreach (int level in levels)
             {
                 yield return AssertVerticalGapInvariantsForLevel(controller, level, $"level {level}");
@@ -618,22 +618,27 @@ namespace Decantra.Tests.PlayMode
             }
             bounds.Sort((a, b) => b.Bounds.Bottom.CompareTo(a.Bounds.Bottom)); // Top rows first by bottom edge
 
-            int rowCount = bounds.Count / 3;
+            int rowCount = Mathf.CeilToInt(bounds.Count / 3f);
             var rows = new List<RowBounds>(rowCount);
             for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
             {
                 int offset = rowIndex * 3;
+                int itemsInRow = Mathf.Min(3, bounds.Count - offset);
+                if (itemsInRow <= 0) continue;
                 var row = new RowBounds
                 {
-                    Top = Mathf.Max(bounds[offset].Bounds.Top, Mathf.Max(bounds[offset + 1].Bounds.Top, bounds[offset + 2].Bounds.Top)),
-                    Bottom = Mathf.Min(bounds[offset].Bounds.Bottom, Mathf.Min(bounds[offset + 1].Bounds.Bottom, bounds[offset + 2].Bounds.Bottom))
+                    Top = float.MinValue,
+                    Bottom = float.MaxValue
                 };
-                row.Children.Add(bounds[offset].Bounds);
-                row.Children.Add(bounds[offset + 1].Bounds);
-                row.Children.Add(bounds[offset + 2].Bounds);
-                row.ChildRects.Add(bounds[offset].Rect);
-                row.ChildRects.Add(bounds[offset + 1].Rect);
-                row.ChildRects.Add(bounds[offset + 2].Rect);
+                for (int i = 0; i < itemsInRow; i++)
+                {
+                    var entry = bounds[offset + i];
+                    row.Top = Mathf.Max(row.Top, entry.Bounds.Top);
+                    row.Bottom = Mathf.Min(row.Bottom, entry.Bounds.Bottom);
+                    row.Children.Add(entry.Bounds);
+                    row.ChildRects.Add(entry.Rect);
+                }
+
                 rows.Add(row);
             }
 
@@ -795,14 +800,15 @@ namespace Decantra.Tests.PlayMode
             Assert.GreaterOrEqual(topControls.Count, 2, $"Top controls not found for {context}.");
 
             var rows = CollectBottleRows(bottleViews, bottleGrid);
-            Assert.GreaterOrEqual(rows.Count, 3, $"Expected 3 populated rows for {context}, but got {rows.Count}.");
+            int expectedRows = ResolveExpectedLayoutRows(bottleViews);
+            Assert.GreaterOrEqual(rows.Count, expectedRows, $"Expected {expectedRows} populated rows for {context}, but got {rows.Count}.");
             rows.Sort((a, b) => Mathf.Max(b.Top, b.Bottom).CompareTo(Mathf.Max(a.Top, a.Bottom)));
-            rows = rows.Take(3).ToList();
+            rows = rows.Take(expectedRows).ToList();
 
             for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
                 var row = rows[rowIndex];
-                Assert.GreaterOrEqual(row.Children.Count, 3, $"Row {rowIndex + 1} has fewer than 3 bottles for {context}.");
+                Assert.GreaterOrEqual(row.Children.Count, 1, $"Row {rowIndex + 1} has no bottles for {context}.");
                 float baselineBottom = row.Children[0].Bottom;
                 for (int i = 1; i < row.Children.Count; i++)
                 {
@@ -819,23 +825,28 @@ namespace Decantra.Tests.PlayMode
             Assert.GreaterOrEqual(topEffectiveClearance, MinHudClearancePx,
                 $"Top-row clearance to top controls too small for {context}: raw={topClearance}px effective={topEffectiveClearance}px.");
 
-            var rowWorld0 = GetRowWorldBounds(rows[0]);
-            var rowWorld1 = GetRowWorldBounds(rows[1]);
-            var rowWorld2 = GetRowWorldBounds(rows[2]);
             float bottomEdge = GetBoundsInWorld(bottleArea).Bottom;
+            var rowWorldBounds = rows.Select(GetRowWorldBounds).ToList();
+            var gaps = new List<float>(rows.Count + 1)
+            {
+                topControlLower - rowWorldBounds[0].Top
+            };
+            for (int i = 0; i < rowWorldBounds.Count - 1; i++)
+            {
+                gaps.Add(rowWorldBounds[i].Bottom - rowWorldBounds[i + 1].Top);
+            }
 
-            float gapA = topControlLower - rowWorld0.Top;
-            float gapB = rowWorld0.Bottom - rowWorld1.Top;
-            float gapC = rowWorld1.Bottom - rowWorld2.Top;
-            float gapD = rowWorld2.Bottom - bottomEdge;
+            gaps.Add(rowWorldBounds[rowWorldBounds.Count - 1].Bottom - bottomEdge);
 
-            Assert.Greater(gapA, -GapEqualityTolerancePx, $"Gap A must be positive within tolerance for {context}. gapA={gapA}");
-            Assert.Greater(gapB, -GapEqualityTolerancePx, $"Gap B must be positive within tolerance for {context}. gapB={gapB}");
-            Assert.Greater(gapC, -GapEqualityTolerancePx, $"Gap C must be positive within tolerance for {context}. gapC={gapC}");
-            Assert.Greater(gapD, -GapEqualityTolerancePx, $"Gap D must be positive within tolerance for {context}. gapD={gapD}");
-            Assert.AreEqual(gapA, gapB, GapEqualityTolerancePx, $"Gap A != Gap B for {context}. A={gapA}, B={gapB}");
-            Assert.AreEqual(gapA, gapC, GapEqualityTolerancePx, $"Gap A != Gap C for {context}. A={gapA}, C={gapC}");
-            Assert.AreEqual(gapA, gapD, GapEqualityTolerancePx, $"Gap A != Gap D for {context}. A={gapA}, D={gapD}");
+            for (int i = 0; i < gaps.Count; i++)
+            {
+                Assert.Greater(gaps[i], -GapEqualityTolerancePx, $"Gap {i + 1} must be positive within tolerance for {context}. gap={gaps[i]}");
+            }
+
+            for (int i = 1; i < gaps.Count; i++)
+            {
+                Assert.AreEqual(gaps[0], gaps[i], GapEqualityTolerancePx, $"Gap 1 != Gap {i + 1} for {context}. g1={gaps[0]}, g{i + 1}={gaps[i]}");
+            }
 
             for (int i = 0; i < rows.Count; i++)
             {
@@ -848,6 +859,21 @@ namespace Decantra.Tests.PlayMode
                         $"Bottle bottom exceeds row bottom for row {i + 1} in {context}.");
                 }
             }
+        }
+
+        private static int ResolveExpectedLayoutRows(List<BottleView> bottleViews)
+        {
+            int activeCount = 0;
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var view = bottleViews[i];
+                if (view == null || !view.gameObject.activeInHierarchy) continue;
+                activeCount++;
+            }
+
+            // Match runtime fallback row model during startup/transient empty-grid states.
+            if (activeCount <= 0) return 3;
+            return activeCount <= 6 ? 2 : 3;
         }
 
     }
