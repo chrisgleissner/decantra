@@ -94,15 +94,25 @@ namespace Decantra.Tests.PlayMode
 
             int levelStepIndex = steps.FindIndex(step => step.Id == "goal");
             int movesStepIndex = steps.FindIndex(step => step.Id == "moves");
+            int scoreStepIndex = steps.FindIndex(step => step.Id == "score");
+            int optionsStepIndex = steps.FindIndex(step => step.Id == "options");
             Assert.GreaterOrEqual(levelStepIndex, 0, "LEVEL step should exist.");
             Assert.AreEqual(levelStepIndex + 1, movesStepIndex, "MOVES step should directly follow LEVEL step.");
+            Assert.AreEqual(movesStepIndex + 1, scoreStepIndex, "SCORE step should directly follow MOVES step.");
+            Assert.GreaterOrEqual(optionsStepIndex, 0, "OPTIONS step should exist.");
 
             var levelStep = steps[levelStepIndex];
             var movesStep = steps[movesStepIndex];
+            var scoreStep = steps[scoreStepIndex];
+            var optionsStep = steps[optionsStepIndex];
             Assert.AreEqual("LevelPanel", levelStep.TargetObjectName);
             Assert.AreEqual("MovesPanel", movesStep.TargetObjectName);
+            Assert.AreEqual("ScorePanel", scoreStep.TargetObjectName);
+            Assert.AreEqual("OptionsButton", optionsStep.TargetObjectName);
             Assert.AreEqual("LEVEL & Difficulty\nDisplays the current level.\nThe three circles show difficulty. The more filled they are, the harder the level.", levelStep.Instruction);
             Assert.AreEqual("MOVES\nCurrent moves versus allowed moves.\nFewer moves give a higher score.", movesStep.Instruction);
+            Assert.AreEqual("SCORE\nPress SCORE to view your high score and maximum level reached.", scoreStep.Instruction);
+            Assert.AreEqual("OPTIONS\nStart a new game from OPTIONS.\nThis resets current score and stars, but preserves high score and maximum level reached.", optionsStep.Instruction);
             StringAssert.DoesNotContain("MOVES", levelStep.Instruction);
 
             var instructionText = GetPrivateField<Text>(tutorialManager, "instructionText");
@@ -115,6 +125,8 @@ namespace Decantra.Tests.PlayMode
 
             AssertInstructionFits(instructionText, textRect, levelStep.Instruction);
             AssertInstructionFits(instructionText, textRect, movesStep.Instruction);
+            AssertInstructionFits(instructionText, textRect, scoreStep.Instruction);
+            AssertInstructionFits(instructionText, textRect, optionsStep.Instruction);
         }
 
         [UnityTest]
@@ -162,6 +174,7 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/VisualSection/StarfieldGroup/BrightnessRow"), "Starfield brightness row should exist.");
             Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/LegalSection/PrivacyRow"), "Privacy policy button should exist.");
             Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/LegalSection/TermsRow"), "Terms of service button should exist.");
+            Assert.IsNull(FindGameObjectByNameIncludingInactive("SettingsPanel"), "Gameplay HUD should not expose a dedicated settings panel.");
         }
 
         private static GameObject FindGameObjectByNameIncludingInactive(string name)
