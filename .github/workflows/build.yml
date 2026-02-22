@@ -473,6 +473,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PLAY_PACKAGE_NAME: uk.gleissner.decantra
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           name: Decantra-Android
@@ -482,6 +486,15 @@ jobs:
         with:
           name: Decantra-iOS
           path: release-artifacts/ios
+
+      - name: Verify repository checkout
+        run: |
+          if ! git rev-parse --show-toplevel > /dev/null 2>&1; then
+            echo "::error::repository checkout missing in this job - cannot generate release notes or publish release assets"
+            exit 1
+          fi
+          echo "Repository root: $(git rev-parse --show-toplevel)"
+          echo "HEAD: $(git describe --tags --always)"
 
       - name: Publish GitHub release (with retry)
         run: |
