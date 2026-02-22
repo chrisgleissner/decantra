@@ -35,6 +35,7 @@ namespace Decantra.Tests.PlayMode
         private const float MinHudClearancePx = 6f;
         private const float RowAlignmentTolerancePx = 1f;
         private const float TopControlVisualTolerancePx = 14f;
+        // World-space row/hud bounds include float layout spacing and Canvas pixel snapping.
         private const float GapEqualityTolerancePx = 1.5f;
 
         /// <summary>
@@ -169,6 +170,7 @@ namespace Decantra.Tests.PlayMode
             var controller = ResolvePrimaryController();
             Assert.IsNotNull(controller, "GameController not found.");
 
+            // Includes level 21 (reported regression) and additional spread across progression.
             int[] levels = { 1, 10, 21, 24, 36 };
             foreach (int level in levels)
             {
@@ -828,6 +830,8 @@ namespace Decantra.Tests.PlayMode
             float gapD = rowWorld2.Bottom - bottomEdge;
 
             Assert.Greater(gapA, 0f, $"Gap A must be > 0 for {context}. gapA={gapA}");
+            Assert.Greater(gapB, 0f, $"Gap B must be > 0 for {context}. gapB={gapB}");
+            Assert.Greater(gapC, 0f, $"Gap C must be > 0 for {context}. gapC={gapC}");
             Assert.Greater(gapD, 0f, $"Gap D must be > 0 for {context}. gapD={gapD}");
             Assert.AreEqual(gapA, gapB, GapEqualityTolerancePx, $"Gap A != Gap B for {context}. A={gapA}, B={gapB}");
             Assert.AreEqual(gapA, gapC, GapEqualityTolerancePx, $"Gap A != Gap C for {context}. A={gapA}, C={gapC}");

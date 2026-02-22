@@ -17,6 +17,7 @@ namespace Decantra.Presentation.View
     public sealed class HudSafeLayout : MonoBehaviour
     {
         private const int GridRows = 3;
+        private const int ExternalGridPadding = 0;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float LayoutAssertTolerance = 0.5f;
 #endif
@@ -186,8 +187,8 @@ namespace Decantra.Presentation.View
                         bottleGridLayout.padding = new RectOffset(
                             _baseGridPadding.left,
                             _baseGridPadding.right,
-                            0,
-                            0);
+                            ExternalGridPadding,
+                            ExternalGridPadding);
                         bottleGrid.sizeDelta = new Vector2(
                             bottleGrid.sizeDelta.x,
                             rows * maxBottleHeight + (rows - 1f) * idealGap);
@@ -246,7 +247,7 @@ namespace Decantra.Presentation.View
             Debug.Assert(Mathf.Abs(bottomGap - gapHeight) <= LayoutAssertTolerance,
                 $"HudSafeLayout bottom gap mismatch. expected={gapHeight} actual={bottomGap}");
 
-            Debug.Assert(row1Top < hudBottomY - Mathf.Epsilon,
+            Debug.Assert(row1Top < hudBottomY - LayoutAssertTolerance,
                 $"HudSafeLayout row1 touches/intersects HUD. row1Top={row1Top}, hudBottom={hudBottomY}");
 
             if (bottleGrid == null || _root == null) return;
@@ -255,7 +256,7 @@ namespace Decantra.Presentation.View
                 var child = bottleGrid.GetChild(i) as RectTransform;
                 if (child == null || !child.gameObject.activeInHierarchy) continue;
                 child.GetWorldCorners(_corners);
-                float childTop = float.MinValue;
+                float childTop = float.NegativeInfinity;
                 for (int c = 0; c < _corners.Length; c++)
                 {
                     var local = _root.InverseTransformPoint(_corners[c]);
