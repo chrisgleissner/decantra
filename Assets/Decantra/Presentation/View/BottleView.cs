@@ -22,25 +22,40 @@ namespace Decantra.Presentation.View
         // shrinks when capacity is below the level maximum.
         private const float RefOutlineHeight = 372f;
 
-        // Explicit interior fill bounds: the straight-sided region of the bottle body.
-        // These exclude border thickness, rounded corners, neck, flange, and decorative geometry.
-        // Defined in the bottle container's local canvas space (bottle RectTransform, centre-pivot).
+        // Explicit interior fill bounds: the straight-sided region of the bottle body that is
+        // NOT behind the Outline border stroke.
         //
-        //   Outline/LiquidMask: height 372, anchoredPosition.y = -6
-        //   InteriorBottomY = -6 - 372/2 = -192
-        //   InteriorTopY    = -6 + 372/2 =  180
+        // Geometry derivation (all values in canvas units, bottle-local centre-pivot):
+        //   Outline:    height 372, anchoredPosition.y = -6
+        //               → outer bottom = -6 - 186 = -192, outer top = -6 + 186 = 180
+        //   Border thickness: CanvasScaler.referencePixelsPerUnit = 100 (default),
+        //               sprite PPU = 100 → effective PPU = 1
+        //               → border = 12 sprite-px / 1 = 12 canvas units
+        //   Outline inner bottom = -192 + 12 = -180
+        //   Outline inner top    =  180 - 12 = 168
         //
-        // The BottleFlange bottom edge is at Y = 187 - 14/2 = 180 = InteriorTopY, confirming
-        // that InteriorTopY is exactly the boundary between the straight body and the neck/flange.
-        // Liquid is clipped by LiquidMask which is sized to [InteriorBottomY, InteriorTopY].
-        internal const float InteriorBottomY = -192f;
-        internal const float InteriorTopY = 180f;
-        internal const float InteriorHeight = InteriorTopY - InteriorBottomY; // = 372f
-        internal const float InteriorCenterY = (InteriorBottomY + InteriorTopY) * 0.5f; // = -6f
+        // LiquidMask is sized to exactly these inner edges (height 348, centre -6),
+        // so liquid is always clipped to the interior and never renders behind the border.
+        //
+        // Segment height invariant: every segment = InteriorHeight / levelMaxCapacity (constant).
+        public const float InteriorBottomY = -180f;  // = -192 + 12  (inner bottom of Outline border)
+        public const float InteriorTopY = 168f;       // =  180 - 12  (inner top of Outline border)
+        public const float InteriorHeight = InteriorTopY - InteriorBottomY; // = 348f
+        public const float InteriorCenterY = (InteriorBottomY + InteriorTopY) * 0.5f; // = -6f
 
         // Y threshold: elements with default Y above this are "top-fixed" (rim, neck, flange, etc.)
         // Elements at or below are "body" elements whose height stretches.
         private const float TopFixedThreshold = 120f;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>
+        /// Set to true in development builds (or in the Editor) to:
+        ///  - render a semi-transparent green overlay showing the interior fill region, and
+        ///  - log interior bounds, mask position/size, and element sort order per bottle.
+        /// Disabled by default. Must NOT be enabled in production builds.
+        /// </summary>
+        public static bool ShowInteriorBoundsDebug = false;
+#endif
 
         [SerializeField] private RectTransform slotRoot;
         [SerializeField] private List<Image> slots = new List<Image>();
@@ -273,6 +288,10 @@ namespace Decantra.Presentation.View
                     }
                 }
             }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            UpdateInteriorBoundsDebugOverlay();
+#endif
         }
 
         public void SetOutlineColor(Color color)
@@ -356,7 +375,77 @@ namespace Decantra.Presentation.View
                     slotRoot.sizeDelta = new Vector2(slotRoot.sizeDelta.x, InteriorHeight * ratio);
                 }
             }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            AssertInteriorBoundsValid();
+#endif
         }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>
+        /// Verifies that the LiquidMask bottom is at InteriorBottomY (within 0.5 cu).
+        /// Fires a Debug.Assert in Editor and development builds only.
+        /// </summary>
+        private void AssertInteriorBoundsValid()
+        {
+            var liquidMask = slotRoot?.parent as RectTransform;
+            if (liquidMask == null) return;
+
+            float bottom = liquidMask.anchoredPosition.y - liquidMask.sizeDelta.y * 0.5f;
+            const float epsilon = 0.5f;
+
+            Debug.Assert(liquidMask.sizeDelta.y > 0,
+                $"[BottleView {Index}] LiquidMask height must be > 0");
+            Debug.Assert(Mathf.Abs(bottom - InteriorBottomY) < epsilon,
+                $"[BottleView {Index}] LiquidMask bottom {bottom:F1} should be {InteriorBottomY:F1} " +
+                $"(= Outline inner bottom). Liquid must not render behind the border.");
+        }
+
+        /// <summary>
+        /// When ShowInteriorBoundsDebug is true, creates or updates a semi-transparent green
+        /// rectangle showing the interior fill region, and logs per-bottle bounds.
+        /// Overlay sibling order ensures it draws on top of liquid for easy inspection.
+        /// </summary>
+        private void UpdateInteriorBoundsDebugOverlay()
+        {
+            const string overlayName = "_DebugInteriorBounds";
+            var overlayTr = transform.Find(overlayName);
+
+            if (!ShowInteriorBoundsDebug)
+            {
+                if (overlayTr != null) overlayTr.gameObject.SetActive(false);
+                return;
+            }
+
+            // Create overlay on first use
+            if (overlayTr == null)
+            {
+                var go = new GameObject(overlayName);
+                go.transform.SetParent(transform, false);
+                var img = go.AddComponent<Image>();
+                img.color = new Color(0f, 1f, 0f, 0.25f); // semi-transparent green = fill region
+                img.raycastTarget = false;
+                overlayTr = go.transform;
+            }
+
+            overlayTr.gameObject.SetActive(true);
+
+            // Mirror the LiquidMask position and size so the overlay shows the exact fill region
+            var liquidMask = slotRoot?.parent as RectTransform;
+            if (liquidMask != null)
+            {
+                var overlayRect = overlayTr.GetComponent<RectTransform>();
+                overlayRect.anchorMin = overlayRect.anchorMax = new Vector2(0.5f, 0.5f);
+                overlayRect.pivot = new Vector2(0.5f, 0.5f);
+                overlayRect.sizeDelta = liquidMask.sizeDelta;
+                overlayRect.anchoredPosition = liquidMask.anchoredPosition;
+
+                Debug.Log($"[BottleView {Index}] interior: bottom={InteriorBottomY} top={InteriorTopY} " +
+                          $"height={InteriorHeight} | mask pos={liquidMask.anchoredPosition} " +
+                          $"size={liquidMask.sizeDelta} | slotRoot size={slotRoot.sizeDelta}");
+            }
+        }
+#endif
 
         /// <summary>
         /// Captures the original layout of all child RectTransforms on first call.

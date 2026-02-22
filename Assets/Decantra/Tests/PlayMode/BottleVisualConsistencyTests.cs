@@ -22,6 +22,11 @@ namespace Decantra.Tests.PlayMode
     {
         private const float HeightTolerance = 0.75f;
 
+        // Outline geometry constants (must match SceneBootstrap values).
+        private const float OutlineOuterHeight = 372f;
+        private const float OutlineBorderThickness = 12f; // 12 sprite-px / effectivePPU 1 = 12 canvas units
+        private const float ExpectedGapFraction = OutlineBorderThickness / OutlineOuterHeight;
+
         [UnityTest]
         public IEnumerator SlotRootHeights_AreProportionalToCapacity()
         {
@@ -272,11 +277,14 @@ namespace Decantra.Tests.PlayMode
         }
 
         /// <summary>
-        /// Test: a full bottle's liquid top must align with the outline inner body top,
-        /// with a constant gap across all bottle capacities in the same level.
+        /// Test: a full bottle's liquid top must be exactly one border-thickness below the outline top,
+        /// and this gap must be consistent across all bottle capacities in the same level.
         ///
-        /// Invariant A: for a 100%-filled bottle, abs(outlineTop - slotRootTop) ≤ tolerance
-        /// Invariant B: the gap is consistent across capacities (max-min ≤ tolerance)
+        /// Border thickness = 12 canvas units (sprite border 12 px / effective PPU 1 = 12 cu).
+        /// The gap in world-space is scale-invariant when expressed as a fraction of the outline height.
+        ///
+        /// Expected gap fraction = borderThickness / OutlineHeight = 12 / 372 ≈ 0.0323.
+        /// Invariant B: gap is consistent across capacities (max-min ≤ tolerance).
         /// </summary>
         [UnityTest]
         public IEnumerator FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities()
@@ -300,21 +308,27 @@ namespace Decantra.Tests.PlayMode
 
             var gaps = new float[capacities.Length];
 
+            // Border thickness expressed as a fraction of the outline outer height.
+            // This ratio is resolution-independent.
             for (int i = 0; i < capacities.Length; i++)
             {
+                int capacity = capacities[i];
                 var outlineRect = bottleViews[i].transform.Find("Outline")?.GetComponent<RectTransform>();
                 var slotRoot = FindSlotRoot(bottleViews[i]);
 
                 Assert.IsNotNull(outlineRect, $"Bottle_{i + 1}: Outline RectTransform not found.");
                 Assert.IsNotNull(slotRoot, $"Bottle_{i + 1}: LiquidRoot RectTransform not found.");
 
+                float outlineHeightWorld = GetWorldHeight(outlineRect);
                 float outlineTopWorld = GetWorldTopY(outlineRect);
                 float slotRootTopWorld = GetWorldTopY(slotRoot);
 
                 gaps[i] = outlineTopWorld - slotRootTopWorld;
 
-                Assert.LessOrEqual(Mathf.Abs(gaps[i]), 2.0f,
-                    $"Full cap-{capacities[i]} bottle: vertical offset between outline top and liquid top is {gaps[i]:F2} world units (expected |gap| ≤ 2).");
+                float expectedGapWorld = outlineHeightWorld * ExpectedGapFraction;
+                Assert.AreEqual(expectedGapWorld, gaps[i], HeightTolerance,
+                    $"Full cap-{capacity}: outline top minus liquid top should be " +
+                    $"{expectedGapWorld:F2} world units (one border thickness) but was {gaps[i]:F2}.");
             }
 
             float minGap = gaps[0];
@@ -325,8 +339,61 @@ namespace Decantra.Tests.PlayMode
                 if (gaps[i] > maxGap) maxGap = gaps[i];
             }
 
-            Assert.LessOrEqual(maxGap - minGap, 2.0f,
+            Assert.LessOrEqual(maxGap - minGap, HeightTolerance * 2f,
                 $"Top gap is not consistent across capacities: min={minGap:F2}, max={maxGap:F2} world units.");
+        }
+
+        /// <summary>
+        /// Test: the LiquidMask bottom must sit above the Outline bottom by exactly one border
+        /// thickness, so no liquid can ever be rendered behind the bottom border of the bottle.
+        ///
+        /// This is the primary fix for the reported defect ("bottom segment overlapped by border").
+        /// Expected gap fraction = 12 / 372 ≈ 0.0323 of the outline height (resolution-independent).
+        ///
+        /// FAILS with the old code (LiquidMask bottom == Outline bottom, gap ≈ 0).
+        /// PASSES with the fix  (LiquidMask bottom == Outline inner bottom, gap ≈ border thickness).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator BottomBorder_NotOverlappedByLiquid()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var bottleViews = FindBottleViews();
+            Assert.GreaterOrEqual(bottleViews.Count, 4, "Expected at least 4 bottle views.");
+
+            int[] capacities = { 4, 6, 8, 10 };
+            int maxCapacity = 10;
+
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                bottleViews[i].SetLevelMaxCapacity(maxCapacity);
+                bottleViews[i].Render(CreateBottle(capacities[i], 1));
+            }
+
+            yield return null;
+
+            for (int i = 0; i < capacities.Length; i++)
+            {
+                int capacity = capacities[i];
+                var outlineRect = bottleViews[i].transform.Find("Outline")?.GetComponent<RectTransform>();
+                var liquidMaskRect = bottleViews[i].transform.Find("LiquidMask")?.GetComponent<RectTransform>();
+
+                Assert.IsNotNull(outlineRect, $"Bottle_{i + 1}: Outline RectTransform not found.");
+                Assert.IsNotNull(liquidMaskRect, $"Bottle_{i + 1}: LiquidMask RectTransform not found.");
+
+                float outlineHeightWorld = GetWorldHeight(outlineRect);
+                float outlineBottomWorld = GetWorldBottomY(outlineRect);
+                float liquidMaskBottomWorld = GetWorldBottomY(liquidMaskRect);
+
+                float actualGap = liquidMaskBottomWorld - outlineBottomWorld;
+                float expectedGapWorld = outlineHeightWorld * ExpectedGapFraction;
+
+                Assert.AreEqual(expectedGapWorld, actualGap, HeightTolerance,
+                    $"cap-{capacity}: LiquidMask bottom must be {expectedGapWorld:F2} world units " +
+                    $"above Outline bottom (one border thickness), but gap was {actualGap:F2}. " +
+                    $"Bottom segment must NOT be rendered behind the border.");
+            }
         }
     }
 }

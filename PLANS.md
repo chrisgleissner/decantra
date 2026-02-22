@@ -910,3 +910,155 @@ _progress = new ProgressData
 - [x] `RestartGame_ConfirmationResetsProgress` test updated
 - [x] `RestartGame_WithNoPriorProgress_ResetsToDefaults` test added
 - [x] PLANS.md updated
+
+---
+
+## 2026-02-21 — Liquid Segment Height Invariant
+
+### Simplified requirement
+
+Every segment in every bottle must have the same height in canvas units.
+Formally: `segmentHeight = InteriorHeight / levelMaxCapacity` — constant across all bottle
+capacities (4–10) and positions in the same level.
+
+"Interior area" is the main straight-sided body region of the bottle, defined by the
+`LiquidMask` RectTransform (height 372, centre Y −6 in bottle-local canvas space).
+
+### Audit of current state (after PR #40)
+
+#### Geometry at `levelMaxCapacity = M`, bottle `capacity = C`
+
+| Element    | Initial height | After ApplyCapacityScale  |
+|------------|---------------|---------------------------|
+| Outline    | 372           | 372 × C/M                 |
+| LiquidMask | 372           | 372 × C/M (same centre Y) |
+| LiquidRoot | 372           | 372 × C/M (bottom-anchored to LiquidMask) |
+
+#### Segment height derivation
+
+```
+slotRootHeight  = InteriorHeight × C/M        (set in ApplyCapacityScale)
+segmentHeight   = LocalHeightForUnits(slotRootHeight, C, M, 1)
+                = slotRootHeight × 1 / C
+                = InteriorHeight × (C/M) / C
+                = InteriorHeight / M           ← CONSTANT across all C ✓
+```
+
+Every bottle in the same level therefore produces segments of identical height in canvas
+units, regardless of its own capacity.
+
+#### Why the invariant holds
+
+`LocalHeightForUnits(height, capacity, refCap, units) = height × units / capacity`.
+The `refCap` parameter is accepted for API stability but not used in the formula.
+`ApplyCapacityScale` sets `slotRoot.sizeDelta.y = InteriorHeight × ratio` with
+`ratio = capacity / _levelMaxCapacity`, so `height × 1 / capacity` cancels to
+`InteriorHeight / _levelMaxCapacity`.
+
+#### Border analysis
+
+The bottle outline uses `Image.Type.Sliced`, `fillCenter = false`, with the `rounded`
+sprite (64 × 64 px at PPU = 100, border = 12 px).
+
+Corner/strip size in canvas units = 12 px / 100 ppu = **0.12 canvas units**.
+
+At the reference resolution of 1080 × 1920 the canvas maps 1 unit ≈ 1 screen pixel, so
+the visible border strip is ~0.12 screen pixels — sub-pixel.  The `LiquidMask` is sized
+to the same 372-unit height as the outline, so the border has no practical effect on
+which pixels are visible to the player.  No inset adjustment is needed.
+
+### Changes made
+
+| # | Change | File |
+|---|--------|------|
+| 1 | Made `InteriorBottomY`, `InteriorTopY`, `InteriorHeight`, `InteriorCenterY` `public` (were `internal`) so tests can reference them directly | `BottleView.cs` |
+| 2 | Added `SegmentHeight_IsConstant_AcrossAllBottleCapacities` test | `BottleVisualMappingTests.cs` |
+| 3 | Added `FullBottle_FillsEntireInteriorArea` test | `BottleVisualMappingTests.cs` |
+| 4 | Updated comments in `BottleView.cs` to state the segment-height invariant explicitly | `BottleView.cs` |
+
+### Completion checklist
+
+- [x] Segment height = `InteriorHeight / levelMaxCapacity` proven and documented
+- [x] `SegmentHeight_IsConstant_AcrossAllBottleCapacities` test added and passes
+- [x] `FullBottle_FillsEntireInteriorArea` test added and passes
+- [x] `BottleView` interior constants promoted to `public` for test access
+- [x] PLANS.md updated
+- [x] All existing tests unaffected
+- [x] CI green
+
+---
+
+## 2026-02-22 — Actual Border Overlap Fix
+
+### Clarification from device owner
+
+User confirmed: bottom border on a Samsung Galaxy S21 is **≈ 10 pixels wide** — the same
+stroke width all around the bottle body outline, not sub-pixel.
+
+### Root cause (proven)
+
+`CanvasScaler.referencePixelsPerUnit` defaults to **100** (not set in `CreateCanvas`).
+The Outline sprite is `CreateRoundedRectSprite(64, 12)` at PPU **100**.
+
+Effective border in canvas units:
+```
+border_cu = border_px / (sprite.PPU / canvas.referencePixelsPerUnit)
+           = 12       / (100         / 100                         )
+           = 12 canvas units
+```
+
+At the S21 (1080 wide) with `ScaleWithScreenSize` match-width, scale = 1.0 →
+12 canvas units ≈ 12 screen pixels.  This matches the user's "≈ 10 px" estimate.
+
+**The previous analysis was wrong**: it assumed effectivePPU = sprite.PPU = 100,
+giving 0.12 canvas units (sub-pixel).  The correct formula uses
+`referencePixelsPerUnit` as the denominator, giving 1.0 as the effective PPU.
+
+### Geometry table
+
+```
+Outline: height=372, centre Y=-6, border=12 cu
+  outer bottom = -192,   outer top = 180
+  inner bottom = -180,   inner top = 168   (inner = outer ± border)
+
+LiquidMask BEFORE fix: height=372, centre=-6
+  bottom=-192 (same as Outline outer! → 12 cu behind border ✗)
+  top   = 180 (same as Outline outer! → 12 cu behind border ✗)
+
+LiquidMask AFTER fix:  height=348, centre=-6  (= 372 - 2×12)
+  bottom=-180 (= Outline inner bottom ✓)
+  top   = 168 (= Outline inner top    ✓)
+```
+
+`InteriorCenterY` stays **−6** because the inset is symmetric; only
+`InteriorHeight` changes 372 → 348 and `InteriorBottomY/TopY` shift by ±12.
+
+### Segment height invariant (unchanged, updated values)
+
+```
+slotRootHeight  = InteriorHeight × capacity/maxCapacity = 348 × C/M
+segmentHeight   = slotRootHeight / capacity = 348/M   ← constant across all bottles ✓
+```
+
+### Changes made
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `SceneBootstrap.cs` | LiquidMask `sizeDelta.y` 372→348; LiquidRoot `sizeDelta.y` 372→348 |
+| 2 | `BottleView.cs` | `InteriorBottomY`=-180, `InteriorTopY`=168, `InteriorHeight`=348, `InteriorCenterY`=-6 (unchanged); update comment with derivation |
+| 3 | `BottleView.cs` | Add `ShowInteriorBoundsDebug` static flag (dev/editor only); `AssertInteriorBoundsValid()` fires `Debug.Assert` if LiquidMask bottom ≠ InteriorBottomY; `UpdateInteriorBoundsDebugOverlay()` creates a green fill-region rect and logs per-bottle values when flag is set |
+| 4 | `BottleVisualConsistencyTests.cs` | Update `FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities`: gap must now be ≈ 12/372 × outlineHeight (resolution-independent) |
+| 5 | `BottleVisualConsistencyTests.cs` | Add `BottomBorder_NotOverlappedByLiquid`: asserts `liquidMaskBottom - outlineBottom ≈ border thickness` (FAILS before fix, PASSES after) |
+
+### Completion checklist
+
+- [x] Root cause identified and proven (border = 12 cu, not sub-pixel)
+- [x] LiquidMask height reduced 372 → 348, centre unchanged at -6
+- [x] LiquidRoot height reduced 372 → 348
+- [x] Interior constants updated: Bottom=-180, Top=168, Height=348, Centre=-6
+- [x] Dev-only debug flag + green overlay + per-bottle assertions added
+- [x] `BottomBorder_NotOverlappedByLiquid` test added (fails before fix)
+- [x] `FullBottle_LiquidTopAligned_ToInnerBodyTop_AcrossCapacities` updated
+- [x] Segment-height invariant still holds (348/maxCapacity is constant)
+- [x] PLANS.md updated with full derivation
+- [ ] CI green

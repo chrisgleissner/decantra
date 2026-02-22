@@ -279,6 +279,62 @@ namespace Decantra.PlayMode.Tests
         }
 
         /// <summary>
+        /// Core invariant (simplified requirement):
+        /// Every segment in every bottle has the same height in canvas units.
+        ///
+        ///   segmentHeight = BottleView.InteriorHeight / levelMaxCapacity
+        ///
+        /// This is constant across all bottle capacities (4–10) for a given level.
+        /// "Interior area" is the region of the main bottle body defined by the LiquidMask,
+        /// i.e. the area that is actually visible to the player inside the bottle borders.
+        /// </summary>
+        [Test]
+        public void SegmentHeight_IsConstant_AcrossAllBottleCapacities()
+        {
+            int[] levelMaxCapacities = { 4, 5, 6, 7, 8, 9, 10 };
+
+            foreach (int maxCap in levelMaxCapacities)
+            {
+                float expectedSegmentHeight = BottleView.InteriorHeight / maxCap;
+
+                for (int cap = 4; cap <= maxCap; cap++)
+                {
+                    // slotRoot height for a bottle of this capacity in this level
+                    float slotRootHeight = BottleView.InteriorHeight * (float)cap / maxCap;
+                    // height of exactly one segment in this bottle
+                    float segmentHeight = BottleVisualMapping.LocalHeightForUnits(slotRootHeight, cap, maxCap, 1);
+
+                    Assert.AreEqual(expectedSegmentHeight, segmentHeight, PixelTolerance,
+                        $"maxCap={maxCap}, cap={cap}: segment height must be " +
+                        $"{expectedSegmentHeight:F3} (InteriorHeight/{maxCap}) but got {segmentHeight:F3}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Full-bottle invariant: a full bottle fills the interior area exactly from bottom to top.
+        /// Total fill height = segmentHeight × capacity = InteriorHeight × (capacity / maxCapacity).
+        /// </summary>
+        [Test]
+        public void FullBottle_FillsEntireInteriorArea()
+        {
+            int[] levelMaxCapacities = { 4, 5, 6, 7, 8, 9, 10 };
+
+            foreach (int maxCap in levelMaxCapacities)
+            {
+                for (int cap = 4; cap <= maxCap; cap++)
+                {
+                    float slotRootHeight = BottleView.InteriorHeight * (float)cap / maxCap;
+                    float fullFillHeight = BottleVisualMapping.LocalHeightForUnits(slotRootHeight, cap, maxCap, cap);
+
+                    Assert.AreEqual(slotRootHeight, fullFillHeight, PixelTolerance,
+                        $"maxCap={maxCap}, cap={cap}: full bottle must fill exactly " +
+                        $"{slotRootHeight:F3} but got {fullFillHeight:F3}");
+                }
+            }
+        }
+
+        /// <summary>
         /// Anti-regression: the old 0.9.4 approach (same slotRoot height for all bottles,
         /// H/cap * non-proportional scaleY tiers) produces DIFFERENT pixel heights.
         /// </summary>
