@@ -35,6 +35,7 @@ namespace Decantra.Tests.PlayMode
         private const float MinHudClearancePx = 6f;
         private const float RowAlignmentTolerancePx = 1f;
         private const float TopControlVisualTolerancePx = 14f;
+        private const float GapEqualityTolerancePx = 1.5f;
 
         /// <summary>
         /// Identifies HUD stat panels by their structure: Image + LayoutElement + specific children (Shadow, GlassHighlight, Value text).
@@ -168,68 +169,35 @@ namespace Decantra.Tests.PlayMode
             var controller = ResolvePrimaryController();
             Assert.IsNotNull(controller, "GameController not found.");
 
-            int[] levels = { 1, 10, 24, 36 };
-            int validatedThreeRowLevels = 0;
+            int[] levels = { 1, 10, 21, 24, 36 };
             foreach (int level in levels)
             {
-                controller.LoadLevel(level, 10991 + level);
+                yield return AssertVerticalGapInvariantsForLevel(controller, level, $"level {level}");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator BottleGrid_KeepsEqualVerticalGaps_AcrossResolutions()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = ResolvePrimaryController();
+            Assert.IsNotNull(controller, "GameController not found.");
+
+            int originalWidth = Screen.width;
+            int originalHeight = Screen.height;
+            var resolutions = new[] { new Vector2Int(1080, 2400), new Vector2Int(1080, 1920) };
+            for (int i = 0; i < resolutions.Length; i++)
+            {
+                var resolution = resolutions[i];
+                Screen.SetResolution(resolution.x, resolution.y, false);
                 yield return null;
                 yield return null;
-                Canvas.ForceUpdateCanvases();
-
-                var bottleViews = GetControllerBottleViews(controller);
-                var bottleGrid = ResolveBottleGridRect(bottleViews);
-                Assert.IsNotNull(bottleGrid, $"Bottle grid not found for level {level}.");
-                var topControls = ResolveTopControlRects(controller);
-                Assert.GreaterOrEqual(topControls.Count, 2, $"Top controls not found for level {level}.");
-
-                var rows = CollectBottleRows(bottleViews, bottleGrid);
-                var bottleByRect = BuildBottleLookupByRect(bottleViews);
-                if (rows.Count < 3)
-                {
-                    Debug.Log($"Skipping row-spacing assertions at level {level}: only {rows.Count} populated rows.");
-                    continue;
-                }
-
-                rows.Sort((a, b) => Mathf.Max(b.Top, b.Bottom).CompareTo(Mathf.Max(a.Top, a.Bottom))); // Top to bottom
-                if (rows.Count > 3)
-                {
-                    rows = rows.Take(3).ToList();
-                }
-                validatedThreeRowLevels++;
-
-                // All bottles in a row must share same start/bottom Y.
-                for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
-                {
-                    var row = rows[rowIndex];
-                    Assert.GreaterOrEqual(row.Children.Count, 3, $"Row {rowIndex + 1} has fewer than 3 bottles at level {level}.");
-                    float baselineBottom = row.Children[0].Bottom;
-                    for (int i = 1; i < row.Children.Count; i++)
-                    {
-                        Assert.AreEqual(baselineBottom, row.Children[i].Bottom, RowAlignmentTolerancePx,
-                            $"Row {rowIndex + 1} bottles do not share bottom Y at level {level}.");
-                    }
-                }
-
-                // Consecutive rows must keep positive visual padding.
-                for (int i = 0; i < rows.Count - 1; i++)
-                {
-                    float upperRowLower = Mathf.Min(rows[i].Top, rows[i].Bottom);
-                    float lowerRowUpper = Mathf.Max(rows[i + 1].Top, rows[i + 1].Bottom);
-                    float rowGap = upperRowLower - lowerRowUpper;
-                    Assert.GreaterOrEqual(rowGap, MinRowPaddingPx,
-                        $"Rows {i + 1} and {i + 2} gap too small at level {level}: {rowGap}px.");
-                }
-
-                float topControlLower = GetTopControlsBottomInWorld(topControls);
-                float topRowVisualTop = GetRowVisualTopInWorld(rows[0], bottleByRect);
-                float topClearance = topControlLower - topRowVisualTop;
-                float topEffectiveClearance = topClearance + TopControlVisualTolerancePx;
-                Assert.GreaterOrEqual(topEffectiveClearance, MinHudClearancePx,
-                    $"Top-row clearance to top controls too small at level {level}: raw={topClearance}px effective={topEffectiveClearance}px.");
+                yield return AssertVerticalGapInvariantsForLevel(controller, 21, $"{resolution.x}x{resolution.y}");
             }
 
-            Assert.Greater(validatedThreeRowLevels, 0, "No 3-row levels were available to validate bottle spacing invariants.");
+            Screen.SetResolution(originalWidth, originalHeight, false);
         }
 
         [UnityTest]
@@ -540,12 +508,17 @@ namespace Decantra.Tests.PlayMode
 
         private static bool HasMatchingHudSafeLayout(List<BottleView> bottleViews)
         {
+            return ResolveMatchingHudSafeLayout(bottleViews) != null;
+        }
+
+        private static HudSafeLayout ResolveMatchingHudSafeLayout(List<BottleView> bottleViews)
+        {
             var bottleGrid = ResolveBottleGridRect(bottleViews);
-            if (bottleGrid == null) return false;
+            if (bottleGrid == null) return null;
 
             var safeLayouts = Object.FindObjectsByType<HudSafeLayout>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             var gridField = typeof(HudSafeLayout).GetField("bottleGrid", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (gridField == null) return false;
+            if (gridField == null) return null;
 
             for (int i = 0; i < safeLayouts.Length; i++)
             {
@@ -554,11 +527,11 @@ namespace Decantra.Tests.PlayMode
                 var layoutGrid = gridField.GetValue(layout) as RectTransform;
                 if (layoutGrid == bottleGrid)
                 {
-                    return true;
+                    return layout;
                 }
             }
 
-            return false;
+            return null;
         }
 
         private static RectTransform ResolveBottleGridRect(List<BottleView> bottleViews)
@@ -794,6 +767,83 @@ namespace Decantra.Tests.PlayMode
         {
             var bounds = GetBoundsInWorld(rect);
             return Mathf.Max(bounds.Top, bounds.Bottom);
+        }
+
+        private static RectTransform ResolveBottleAreaRect(List<BottleView> bottleViews)
+        {
+            var layout = ResolveMatchingHudSafeLayout(bottleViews);
+            if (layout == null) return null;
+            var areaField = typeof(HudSafeLayout).GetField("bottleArea", BindingFlags.Instance | BindingFlags.NonPublic);
+            return areaField != null ? areaField.GetValue(layout) as RectTransform : null;
+        }
+
+        private static IEnumerator AssertVerticalGapInvariantsForLevel(GameController controller, int level, string context)
+        {
+            controller.LoadLevel(level, 10991 + level);
+            yield return null;
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+
+            var bottleViews = GetControllerBottleViews(controller);
+            var bottleGrid = ResolveBottleGridRect(bottleViews);
+            Assert.IsNotNull(bottleGrid, $"Bottle grid not found for {context}.");
+            var bottleArea = ResolveBottleAreaRect(bottleViews);
+            Assert.IsNotNull(bottleArea, $"Bottle area not found for {context}.");
+            var topControls = ResolveTopControlRects(controller);
+            Assert.GreaterOrEqual(topControls.Count, 2, $"Top controls not found for {context}.");
+
+            var rows = CollectBottleRows(bottleViews, bottleGrid);
+            Assert.GreaterOrEqual(rows.Count, 3, $"Expected 3 populated rows for {context}, but got {rows.Count}.");
+            rows.Sort((a, b) => Mathf.Max(b.Top, b.Bottom).CompareTo(Mathf.Max(a.Top, a.Bottom)));
+            rows = rows.Take(3).ToList();
+
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                Assert.GreaterOrEqual(row.Children.Count, 3, $"Row {rowIndex + 1} has fewer than 3 bottles for {context}.");
+                float baselineBottom = row.Children[0].Bottom;
+                for (int i = 1; i < row.Children.Count; i++)
+                {
+                    Assert.AreEqual(baselineBottom, row.Children[i].Bottom, RowAlignmentTolerancePx,
+                        $"Row {rowIndex + 1} bottles do not share bottom Y for {context}.");
+                }
+            }
+
+            var bottleByRect = BuildBottleLookupByRect(bottleViews);
+            float topControlLower = GetTopControlsBottomInWorld(topControls);
+            float topRowVisualTop = GetRowVisualTopInWorld(rows[0], bottleByRect);
+            float topClearance = topControlLower - topRowVisualTop;
+            float topEffectiveClearance = topClearance + TopControlVisualTolerancePx;
+            Assert.GreaterOrEqual(topEffectiveClearance, MinHudClearancePx,
+                $"Top-row clearance to top controls too small for {context}: raw={topClearance}px effective={topEffectiveClearance}px.");
+
+            var rowWorld0 = GetRowWorldBounds(rows[0]);
+            var rowWorld1 = GetRowWorldBounds(rows[1]);
+            var rowWorld2 = GetRowWorldBounds(rows[2]);
+            float bottomEdge = GetBoundsInWorld(bottleArea).Bottom;
+
+            float gapA = topControlLower - rowWorld0.Top;
+            float gapB = rowWorld0.Bottom - rowWorld1.Top;
+            float gapC = rowWorld1.Bottom - rowWorld2.Top;
+            float gapD = rowWorld2.Bottom - bottomEdge;
+
+            Assert.Greater(gapA, 0f, $"Gap A must be > 0 for {context}. gapA={gapA}");
+            Assert.Greater(gapD, 0f, $"Gap D must be > 0 for {context}. gapD={gapD}");
+            Assert.AreEqual(gapA, gapB, GapEqualityTolerancePx, $"Gap A != Gap B for {context}. A={gapA}, B={gapB}");
+            Assert.AreEqual(gapA, gapC, GapEqualityTolerancePx, $"Gap A != Gap C for {context}. A={gapA}, C={gapC}");
+            Assert.AreEqual(gapA, gapD, GapEqualityTolerancePx, $"Gap A != Gap D for {context}. A={gapA}, D={gapD}");
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                for (int c = 0; c < row.Children.Count; c++)
+                {
+                    Assert.LessOrEqual(row.Children[c].Top, row.Top + RowAlignmentTolerancePx,
+                        $"Bottle top exceeds row top for row {i + 1} in {context}.");
+                    Assert.GreaterOrEqual(row.Children[c].Bottom, row.Bottom - RowAlignmentTolerancePx,
+                        $"Bottle bottom exceeds row bottom for row {i + 1} in {context}.");
+                }
+            }
         }
 
     }
