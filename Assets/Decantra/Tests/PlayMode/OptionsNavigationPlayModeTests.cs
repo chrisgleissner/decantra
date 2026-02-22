@@ -125,6 +125,8 @@ namespace Decantra.Tests.PlayMode
 
             AssertInstructionFits(instructionText, textRect, levelStep.Instruction);
             AssertInstructionFits(instructionText, textRect, movesStep.Instruction);
+            AssertInstructionFits(instructionText, textRect, scoreStep.Instruction);
+            AssertInstructionFits(instructionText, textRect, optionsStep.Instruction);
         }
 
         [UnityTest]
@@ -172,7 +174,7 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/VisualSection/StarfieldGroup/BrightnessRow"), "Starfield brightness row should exist.");
             Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/LegalSection/PrivacyRow"), "Privacy policy button should exist.");
             Assert.IsNotNull(optionsOverlay.transform.Find("Panel/ListContainer/Viewport/Content/LegalSection/TermsRow"), "Terms of service button should exist.");
-            Assert.IsNull(GameObject.Find("SettingsPanel"), "Gameplay HUD should not expose a dedicated settings panel.");
+            Assert.IsNull(FindGameObjectByNameIncludingInactive("SettingsPanel"), "Gameplay HUD should not expose a dedicated settings panel.");
         }
 
         private static GameObject FindGameObjectByNameIncludingInactive(string name)

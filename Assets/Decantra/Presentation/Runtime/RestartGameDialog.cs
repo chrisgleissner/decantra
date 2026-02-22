@@ -14,6 +14,8 @@ namespace Decantra.Presentation
 {
     public sealed class RestartGameDialog : MonoBehaviour
     {
+        public const string RestartConfirmationMessage = "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.";
+
         [SerializeField] private RectTransform panel;
         [SerializeField] private Text messageText;
         [SerializeField] private Button cancelButton;
@@ -36,7 +38,7 @@ namespace Decantra.Presentation
 
             if (messageText != null)
             {
-                messageText.text = "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.";
+                messageText.text = RestartConfirmationMessage;
             }
 
             canvasGroup.alpha = 1f;

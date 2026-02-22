@@ -1738,65 +1738,6 @@ namespace Decantra.Presentation
             return text;
         }
 
-        private static GameObject CreateSettingsPanel(Transform parent, GameController controller)
-        {
-            var panel = CreateUiChild(parent, "SettingsPanel");
-            var rect = panel.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(1f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 1f);
-            rect.anchoredPosition = new Vector2(-24, -24);
-            rect.sizeDelta = new Vector2(200, 70);
-
-            var layout = panel.AddComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.MiddleRight;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = false;
-            layout.spacing = 8f;
-
-            var label = CreateHudText(panel.transform, "SfxLabel");
-            label.fontSize = 24;
-            label.text = "SFX";
-
-            var toggleGo = CreateUiChild(panel.transform, "SfxToggle");
-            var toggle = toggleGo.AddComponent<Toggle>();
-            toggle.isOn = true;
-
-            var toggleBg = CreateUiChild(toggleGo.transform, "Background");
-            var toggleBgImage = toggleBg.AddComponent<Image>();
-            toggleBgImage.sprite = GetRoundedSprite();
-            toggleBgImage.type = Image.Type.Sliced;
-            toggleBgImage.color = new Color(1f, 1f, 1f, 0.18f);
-            var bgRect = toggleBg.GetComponent<RectTransform>();
-            bgRect.anchorMin = new Vector2(0.5f, 0.5f);
-            bgRect.anchorMax = new Vector2(0.5f, 0.5f);
-            bgRect.sizeDelta = new Vector2(60, 30);
-
-            var toggleCheck = CreateUiChild(toggleBg.transform, "Check");
-            var toggleCheckImage = toggleCheck.AddComponent<Image>();
-            toggleCheckImage.color = new Color(1f, 0.98f, 0.92f, 0.95f);
-            var checkRect = toggleCheck.GetComponent<RectTransform>();
-            checkRect.anchorMin = new Vector2(0.5f, 0.5f);
-            checkRect.anchorMax = new Vector2(0.5f, 0.5f);
-            checkRect.sizeDelta = new Vector2(20, 20);
-
-            toggle.targetGraphic = toggleBgImage;
-            toggle.graphic = toggleCheckImage;
-            if (controller != null)
-            {
-                toggle.isOn = controller.IsSfxEnabled;
-            }
-            toggle.onValueChanged.AddListener(value =>
-            {
-                if (controller != null)
-                {
-                    controller.SetSfxEnabled(value);
-                }
-            });
-
-            return panel;
-        }
-
         private static IntroBanner CreateIntroBanner(Transform parent)
         {
             var root = CreateUiChild(parent, "IntroBanner");
@@ -1927,7 +1868,7 @@ namespace Decantra.Presentation
 
             var message = CreateHudText(panel.transform, "MessageText");
             message.fontSize = 32;
-            message.text = "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.";
+            message.text = RestartGameDialog.RestartConfirmationMessage;
             message.color = new Color(1f, 0.95f, 0.7f, 1f);
             var msgRect = message.GetComponent<RectTransform>();
             msgRect.anchorMin = new Vector2(0.1f, 0.25f);

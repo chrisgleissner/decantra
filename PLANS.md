@@ -1,6 +1,6 @@
 # PLANS
 
-Last updated: 2026-02-21 UTC  
+Last updated: 2026-02-22 UTC  
 Execution engineer: GitHub Copilot
 
 ## 2026-02-22 — UX reset/tutorial/HUD adjustments
@@ -32,6 +32,21 @@ Execution engineer: GitHub Copilot
 - **B (reset wording + semantics):** reset dialog copy updated in both bootstrap creation and runtime `Show()`. Existing and updated PlayMode assertions verify reset preserves `HighScore` and `HighestUnlockedLevel` while resetting current level/score/stars.
 - **C (tutorial extension):** tutorial step list now includes new `score` step targeting `ScorePanel`; `options` instruction updated to describe new-game semantics. Tests verify step order, targets, and exact text.
 - **D (remove gameplay HUD SFX button):** `CreateSettingsPanel(...)` is no longer created in scene setup; options overlay still contains `AudioSection/SfxRow` and `SfxVolumeRow` (validated by existing options test assertions).
+
+## 2026-02-22 — PR review follow-up fixes
+
+- [x] Centralize restart confirmation copy via `RestartGameDialog.RestartConfirmationMessage` to prevent drift.
+- [x] Reuse centralized reset copy in `SceneBootstrap` and PlayMode test assertion.
+- [x] Update `OptionsNavigationPlayModeTests` to:
+  - [x] assert no `SettingsPanel` using inactive-aware lookup helper.
+  - [x] include `AssertInstructionFits` coverage for SCORE and OPTIONS tutorial copy.
+- [x] Update stale long-press comment in `GameControllerPlayModeTests`.
+- [x] Remove unused `CreateSettingsPanel` helper from `SceneBootstrap`.
+- [x] Update PLANS header timestamp to latest date.
+- [x] Verification:
+  - [x] Attempt local Unity test run (`./scripts/test.sh`) — blocked in sandbox (`Unity not found`).
+  - [x] `code_review` completed with no comments.
+  - [x] `codeql_checker` completed with 0 alerts.
 
 ## 2026-02-21 — WebGL: First Pour Silent + Progress Not Persisted
 

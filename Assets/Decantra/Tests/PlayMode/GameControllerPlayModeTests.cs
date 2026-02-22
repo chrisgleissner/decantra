@@ -931,7 +931,7 @@ namespace Decantra.Tests.PlayMode
             SetPrivateField(controller, "_progressStore", store);
             SetPrivateField(controller, "_progress", progress);
 
-            // Now test long-press behavior on Reset button
+            // Verify HUD reset has no long-press and options-driven reset still works.
             var resetGo = GameObject.Find("ResetButton");
             Assert.IsNotNull(resetGo, "Reset button should exist in scene.");
 
@@ -950,9 +950,7 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(restartDialogGo, "Restart dialog root should exist.");
             var restartMessage = restartDialogGo.transform.Find("Panel/MessageText")?.GetComponent<Text>();
             Assert.IsNotNull(restartMessage, "Restart dialog message text should exist.");
-            Assert.AreEqual(
-                "This will start a new game from Level 1.\nCurrent score and stars will reset.\nHigh score and max level reached will be preserved.",
-                restartMessage.text);
+            Assert.AreEqual(RestartGameDialog.RestartConfirmationMessage, restartMessage.text);
 
             var confirmGo = GameObject.Find("ConfirmRestartButton");
             Assert.IsNotNull(confirmGo, "Confirm restart button should exist.");
