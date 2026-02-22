@@ -65,6 +65,15 @@ This was a workflow re-run (attempt 2). The version code `6630` was computed fro
 
 7. **Concurrency guard unchanged**: The top-level `concurrency.group: ${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true` is sufficient — each tag has a unique ref, so concurrent tag runs cannot interfere; a manual re-run cancels the stale run cleanly.
 
+#### Failure C — Tags 1.4.1-rc4 / 1.4.1-rc5: "fatal: not a git repository"
+
+**Root cause:** The `release` job (introduced as part of the gh-CLI rewrite) lacked `actions/checkout@v4`. The `gh release create --generate-notes` command invokes git internally to generate release notes from the commit history between tags. Without a checked-out repository, git fails with:
+```
+fatal: not a git repository (or any of the parent directories): .git
+```
+
+**Fix:** Add `actions/checkout@v4` with `fetch-depth: 0` as the first step of the `release` job, followed by a defensive `git rev-parse --show-toplevel` check that fails early with a clear error if the checkout is missing.
+
 ### Risks
 
 - `gh release create --generate-notes` requires the tag to exist on the remote; this is satisfied because the job only runs on `refs/tags/*` pushes.
@@ -73,11 +82,13 @@ This was a workflow re-run (attempt 2). The version code `6630` was computed fro
 
 ### Checklist
 
-- [x] Root cause documented
-- [x] Replace release job in `build.yml`
-- [x] GitHub release step before Play upload, gh CLI with retry
+- [x] Root cause documented (Failure A: softprops race, Failure B: Play version code, Failure C: missing checkout)
+- [x] Replace release job in `build.yml` with gh CLI + retry
+- [x] GitHub release step before Play upload
 - [x] Play upload with `continue-on-error: true`
 - [x] Remove hard "Require Play service account" gate
+- [x] Add `actions/checkout@v4` (fetch-depth: 0) to release job
+- [x] Add defensive `git rev-parse` pre-check before publishing
 - [x] `code_review` + `codeql_checker` passed
 - [ ] CI green on tag push
 
