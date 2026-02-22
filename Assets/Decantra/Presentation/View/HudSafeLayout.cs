@@ -16,6 +16,12 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
+        private const int GridRows = 3;
+        private const int TwoRowBottleThreshold = 6;
+        private const int ExternalGridPadding = 0;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private const float LayoutAssertTolerance = 0.5f;
+#endif
         [SerializeField] private RectTransform topHud;
         [SerializeField] private RectTransform secondaryHud;
         [SerializeField] private RectTransform brandLockup;
@@ -105,15 +111,7 @@ namespace Decantra.Presentation.View
         private bool HasBottleActivationChanged()
         {
             if (bottleGrid == null) return false;
-
-            int activeCount = 0;
-            for (int i = 0; i < bottleGrid.childCount; i++)
-            {
-                if (bottleGrid.GetChild(i).gameObject.activeSelf)
-                {
-                    activeCount++;
-                }
-            }
+            int activeCount = CountActiveBottles();
 
             if (activeCount == _lastActiveBottleCount)
             {
@@ -172,24 +170,26 @@ namespace Decantra.Presentation.View
             if (bottleGridLayout != null && availableHeight > 0f)
             {
                 int rows = ResolveGridRows();
-                float cellHeight = bottleGridLayout.cellSize.y;
-                if (rows > 0 && cellHeight > 0f)
+                float maxBottleHeight = ResolveMaxBottleHeight();
+                if (rows > 0 && maxBottleHeight > 0f)
                 {
-                    float idealGap = (availableHeight - (rows * cellHeight)) / (rows + 1f);
+                    float idealGap = (availableHeight - (rows * maxBottleHeight)) / (rows + 1f);
                     if (idealGap > 0f)
                     {
-                        int gapPx = Mathf.RoundToInt(idealGap);
                         bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, idealGap);
                         bottleGridLayout.padding = new RectOffset(
                             _baseGridPadding.left,
                             _baseGridPadding.right,
-                            gapPx,
-                            gapPx);
+                            ExternalGridPadding,
+                            ExternalGridPadding);
                         bottleGrid.sizeDelta = new Vector2(
                             bottleGrid.sizeDelta.x,
-                            rows * cellHeight + (rows - 1f) * idealGap + 2f * idealGap);
+                            rows * maxBottleHeight + (rows - 1f) * idealGap);
                         gridHeight = bottleGrid.sizeDelta.y;
                         appliedEqualGaps = true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                        AssertEqualGapModel(desiredTop, desiredBottom, rows, maxBottleHeight, idealGap, topBottom);
+#endif
                     }
                 }
             }
@@ -208,6 +208,89 @@ namespace Decantra.Presentation.View
             bottleGrid.anchoredPosition = Vector2.zero;
             LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
         }
+
+        private float ResolveMaxBottleHeight()
+        {
+            if (bottleGridLayout != null && bottleGridLayout.cellSize.y > 0f)
+            {
+                return bottleGridLayout.cellSize.y;
+            }
+
+            if (_gridLayoutCached && _baseGridSize.y > 0f)
+            {
+                return _baseGridSize.y / GridRows;
+            }
+
+            return 0f;
+        }
+
+        private int ResolveGridRows()
+        {
+            int activeBottleCount = CountActiveBottles();
+            if (activeBottleCount <= 0)
+            {
+                // Keep canonical board height when no bottles are active (startup/transient state).
+                return GridRows;
+            }
+
+            return activeBottleCount <= TwoRowBottleThreshold ? 2 : GridRows;
+        }
+
+        private int CountActiveBottles()
+        {
+            if (bottleGrid == null) return 0;
+            int activeCount = 0;
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                if (bottleGrid.GetChild(i).gameObject.activeSelf)
+                {
+                    activeCount++;
+                }
+            }
+
+            return activeCount;
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private void AssertEqualGapModel(float screenTopY, float screenBottomY, int rows, float maxBottleHeight, float gapHeight, float hudBottomY)
+        {
+            Debug.Assert(gapHeight > 0f, $"HudSafeLayout gapHeight must be positive. gap={gapHeight}");
+
+            float row1Top = screenTopY - gapHeight;
+            float currentTop = row1Top;
+            float rowBottom = currentTop;
+            for (int i = 0; i < rows; i++)
+            {
+                rowBottom = currentTop - maxBottleHeight;
+                currentTop = rowBottom - gapHeight;
+            }
+
+            float bottomGap = rowBottom - screenBottomY;
+
+            Debug.Assert(Mathf.Abs(bottomGap - gapHeight) <= LayoutAssertTolerance,
+                $"HudSafeLayout bottom gap mismatch. expected={gapHeight} actual={bottomGap}");
+
+            Debug.Assert(row1Top < hudBottomY - LayoutAssertTolerance,
+                $"HudSafeLayout row1 touches/intersects HUD. row1Top={row1Top}, hudBottom={hudBottomY}");
+
+            if (bottleGrid == null || _root == null) return;
+            for (int i = 0; i < bottleGrid.childCount; i++)
+            {
+                var child = bottleGrid.GetChild(i) as RectTransform;
+                if (child == null || !child.gameObject.activeInHierarchy) continue;
+                child.GetWorldCorners(_corners);
+                float childTop = float.NegativeInfinity;
+                for (int c = 0; c < _corners.Length; c++)
+                {
+                    var local = _root.InverseTransformPoint(_corners[c]);
+                    childTop = Mathf.Max(childTop, local.y);
+                }
+
+                Debug.Assert(childTop <= hudBottomY - LayoutAssertTolerance,
+                    $"HudSafeLayout bottle intersects HUD. top={childTop}, hudBottom={hudBottomY}");
+            }
+        }
+#endif
 
         private void EnsureGridLayoutCache()
         {
@@ -239,19 +322,6 @@ namespace Decantra.Presentation.View
                 _baseGridPadding.top,
                 _baseGridPadding.bottom);
             bottleGrid.sizeDelta = _baseGridSize;
-        }
-
-        private int ResolveGridRows()
-        {
-            if (bottleGrid == null) return 3;
-            int columns = 3;
-            if (bottleGridLayout != null && bottleGridLayout.constraint == GridLayoutGroup.Constraint.FixedColumnCount)
-            {
-                columns = Mathf.Max(1, bottleGridLayout.constraintCount);
-            }
-            int childCount = bottleGrid.childCount;
-            if (childCount <= 0) return 3;
-            return Mathf.Max(1, Mathf.CeilToInt(childCount / (float)columns));
         }
 
         private float GetMinY(RectTransform rect)

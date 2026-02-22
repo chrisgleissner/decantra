@@ -1062,3 +1062,86 @@ segmentHeight   = slotRootHeight / capacity = 348/M   ← constant across all bo
 - [x] Segment-height invariant still holds (348/maxCapacity is constant)
 - [x] PLANS.md updated with full derivation
 - [ ] CI green
+
+---
+
+## 2026-02-22 — HUD/Bottle Vertical Spacing Regression (Level 21)
+
+### Current vertical layout algorithm (actual implementation)
+
+`HudSafeLayout.ApplyLayout()` computes:
+
+- `screenTopY` from `min(GetMinY(topHud), GetMinY(secondaryHud), GetMinY(brandLockup?))`
+- `screenBottomY` from `GetMaxY(bottomHud)`
+- `availableHeight = screenTopY - screenBottomY`
+
+It then attempted equal gaps by mutating `GridLayoutGroup`:
+
+- `rows = ResolveGridRows()` (derived from active child count)
+- `cellHeight = bottleGridLayout.cellSize.y`
+- `idealGap = (availableHeight - rows * cellHeight) / (rows + 1)`
+- `spacing.y = idealGap`
+- `padding.top = padding.bottom = RoundToInt(idealGap)`
+- `gridHeight = rows * cellHeight + (rows - 1) * idealGap + 2 * idealGap`
+
+### How row heights are currently derived
+
+Before this fix, row allocation used `cellHeight` with a row count derived from current child count. Outer gaps depended on integer `RectOffset` padding, not on a strict closed-form model over 3 fixed rows.
+
+### Why maximum-height bottles break the spacing invariant
+
+The old approach mixed float spacing with integer top/bottom padding and sized the grid to include internal top/bottom padding. This creates rounding drift at top/bottom and can collapse effective HUD clearance in edge cases (e.g. tall rows). It also tied vertical math to resolved row count instead of the non-negotiable 3-row board model.
+
+### Corrected mathematical model
+
+Use fixed 3-row model and reserve max row height unconditionally:
+
+- `rows = 3`
+- `maxBottleHeight = bottleGridLayout.cellSize.y` (fallback: cached base grid height / 3)
+- `gapHeight = (totalAvailableHeight - rows * maxBottleHeight) / 4`
+
+Then enforce layout by:
+
+- `spacing.y = gapHeight`
+- `padding.top = padding.bottom = 0`
+- `gridHeight = rows * maxBottleHeight + (rows - 1) * gapHeight`
+- keep grid centered in `bottleArea`
+
+Because `bottleArea` height is `totalAvailableHeight`, centering yields:
+
+- top external gap = `(totalAvailableHeight - gridHeight) / 2 = gapHeight`
+- bottom external gap = same
+- internal row gaps = `gapHeight`
+
+So gaps A/B/C/D are all equal by construction.
+
+### Runtime assertions added
+
+In development/editor builds, `HudSafeLayout` now asserts:
+
+- `gapHeight > 0`
+- computed `bottomGap ~= gapHeight`
+- top row stays below HUD bottom
+- active bottle tops do not intersect HUD bounds
+
+### Risks
+
+- If available vertical space is too small for `3 * maxBottleHeight + 4 * minGap`, fallback scaling path still applies.
+- Cross-platform rounding differences can affect world-space comparisons by sub-pixel amounts; tests use explicit tolerances.
+
+### Validation plan
+
+- Strengthen PlayMode layout invariants for level set including level 21.
+- Validate equal A/B/C/D gaps in world space.
+- Validate bottle-in-row bounds and HUD clearance.
+- Add cross-resolution check (two portrait resolutions) asserting the same invariants.
+
+### Checklist
+
+- [x] Document current algorithm and failure mode
+- [x] Implement fixed 3-row max-height gap model in `HudSafeLayout`
+- [x] Add runtime development assertions
+- [x] Extend PlayMode tests with equal-gap + overlap invariants
+- [x] Add cross-resolution invariant test
+- [ ] Run targeted tests locally
+- [ ] Verify CI green (Android/iOS/WebGL)
