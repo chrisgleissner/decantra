@@ -3,6 +3,91 @@
 Last updated: 2026-02-22 UTC  
 Execution engineer: GitHub Copilot
 
+## 2026-02-22 — Release Workflow Hardening
+
+### Root Cause Investigation
+
+Two distinct failures were observed in tag-triggered release workflows.
+
+#### Failure A — Run 22261973890 (tag `1.4.0`): `softprops/action-gh-release` finalization race
+
+**Observed log:**
+```
+Finalizing release...
+retrying... (2 retries remaining)
+retrying... (1 retries remaining)
+retrying... (0 retries remaining)
+❌ Too many retries. Aborting...
+```
+
+All four artifacts (APK, AAB, IPA, xcodebuild-archive.log) uploaded successfully before the failure.
+Google Play upload also succeeded.
+
+**Analysis of retry timing:** The three retries elapsed in ~0.3 s total (~100 ms each). This is not a transient network timeout; the GitHub API was returning an error immediately and consistently.
+
+**Root cause:** `softprops/action-gh-release@v2` (SHA `a06a81a03`) uses a three-phase flow:
+1. Create release draft via `POST /repos/{owner}/{repo}/releases`
+2. Upload assets against the draft
+3. "Finalize" (publish) the draft via `PATCH /repos/{owner}/{repo}/releases/{id}`
+
+The `push: tags` trigger caused GitHub to internally associate the tag with a release at creation time. When the action tried to call `PATCH /releases/{id}` with `draft: false`, the API returned a non-2xx response (likely **422 Unprocessable Entity** — the release was already non-draft or in a conflicting state from a concurrent in-flight patch), and the action's retry loop ran instantly with zero backoff, exhausting all retries in under a second.
+
+**Contributing factors checked:**
+- Rate limiting: ✗ (retries were instant, not 429-related)
+- Concurrent workflow: ✗ (only one run existed for that tag)
+- Recursive release trigger: ✗ (workflow uses `push: tags`, not `release: [published]`, confirmed in memory)
+- Tag collision: ✗ (tag was unique)
+- Large asset edge case: ✗ (assets uploaded before finalization failed)
+- **Conclusion:** Structural API conflict during draft→publish transition in `softprops/action-gh-release@v2`.
+
+#### Failure B — Run 22277667294 (tag `1.4.1-rc4`, attempt 2): Google Play version code collision
+
+**Observed log:**
+```
+##[error]Version code 6630 has already been used.
+```
+
+This was a workflow re-run (attempt 2). The version code `6630` was computed from `1000 + RUN_NUMBER * 10 + RUN_ATTEMPT - 1`, and the AAB with that code was already uploaded during attempt 1. Google Play rejects duplicate version codes. Because the Play upload step lacked `continue-on-error: true`, it failed the entire job — preventing the GitHub release from being created at all.
+
+### Design Decisions
+
+1. **Replace `softprops/action-gh-release` with `gh` CLI**: The `gh` CLI (pre-installed on all GitHub-hosted runners) provides direct, auditable control over `gh release create` and `gh release upload --clobber`. We gain idempotency (check-then-create/upload pattern) and explicit retry logic with exponential backoff.
+
+2. **Ordering reversal — GitHub release before Google Play**: The GitHub release must be created first so artifacts are always preserved, even if Play upload fails or is not possible (e.g., duplicate version code on rerun).
+
+3. **`continue-on-error: true` on Play upload**: Google Play upload is a distribution step, not a release gate. Any failure (duplicate version code, quota, API error) must not prevent the GitHub release from existing.
+
+4. **Remove the hard "Require Play service account" gate**: The `exit 1` check blocked the entire job when `PLAY_SERVICE_ACCOUNT_JSON` was missing. With `continue-on-error: true` on the upload step, the secret absence will surface as a step failure that is tolerated.
+
+5. **Retry loop (3 attempts, 15s/30s backoff)**: The `gh release create` / `gh release upload` loop retries up to 3 times. On each failure it waits `attempt × 15` seconds before retrying, giving the GitHub API time to recover from transient states.
+
+6. **Idempotency via `--clobber`**: If the release already exists (e.g., partial prior run), the loop uses `gh release upload --clobber` to overwrite existing assets rather than failing.
+
+7. **Concurrency guard unchanged**: The top-level `concurrency.group: ${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true` is sufficient — each tag has a unique ref, so concurrent tag runs cannot interfere; a manual re-run cancels the stale run cleanly.
+
+### Risks
+
+- `gh release create --generate-notes` requires the tag to exist on the remote; this is satisfied because the job only runs on `refs/tags/*` pushes.
+- If both `create` and `upload` arms of the retry loop fail on all 3 attempts, the job correctly fails with an explicit error message.
+- Play upload still runs (with `continue-on-error: true`) and a `::warning::` annotation is emitted if it fails, providing visibility without blocking the workflow.
+
+### Checklist
+
+- [x] Root cause documented
+- [x] Replace release job in `build.yml`
+- [x] GitHub release step before Play upload, gh CLI with retry
+- [x] Play upload with `continue-on-error: true`
+- [x] Remove hard "Require Play service account" gate
+- [x] `code_review` + `codeql_checker` passed
+- [ ] CI green on tag push
+
+### Touched files
+
+- `.github/workflows/build.yml`
+- `PLANS.md`
+
+---
+
 ## 2026-02-22 — UX reset/tutorial/HUD adjustments
 
 - [x] Inspect reset, tutorial, HUD, and options wiring to identify minimal touch points.

@@ -470,6 +470,7 @@ jobs:
     permissions:
       contents: write
     env:
+      GH_TOKEN: ${{ github.token }}
       PLAY_PACKAGE_NAME: uk.gleissner.decantra
     steps:
       - uses: actions/download-artifact@v4
@@ -482,16 +483,47 @@ jobs:
           name: Decantra-iOS
           path: release-artifacts/ios
 
-      - name: Require Play service account secret
-        env:
-          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      - name: Publish GitHub release (with retry)
         run: |
-          if [[ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
-            echo "PLAY_SERVICE_ACCOUNT_JSON is missing or empty." >&2
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          mapfile -t FILES < <(find release-artifacts -type f | sort)
+          echo "Artifacts to publish (${#FILES[@]}): ${FILES[*]}"
+
+          published=false
+          for attempt in 1 2 3; do
+            echo "Attempt ${attempt}/3: publishing GitHub release for tag ${TAG}..."
+            if gh release view "${TAG}" > /dev/null 2>&1; then
+              echo "Release ${TAG} already exists — uploading/overwriting artifacts..."
+              if gh release upload "${TAG}" "${FILES[@]}" --clobber; then
+                published=true
+                break
+              fi
+            else
+              if gh release create "${TAG}" \
+                  --title "${TAG}" \
+                  --generate-notes \
+                  "${FILES[@]}"; then
+                published=true
+                break
+              fi
+            fi
+            if [[ ${attempt} -lt 3 ]]; then
+              backoff=$((15 * (2 ** (attempt - 1))))
+              echo "Attempt ${attempt} failed. Retrying in ${backoff}s..."
+              sleep "${backoff}"
+            fi
+          done
+
+          if [[ "${published}" != "true" ]]; then
+            echo "::error::GitHub release publishing failed after 3 attempts."
             exit 1
           fi
+          echo "GitHub release for ${TAG} published successfully."
 
       - name: Upload AAB to Google Play
+        id: play_upload
+        continue-on-error: true
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -500,7 +532,13 @@ jobs:
           track: internal
           status: draft
 
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-artifacts/**/*
+      - name: Report Google Play upload outcome
+        if: always()
+        run: |
+          if [[ "${{ steps.play_upload.outcome }}" == "failure" ]]; then
+            echo "::warning::Google Play upload failed. Artifacts remain attached to the GitHub release."
+          elif [[ "${{ steps.play_upload.outcome }}" == "skipped" ]]; then
+            echo "::notice::Google Play upload was skipped."
+          else
+            echo "Google Play upload completed successfully."
+          fi
