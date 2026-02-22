@@ -124,7 +124,7 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "highlight-bottles",
                 "Bottle_1",
-                "These are your bottles. To pour, press and drag a source bottle. Tapping does not pour."
+                "These are your bottles. To pour, press and drag a bottle."
             ));
             _steps.Add(new TutorialStepData(
                 "drag-pour",
