@@ -14,6 +14,18 @@ namespace Decantra.Domain.Scoring
 {
     public static class PerformanceTracker
     {
+        public readonly struct CompletionFeedback
+        {
+            public CompletionFeedback(string message, bool isPersonalBest)
+            {
+                Message = message;
+                IsPersonalBest = isPersonalBest;
+            }
+
+            public string Message { get; }
+            public bool IsPersonalBest { get; }
+        }
+
         public static LevelPerformanceRecord GetBest(ProgressData data, int levelIndex)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
@@ -68,6 +80,82 @@ namespace Decantra.Domain.Scoring
             }
         }
 
+        public static CompletionFeedback RecordCompletion(
+            ProgressData data,
+            int levelIndex,
+            int stars,
+            int moves,
+            int optimalMoves,
+            float efficiency,
+            PerformanceGrade grade)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            if (levelIndex <= 0) throw new ArgumentOutOfRangeException(nameof(levelIndex));
+
+            if (data.BestPerformances == null)
+            {
+                data.BestPerformances = new List<LevelPerformanceRecord>();
+            }
+
+            int clampedStars = Math.Max(0, Math.Min(5, stars));
+            int safeMoves = Math.Max(0, moves);
+            int deviation = Math.Max(0, safeMoves - Math.Max(0, optimalMoves));
+
+            var existing = GetBest(data, levelIndex);
+            bool hadRecord = existing != null;
+            int previousBestStars = hadRecord ? existing.BestStars : 0;
+            int previousBestMoves = hadRecord ? existing.BestMoves : 0;
+            bool improvedStars = clampedStars > previousBestStars;
+            bool improvedMoves = safeMoves > 0 && (previousBestMoves <= 0 || safeMoves < previousBestMoves);
+            bool isPersonalBest = improvedStars || improvedMoves || !hadRecord;
+
+            if (!hadRecord)
+            {
+                existing = new LevelPerformanceRecord { LevelIndex = levelIndex };
+                data.BestPerformances.Add(existing);
+            }
+
+            existing.TimesCompleted = Math.Max(0, existing.TimesCompleted) + 1;
+
+            if (improvedStars || existing.BestStars <= 0)
+            {
+                existing.BestStars = clampedStars;
+            }
+
+            if (improvedStars)
+            {
+                existing.BestMoves = safeMoves;
+                existing.BestDeviation = deviation;
+            }
+            else if (improvedMoves)
+            {
+                existing.BestMoves = safeMoves;
+                existing.BestDeviation = deviation;
+            }
+
+            if (efficiency > existing.BestEfficiency)
+            {
+                existing.BestEfficiency = efficiency;
+            }
+
+            if (GradeRank(grade) > GradeRank(existing.BestGrade))
+            {
+                existing.BestGrade = grade;
+            }
+
+            if (isPersonalBest)
+            {
+                return new CompletionFeedback("Personal best", true);
+            }
+
+            if (clampedStars == 5)
+            {
+                return new CompletionFeedback(previousBestStars == 5 ? "Optimal again" : "Optimal", false);
+            }
+
+            return new CompletionFeedback($"{deviation} moves to optimal", false);
+        }
+
         private static int GradeRank(PerformanceGrade grade)
         {
             return (int)grade;
@@ -78,7 +166,10 @@ namespace Decantra.Domain.Scoring
             return new LevelPerformanceRecord
             {
                 LevelIndex = record.LevelIndex,
+                BestStars = record.BestStars,
                 BestMoves = record.BestMoves,
+                BestDeviation = record.BestDeviation,
+                TimesCompleted = record.TimesCompleted,
                 BestEfficiency = record.BestEfficiency,
                 BestGrade = record.BestGrade
             };

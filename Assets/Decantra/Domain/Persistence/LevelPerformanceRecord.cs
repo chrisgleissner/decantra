@@ -15,7 +15,10 @@ namespace Decantra.Domain.Persistence
     public sealed class LevelPerformanceRecord
     {
         public int LevelIndex;
+        public int BestStars;
         public int BestMoves;
+        public int BestDeviation;
+        public int TimesCompleted;
         public float BestEfficiency;
         public PerformanceGrade BestGrade;
     }

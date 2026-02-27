@@ -127,7 +127,10 @@ namespace Decantra.App.Services
                 CurrentSeed = 0,
                 CurrentScore = 0,
                 HighScore = 0,
-                StarBalance = 0
+                StarBalance = 0,
+                CompletedLevels = new List<int>(),
+                UnlockedThemes = new List<string>(),
+                BestPerformances = new List<LevelPerformanceRecord>()
             };
         }
 
@@ -140,6 +143,11 @@ namespace Decantra.App.Services
             if (data.HighScore < 0) data.HighScore = 0;
             if (data.StarBalance < 0) data.StarBalance = 0;
             if (data.CompletedLevels == null) data.CompletedLevels = new List<int>();
+            if (data.UnlockedThemes == null) data.UnlockedThemes = new List<string>();
+            if (data.SessionCurrentPerfectStreak < 0) data.SessionCurrentPerfectStreak = 0;
+            if (data.SessionBestPerfectStreak < 0) data.SessionBestPerfectStreak = 0;
+            if (data.LifetimeBestPerfectStreak < 0) data.LifetimeBestPerfectStreak = 0;
+            if (data.LifetimeOptimalCount < 0) data.LifetimeOptimalCount = 0;
             if (data.BestPerformances == null) data.BestPerformances = new List<LevelPerformanceRecord>();
         }
     }

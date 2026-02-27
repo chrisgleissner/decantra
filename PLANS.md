@@ -1,7 +1,25 @@
 # PLANS
 
-Last updated: 2026-02-22 UTC  
+Last updated: 2026-02-27 UTC  
 Execution engineer: GitHub Copilot
+
+## 2026-02-27 — Reset-safe streak/performance polish
+
+- [x] Define reset-safe model split in code: session progress resets, lifetime performance persists.
+- [x] Add strict perfect qualification (`stars == 5`, no auto-solve, no black-bottle conversion) and apply streak lifecycle updates.
+- [x] Preserve per-level best performance and lifetime streak/optimal counters on game reset.
+- [x] Add reset-safe personal-best resolution and completion messaging (`Personal best`, `Optimal again`, `X moves to optimal`).
+- [x] Add star-tier celebration mapping and deterministic transition style rotation (`levelIndex % 4`).
+- [x] Add upward-only star brilliance scaling (emission/glow/sparkle emphasis) with grand tier boost.
+- [x] Add focused tests for: strict perfect breaks, reset persistence, post-reset PB detection, tier mapping, style determinism.
+- [ ] Run available automated tests in this sandbox (Unity runner unavailable here) and capture UI validation screenshot once runnable.
+
+### Edge cases handled
+
+- Perfect streak always breaks for non-perfect completions (including assisted or under-5-star clears).
+- Reset clears session streak values but keeps lifetime streak record and per-level best stars/moves.
+- Existing save files are forward-compatible: new fields default to safe values.
+- Tier/style mapping clamps star count and normalizes modulo style index to deterministic `0..3`.
 
 ## 2026-02-22 — Release Workflow Hardening
 
