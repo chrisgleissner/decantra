@@ -1028,12 +1028,11 @@ namespace Decantra.Presentation.Controller
 
             if (levelBanner != null)
             {
-                PlayLevelCompleteSfx();
                 levelBanner.Show(
                     _currentLevel,
                     _lastStars,
                     awardedScore,
-                    false,
+                    _sfxEnabled,
                     onScoreApply,
                     () => finished = true,
                     completionMessage,

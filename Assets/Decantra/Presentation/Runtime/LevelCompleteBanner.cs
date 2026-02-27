@@ -252,7 +252,7 @@ namespace Decantra.Presentation
             var tag = messages[Mathf.Abs(level) % messages.Length];
             levelText.text = string.IsNullOrWhiteSpace(_completionDetailMessage)
                 ? $"LEVEL {level + 1}\n{tag}"
-                : $"LEVEL {level + 1}\n{tag}\n<size=75%>{_completionDetailMessage}</size>";
+                : $"LEVEL {level + 1}\n{tag}\n{_completionDetailMessage}";
             if (scoreText != null)
             {
                 scoreText.text = $"+{awardedScore}";

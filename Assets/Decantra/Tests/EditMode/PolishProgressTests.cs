@@ -31,7 +31,7 @@ namespace Decantra.Tests.EditMode
         public void Streak_Resets_OnNonPerfectCompletion()
         {
             var data = new ProgressData { SessionCurrentPerfectStreak = 4 };
-            PerfectStreakTracker.RecordCompletion(data, isPerfect: false, out bool _, out int _);
+            PerfectStreakTracker.RecordCompletion(data, isPerfect: false, out _, out _);
             Assert.AreEqual(0, data.SessionCurrentPerfectStreak);
         }
 

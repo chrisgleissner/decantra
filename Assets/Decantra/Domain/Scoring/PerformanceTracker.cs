@@ -106,7 +106,8 @@ namespace Decantra.Domain.Scoring
             int previousBestStars = hadRecord ? existing.BestStars : 0;
             int previousBestMoves = hadRecord ? existing.BestMoves : 0;
             bool improvedStars = clampedStars > previousBestStars;
-            bool improvedMoves = safeMoves > 0 && (previousBestMoves <= 0 || safeMoves < previousBestMoves);
+            bool sameStarTier = !hadRecord || clampedStars == previousBestStars || previousBestStars <= 0;
+            bool improvedMoves = sameStarTier && safeMoves > 0 && (previousBestMoves <= 0 || safeMoves < previousBestMoves);
             bool isPersonalBest = improvedStars || improvedMoves || !hadRecord;
 
             if (!hadRecord)
