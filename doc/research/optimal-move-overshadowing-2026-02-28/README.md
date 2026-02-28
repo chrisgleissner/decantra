@@ -20,9 +20,11 @@ allowed move count shrinks to near-zero, making "find the exact optimal sequence
 | Slack factor | 2.0× | ≈1.50× | 1.0× |
 | Optimal moves (typical) | 4 | 10 | 12 |
 | Allowed moves | 8 | 15 | 12 |
-| Spare moves | 4 | 5 | 0 |
+| Spare moves | 4 | 5 | **0** |
 
 At level 500 the slack factor reaches **1.0×** (`MoveAllowanceCalculator.ComputeSlackFactor`),
+which means allowed moves equals optimal moves — **zero spare moves**. This is the core
+problem this document addresses.
 meaning `movesAllowed == optimalMoves`. Other difficulty features (7 colours, 9 bottles,
 variable capacities 2–8, up to 5 sinks, high trap scores, low forced-move ratios) are
 already maxed out by level 100 (`LevelDifficultyEngine.MaxEffectiveLevel = 100`) and the
@@ -212,7 +214,8 @@ optimal paths. This makes "find *an* optimal path" less needle-in-haystack.
 | 3 | 4 | 4 | 3 | 5 | 5 | 5 | **4.00** |
 
 **Pros:** Purely generation-time change; no persistence impact; testable.  
-**Cons:** May conflict with `MinSolutionMultiplicity=1` in quality thresholds;
+**Cons:** `MinSolutionMultiplicity=1` is a floor (≥1), so preferring ≥2 is
+compatible but more selective, potentially reducing the valid candidate pool;
 multi-solution puzzles may feel "easier" to some.
 
 ### 3.6 — Capacity-Extremity Escalation
@@ -467,9 +470,11 @@ public static class ParCalculator
     public static int ComputePar(int optimalMoves, int movesAllowed)
     {
         int slack = movesAllowed - optimalMoves;
-        // When slack is ≤ 2, add a 1-move par buffer
-        // When slack is ≤ 5, add 1. When slack > 5, par = optimal.
-        int buffer = slack <= 2 ? 2 : (slack <= 5 ? 1 : 0);
+        // When slack is very tight, add a small par buffer
+        int buffer;
+        if (slack <= 2) buffer = 2;
+        else if (slack <= 5) buffer = 1;
+        else buffer = 0;
         return optimalMoves + buffer;
     }
 }
@@ -607,6 +612,8 @@ public static class ObjectiveSelector
     {
         if (levelIndex < 50) return null; // no objectives for early levels
         // Deterministic hash to pick from objective pool
+        // Note: HashCombine would be a new utility; implementation:
+        //   unchecked { return ((seed * 397) ^ levelIndex).GetHashCode(); }
         int roll = HashCombine(levelIndex, seed) % ObjectivePool.Length;
         return ObjectivePool[roll];
     }
