@@ -148,8 +148,8 @@
             }
           };
 
-          startOverlay.addEventListener("pointerdown", handler, { once: true });
-          startOverlay.addEventListener("click", handler, { once: true });
+          startOverlay.addEventListener("pointerdown", handler);
+          startOverlay.addEventListener("click", handler);
           startOverlay.addEventListener("keydown", keyHandler);
         });
       }

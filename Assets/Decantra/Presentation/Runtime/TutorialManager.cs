@@ -458,6 +458,7 @@ namespace Decantra.Presentation
         private readonly bool _shadowCreatedByUs;
         private readonly Color _baseShadowColor;
         private readonly Vector2 _baseShadowDistance;
+        private readonly bool _baseUseGraphicAlpha;
 
         public TutorialFocusPulse(RectTransform target)
         {
@@ -471,6 +472,7 @@ namespace Decantra.Presentation
             }
             _baseShadowColor = _shadow.effectColor;
             _baseShadowDistance = _shadow.effectDistance;
+            _baseUseGraphicAlpha = _shadow.useGraphicAlpha;
             _shadow.useGraphicAlpha = true;
         }
 
@@ -507,6 +509,7 @@ namespace Decantra.Presentation
                 {
                     _shadow.effectColor = _baseShadowColor;
                     _shadow.effectDistance = _baseShadowDistance;
+                    _shadow.useGraphicAlpha = _baseUseGraphicAlpha;
                 }
             }
         }
