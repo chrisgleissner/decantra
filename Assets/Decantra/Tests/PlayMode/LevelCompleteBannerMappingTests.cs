@@ -9,7 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 using Decantra.Presentation;
 using NUnit.Framework;
 
-namespace Decantra.Tests.EditMode
+namespace Decantra.Tests.PlayMode
 {
     public sealed class LevelCompleteBannerMappingTests
     {

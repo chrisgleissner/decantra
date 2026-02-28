@@ -1,7 +1,56 @@
 # PLANS
 
-Last updated: 2026-02-27 UTC  
+Last updated: 2026-02-28 UTC  
 Execution engineer: GitHub Copilot
+
+## 2026-02-28 — CI Build Failure Fix
+
+### Scope
+
+Workflows analyzed:
+- `.github/workflows/build.yml` — Android build, Unity tests, iOS build, release job
+- `.github/workflows/web.yml` — WebGL build + smoke tests  
+- `.github/workflows/ios.yml` — iOS-specific workflow
+
+### Failure Inventory
+
+| Workflow | Job | Failing Step | Error Signature |
+|----------|-----|--------------|-----------------|
+| `build.yml` | Unity tests (EditMode + PlayMode) | Run PlayMode tests | `error CS0234: The type or namespace name 'Presentation' does not exist in the namespace 'Decantra'` |
+| `web.yml` | Build WebGL and run smoke tests | Build Unity WebGL | `error CS0234: The type or namespace name 'Presentation' does not exist in the namespace 'Decantra'` |
+
+Both failures share the same root cause.
+
+### Root Cause Analysis
+
+**File:** `Assets/Decantra/Tests/EditMode/LevelCompleteBannerMappingTests.cs`
+
+**Problem:** The test file references `Decantra.Presentation.LevelCompleteBanner` (a MonoBehaviour in the Presentation layer), but it resides in the `Decantra.Domain.Tests` assembly which only has a reference to `Decantra.Domain`. The assembly definition (`Decantra.Domain.Tests.asmdef`) does not include `Decantra.Presentation` in its references, and it has `noEngineReferences: true`.
+
+**Why this matters:** The Domain.Tests assembly intentionally avoids Unity engine references to keep Domain logic pure C#. The test file was incorrectly placed here when it should be in PlayMode tests.
+
+### Fix Strategy
+
+- [x] Move `LevelCompleteBannerMappingTests.cs` and its `.meta` file from `Tests/EditMode/` to `Tests/PlayMode/`.
+- [x] Update namespace from `Decantra.Tests.EditMode` to `Decantra.Tests.PlayMode`.
+- [ ] Push changes and verify both workflows pass.
+
+### Verification Matrix
+
+| Check | Local | CI |
+|-------|-------|-----|
+| No CS0234 errors | ✓ File moved to assembly with Presentation reference | Pending workflow rerun |
+| Tests still run | N/A (Unity not available locally) | Pending workflow rerun |
+| Architecture preserved | ✓ Domain.Tests remains pure C# | ✓ |
+
+### Risk Register
+
+| Risk | Mitigation |
+|------|------------|
+| PlayMode test assembly may have different test execution behavior | Low risk — these are simple static method tests with no async/coroutine behavior |
+| Meta file GUID change | Acceptable — no external references to this test file |
+
+---
 
 ## 2026-02-27 — Reset-safe streak/performance polish
 
