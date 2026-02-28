@@ -10,7 +10,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -97,70 +96,69 @@ namespace Decantra.App.Editor
                 return;
             }
 
-            XDocument plist;
+            string plistText;
             try
             {
-                plist = XDocument.Load(plistPath, LoadOptions.PreserveWhitespace);
+                plistText = File.ReadAllText(plistPath);
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"IosBuild: Failed to load Info.plist at {plistPath}: {ex.Message}");
+                Debug.LogWarning($"IosBuild: Failed to read Info.plist at {plistPath}: {ex.Message}");
                 return;
             }
 
-            XElement root = plist.Root;
-            XElement dict = root?.Element("dict");
-            if (dict == null)
+            if (string.IsNullOrWhiteSpace(plistText))
             {
-                Debug.LogWarning($"IosBuild: Info.plist has no root dict at {plistPath}; skipping display-name enforcement.");
+                Debug.LogWarning($"IosBuild: Info.plist is empty at {plistPath}; skipping display-name enforcement.");
                 return;
             }
 
-            SetPlistString(dict, "CFBundleDisplayName", displayName);
-            SetPlistString(dict, "CFBundleName", displayName);
-            plist.Save(plistPath);
+            plistText = UpsertPlistString(plistText, "CFBundleDisplayName", displayName);
+            plistText = UpsertPlistString(plistText, "CFBundleName", displayName);
+
+            File.WriteAllText(plistPath, plistText);
 
             Debug.Log($"IosBuild: enforced CFBundleDisplayName/CFBundleName to '{displayName}'.");
         }
 
-        private static void SetPlistString(XElement dict, string keyName, string value)
+        private static string UpsertPlistString(string plistText, string keyName, string value)
         {
-            if (dict == null || string.IsNullOrWhiteSpace(keyName))
+            if (string.IsNullOrWhiteSpace(plistText) || string.IsNullOrWhiteSpace(keyName))
             {
-                return;
+                return plistText;
             }
 
-            XElement keyElement = dict
-                .Elements("key")
-                .FirstOrDefault(element => string.Equals(element.Value, keyName, StringComparison.Ordinal));
-
-            if (keyElement == null)
+            string keyPattern = $"(<key>\\s*{Regex.Escape(keyName)}\\s*</key>\\s*<string>)([^<]*)(</string>)";
+            if (Regex.IsMatch(plistText, keyPattern, RegexOptions.Singleline))
             {
-                dict.Add(new XElement("key", keyName));
-                dict.Add(new XElement("string", value));
-                return;
+                return Regex.Replace(
+                    plistText,
+                    keyPattern,
+                    $"$1{EscapePlistString(value)}$3",
+                    RegexOptions.Singleline);
             }
 
-            XElement valueElement = keyElement.ElementsAfterSelf().FirstOrDefault();
-            if (valueElement == null)
+            int dictCloseIndex = plistText.LastIndexOf("</dict>", StringComparison.Ordinal);
+            if (dictCloseIndex < 0)
             {
-                keyElement.AddAfterSelf(new XElement("string", value));
-                return;
+                return plistText;
             }
 
-            if (string.Equals(valueElement.Name.LocalName, "key", StringComparison.Ordinal))
+            string insertion = $"\n\t<key>{keyName}</key>\n\t<string>{EscapePlistString(value)}</string>\n";
+            return plistText.Insert(dictCloseIndex, insertion);
+        }
+
+        private static string EscapePlistString(string value)
+        {
+            if (value == null)
             {
-                valueElement.AddBeforeSelf(new XElement("string", value));
-                return;
+                return string.Empty;
             }
 
-            if (!string.Equals(valueElement.Name.LocalName, "string", StringComparison.Ordinal))
-            {
-                valueElement.ReplaceWith(new XElement("string", value));
-                return;
-            }
-
-            valueElement.Value = value;
+            return value
+                .Replace("&", "&amp;")
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;");
         }
 
         private static string ResolveBuildPath()
