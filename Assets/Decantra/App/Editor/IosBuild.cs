@@ -10,6 +10,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -19,6 +20,8 @@ namespace Decantra.App.Editor
     public static class IosBuild
     {
         private const string DefaultXcodeProjectPath = "Builds/iOS/Xcode";
+        private const string IosProductName = "Decantra";
+        private const string IosBundleId = "uk.gleissner.decantra";
 
         [MenuItem("Decantra/Build/iOS Simulator Xcode Project")]
         public static void BuildSimulatorXcodeProject()
@@ -41,8 +44,8 @@ namespace Decantra.App.Editor
             EditorUserBuildSettings.allowDebugging = developmentBuild;
             EditorUserBuildSettings.connectProfiler = false;
 
-            PlayerSettings.productName = "Cantra";
-            PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
+            PlayerSettings.productName = IosProductName;
+            PlayerSettings.applicationIdentifier = IosBundleId;
             PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, ManagedStrippingLevel.Medium);
             PlayerSettings.stripEngineCode = !developmentBuild;
@@ -76,7 +79,88 @@ namespace Decantra.App.Editor
                 throw new Exception($"iOS export failed: {report.summary.result}");
             }
 
+            EnforceIosDisplayNameInInfoPlist(outputPath, IosProductName);
             Debug.Log($"IosBuild: iOS Xcode project exported at {outputPath}");
+        }
+
+        private static void EnforceIosDisplayNameInInfoPlist(string xcodeProjectPath, string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(xcodeProjectPath) || string.IsNullOrWhiteSpace(displayName))
+            {
+                return;
+            }
+
+            string plistPath = Path.Combine(xcodeProjectPath, "Info.plist");
+            if (!File.Exists(plistPath))
+            {
+                Debug.LogWarning($"IosBuild: Info.plist not found at {plistPath}; skipping display-name enforcement.");
+                return;
+            }
+
+            XDocument plist;
+            try
+            {
+                plist = XDocument.Load(plistPath, LoadOptions.PreserveWhitespace);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"IosBuild: Failed to load Info.plist at {plistPath}: {ex.Message}");
+                return;
+            }
+
+            XElement root = plist.Root;
+            XElement dict = root?.Element("dict");
+            if (dict == null)
+            {
+                Debug.LogWarning($"IosBuild: Info.plist has no root dict at {plistPath}; skipping display-name enforcement.");
+                return;
+            }
+
+            SetPlistString(dict, "CFBundleDisplayName", displayName);
+            SetPlistString(dict, "CFBundleName", displayName);
+            plist.Save(plistPath);
+
+            Debug.Log($"IosBuild: enforced CFBundleDisplayName/CFBundleName to '{displayName}'.");
+        }
+
+        private static void SetPlistString(XElement dict, string keyName, string value)
+        {
+            if (dict == null || string.IsNullOrWhiteSpace(keyName))
+            {
+                return;
+            }
+
+            XElement keyElement = dict
+                .Elements("key")
+                .FirstOrDefault(element => string.Equals(element.Value, keyName, StringComparison.Ordinal));
+
+            if (keyElement == null)
+            {
+                dict.Add(new XElement("key", keyName));
+                dict.Add(new XElement("string", value));
+                return;
+            }
+
+            XElement valueElement = keyElement.ElementsAfterSelf().FirstOrDefault();
+            if (valueElement == null)
+            {
+                keyElement.AddAfterSelf(new XElement("string", value));
+                return;
+            }
+
+            if (string.Equals(valueElement.Name.LocalName, "key", StringComparison.Ordinal))
+            {
+                valueElement.AddBeforeSelf(new XElement("string", value));
+                return;
+            }
+
+            if (!string.Equals(valueElement.Name.LocalName, "string", StringComparison.Ordinal))
+            {
+                valueElement.ReplaceWith(new XElement("string", value));
+                return;
+            }
+
+            valueElement.Value = value;
         }
 
         private static string ResolveBuildPath()

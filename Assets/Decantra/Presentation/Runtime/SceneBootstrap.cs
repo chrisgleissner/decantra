@@ -92,6 +92,7 @@ namespace Decantra.Presentation
             var existingController = Object.FindFirstObjectByType<GameController>();
             if (existingController != null && HasRequiredWiring(existingController))
             {
+                EnsureRuntimeCanvasConfiguration(cameras);
                 EnsureBackgroundRendering(existingController, cameras);
                 EnsurePortraitGameplayContainers();
                 EnsureRestartDialog(existingController);
@@ -258,7 +259,7 @@ namespace Decantra.Presentation
             var dialog = root != null ? root.GetComponent<ResetLevelDialog>() : null;
             if (dialog == null)
             {
-                var canvas = Object.FindFirstObjectByType<Canvas>();
+                var canvas = FindOrCreateUiCanvas();
                 if (canvas == null) return;
                 dialog = CreateResetLevelDialog(canvas.transform);
             }
@@ -276,7 +277,7 @@ namespace Decantra.Presentation
             var manager = root != null ? root.GetComponent<TutorialManager>() : null;
             if (manager == null)
             {
-                var canvas = Object.FindFirstObjectByType<Canvas>();
+                var canvas = FindOrCreateUiCanvas();
                 if (canvas == null) return;
                 manager = CreateTutorialOverlay(canvas.transform);
             }
@@ -311,7 +312,7 @@ namespace Decantra.Presentation
                 }
                 else
                 {
-                    var canvas = Object.FindFirstObjectByType<Canvas>();
+                    var canvas = FindOrCreateUiCanvas();
                     if (canvas != null)
                     {
                         var created = CreateOptionsOverlay(canvas.transform, controller);
@@ -333,7 +334,7 @@ namespace Decantra.Presentation
                 var existingHighContrast = FindObjectByNameIncludingInactive("HighContrastOverlay", targetScene);
                 if (existingHighContrast == null)
                 {
-                    var canvas = Object.FindFirstObjectByType<Canvas>();
+                    var canvas = FindOrCreateUiCanvas();
                     if (canvas != null)
                     {
                         existingHighContrast = CreateHighContrastOverlay(canvas.transform);
@@ -369,7 +370,7 @@ namespace Decantra.Presentation
                     Transform parent = options != null ? options.transform : null;
                     if (parent == null)
                     {
-                        var canvas = Object.FindFirstObjectByType<Canvas>();
+                        var canvas = FindOrCreateUiCanvas();
                         parent = canvas != null ? canvas.transform : null;
                     }
 
@@ -413,7 +414,7 @@ namespace Decantra.Presentation
                     var parent = options != null ? options.transform : null;
                     if (parent == null)
                     {
-                        var canvas = Object.FindFirstObjectByType<Canvas>();
+                        var canvas = FindOrCreateUiCanvas();
                         parent = canvas != null ? canvas.transform : null;
                     }
 
@@ -456,7 +457,7 @@ namespace Decantra.Presentation
                     var parent = options != null ? options.transform : null;
                     if (parent == null)
                     {
-                        var canvas = Object.FindFirstObjectByType<Canvas>();
+                        var canvas = FindOrCreateUiCanvas();
                         parent = canvas != null ? canvas.transform : null;
                     }
 
@@ -604,7 +605,7 @@ namespace Decantra.Presentation
             var overlayGo = GameObject.Find("LevelJumpOverlay");
             if (overlayGo == null)
             {
-                var canvas = Object.FindFirstObjectByType<Canvas>();
+                var canvas = FindOrCreateUiCanvas();
                 if (canvas == null) return;
                 var created = CreateLevelJumpOverlay(canvas.transform);
                 SetPrivateField(controller, "levelJumpOverlay", created.Root);
@@ -738,19 +739,29 @@ namespace Decantra.Presentation
         {
             var canvasGo = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
+            EnsureCanvasConfiguration(canvas, camera, layer, pixelPerfect);
+            return canvas;
+        }
+
+        private static void EnsureCanvasConfiguration(Canvas canvas, Camera camera, int layer, bool pixelPerfect)
+        {
+            if (canvas == null)
+            {
+                return;
+            }
+
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.worldCamera = camera;
             canvas.planeDistance = 10f;
             canvas.pixelPerfect = pixelPerfect;
 
-            var scaler = canvasGo.GetComponent<CanvasScaler>();
+            var scaler = canvas.GetComponent<CanvasScaler>() ?? canvas.gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.referenceResolution = new Vector2(1080f, 1920f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 1f;
 
-            SetLayerRecursively(canvasGo, layer);
-            return canvas;
+            SetLayerRecursively(canvas.gameObject, layer);
         }
 
         private static RectTransform EnsureGameplayContainer(Canvas canvas)
@@ -868,7 +879,52 @@ namespace Decantra.Presentation
                 }
             }
 
-            return Object.FindFirstObjectByType<Canvas>();
+            var allCanvases = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            Canvas best = null;
+            int bestScore = int.MinValue;
+            for (int i = 0; i < allCanvases.Length; i++)
+            {
+                var canvas = allCanvases[i];
+                if (canvas == null)
+                {
+                    continue;
+                }
+
+                int score = 0;
+                if (canvas.name.Contains("UI")) score += 1000;
+                if (canvas.renderMode == RenderMode.ScreenSpaceOverlay) score += 100;
+                if (canvas.worldCamera != null) score += Mathf.RoundToInt(canvas.worldCamera.depth * 10f);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = canvas;
+                }
+            }
+
+            return best;
+        }
+
+        private static void EnsureRuntimeCanvasConfiguration(RenderCameras cameras)
+        {
+            var background = GameObject.Find("Canvas_Background")?.GetComponent<Canvas>();
+            var game = GameObject.Find("Canvas_Game")?.GetComponent<Canvas>();
+            var ui = GameObject.Find("Canvas_UI")?.GetComponent<Canvas>();
+
+            if (background != null)
+            {
+                EnsureCanvasConfiguration(background, cameras.Background, GetLayerIndex("BackgroundClouds"), false);
+            }
+
+            if (game != null)
+            {
+                EnsureCanvasConfiguration(game, cameras.Game, GetLayerIndex("Game"), false);
+            }
+
+            if (ui != null)
+            {
+                EnsureCanvasConfiguration(ui, cameras.UI, GetLayerIndex("UI"), true);
+            }
         }
 
         private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
@@ -2493,11 +2549,13 @@ namespace Decantra.Presentation
             instructionText.fontStyle = FontStyle.Normal;
             instructionText.lineSpacing = 1.16f;
             instructionText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            instructionText.verticalOverflow = VerticalWrapMode.Overflow;
+            instructionText.verticalOverflow = VerticalWrapMode.Truncate;
             instructionText.text = "Tutorial";
             instructionText.color = ModalDesignTokens.Colors.PrimaryText;
+            instructionText.supportRichText = false;
             var instructionElement = instructionText.gameObject.AddComponent<LayoutElement>();
             instructionElement.flexibleHeight = 1f;
+            instructionElement.flexibleWidth = 1f;
             instructionElement.minHeight = 260f;
 
             var buttonsRow = CreateUiChild(instructionPanel.transform, "ButtonsRow");
@@ -3159,7 +3217,7 @@ namespace Decantra.Presentation
                 return;
             }
 
-            var canvas = Object.FindFirstObjectByType<Canvas>();
+            var canvas = FindOrCreateUiCanvas();
             if (canvas == null) return;
             var result = CreateScoreDetailsOverlay(canvas.transform, controller);
             SetPrivateField(controller, "_scoreDetailsOverlay", result.Root);
