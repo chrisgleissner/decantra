@@ -796,13 +796,13 @@ namespace Decantra.Presentation
             var hudRoot = GameObject.Find("Hud")?.transform;
             if (hudRoot != null && uiGameplay != null && hudRoot.parent != uiGameplay)
             {
-                hudRoot.SetParent(uiGameplay, true);
+                hudRoot.SetParent(uiGameplay, false);
             }
 
             var bottleArea = GameObject.Find("BottleArea")?.transform;
             if (bottleArea != null && gameGameplay != null && bottleArea.parent != gameGameplay)
             {
-                bottleArea.SetParent(gameGameplay, true);
+                bottleArea.SetParent(gameGameplay, false);
             }
         }
 

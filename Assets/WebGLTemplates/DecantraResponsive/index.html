@@ -12,7 +12,7 @@
   </head>
   <body>
     <div id="unity-root">
-      <div id="unity-start-overlay" class="unity-hidden" role="button" aria-label="Click to start">
+      <div id="unity-start-overlay" class="unity-hidden" role="button" tabindex="0" aria-label="Click to start">
         <div id="unity-start-panel">
           <div id="unity-start-title">Decantra</div>
           <div id="unity-start-subtitle">Click to start</div>
@@ -131,6 +131,7 @@
           const handler = async () => {
             startOverlay.removeEventListener("pointerdown", handler);
             startOverlay.removeEventListener("click", handler);
+            startOverlay.removeEventListener("keydown", keyHandler);
             try {
               await requestFullscreenForRoot();
             } catch (error) {
@@ -140,8 +141,16 @@
             resolve();
           };
 
+          const keyHandler = (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handler();
+            }
+          };
+
           startOverlay.addEventListener("pointerdown", handler, { once: true });
           startOverlay.addEventListener("click", handler, { once: true });
+          startOverlay.addEventListener("keydown", keyHandler);
         });
       }
 
@@ -182,7 +191,6 @@
 
             document.addEventListener("fullscreenchange", forceResize);
             document.addEventListener("webkitfullscreenchange", forceResize);
-            window.addEventListener("resize", forceResize);
 
             if (!isMobile && isFullscreenEnabled() && !isFullscreenActive()) {
               await ensureDesktopFullscreenOrUserGesture();
