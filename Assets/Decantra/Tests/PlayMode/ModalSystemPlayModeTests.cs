@@ -137,11 +137,37 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(tutorialOverlay);
             Assert.IsNotNull(tutorialOverlay.GetComponent<BaseModal>(), "Tutorial should use BaseModal.");
 
+            var tutorialCanvas = tutorialOverlay.GetComponentInParent<Canvas>();
+            Assert.IsNotNull(tutorialCanvas, "Tutorial overlay must be parented to a canvas.");
+            Assert.AreEqual("Canvas_UI", tutorialCanvas.name, "Tutorial overlay must be attached to Canvas_UI.");
+            Assert.AreEqual(RenderMode.ScreenSpaceCamera, tutorialCanvas.renderMode, "Tutorial canvas render mode must be ScreenSpaceCamera.");
+            Assert.IsNotNull(tutorialCanvas.worldCamera, "Tutorial canvas requires a world camera.");
+
+            var scaler = tutorialCanvas.GetComponent<CanvasScaler>();
+            Assert.IsNotNull(scaler, "Tutorial canvas requires CanvasScaler.");
+            Assert.AreEqual(CanvasScaler.ScaleMode.ScaleWithScreenSize, scaler.uiScaleMode, "Tutorial canvas must scale with screen size.");
+            Assert.AreEqual(new Vector2(1080f, 1920f), scaler.referenceResolution, "Tutorial canvas reference resolution mismatch.");
+            Assert.AreEqual(1f, scaler.matchWidthOrHeight, 0.001f, "Tutorial canvas match mode should be height-prioritized.");
+
             var instructionPanel = tutorialOverlay.transform.Find("InstructionPanel");
             Assert.IsNotNull(instructionPanel);
             Assert.IsNotNull(instructionPanel.GetComponent<ResponsiveModalPanel>(), "Tutorial panel should be responsive.");
             Assert.IsNotNull(instructionPanel.transform.Find("ButtonsRow/SkipButton"));
             Assert.IsNotNull(instructionPanel.transform.Find("ButtonsRow/NextButton"));
+
+            var panelRect = instructionPanel.GetComponent<RectTransform>();
+            Assert.AreEqual(new Vector2(0.5f, 0f), panelRect.anchorMin, "Tutorial panel anchorMin must be bottom-center.");
+            Assert.AreEqual(new Vector2(0.5f, 0f), panelRect.anchorMax, "Tutorial panel anchorMax must be bottom-center.");
+            Assert.AreEqual(new Vector2(0.5f, 0f), panelRect.pivot, "Tutorial panel pivot must be bottom-center.");
+
+            var instructionText = instructionPanel.Find("InstructionText")?.GetComponent<Text>();
+            Assert.IsNotNull(instructionText, "Tutorial instruction text missing.");
+            Assert.AreEqual(HorizontalWrapMode.Wrap, instructionText.horizontalOverflow, "Tutorial text must wrap.");
+            Assert.AreEqual(VerticalWrapMode.Truncate, instructionText.verticalOverflow, "Tutorial text must not overflow vertically.");
+
+            var buttonsLayout = instructionPanel.Find("ButtonsRow")?.GetComponent<HorizontalLayoutGroup>();
+            Assert.IsNotNull(buttonsLayout, "Tutorial buttons row requires horizontal layout.");
+            Assert.AreEqual(TextAnchor.MiddleCenter, buttonsLayout.childAlignment, "Tutorial buttons should remain centered.");
 
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);

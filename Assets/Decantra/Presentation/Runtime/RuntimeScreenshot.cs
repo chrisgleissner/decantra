@@ -11,6 +11,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using Decantra.App;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
@@ -62,8 +63,11 @@ namespace Decantra.Presentation
         private const string InterstitialFileName = "screenshot-06-interstitial.png";
         private const string Level36FileName = "screenshot-07-level-36.png";
         private const string OptionsLegacyFileName = "screenshot-10-options.png";
-        private const string TutorialPageFilePrefix = "how_to_play_tutorial_page_";
         private const int MaxTutorialPagesToCapture = 12;
+        private const float TutorialWhitePixelFailRatio = 0.88f;
+        private const float TutorialSpotlightContrastMin = 0.05f;
+        private const float TutorialSpotlightStableSeconds = 0.12f;
+        private const float TutorialSpotlightSettleTimeout = 1.2f;
         private const int MotionFrameCount = 6;
         private const float MotionFrameIntervalMs = 600f;
 
@@ -1579,20 +1583,35 @@ namespace Decantra.Presentation
                 yield break;
             }
 
-            int page = 1;
-            while (tutorialManager.IsRunning && page <= MaxTutorialPagesToCapture)
+            string version = string.IsNullOrWhiteSpace(BuildInfo.Version) ? "0.0.0-local" : BuildInfo.Version;
+            string tutorialDir = Path.Combine(outputDir, "Tutorial", SanitizeFileToken(version));
+            Directory.CreateDirectory(tutorialDir);
+
+            int step = 1;
+            var summary = new List<string>();
+            summary.Add($"Tutorial capture summary | version={version} | utc={DateTime.UtcNow:O}");
+
+            while (tutorialManager.IsRunning && step <= MaxTutorialPagesToCapture)
             {
                 yield return new WaitForEndOfFrame();
-                yield return new WaitForSeconds(0.16f);
-                string pagePath = Path.Combine(outputDir, $"{TutorialPageFilePrefix}{page:D2}.png");
-                yield return CaptureScreenshot(pagePath);
+                yield return new WaitForSeconds(0.22f);
+                yield return WaitForTutorialSpotlightSettle(tutorialManager);
+
+                if (!tutorialManager.TryGetCurrentStepSnapshot(out int currentStepIndex, out string targetName))
+                {
+                    currentStepIndex = step - 1;
+                    targetName = "unknown";
+                }
+
+                string safeTarget = SanitizeFileToken(string.IsNullOrWhiteSpace(targetName) ? "unknown" : targetName);
+                yield return CaptureTutorialStepVariants(tutorialManager, tutorialDir, currentStepIndex + 1, safeTarget, summary);
 
                 tutorialManager.AdvanceStepForAutomation();
-                page++;
+                step++;
                 yield return null;
             }
 
-            if (page <= 2)
+            if (step <= 2)
             {
                 Debug.LogError("RuntimeScreenshot: tutorial page capture produced too few pages.");
                 _failed = true;
@@ -1603,7 +1622,350 @@ namespace Decantra.Presentation
                 Debug.LogWarning("RuntimeScreenshot: tutorial capture reached max page limit; forcing dismiss.");
             }
 
+            string summaryPath = Path.Combine(tutorialDir, "tutorial_capture_summary.log");
+            File.WriteAllLines(summaryPath, summary);
+            Debug.Log($"RuntimeScreenshot: tutorial summary written to {summaryPath}");
+
             yield return EnsureTutorialOverlaySuppressed();
+        }
+
+        private IEnumerator CaptureTutorialStepVariants(TutorialManager tutorialManager, string tutorialDir, int stepIndex, string targetName, List<string> summary)
+        {
+            bool captureNativeOnly = Application.isMobilePlatform;
+            var variants = captureNativeOnly
+                ? new[]
+                {
+                    new { Width = Screen.width, Height = Screen.height, Label = "mobile_native", Fullscreen = false, AllowResolutionChange = false }
+                }
+                : new[]
+                {
+                    new { Width = 1080, Height = 1920, Label = "portrait", Fullscreen = false, AllowResolutionChange = true },
+                    new { Width = 1920, Height = 1080, Label = "landscape", Fullscreen = false, AllowResolutionChange = true },
+                    new { Width = 2560, Height = 1440, Label = "webgl_fullscreen", Fullscreen = true, AllowResolutionChange = true }
+                };
+
+            int originalWidth = Screen.width;
+            int originalHeight = Screen.height;
+
+            for (int i = 0; i < variants.Length; i++)
+            {
+                var variant = variants[i];
+                if (variant.AllowResolutionChange)
+                {
+                    ApplyCaptureResolution(variant.Width, variant.Height, variant.Fullscreen);
+                }
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForSeconds(0.2f);
+
+                string resolution = $"{Screen.width}x{Screen.height}";
+                string fileName = $"tutorial_step_{stepIndex:D2}_{targetName}_{variant.Label}_{resolution}.png";
+                string filePath = Path.Combine(tutorialDir, fileName);
+                yield return CaptureScreenshot(filePath);
+
+                string renderMode = "unknown";
+                string scalerMode = "unknown";
+                string referenceResolution = "unknown";
+                float match = 0f;
+                string spotlightRect = "none";
+                string spotlightSignal = "n/a";
+
+                if (tutorialManager != null && tutorialManager.TryGetRenderDiagnostics(out var diagnostics))
+                {
+                    renderMode = diagnostics.RenderMode.ToString();
+                    scalerMode = diagnostics.ScaleMode.ToString();
+                    referenceResolution = $"{diagnostics.ReferenceResolution.x:F0}x{diagnostics.ReferenceResolution.y:F0}";
+                    match = diagnostics.MatchWidthOrHeight;
+                    spotlightRect = diagnostics.SpotlightVisible
+                        ? $"x={diagnostics.SpotlightRectLocal.x:F1},y={diagnostics.SpotlightRectLocal.y:F1},w={diagnostics.SpotlightRectLocal.width:F1},h={diagnostics.SpotlightRectLocal.height:F1}"
+                        : "hidden";
+
+                    if (TryAnalyzeTutorialCapture(filePath, diagnostics, out var analysis))
+                    {
+                        spotlightSignal = $"whiteRatio={analysis.WhiteRatio:F3},contrast={analysis.SpotlightContrast:F3},present={analysis.SpotlightLikelyPresent}";
+                        if (analysis.WhiteRatio >= TutorialWhitePixelFailRatio)
+                        {
+                            Debug.LogError($"RuntimeScreenshot: tutorial frame appears mostly white (ratio={analysis.WhiteRatio:F3}) file={fileName}");
+                            _failed = true;
+                        }
+
+                        if (diagnostics.SpotlightVisible && diagnostics.SpotlightMaskActive && !analysis.SpotlightLikelyPresent)
+                        {
+                            if (variant.AllowResolutionChange)
+                            {
+                                Debug.LogError($"RuntimeScreenshot: tutorial spotlight signal missing (contrast={analysis.SpotlightContrast:F3}) file={fileName}");
+                                _failed = true;
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"RuntimeScreenshot: tutorial spotlight signal low on mobile-native capture (contrast={analysis.SpotlightContrast:F3}) file={fileName}");
+                            }
+                        }
+                    }
+                }
+
+                Debug.Log($"RuntimeScreenshot TutorialCapture step={stepIndex:D2} target={targetName} variant={variant.Label} resolution={resolution} renderMode={renderMode} scaler={scalerMode} ref={referenceResolution} match={match:F2} spotlight={spotlightRect}");
+                summary?.Add($"{DateTime.UtcNow:O} | step={stepIndex:D2} | target={targetName} | variant={variant.Label} | resolution={resolution} | file={fileName} | renderMode={renderMode} | scaler={scalerMode} | ref={referenceResolution} | match={match:F2} | spotlight={spotlightRect} | analysis={spotlightSignal}");
+            }
+
+            if (!captureNativeOnly)
+            {
+                ApplyCaptureResolution(originalWidth, originalHeight, false);
+            }
+            yield return null;
+        }
+
+        private static IEnumerator WaitForTutorialSpotlightSettle(TutorialManager tutorialManager)
+        {
+            if (tutorialManager == null)
+            {
+                yield break;
+            }
+
+            float elapsed = 0f;
+            float stable = 0f;
+            bool hasPrevious = false;
+            Rect previous = default;
+
+            while (elapsed < TutorialSpotlightSettleTimeout)
+            {
+                if (tutorialManager.TryGetRenderDiagnostics(out var diagnostics) && diagnostics.SpotlightVisible)
+                {
+                    var current = diagnostics.SpotlightRectLocal;
+                    if (hasPrevious)
+                    {
+                        float delta = Mathf.Abs(current.x - previous.x)
+                                      + Mathf.Abs(current.y - previous.y)
+                                      + Mathf.Abs(current.width - previous.width)
+                                      + Mathf.Abs(current.height - previous.height);
+                        if (delta < 1.2f)
+                        {
+                            stable += Time.unscaledDeltaTime;
+                            if (stable >= TutorialSpotlightStableSeconds)
+                            {
+                                yield break;
+                            }
+                        }
+                        else
+                        {
+                            stable = 0f;
+                        }
+                    }
+
+                    previous = current;
+                    hasPrevious = true;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+
+        private static bool TryAnalyzeTutorialCapture(string filePath, TutorialRenderDiagnostics diagnostics, out TutorialFrameAnalysis analysis)
+        {
+            analysis = default;
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                return false;
+            }
+
+            byte[] pngBytes;
+            try
+            {
+                pngBytes = File.ReadAllBytes(filePath);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (pngBytes == null || pngBytes.Length == 0)
+            {
+                return false;
+            }
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGB24, false);
+            bool loaded = texture.LoadImage(pngBytes, false);
+            if (!loaded)
+            {
+                UnityEngine.Object.Destroy(texture);
+                return false;
+            }
+
+            float whiteRatio = EstimateWhiteRatio(texture);
+            float spotlightContrast = 0f;
+            bool spotlightLikelyPresent = true;
+
+            if (diagnostics.SpotlightVisible && diagnostics.SpotlightMaskActive)
+            {
+                spotlightLikelyPresent = TryEstimateSpotlightContrast(texture, diagnostics, out spotlightContrast)
+                    && spotlightContrast >= TutorialSpotlightContrastMin;
+            }
+
+            analysis = new TutorialFrameAnalysis(whiteRatio, spotlightContrast, spotlightLikelyPresent);
+            UnityEngine.Object.Destroy(texture);
+            return true;
+        }
+
+        private static float EstimateWhiteRatio(Texture2D texture)
+        {
+            if (texture == null)
+            {
+                return 0f;
+            }
+
+            int width = texture.width;
+            int height = texture.height;
+            int stride = Mathf.Max(2, Mathf.Min(width, height) / 180);
+            int total = 0;
+            int white = 0;
+
+            for (int y = 0; y < height; y += stride)
+            {
+                for (int x = 0; x < width; x += stride)
+                {
+                    Color c = texture.GetPixel(x, y);
+                    total++;
+                    if (c.r > 0.92f && c.g > 0.92f && c.b > 0.92f)
+                    {
+                        white++;
+                    }
+                }
+            }
+
+            return total > 0 ? (float)white / total : 0f;
+        }
+
+        private static bool TryEstimateSpotlightContrast(Texture2D texture, TutorialRenderDiagnostics diagnostics, out float contrast)
+        {
+            contrast = 0f;
+            if (texture == null)
+            {
+                return false;
+            }
+
+            Rect canvasRect = diagnostics.CanvasRectLocal;
+            Rect spotlightRect = diagnostics.SpotlightRectLocal;
+            if (canvasRect.width <= 0.01f || canvasRect.height <= 0.01f || spotlightRect.width <= 1f || spotlightRect.height <= 1f)
+            {
+                return false;
+            }
+
+            float centerX = Mathf.InverseLerp(canvasRect.xMin, canvasRect.xMax, spotlightRect.center.x);
+            float centerY = Mathf.InverseLerp(canvasRect.yMin, canvasRect.yMax, spotlightRect.center.y);
+            float holeW = Mathf.Clamp01(spotlightRect.width / canvasRect.width);
+            float holeH = Mathf.Clamp01(spotlightRect.height / canvasRect.height);
+            if (holeW < 0.005f || holeH < 0.005f)
+            {
+                return false;
+            }
+
+            float innerW = holeW * 0.42f;
+            float innerH = holeH * 0.42f;
+            float outerW = Mathf.Min(0.95f, holeW * 1.8f);
+            float outerH = Mathf.Min(0.95f, holeH * 1.8f);
+
+            float innerSum = 0f;
+            int innerCount = 0;
+            float outerSum = 0f;
+            int outerCount = 0;
+
+            int width = texture.width;
+            int height = texture.height;
+            int stride = Mathf.Max(2, Mathf.Min(width, height) / 200);
+
+            for (int y = 0; y < height; y += stride)
+            {
+                float v = height > 1 ? (float)y / (height - 1) : 0f;
+                for (int x = 0; x < width; x += stride)
+                {
+                    float u = width > 1 ? (float)x / (width - 1) : 0f;
+                    float dx = Mathf.Abs(u - centerX);
+                    float dy = Mathf.Abs(v - centerY);
+
+                    bool inInner = dx <= innerW * 0.5f && dy <= innerH * 0.5f;
+                    bool inOuter = dx <= outerW * 0.5f && dy <= outerH * 0.5f;
+                    if (!inOuter)
+                    {
+                        continue;
+                    }
+
+                    Color c = texture.GetPixel(x, y);
+                    float luma = (0.299f * c.r) + (0.587f * c.g) + (0.114f * c.b);
+
+                    if (inInner)
+                    {
+                        innerSum += luma;
+                        innerCount++;
+                    }
+                    else
+                    {
+                        outerSum += luma;
+                        outerCount++;
+                    }
+                }
+            }
+
+            if (innerCount <= 0 || outerCount <= 0)
+            {
+                return false;
+            }
+
+            float innerMean = innerSum / innerCount;
+            float outerMean = outerSum / outerCount;
+            contrast = innerMean - outerMean;
+            return true;
+        }
+
+        private readonly struct TutorialFrameAnalysis
+        {
+            public TutorialFrameAnalysis(float whiteRatio, float spotlightContrast, bool spotlightLikelyPresent)
+            {
+                WhiteRatio = whiteRatio;
+                SpotlightContrast = spotlightContrast;
+                SpotlightLikelyPresent = spotlightLikelyPresent;
+            }
+
+            public float WhiteRatio { get; }
+            public float SpotlightContrast { get; }
+            public bool SpotlightLikelyPresent { get; }
+        }
+
+        private static void ApplyCaptureResolution(int width, int height, bool fullscreen)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            Screen.SetResolution(width, height, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+#else
+            Screen.SetResolution(width, height, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+#endif
+        }
+
+        private static string SanitizeFileToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "unknown";
+            }
+
+            char[] invalid = Path.GetInvalidFileNameChars();
+            var chars = value.Trim().ToCharArray();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                if (chars[i] == ' ')
+                {
+                    chars[i] = '_';
+                }
+                else if (System.Array.IndexOf(invalid, chars[i]) >= 0)
+                {
+                    chars[i] = '_';
+                }
+            }
+
+            return new string(chars);
         }
 
         private IEnumerator EnsureTutorialOverlaySuppressed()

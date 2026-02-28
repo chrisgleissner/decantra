@@ -19,6 +19,8 @@ namespace Decantra.App.Editor
     public static class IosBuild
     {
         private const string DefaultXcodeProjectPath = "Builds/iOS/Xcode";
+        private const string IosProductName = "Decantra";
+        private const string IosBundleId = "uk.gleissner.decantra";
 
         [MenuItem("Decantra/Build/iOS Simulator Xcode Project")]
         public static void BuildSimulatorXcodeProject()
@@ -35,13 +37,14 @@ namespace Decantra.App.Editor
         private static void BuildXcodeProject(iOSSdkVersion sdkVersion, bool developmentBuild)
         {
             ConfigureVersioningFromEnv();
+            BuildInfoGenerator.GenerateAndImport();
 
             EditorUserBuildSettings.development = developmentBuild;
             EditorUserBuildSettings.allowDebugging = developmentBuild;
             EditorUserBuildSettings.connectProfiler = false;
 
-            PlayerSettings.productName = "Cantra";
-            PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
+            PlayerSettings.productName = IosProductName;
+            PlayerSettings.applicationIdentifier = IosBundleId;
             PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, ManagedStrippingLevel.Medium);
             PlayerSettings.stripEngineCode = !developmentBuild;
@@ -75,7 +78,120 @@ namespace Decantra.App.Editor
                 throw new Exception($"iOS export failed: {report.summary.result}");
             }
 
+            EnforceIosDisplayNameInInfoPlist(outputPath, IosProductName);
             Debug.Log($"IosBuild: iOS Xcode project exported at {outputPath}");
+        }
+
+        private static void EnforceIosDisplayNameInInfoPlist(string xcodeProjectPath, string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(xcodeProjectPath) || string.IsNullOrWhiteSpace(displayName))
+            {
+                return;
+            }
+
+            string plistPath = Path.Combine(xcodeProjectPath, "Info.plist");
+            if (!File.Exists(plistPath))
+            {
+                Debug.LogWarning($"IosBuild: Info.plist not found at {plistPath}; skipping display-name enforcement.");
+                return;
+            }
+
+            string plistText;
+            try
+            {
+                plistText = File.ReadAllText(plistPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"IosBuild: Failed to read Info.plist at {plistPath}: {ex.Message}");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(plistText))
+            {
+                Debug.LogWarning($"IosBuild: Info.plist is empty at {plistPath}; skipping display-name enforcement.");
+                return;
+            }
+
+            var dict = new PlistStringMap(plistText);
+            SetPlistString(dict, "CFBundleDisplayName", displayName);
+            SetPlistString(dict, "CFBundleName", displayName);
+
+            plistText = dict.ToPlistText();
+
+            File.WriteAllText(plistPath, plistText);
+
+            Debug.Log($"IosBuild: enforced CFBundleDisplayName/CFBundleName to '{displayName}'.");
+        }
+
+        private static void SetPlistString(PlistStringMap dict, string keyName, string value)
+        {
+            if (dict == null || string.IsNullOrWhiteSpace(keyName))
+            {
+                return;
+            }
+
+            dict.SetString(keyName, value);
+        }
+
+        private static string UpsertPlistString(string plistText, string keyName, string value)
+        {
+            if (string.IsNullOrWhiteSpace(plistText) || string.IsNullOrWhiteSpace(keyName))
+            {
+                return plistText;
+            }
+
+            string keyPattern = $"(<key>\\s*{Regex.Escape(keyName)}\\s*</key>\\s*<string>)([^<]*)(</string>)";
+            if (Regex.IsMatch(plistText, keyPattern, RegexOptions.Singleline))
+            {
+                return Regex.Replace(
+                    plistText,
+                    keyPattern,
+                    $"$1{EscapePlistString(value)}$3",
+                    RegexOptions.Singleline);
+            }
+
+            int dictCloseIndex = plistText.LastIndexOf("</dict>", StringComparison.Ordinal);
+            if (dictCloseIndex < 0)
+            {
+                return plistText;
+            }
+
+            string insertion = $"\n\t<key>{keyName}</key>\n\t<string>{EscapePlistString(value)}</string>\n";
+            return plistText.Insert(dictCloseIndex, insertion);
+        }
+
+        private static string EscapePlistString(string value)
+        {
+            if (value == null)
+            {
+                return string.Empty;
+            }
+
+            return value
+                .Replace("&", "&amp;")
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;");
+        }
+
+        private sealed class PlistStringMap
+        {
+            private string _plistText;
+
+            public PlistStringMap(string plistText)
+            {
+                _plistText = plistText;
+            }
+
+            public void SetString(string keyName, string value)
+            {
+                _plistText = UpsertPlistString(_plistText, keyName, value);
+            }
+
+            public string ToPlistText()
+            {
+                return _plistText;
+            }
         }
 
         private static string ResolveBuildPath()

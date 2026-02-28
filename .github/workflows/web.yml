@@ -3,7 +3,9 @@ name: WebGL Build + Deploy
 on:
   push:
     branches:
-      - "**"
+      - main
+    tags:
+      - "*"
   pull_request:
     types:
       - opened
@@ -17,6 +19,12 @@ on:
       - "LICENSE"
       - ".gitignore"
   workflow_dispatch:
+    inputs:
+      deploy_ref:
+        description: "Tag or ref to build/deploy (e.g. 1.4.1)"
+        required: false
+        default: "1.4.1"
+        type: string
 
 permissions:
   contents: read
@@ -62,10 +70,37 @@ jobs:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
     steps:
+      - name: Resolve target ref
+        id: target
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.deploy_ref }}" ]]; then
+            echo "ref=${{ github.event.inputs.deploy_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0
+          ref: ${{ steps.target.outputs.ref }}
+
+      - name: Resolve WebGL version env
+        id: version
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.deploy_ref }}" ]]; then
+            VERSION_NAME="${{ github.event.inputs.deploy_ref }}"
+          elif [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            VERSION_NAME="${GITHUB_REF_NAME}"
+          else
+            VERSION_NAME="$(git describe --tags --always --dirty)"
+          fi
+
+          REVISION="$(git rev-parse --short=8 HEAD)"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
 
       - name: Free disk space for Unity WebGL image
         run: |
@@ -88,6 +123,10 @@ jobs:
 
       - name: Build Unity WebGL
         uses: game-ci/unity-builder@v4
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          DECANTRA_VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          GITHUB_SHA: ${{ github.sha }}
         with:
           projectPath: .
           unityVersion: ${{ env.UNITY_VERSION }}
@@ -97,6 +136,8 @@ jobs:
           versioning: None
           customParameters: >
             -buildPath Builds/WebGL
+            -versionName ${{ steps.version.outputs.version_name }}
+            -buildRevision ${{ steps.version.outputs.revision }}
 
       - name: Verify deterministic WebGL output
         run: |
@@ -149,12 +190,24 @@ jobs:
     name: Deploy docs + WebGL to GitHub Pages
     needs: build-and-smoke
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Resolve target ref
+        id: target
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.deploy_ref }}" ]]; then
+            echo "ref=${{ github.event.inputs.deploy_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.ref }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -168,6 +221,9 @@ jobs:
           mkdir -p Builds/Pages/webgl
           cp -R docs/. Builds/Pages/
           cp -R Builds/WebGL/. Builds/Pages/webgl/
+
+          REF_NAME="${{ github.event.inputs.deploy_ref || github.ref_name }}"
+          echo "$REF_NAME" > Builds/Pages/webgl/version.txt
 
           test -f Builds/Pages/index.html
           test -f Builds/Pages/webgl/index.html

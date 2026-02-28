@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <link rel="stylesheet" href="TemplateData/style.css" />
+  </head>
+  <body>
+    <div id="unity-root">
+      <div id="unity-start-overlay" class="unity-hidden" role="button" tabindex="0" aria-label="Click to start">
+        <div id="unity-start-panel">
+          <div id="unity-start-title">Decantra</div>
+          <div id="unity-start-subtitle">Click to start</div>
+        </div>
+      </div>
+      <div id="unity-container" class="unity-hidden">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+        <div id="unity-loading-bar">
+          <div id="unity-progress-bar-empty">
+            <div id="unity-progress-bar-full"></div>
+          </div>
+        </div>
+      </div>
+      <div id="unity-footer">
+        <div id="unity-version-marker" data-version="{{{ PRODUCT_VERSION }}}" data-revision="__DECANTRA_BUILD_REVISION__">
+          Version {{{ PRODUCT_VERSION }}} __DECANTRA_BUILD_REVISION_LABEL__
+        </div>
+        <div id="unity-fullscreen-button">Fullscreen</div>
+      </div>
+      <div id="unity-warning"></div>
+    </div>
+
+    <script>
+      const container = document.getElementById("unity-container");
+      const canvas = document.getElementById("unity-canvas");
+      const loadingBar = document.getElementById("unity-loading-bar");
+      const progressBarFull = document.getElementById("unity-progress-bar-full");
+      const fullscreenButton = document.getElementById("unity-fullscreen-button");
+      const warningBanner = document.getElementById("unity-warning");
+      const startOverlay = document.getElementById("unity-start-overlay");
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      let unityInstance = null;
+
+      function unityShowBanner(message, type) {
+        const line = document.createElement("div");
+        line.textContent = message;
+        line.className = type === "error" ? "banner-error" : "banner-warning";
+        warningBanner.appendChild(line);
+        warningBanner.style.display = "block";
+        if (type !== "error") {
+          setTimeout(() => {
+            if (line.parentNode === warningBanner) {
+              warningBanner.removeChild(line);
+            }
+            warningBanner.style.display = warningBanner.children.length > 0 ? "block" : "none";
+          }, 5000);
+        }
+      }
+
+      function isFullscreenEnabled() {
+        return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || document.msFullscreenEnabled);
+      }
+
+      function isFullscreenActive() {
+        return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+      }
+
+      async function requestFullscreenForRoot() {
+        const target = document.documentElement;
+        if (target.requestFullscreen) {
+          await target.requestFullscreen({ navigationUI: "hide" });
+          return true;
+        }
+
+        if (target.webkitRequestFullscreen) {
+          target.webkitRequestFullscreen();
+          return true;
+        }
+
+        if (target.msRequestFullscreen) {
+          target.msRequestFullscreen();
+          return true;
+        }
+
+        return false;
+      }
+
+      function forceResize() {
+        window.dispatchEvent(new Event("resize"));
+      }
+
+      function showOverlay() {
+        startOverlay.classList.remove("unity-hidden");
+        startOverlay.classList.add("unity-visible");
+      }
+
+      function hideOverlay() {
+        startOverlay.classList.remove("unity-visible");
+        startOverlay.classList.add("unity-hidden");
+      }
+
+      function showCanvas() {
+        container.classList.remove("unity-hidden");
+        container.classList.add("unity-visible");
+      }
+
+      function hideCanvas() {
+        container.classList.remove("unity-visible");
+        container.classList.add("unity-hidden");
+      }
+
+      async function ensureDesktopFullscreenOrUserGesture() {
+        if (isMobile || !isFullscreenEnabled()) {
+          return;
+        }
+
+        try {
+          await requestFullscreenForRoot();
+          return;
+        } catch (error) {
+          showOverlay();
+        }
+
+        await new Promise((resolve) => {
+          const handler = async () => {
+            startOverlay.removeEventListener("pointerdown", handler);
+            startOverlay.removeEventListener("click", handler);
+            startOverlay.removeEventListener("keydown", keyHandler);
+            try {
+              await requestFullscreenForRoot();
+            } catch (error) {
+              // continue without fullscreen when blocked
+            }
+            hideOverlay();
+            resolve();
+          };
+
+          const keyHandler = (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handler();
+            }
+          };
+
+          startOverlay.addEventListener("pointerdown", handler);
+          startOverlay.addEventListener("click", handler);
+          startOverlay.addEventListener("keydown", keyHandler);
+        });
+      }
+
+      async function startUnity() {
+        const buildUrl = "Build";
+        const loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+        const config = {
+          arguments: [],
+          dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+          frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+          codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+          streamingAssetsUrl: "StreamingAssets",
+          companyName: "{{{ COMPANY_NAME }}}",
+          productName: "{{{ PRODUCT_NAME }}}",
+          productVersion: "{{{ PRODUCT_VERSION }}}",
+          showBanner: unityShowBanner,
+        };
+
+        hideCanvas();
+        loadingBar.style.display = "block";
+
+        const script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onload = async () => {
+          try {
+            unityInstance = await createUnityInstance(canvas, config, (progress) => {
+              progressBarFull.style.width = `${100 * progress}%`;
+            });
+
+            loadingBar.style.display = "none";
+            showCanvas();
+
+            fullscreenButton.onclick = () => {
+              if (unityInstance) {
+                unityInstance.SetFullscreen(1);
+              }
+            };
+
+            document.addEventListener("fullscreenchange", forceResize);
+            document.addEventListener("webkitfullscreenchange", forceResize);
+
+            if (!isMobile && isFullscreenEnabled() && !isFullscreenActive()) {
+              await ensureDesktopFullscreenOrUserGesture();
+              forceResize();
+            }
+          } catch (error) {
+            alert(error);
+          }
+        };
+
+        document.body.appendChild(script);
+      }
+
+      (async () => {
+        await ensureDesktopFullscreenOrUserGesture();
+        await startUnity();
+      })();
+    </script>
+  </body>
+</html>

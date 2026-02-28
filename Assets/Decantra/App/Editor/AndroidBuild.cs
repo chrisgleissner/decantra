@@ -21,8 +21,6 @@ namespace Decantra.App.Editor
     {
         private const string DefaultApkPath = "Builds/Android/Decantra.apk";
         private const string DefaultAabPath = "Builds/Android/Decantra.aab";
-        private const string BuildInfoResourceDirectory = "Assets/Resources/Build";
-        private const string BuildUtcResourceAssetPath = "Assets/Resources/Build/build_utc.txt";
 
         [MenuItem("Decantra/Build/Android Debug APK")]
         public static void BuildDebugApk()
@@ -229,7 +227,7 @@ namespace Decantra.App.Editor
             PlayerSettings.productName = "Decantra";
             PlayerSettings.applicationIdentifier = "uk.gleissner.decantra";
 
-            WriteBuildUtcResource();
+            BuildInfoGenerator.GenerateAndImport();
 
             bool previousBuildAppBundle = EditorUserBuildSettings.buildAppBundle;
             EditorUserBuildSettings.buildAppBundle = buildAppBundle;
@@ -257,18 +255,6 @@ namespace Decantra.App.Editor
             }
 
             Debug.Log($"Android {artifactLabel} built at {outputPath}");
-        }
-
-        private static void WriteBuildUtcResource()
-        {
-            Directory.CreateDirectory(BuildInfoResourceDirectory);
-
-            string buildUtc = DateTime.UtcNow.ToString("O");
-            File.WriteAllText(BuildUtcResourceAssetPath, buildUtc + Environment.NewLine);
-            AssetDatabase.ImportAsset(BuildUtcResourceAssetPath, ImportAssetOptions.ForceSynchronousImport);
-            AssetDatabase.SaveAssets();
-
-            Debug.Log($"AndroidBuild: Build UTC stamp written: {buildUtc}");
         }
 
         private static bool ShouldRequireKeystore(BuildOptions options)
