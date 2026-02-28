@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System.Collections;
+using System.Linq;
 using System.Reflection;
 using Decantra.Presentation;
 using NUnit.Framework;
@@ -102,6 +103,23 @@ namespace Decantra.PlayMode.Tests
             float duration = manager.CalculatePourWindowDuration(0.1f, 0.2f);
 
             Assert.GreaterOrEqual(duration, 0.4f);
+
+            Object.Destroy(host);
+        }
+
+        [UnityTest]
+        public IEnumerator PlayPourSegment_AssignsClipToActiveSource()
+        {
+            var host = new GameObject("AudioManagerPlaybackHost");
+            var manager = host.AddComponent<AudioManager>();
+            yield return null;
+
+            manager.SelectPourClipForLevel(8, 9001);
+            manager.PlayPourSegment(0.2f, 0.7f);
+            yield return null;
+
+            AudioSource[] sources = host.GetComponents<AudioSource>();
+            Assert.IsTrue(sources.Any(source => source != null && source.clip != null), "Expected pour playback to assign a clip to an audio source.");
 
             Object.Destroy(host);
         }

@@ -273,30 +273,13 @@ for file in "${expected[@]}"; do
   done
 
 tutorial_count=0
-for idx in $(seq -w 1 12); do
-  file="how_to_play_tutorial_page_${idx}.png"
-  dest="${OUTPUT_DIR}/${file}"
-  pulled=false
-  for attempt in 1 2 3; do
-    adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/${PACKAGE_NAME}/${remote_dir}/${file}" "${dest}" >/dev/null && pulled=true || true
-    if [[ -s "${dest}" ]]; then
-      pulled=true
-      break
-    fi
-    sleep 0.3
-  done
+tutorial_output_dir="${OUTPUT_DIR}/Tutorial"
+mkdir -p "${tutorial_output_dir}"
+adb -s "${DEVICE_ID}" pull "/sdcard/Android/data/${PACKAGE_NAME}/${remote_dir}/Tutorial" "${OUTPUT_DIR}" >/dev/null 2>&1 || true
 
-  if [[ "${pulled}" == "true" && -s "${dest}" ]]; then
-    tutorial_count=$((tutorial_count + 1))
-    echo "Captured ${dest}"
-    continue
-  fi
-
-  rm -f "${dest}" >/dev/null 2>&1 || true
-  if [[ ${tutorial_count} -gt 0 ]]; then
-    break
-  fi
-done
+if [[ -d "${tutorial_output_dir}" ]]; then
+  tutorial_count="$(find "${tutorial_output_dir}" -type f -name 'tutorial_step_*.png' | wc -l | tr -d ' ')"
+fi
 
 auto_step_count=0
 for idx in $(seq -w 1 40); do
@@ -341,8 +324,14 @@ if [[ ${auto_step_count} -lt 1 ]]; then
   exit 1
 fi
 
-if [[ ${tutorial_count} -lt 7 ]]; then
-  echo "Expected at least 7 tutorial page screenshots, captured ${tutorial_count}." >&2
+if [[ ${tutorial_count} -lt 9 ]]; then
+  echo "Expected at least 9 tutorial step screenshots, captured ${tutorial_count}." >&2
+  exit 1
+fi
+
+tutorial_summary_count="$(find "${tutorial_output_dir}" -type f -name 'tutorial_capture_summary.log' | wc -l | tr -d ' ')"
+if [[ ${tutorial_summary_count} -lt 1 ]]; then
+  echo "Missing tutorial capture summary log under ${tutorial_output_dir}." >&2
   exit 1
 fi
 

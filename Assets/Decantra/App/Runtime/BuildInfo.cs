@@ -10,8 +10,8 @@ namespace Decantra.App
 {
     public static class BuildInfo
     {
-        public const string Version = "0.0.0-local";
-        public const string BuildUtc = "1970-01-01T00:00:00Z";
+        public const string Version = "1.4.1";
+        public const string BuildUtc = "2026-02-28T14:46:18Z";
         public const string Revision = "local";
     }
 }

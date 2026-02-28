@@ -41,6 +41,8 @@ namespace Decantra.Presentation
         private Vector2 _smoothSize;
         private Vector2 _smoothSizeVelocity;
         private bool _hasSmoothState;
+        private Rect _lastFocusRectLocal;
+        private bool _lastFocusVisible;
 
         public bool IsRunning => _running;
         public int StepCount => _steps.Count;
@@ -97,6 +99,40 @@ namespace Decantra.Presentation
             stepIndex = _stepIndex;
             targetName = _activeStep?.TargetObjectName;
             return _running && _activeStep != null;
+        }
+
+        public bool TryGetRenderDiagnostics(out TutorialRenderDiagnostics diagnostics)
+        {
+            diagnostics = default;
+
+            if (_canvas == null)
+            {
+                _canvas = GetComponentInParent<Canvas>();
+            }
+
+            var canvasRect = _canvas != null ? _canvas.GetComponent<RectTransform>() : null;
+            var scaler = _canvas != null ? _canvas.GetComponent<CanvasScaler>() : null;
+            if (_canvas == null || canvasRect == null)
+            {
+                return false;
+            }
+
+            var focusRect = _lastFocusRectLocal;
+            diagnostics = new TutorialRenderDiagnostics(
+                _canvas.name,
+                _canvas.renderMode,
+                _canvas.worldCamera,
+                scaler != null ? scaler.uiScaleMode : CanvasScaler.ScaleMode.ConstantPixelSize,
+                scaler != null ? scaler.referenceResolution : Vector2.zero,
+                scaler != null ? scaler.matchWidthOrHeight : 0f,
+                canvasRect.rect,
+                focusRect,
+                _lastFocusVisible,
+                highlightMask != null && highlightMask.gameObject.activeInHierarchy && highlightMask.material != null,
+                _activeStep != null && _activeStep.FocusShape == TutorialFocusShape.Circle,
+                _activeStep?.TargetObjectName ?? string.Empty,
+                _stepIndex);
+            return true;
         }
 
         public void SuppressForAutomation(bool markCompleted = false)
@@ -264,6 +300,7 @@ namespace Decantra.Presentation
                 {
                     highlightMask.gameObject.SetActive(false);
                 }
+                _lastFocusVisible = false;
                 return;
             }
 
@@ -276,29 +313,20 @@ namespace Decantra.Presentation
             if (canvasRect == null)
             {
                 highlightFrame.gameObject.SetActive(false);
+                _lastFocusVisible = false;
                 return;
             }
 
-            var corners = new Vector3[4];
-            _activeTarget.GetWorldCorners(corners);
-            Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
-            Vector2 max = new Vector2(float.MinValue, float.MinValue);
-
-            for (int i = 0; i < corners.Length; i++)
+            if (!TryCalculateTargetRectInCanvasSpace(canvasRect, _activeTarget, out var targetRect))
             {
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    canvasRect,
-                    RectTransformUtility.WorldToScreenPoint(null, corners[i]),
-                    null,
-                    out var localPoint);
-
-                min = Vector2.Min(min, localPoint);
-                max = Vector2.Max(max, localPoint);
+                highlightFrame.gameObject.SetActive(false);
+                _lastFocusVisible = false;
+                return;
             }
 
             float padding = 18f;
-            var targetCenter = (min + max) * 0.5f;
-            var targetSize = (max - min) + new Vector2(padding * 2f, padding * 2f);
+            var targetCenter = targetRect.center;
+            var targetSize = targetRect.size + new Vector2(padding * 2f, padding * 2f);
 
             if (!_hasSmoothState || !animated)
             {
@@ -316,6 +344,8 @@ namespace Decantra.Presentation
             highlightFrame.sizeDelta = _smoothSize;
             highlightFrame.gameObject.SetActive(true);
             highlightFrame.SetAsLastSibling();
+            _lastFocusRectLocal = new Rect(_smoothCenter - (_smoothSize * 0.5f), _smoothSize);
+            _lastFocusVisible = true;
 
             if (raycastBlocker != null)
             {
@@ -332,6 +362,42 @@ namespace Decantra.Presentation
             {
                 root.SetAsLastSibling();
             }
+        }
+
+        private bool TryCalculateTargetRectInCanvasSpace(RectTransform canvasRect, RectTransform target, out Rect rect)
+        {
+            rect = default;
+            if (canvasRect == null || target == null)
+            {
+                return false;
+            }
+
+            var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(canvasRect, target);
+            if (bounds.size.x > 0.01f && bounds.size.y > 0.01f)
+            {
+                rect = new Rect(bounds.min.x, bounds.min.y, bounds.size.x, bounds.size.y);
+                return true;
+            }
+
+            var corners = new Vector3[4];
+            target.GetWorldCorners(corners);
+            Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
+            Vector2 max = new Vector2(float.MinValue, float.MinValue);
+
+            for (int i = 0; i < corners.Length; i++)
+            {
+                Vector3 local = canvasRect.InverseTransformPoint(corners[i]);
+                min = Vector2.Min(min, local);
+                max = Vector2.Max(max, local);
+            }
+
+            if (max.x <= min.x || max.y <= min.y)
+            {
+                return false;
+            }
+
+            rect = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+            return true;
         }
 
         private void UpdateMaskMaterial(RectTransform canvasRect, Vector2 center, Vector2 size, bool useCircle)
@@ -417,7 +483,57 @@ namespace Decantra.Presentation
             {
                 root.gameObject.SetActive(false);
             }
+
+            _lastFocusVisible = false;
+            _lastFocusRectLocal = default;
         }
+    }
+
+    public readonly struct TutorialRenderDiagnostics
+    {
+        public TutorialRenderDiagnostics(
+            string canvasName,
+            RenderMode renderMode,
+            Camera worldCamera,
+            CanvasScaler.ScaleMode scaleMode,
+            Vector2 referenceResolution,
+            float matchWidthOrHeight,
+            Rect canvasRectLocal,
+            Rect spotlightRectLocal,
+            bool spotlightVisible,
+            bool spotlightMaskActive,
+            bool spotlightCircle,
+            string targetObjectName,
+            int stepIndex)
+        {
+            CanvasName = canvasName;
+            RenderMode = renderMode;
+            WorldCamera = worldCamera;
+            ScaleMode = scaleMode;
+            ReferenceResolution = referenceResolution;
+            MatchWidthOrHeight = matchWidthOrHeight;
+            CanvasRectLocal = canvasRectLocal;
+            SpotlightRectLocal = spotlightRectLocal;
+            SpotlightVisible = spotlightVisible;
+            SpotlightMaskActive = spotlightMaskActive;
+            SpotlightCircle = spotlightCircle;
+            TargetObjectName = targetObjectName;
+            StepIndex = stepIndex;
+        }
+
+        public string CanvasName { get; }
+        public RenderMode RenderMode { get; }
+        public Camera WorldCamera { get; }
+        public CanvasScaler.ScaleMode ScaleMode { get; }
+        public Vector2 ReferenceResolution { get; }
+        public float MatchWidthOrHeight { get; }
+        public Rect CanvasRectLocal { get; }
+        public Rect SpotlightRectLocal { get; }
+        public bool SpotlightVisible { get; }
+        public bool SpotlightMaskActive { get; }
+        public bool SpotlightCircle { get; }
+        public string TargetObjectName { get; }
+        public int StepIndex { get; }
     }
 
     [RequireComponent(typeof(RectTransform))]
@@ -445,7 +561,10 @@ namespace Decantra.Presentation
                 return true;
             }
 
-            bool inside = RectTransformUtility.RectangleContainsScreenPoint(passThroughRect, screenPoint, eventCamera);
+            Camera camera = _canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                ? null
+                : (_canvas.worldCamera != null ? _canvas.worldCamera : eventCamera);
+            bool inside = RectTransformUtility.RectangleContainsScreenPoint(passThroughRect, screenPoint, camera);
             return !inside;
         }
     }

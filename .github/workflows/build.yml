@@ -429,16 +429,23 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
-            -archivePath Builds/iOS/archive/Cantra.xcarchive \
+            -archivePath Builds/iOS/archive/Decantra.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             archive | tee Builds/iOS/logs/xcodebuild-archive.log
 
-          APP_PATH="$(find Builds/iOS/archive/Cantra.xcarchive/Products/Applications -type d -name '*.app' | head -n 1)"
+          APP_PATH="$(find Builds/iOS/archive/Decantra.xcarchive/Products/Applications -type d -name '*.app' | head -n 1)"
           if [[ -z "${APP_PATH}" ]]; then
             echo "No .app found in iOS archive output" >&2
+            exit 1
+          fi
+
+          DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "${APP_PATH}/Info.plist" 2>/dev/null || true)"
+          BUNDLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "${APP_PATH}/Info.plist" 2>/dev/null || true)"
+          if [[ "${DISPLAY_NAME}" != "Decantra" || "${BUNDLE_NAME}" != "Decantra" ]]; then
+            echo "Unexpected iOS app name in archive artifact. CFBundleDisplayName='${DISPLAY_NAME}' CFBundleName='${BUNDLE_NAME}'" >&2
             exit 1
           fi
 

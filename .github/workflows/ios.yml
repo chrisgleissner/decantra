@@ -133,14 +133,21 @@ jobs:
             exit 1
           fi
 
+          DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "${APP_PATH}/Info.plist" 2>/dev/null || true)"
+          BUNDLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "${APP_PATH}/Info.plist" 2>/dev/null || true)"
+          if [[ "${DISPLAY_NAME}" != "Decantra" || "${BUNDLE_NAME}" != "Decantra" ]]; then
+            echo "Unexpected iOS app name in simulator artifact. CFBundleDisplayName='${DISPLAY_NAME}' CFBundleName='${BUNDLE_NAME}'" >&2
+            exit 1
+          fi
+
           mkdir -p Builds/iOS/SimulatorApp
-          rm -rf Builds/iOS/SimulatorApp/Cantra.app
-          cp -R "${APP_PATH}" Builds/iOS/SimulatorApp/Cantra.app
+          rm -rf Builds/iOS/SimulatorApp/Decantra.app
+          cp -R "${APP_PATH}" Builds/iOS/SimulatorApp/Decantra.app
 
-          rm -f Builds/iOS/SimulatorApp/Cantra.app.zip
-          ditto -c -k --sequesterRsrc --keepParent Builds/iOS/SimulatorApp/Cantra.app Builds/iOS/SimulatorApp/Cantra.app.zip
+          rm -f Builds/iOS/SimulatorApp/Decantra.app.zip
+          ditto -c -k --sequesterRsrc --keepParent Builds/iOS/SimulatorApp/Decantra.app Builds/iOS/SimulatorApp/Decantra.app.zip
 
-          APP_SIZE_KB="$(du -sk Builds/iOS/SimulatorApp/Cantra.app | awk '{print $1}')"
+          APP_SIZE_KB="$(du -sk Builds/iOS/SimulatorApp/Decantra.app | awk '{print $1}')"
           APP_SIZE_BYTES="$((APP_SIZE_KB * 1024))"
           if [[ "${APP_SIZE_BYTES}" -lt 1000000 ]]; then
             echo "Simulator app size is implausibly small: ${APP_SIZE_BYTES} bytes" >&2
@@ -151,7 +158,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-simulator-app
-          path: Builds/iOS/SimulatorApp/Cantra.app.zip
+          path: Builds/iOS/SimulatorApp/Decantra.app.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -243,16 +250,23 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
-            -archivePath Builds/iOS/archive/Cantra.xcarchive \
+            -archivePath Builds/iOS/archive/Decantra.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             archive | tee Builds/iOS/logs/xcodebuild-archive.log
 
-          APP_PATH="$(find Builds/iOS/archive/Cantra.xcarchive/Products/Applications -type d -name '*.app' | head -n 1)"
+          APP_PATH="$(find Builds/iOS/archive/Decantra.xcarchive/Products/Applications -type d -name '*.app' | head -n 1)"
           if [[ -z "${APP_PATH}" ]]; then
             echo "No .app found in iOS archive output" >&2
+            exit 1
+          fi
+
+          DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "${APP_PATH}/Info.plist" 2>/dev/null || true)"
+          BUNDLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "${APP_PATH}/Info.plist" 2>/dev/null || true)"
+          if [[ "${DISPLAY_NAME}" != "Decantra" || "${BUNDLE_NAME}" != "Decantra" ]]; then
+            echo "Unexpected iOS app name in archive artifact. CFBundleDisplayName='${DISPLAY_NAME}' CFBundleName='${BUNDLE_NAME}'" >&2
             exit 1
           fi
 
@@ -398,17 +412,17 @@ jobs:
       - name: Install app
         run: |
           set -euo pipefail
-          if [[ -f Builds/iOS/SimulatorApp/Cantra.app.zip ]]; then
-            rm -rf Builds/iOS/SimulatorApp/Cantra.app
-            unzip -q Builds/iOS/SimulatorApp/Cantra.app.zip -d Builds/iOS/SimulatorApp
+          if [[ -f Builds/iOS/SimulatorApp/Decantra.app.zip ]]; then
+            rm -rf Builds/iOS/SimulatorApp/Decantra.app
+            unzip -q Builds/iOS/SimulatorApp/Decantra.app.zip -d Builds/iOS/SimulatorApp
           fi
 
           APP_PATH="$(find Builds/iOS/SimulatorApp -type d -name '*.app' | head -n 1)"
 
           if [[ -z "${APP_PATH}" && -f Builds/iOS/SimulatorApp/Info.plist ]]; then
-            REHYDRATED_APP="Builds/iOS/SimulatorApp/Cantra.app"
+            REHYDRATED_APP="Builds/iOS/SimulatorApp/Decantra.app"
             mkdir -p "${REHYDRATED_APP}"
-            find Builds/iOS/SimulatorApp -mindepth 1 -maxdepth 1 ! -name 'Cantra.app' -exec mv {} "${REHYDRATED_APP}/" \;
+            find Builds/iOS/SimulatorApp -mindepth 1 -maxdepth 1 ! -name 'Decantra.app' -exec mv {} "${REHYDRATED_APP}/" \;
             APP_PATH="${REHYDRATED_APP}"
           fi
           if [[ -z "${APP_PATH}" ]]; then

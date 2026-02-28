@@ -130,6 +130,34 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ReplayTutorial_ReportsValidSpotlightDiagnostics()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+
+            var controller = Object.FindFirstObjectByType<GameController>();
+            Assert.IsNotNull(controller);
+
+            controller.ReplayTutorial();
+            yield return null;
+            yield return new WaitForSeconds(0.35f);
+
+            var tutorialManager = Object.FindFirstObjectByType<TutorialManager>();
+            Assert.IsNotNull(tutorialManager);
+            Assert.IsTrue(tutorialManager.IsRunning, "Tutorial should be active for spotlight diagnostics.");
+
+            Assert.IsTrue(tutorialManager.TryGetRenderDiagnostics(out var diagnostics), "Tutorial diagnostics should be available.");
+            Assert.IsTrue(diagnostics.SpotlightVisible, "Spotlight should be visible during focused tutorial step.");
+            Assert.IsTrue(diagnostics.SpotlightMaskActive, "Spotlight mask should be active during focused tutorial step.");
+            Assert.Greater(diagnostics.SpotlightRectLocal.width, 10f, "Spotlight width should be non-trivial.");
+            Assert.Greater(diagnostics.SpotlightRectLocal.height, 10f, "Spotlight height should be non-trivial.");
+
+            Rect canvasRect = diagnostics.CanvasRectLocal;
+            Rect spotlightRect = diagnostics.SpotlightRectLocal;
+            Assert.IsTrue(canvasRect.Overlaps(spotlightRect), "Spotlight should overlap the tutorial canvas bounds.");
+        }
+
+        [UnityTest]
         public IEnumerator LegalOverlays_AreScrollable()
         {
             SceneBootstrap.EnsureScene();
