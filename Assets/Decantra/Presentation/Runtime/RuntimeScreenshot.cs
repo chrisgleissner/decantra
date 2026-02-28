@@ -11,6 +11,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using Decantra.App;
 using Decantra.Domain.Model;
 using Decantra.Domain.Persistence;
 using Decantra.Domain.Rules;
@@ -62,7 +63,6 @@ namespace Decantra.Presentation
         private const string InterstitialFileName = "screenshot-06-interstitial.png";
         private const string Level36FileName = "screenshot-07-level-36.png";
         private const string OptionsLegacyFileName = "screenshot-10-options.png";
-        private const string TutorialPageFilePrefix = "how_to_play_tutorial_page_";
         private const int MaxTutorialPagesToCapture = 12;
         private const int MotionFrameCount = 6;
         private const float MotionFrameIntervalMs = 600f;
@@ -1579,20 +1579,34 @@ namespace Decantra.Presentation
                 yield break;
             }
 
-            int page = 1;
-            while (tutorialManager.IsRunning && page <= MaxTutorialPagesToCapture)
+            string version = string.IsNullOrWhiteSpace(BuildInfo.Version) ? "0.0.0-local" : BuildInfo.Version;
+            string tutorialDir = Path.Combine(outputDir, "Tutorial", SanitizeFileToken(version));
+            Directory.CreateDirectory(tutorialDir);
+
+            int step = 1;
+            var summary = new List<string>();
+            summary.Add($"Tutorial capture summary | version={version} | utc={DateTime.UtcNow:O}");
+
+            while (tutorialManager.IsRunning && step <= MaxTutorialPagesToCapture)
             {
                 yield return new WaitForEndOfFrame();
-                yield return new WaitForSeconds(0.16f);
-                string pagePath = Path.Combine(outputDir, $"{TutorialPageFilePrefix}{page:D2}.png");
-                yield return CaptureScreenshot(pagePath);
+                yield return new WaitForSeconds(0.22f);
+
+                if (!tutorialManager.TryGetCurrentStepSnapshot(out int currentStepIndex, out string targetName))
+                {
+                    currentStepIndex = step - 1;
+                    targetName = "unknown";
+                }
+
+                string safeTarget = SanitizeFileToken(string.IsNullOrWhiteSpace(targetName) ? "unknown" : targetName);
+                yield return CaptureTutorialStepVariants(tutorialDir, currentStepIndex + 1, safeTarget, summary);
 
                 tutorialManager.AdvanceStepForAutomation();
-                page++;
+                step++;
                 yield return null;
             }
 
-            if (page <= 2)
+            if (step <= 2)
             {
                 Debug.LogError("RuntimeScreenshot: tutorial page capture produced too few pages.");
                 _failed = true;
@@ -1603,7 +1617,80 @@ namespace Decantra.Presentation
                 Debug.LogWarning("RuntimeScreenshot: tutorial capture reached max page limit; forcing dismiss.");
             }
 
+            string summaryPath = Path.Combine(tutorialDir, "tutorial_capture_summary.log");
+            File.WriteAllLines(summaryPath, summary);
+            Debug.Log($"RuntimeScreenshot: tutorial summary written to {summaryPath}");
+
             yield return EnsureTutorialOverlaySuppressed();
+        }
+
+        private IEnumerator CaptureTutorialStepVariants(string tutorialDir, int stepIndex, string targetName, List<string> summary)
+        {
+            var variants = new[]
+            {
+                new { Width = 1080, Height = 1920, Label = "portrait", Fullscreen = false },
+                new { Width = 1920, Height = 1080, Label = "landscape", Fullscreen = false },
+                new { Width = 2560, Height = 1440, Label = "webgl_fullscreen", Fullscreen = true }
+            };
+
+            int originalWidth = Screen.width;
+            int originalHeight = Screen.height;
+
+            for (int i = 0; i < variants.Length; i++)
+            {
+                var variant = variants[i];
+                ApplyCaptureResolution(variant.Width, variant.Height, variant.Fullscreen);
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForSeconds(0.2f);
+
+                string resolution = $"{Screen.width}x{Screen.height}";
+                string fileName = $"tutorial_step_{stepIndex:D2}_{targetName}_{resolution}.png";
+                string filePath = Path.Combine(tutorialDir, fileName);
+                yield return CaptureScreenshot(filePath);
+
+                summary?.Add($"{DateTime.UtcNow:O} | step={stepIndex:D2} | target={targetName} | variant={variant.Label} | resolution={resolution} | file={fileName}");
+            }
+
+            ApplyCaptureResolution(originalWidth, originalHeight, false);
+            yield return null;
+        }
+
+        private static void ApplyCaptureResolution(int width, int height, bool fullscreen)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            Screen.SetResolution(width, height, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+#else
+            Screen.SetResolution(width, height, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+#endif
+        }
+
+        private static string SanitizeFileToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "unknown";
+            }
+
+            char[] invalid = Path.GetInvalidFileNameChars();
+            var chars = value.Trim().ToCharArray();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                if (chars[i] == ' ')
+                {
+                    chars[i] = '_';
+                }
+                else if (System.Array.IndexOf(invalid, chars[i]) >= 0)
+                {
+                    chars[i] = '_';
+                }
+            }
+
+            return new string(chars);
         }
 
         private IEnumerator EnsureTutorialOverlaySuppressed()

@@ -35,6 +35,7 @@ namespace Decantra.App.Editor
         private static void BuildXcodeProject(iOSSdkVersion sdkVersion, bool developmentBuild)
         {
             ConfigureVersioningFromEnv();
+            BuildInfoGenerator.GenerateAndImport();
 
             EditorUserBuildSettings.development = developmentBuild;
             EditorUserBuildSettings.allowDebugging = developmentBuild;

@@ -18,6 +18,9 @@ namespace Decantra.Presentation
     {
         [SerializeField] private RectTransform root;
         [SerializeField] private RectTransform highlightFrame;
+        [SerializeField] private Image highlightMask;
+        [SerializeField] private Graphic dimLayer;
+        [SerializeField] private TutorialRaycastBlocker raycastBlocker;
         [SerializeField] private Text instructionText;
         [SerializeField] private Button nextButton;
         [SerializeField] private Button skipButton;
@@ -30,6 +33,14 @@ namespace Decantra.Presentation
         private bool _initialized;
         private bool _running;
         private RectTransform _activeTarget;
+        private TutorialStepData _activeStep;
+        private TutorialFocusPulse _activePulse;
+
+        private Vector2 _smoothCenter;
+        private Vector2 _smoothCenterVelocity;
+        private Vector2 _smoothSize;
+        private Vector2 _smoothSizeVelocity;
+        private bool _hasSmoothState;
 
         public bool IsRunning => _running;
         public int StepCount => _steps.Count;
@@ -81,6 +92,13 @@ namespace Decantra.Presentation
             return _running;
         }
 
+        public bool TryGetCurrentStepSnapshot(out int stepIndex, out string targetName)
+        {
+            stepIndex = _stepIndex;
+            targetName = _activeStep?.TargetObjectName;
+            return _running && _activeStep != null;
+        }
+
         public void SuppressForAutomation(bool markCompleted = false)
         {
             _running = false;
@@ -94,8 +112,13 @@ namespace Decantra.Presentation
 
         private void LateUpdate()
         {
-            if (!_running) return;
-            RefreshHighlight();
+            if (!_running)
+            {
+                return;
+            }
+
+            RefreshHighlight(animated: true);
+            _activePulse?.Tick(Time.unscaledTime);
         }
 
         private void BeginTutorial()
@@ -115,6 +138,11 @@ namespace Decantra.Presentation
                 root.SetAsLastSibling();
             }
 
+            if (dimLayer != null)
+            {
+                dimLayer.gameObject.SetActive(true);
+            }
+
             ShowStep(_stepIndex);
         }
 
@@ -124,12 +152,16 @@ namespace Decantra.Presentation
             _steps.Add(new TutorialStepData(
                 "highlight-bottles",
                 "Bottle_1",
-                "These are your bottles. To pour, press and drag a bottle."
+                "These are your bottles. To pour, press and drag a bottle.",
+                optional: false,
+                focusShape: TutorialFocusShape.Circle
             ));
             _steps.Add(new TutorialStepData(
                 "drag-pour",
                 "Bottle_2",
-                "Drag a bottle onto another and release. It pours only if space is available and the top color matches or the target is empty."
+                "Drag a bottle onto another and release. It pours only if space is available and the top color matches or the target is empty.",
+                optional: false,
+                focusShape: TutorialFocusShape.Circle
             ));
 
             if (_controller != null && _controller.TryGetSinkBottleObjectName(out string sinkBottleName))
@@ -137,7 +169,9 @@ namespace Decantra.Presentation
                 _steps.Add(new TutorialStepData(
                     "sink-only",
                     sinkBottleName,
-                    "Black bottles use heavier, darker glass. They can receive liquid but cannot be picked as sources."
+                    "Black bottles use heavier, darker glass. They can receive liquid but cannot be picked as sources.",
+                    optional: false,
+                    focusShape: TutorialFocusShape.Circle
                 ));
             }
 
@@ -155,6 +189,11 @@ namespace Decantra.Presentation
                 "score",
                 "ScorePanel",
                 "SCORE\nPress SCORE to view your high score and maximum level reached."
+            ));
+            _steps.Add(new TutorialStepData(
+                "logo",
+                "BrandLockup",
+                "The Decantra logo anchors your active game session and HUD state."
             ));
             _steps.Add(new TutorialStepData(
                 "reset",
@@ -182,6 +221,7 @@ namespace Decantra.Presentation
             }
 
             var step = _steps[index];
+            _activeStep = step;
             _activeTarget = ResolveTarget(step.TargetObjectName);
 
             if (_activeTarget == null && step.Optional)
@@ -190,12 +230,16 @@ namespace Decantra.Presentation
                 return;
             }
 
+            _activePulse?.Dispose();
+            _activePulse = _activeTarget != null ? new TutorialFocusPulse(_activeTarget) : null;
+            _hasSmoothState = false;
+
             if (instructionText != null)
             {
                 instructionText.text = step.Instruction;
             }
 
-            RefreshHighlight();
+            RefreshHighlight(animated: false);
         }
 
         private RectTransform ResolveTarget(string objectName)
@@ -206,7 +250,7 @@ namespace Decantra.Presentation
             return go.GetComponent<RectTransform>();
         }
 
-        private void RefreshHighlight()
+        private void RefreshHighlight(bool animated)
         {
             if (highlightFrame == null)
             {
@@ -216,6 +260,10 @@ namespace Decantra.Presentation
             if (_activeTarget == null)
             {
                 highlightFrame.gameObject.SetActive(false);
+                if (highlightMask != null)
+                {
+                    highlightMask.gameObject.SetActive(false);
+                }
                 return;
             }
 
@@ -248,12 +296,71 @@ namespace Decantra.Presentation
                 max = Vector2.Max(max, localPoint);
             }
 
-            float padding = 20f;
-            var size = (max - min) + new Vector2(padding * 2f, padding * 2f);
-            highlightFrame.anchoredPosition = (min + max) * 0.5f;
-            highlightFrame.sizeDelta = size;
+            float padding = 18f;
+            var targetCenter = (min + max) * 0.5f;
+            var targetSize = (max - min) + new Vector2(padding * 2f, padding * 2f);
+
+            if (!_hasSmoothState || !animated)
+            {
+                _smoothCenter = targetCenter;
+                _smoothSize = targetSize;
+                _hasSmoothState = true;
+            }
+            else
+            {
+                _smoothCenter = Vector2.SmoothDamp(_smoothCenter, targetCenter, ref _smoothCenterVelocity, 0.1f, Mathf.Infinity, Time.unscaledDeltaTime);
+                _smoothSize = Vector2.SmoothDamp(_smoothSize, targetSize, ref _smoothSizeVelocity, 0.1f, Mathf.Infinity, Time.unscaledDeltaTime);
+            }
+
+            highlightFrame.anchoredPosition = _smoothCenter;
+            highlightFrame.sizeDelta = _smoothSize;
             highlightFrame.gameObject.SetActive(true);
             highlightFrame.SetAsLastSibling();
+
+            if (raycastBlocker != null)
+            {
+                raycastBlocker.Configure(_canvas, highlightFrame);
+            }
+
+            if (highlightMask != null)
+            {
+                highlightMask.gameObject.SetActive(true);
+                UpdateMaskMaterial(canvasRect, _smoothCenter, _smoothSize, _activeStep != null && _activeStep.FocusShape == TutorialFocusShape.Circle);
+            }
+
+            if (root != null)
+            {
+                root.SetAsLastSibling();
+            }
+        }
+
+        private void UpdateMaskMaterial(RectTransform canvasRect, Vector2 center, Vector2 size, bool useCircle)
+        {
+            if (highlightMask == null)
+            {
+                return;
+            }
+
+            Material material = highlightMask.material;
+            if (material == null)
+            {
+                return;
+            }
+
+            Rect rect = canvasRect.rect;
+            Vector2 uvCenter = new Vector2(
+                Mathf.InverseLerp(rect.xMin, rect.xMax, center.x),
+                Mathf.InverseLerp(rect.yMin, rect.yMax, center.y));
+
+            Vector2 uvSize = new Vector2(
+                Mathf.Clamp01(size.x / Mathf.Max(1f, rect.width)),
+                Mathf.Clamp01(size.y / Mathf.Max(1f, rect.height)));
+
+            material.SetVector("_HoleCenter", new Vector4(uvCenter.x, uvCenter.y, 0f, 0f));
+            material.SetVector("_HoleSize", new Vector4(uvSize.x, uvSize.y, 0f, 0f));
+            material.SetFloat("_UseCircle", useCircle ? 1f : 0f);
+            material.SetFloat("_CornerRadius", 0.06f);
+            material.SetFloat("_Feather", 0.03f);
         }
 
         private void NextStep()
@@ -288,14 +395,106 @@ namespace Decantra.Presentation
 
         private void HideImmediate()
         {
+            _activePulse?.Dispose();
+            _activePulse = null;
+
             if (highlightFrame != null)
             {
                 highlightFrame.gameObject.SetActive(false);
             }
 
+            if (highlightMask != null)
+            {
+                highlightMask.gameObject.SetActive(false);
+            }
+
+            if (dimLayer != null)
+            {
+                dimLayer.gameObject.SetActive(false);
+            }
+
             if (root != null)
             {
                 root.gameObject.SetActive(false);
+            }
+        }
+    }
+
+    [RequireComponent(typeof(RectTransform))]
+    public sealed class TutorialRaycastBlocker : MonoBehaviour, ICanvasRaycastFilter
+    {
+        [SerializeField] private RectTransform passThroughRect;
+
+        private Canvas _canvas;
+
+        public void Configure(Canvas canvas, RectTransform focusedRect)
+        {
+            _canvas = canvas;
+            passThroughRect = focusedRect;
+        }
+
+        public bool IsRaycastLocationValid(Vector2 screenPoint, Camera eventCamera)
+        {
+            if (!isActiveAndEnabled)
+            {
+                return true;
+            }
+
+            if (passThroughRect == null || _canvas == null)
+            {
+                return true;
+            }
+
+            bool inside = RectTransformUtility.RectangleContainsScreenPoint(passThroughRect, screenPoint, eventCamera);
+            return !inside;
+        }
+    }
+
+    public sealed class TutorialFocusPulse
+    {
+        private readonly RectTransform _target;
+        private readonly Vector3 _baseScale;
+        private readonly Shadow _shadow;
+        private readonly Color _baseShadowColor;
+        private readonly Vector2 _baseShadowDistance;
+
+        public TutorialFocusPulse(RectTransform target)
+        {
+            _target = target;
+            _baseScale = target.localScale;
+            _shadow = target.GetComponent<Shadow>() ?? target.gameObject.AddComponent<Shadow>();
+            _baseShadowColor = _shadow.effectColor;
+            _baseShadowDistance = _shadow.effectDistance;
+            _shadow.useGraphicAlpha = true;
+        }
+
+        public void Tick(float time)
+        {
+            if (_target == null)
+            {
+                return;
+            }
+
+            float wave = 0.5f + 0.5f * Mathf.Sin(time * 3.2f);
+            float scale = Mathf.Lerp(1.03f, 1.06f, wave);
+            _target.localScale = _baseScale * scale;
+
+            Color glow = new Color(0.85f, 0.93f, 1f, Mathf.Lerp(0.18f, 0.3f, wave));
+            _shadow.effectColor = glow;
+            _shadow.effectDistance = Vector2.Lerp(new Vector2(0f, -6f), new Vector2(0f, -10f), wave);
+        }
+
+        public void Dispose()
+        {
+            if (_target != null)
+            {
+                _target.localScale = _baseScale;
+            }
+
+            if (_shadow != null)
+            {
+                _shadow.effectColor = _baseShadowColor;
+                _shadow.effectDistance = _baseShadowDistance;
             }
         }
     }
