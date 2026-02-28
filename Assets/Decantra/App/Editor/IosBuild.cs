@@ -113,12 +113,25 @@ namespace Decantra.App.Editor
                 return;
             }
 
-            plistText = UpsertPlistString(plistText, "CFBundleDisplayName", displayName);
-            plistText = UpsertPlistString(plistText, "CFBundleName", displayName);
+            var dict = new PlistStringMap(plistText);
+            SetPlistString(dict, "CFBundleDisplayName", displayName);
+            SetPlistString(dict, "CFBundleName", displayName);
+
+            plistText = dict.ToPlistText();
 
             File.WriteAllText(plistPath, plistText);
 
             Debug.Log($"IosBuild: enforced CFBundleDisplayName/CFBundleName to '{displayName}'.");
+        }
+
+        private static void SetPlistString(PlistStringMap dict, string keyName, string value)
+        {
+            if (dict == null || string.IsNullOrWhiteSpace(keyName))
+            {
+                return;
+            }
+
+            dict.SetString(keyName, value);
         }
 
         private static string UpsertPlistString(string plistText, string keyName, string value)
@@ -159,6 +172,26 @@ namespace Decantra.App.Editor
                 .Replace("&", "&amp;")
                 .Replace("<", "&lt;")
                 .Replace(">", "&gt;");
+        }
+
+        private sealed class PlistStringMap
+        {
+            private string _plistText;
+
+            public PlistStringMap(string plistText)
+            {
+                _plistText = plistText;
+            }
+
+            public void SetString(string keyName, string value)
+            {
+                _plistText = UpsertPlistString(_plistText, keyName, value);
+            }
+
+            public string ToPlistText()
+            {
+                return _plistText;
+            }
         }
 
         private static string ResolveBuildPath()
