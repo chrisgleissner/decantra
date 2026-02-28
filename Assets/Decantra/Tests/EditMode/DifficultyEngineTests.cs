@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System;
 using Decantra.Domain.Rules;
 using NUnit.Framework;
 
@@ -137,7 +138,8 @@ namespace Decantra.Tests.EditMode
             int lateAllowed = MoveAllowanceCalculator.ComputeMovesAllowed(lateProfile, optimalMoves);
 
             Assert.AreEqual(20, earlyAllowed, "Slack factor should start at 2.0 for early levels.");
-            Assert.AreEqual(10, lateAllowed, "Slack factor should reach 1.0 by level 500.");
+            Assert.AreEqual((int)Math.Ceiling(10 * MoveAllowanceCalculator.MinimumSlackFactor), lateAllowed,
+                "Slack factor should reach MinimumSlackFactor by level 500.");
         }
 
         [Test]

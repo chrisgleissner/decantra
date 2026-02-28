@@ -3,6 +3,48 @@
 Last updated: 2026-02-28 UTC  
 Execution engineer: GitHub Copilot
 
+## 2026-02-28 — Implementation: Eliminate Optimal-Move Overshadowing
+
+### Scope
+
+Eliminate "optimal-move overshadowing" at high levels via four targeted changes:
+
+A. **Slack-Floor Adjustment** — Ensure move slack never collapses to zero.
+B. **Par-Based Grading** — Restore graded star tiers at high levels.
+C. **Scoring-Curve Rework** — Smooth score rewards for near-optimal play.
+D. **Multi-Solution Preference** — Improve generation quality by preferring multi-solution puzzles.
+
+### Invariants
+
+- Determinism preserved: same level index + seed = same output.
+- No new persistence fields; backward-compatible with existing saves.
+- Star caps, streak mechanics, sink conversion cost unchanged.
+- BestPerformances persistence and ProgressStore JSON compatibility maintained.
+
+### Implementation Steps
+
+- [x] A. Slack-Floor: Add `MinimumSlackFactor = 1.15f` to `MoveAllowanceCalculator`, interpolate from 2.0→1.15 instead of 2.0→1.0.
+- [x] B. Par-Based Grading: Create `ParCalculator` in Domain/Rules. Modify `ScoreCalculator.CalculateStars` to use par as star baseline.
+- [x] C. Scoring-Curve: Replace `0.10 + 1.90 * x^4` with `0.20 + 1.80 * x^2` in `ScoreCalculator.CalculateLevelScore`.
+- [x] D. Multi-Solution Preference: In `MonotonicLevelSelector`, apply `score -= 3` for multi-solution candidates when `targetDiff >= 70`.
+- [x] Update existing tests that reference old slack factor endpoints.
+- [x] Add new unit tests for all four changes.
+
+### Test Coverage
+
+| Area | Tests |
+|------|-------|
+| Slack floor | `SlackFloorTests` — level 500 floor, monotonicity, movesAllowed minimum |
+| Par calculation | `ParCalculatorTests` — tight/medium/large slack buffer values |
+| Star distribution | `StarDistributionTightSlackTests` — tight slack 5★, large slack unchanged, optimal always 5★ |
+| Score multiplier | `ScoreMultiplierCurveTests` — x=1→2.0, x=0.8 higher than old, monotonicity, bounds |
+| Selector preference | `MultiSolutionPreferenceTests` — preference at high diff, no pref at low diff, determinism |
+
+### Risk Notes
+
+- Par buffer is additive (2/1/0 moves); at very tight slack (≤2), par equals movesAllowed, meaning all sub-par play gets 0 stars. This is acceptable since the slack floor guarantees slack ≥ 1.15× optimal.
+- Multi-solution preference (-3 bonus) is a soft tie-breaker; does not alter difficulty targeting or candidate generation.
+
 ## 2026-02-28 — Research: Optimal-Move Overshadowing at High Levels
 
 ### Scope
