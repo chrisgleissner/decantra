@@ -35,6 +35,8 @@ namespace Decantra.Presentation
         private RectTransform _activeTarget;
         private TutorialStepData _activeStep;
         private TutorialFocusPulse _activePulse;
+        private Image _highlightFrameImage;
+        private Shadow _highlightFrameShadow;
 
         private Vector2 _smoothCenter;
         private Vector2 _smoothCenterVelocity;
@@ -155,10 +157,12 @@ namespace Decantra.Presentation
 
             RefreshHighlight(animated: true);
             _activePulse?.Tick(Time.unscaledTime);
+            AnimateHighlightFrame(Time.unscaledTime);
         }
 
         private void BeginTutorial()
         {
+            EnsureGameplayVisible();
             BuildSteps();
             if (_steps.Count == 0)
             {
@@ -178,6 +182,8 @@ namespace Decantra.Presentation
             {
                 dimLayer.gameObject.SetActive(true);
             }
+
+            CacheHighlightFrameVisuals();
 
             ShowStep(_stepIndex);
         }
@@ -358,9 +364,110 @@ namespace Decantra.Presentation
                 UpdateMaskMaterial(canvasRect, _smoothCenter, _smoothSize, _activeStep != null && _activeStep.FocusShape == TutorialFocusShape.Circle);
             }
 
+            CacheHighlightFrameVisuals();
+
             if (root != null)
             {
                 root.SetAsLastSibling();
+            }
+        }
+
+        private void CacheHighlightFrameVisuals()
+        {
+            if (highlightFrame == null)
+            {
+                _highlightFrameImage = null;
+                _highlightFrameShadow = null;
+                return;
+            }
+
+            if (_highlightFrameImage == null)
+            {
+                _highlightFrameImage = highlightFrame.GetComponent<Image>();
+            }
+
+            if (_highlightFrameShadow == null)
+            {
+                _highlightFrameShadow = highlightFrame.GetComponent<Shadow>();
+            }
+        }
+
+        private void AnimateHighlightFrame(float time)
+        {
+            if (!_running || !_lastFocusVisible)
+            {
+                return;
+            }
+
+            CacheHighlightFrameVisuals();
+            float wave = 0.5f + 0.5f * Mathf.Sin(time * 3.4f + 0.4f);
+
+            if (_highlightFrameImage != null)
+            {
+                _highlightFrameImage.color = new Color(
+                    0.78f,
+                    0.9f,
+                    1f,
+                    Mathf.Lerp(0.16f, 0.28f, wave));
+            }
+
+            if (_highlightFrameShadow != null)
+            {
+                _highlightFrameShadow.effectColor = new Color(
+                    0.58f,
+                    0.78f,
+                    1f,
+                    Mathf.Lerp(0.26f, 0.48f, wave));
+                _highlightFrameShadow.effectDistance = Vector2.Lerp(new Vector2(0f, -10f), new Vector2(0f, -18f), wave);
+            }
+        }
+
+        private static void EnsureGameplayVisible()
+        {
+            EnsureCanvasActive("Canvas_Background");
+            EnsureCanvasActive("Canvas_Game");
+            EnsureCanvasActive("Canvas_UI");
+
+            EnsureObjectActive("Background");
+            EnsureObjectActive("GameplayContainer");
+        }
+
+        private static void EnsureCanvasActive(string canvasName)
+        {
+            if (string.IsNullOrWhiteSpace(canvasName))
+            {
+                return;
+            }
+
+            var canvasGo = GameObject.Find(canvasName);
+            if (canvasGo == null)
+            {
+                return;
+            }
+
+            if (!canvasGo.activeSelf)
+            {
+                canvasGo.SetActive(true);
+            }
+
+            var canvas = canvasGo.GetComponent<Canvas>();
+            if (canvas != null && !canvas.enabled)
+            {
+                canvas.enabled = true;
+            }
+        }
+
+        private static void EnsureObjectActive(string objectName)
+        {
+            if (string.IsNullOrWhiteSpace(objectName))
+            {
+                return;
+            }
+
+            var go = GameObject.Find(objectName);
+            if (go != null && !go.activeSelf)
+            {
+                go.SetActive(true);
             }
         }
 
@@ -486,6 +593,17 @@ namespace Decantra.Presentation
 
             _lastFocusVisible = false;
             _lastFocusRectLocal = default;
+
+            if (_highlightFrameImage != null)
+            {
+                _highlightFrameImage.color = new Color(0.78f, 0.9f, 1f, 0.2f);
+            }
+
+            if (_highlightFrameShadow != null)
+            {
+                _highlightFrameShadow.effectColor = new Color(0.58f, 0.78f, 1f, 0.42f);
+                _highlightFrameShadow.effectDistance = new Vector2(0f, -14f);
+            }
         }
     }
 

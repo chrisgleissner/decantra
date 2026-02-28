@@ -155,6 +155,32 @@ namespace Decantra.Tests.PlayMode
             Rect canvasRect = diagnostics.CanvasRectLocal;
             Rect spotlightRect = diagnostics.SpotlightRectLocal;
             Assert.IsTrue(canvasRect.Overlaps(spotlightRect), "Spotlight should overlap the tutorial canvas bounds.");
+
+            var dimLayer = GameObject.Find("TutorialOverlay/DimLayer")?.GetComponent<Image>();
+            Assert.IsNotNull(dimLayer, "Tutorial dim layer should exist.");
+            Assert.Greater(dimLayer.color.a, 0.15f, "Tutorial dim layer should visibly dim the scene.");
+            Assert.Less(dimLayer.color.a, 0.9f, "Tutorial dim layer should not fully hide gameplay.");
+
+            var highlightFrameImage = GameObject.Find("TutorialOverlay/HighlightFrame")?.GetComponent<Image>();
+            Assert.IsNotNull(highlightFrameImage, "Highlight frame should exist.");
+            Assert.IsNotNull(highlightFrameImage.sprite, "Highlight frame should use a visible rounded sprite.");
+            Assert.Greater(highlightFrameImage.color.a, 0.01f, "Highlight frame should be visibly tinted.");
+
+            var highlightFrameShadow = GameObject.Find("TutorialOverlay/HighlightFrame")?.GetComponent<Shadow>();
+            Assert.IsNotNull(highlightFrameShadow, "Highlight frame should use a glow shadow effect.");
+            Assert.Greater(highlightFrameShadow.effectColor.a, 0.05f, "Highlight glow should be visible.");
+
+            var activeTarget = GetPrivateField<RectTransform>(tutorialManager, "_activeTarget");
+            Assert.IsNotNull(activeTarget, "Tutorial should resolve an active focus target.");
+            Assert.Greater(activeTarget.localScale.x, 1.01f, "Focused target should be enlarged during pulse.");
+            Assert.Greater(activeTarget.localScale.y, 1.01f, "Focused target should be enlarged during pulse.");
+
+            var backgroundCanvas = GameObject.Find("Canvas_Background")?.GetComponent<Canvas>();
+            var gameCanvas = GameObject.Find("Canvas_Game")?.GetComponent<Canvas>();
+            Assert.IsNotNull(backgroundCanvas, "Background canvas should exist while tutorial runs.");
+            Assert.IsNotNull(gameCanvas, "Gameplay canvas should exist while tutorial runs.");
+            Assert.IsTrue(backgroundCanvas.enabled, "Background canvas should remain enabled during tutorial.");
+            Assert.IsTrue(gameCanvas.enabled, "Gameplay canvas should remain enabled during tutorial.");
         }
 
         [UnityTest]

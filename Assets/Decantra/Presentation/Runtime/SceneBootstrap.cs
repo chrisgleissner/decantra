@@ -2490,7 +2490,7 @@ namespace Decantra.Presentation
             dimLayerRect.offsetMin = Vector2.zero;
             dimLayerRect.offsetMax = Vector2.zero;
             var dimLayer = dimLayerGo.AddComponent<Image>();
-            dimLayer.color = new Color(0f, 0f, 0f, 0.67f);
+            dimLayer.color = new Color(0f, 0f, 0f, 0.56f);
             dimLayer.raycastTarget = true;
 
             var raycastBlocker = dimLayerGo.AddComponent<TutorialRaycastBlocker>();
@@ -2512,8 +2512,15 @@ namespace Decantra.Presentation
             var highlight = CreateUiChild(root.transform, "HighlightFrame");
             var highlightRect = highlight.GetComponent<RectTransform>();
             var highlightImage = highlight.AddComponent<Image>();
-            highlightImage.color = new Color(1f, 1f, 1f, 0f);
+            highlightImage.sprite = GetRoundedSprite();
+            highlightImage.type = Image.Type.Sliced;
+            highlightImage.color = new Color(0.78f, 0.9f, 1f, 0.2f);
             highlightImage.raycastTarget = false;
+
+            var highlightGlow = highlight.AddComponent<Shadow>();
+            highlightGlow.useGraphicAlpha = true;
+            highlightGlow.effectColor = new Color(0.58f, 0.78f, 1f, 0.42f);
+            highlightGlow.effectDistance = new Vector2(0f, -14f);
 
             var instructionPanel = CreateUiChild(root.transform, "InstructionPanel");
             var panelRect = instructionPanel.GetComponent<RectTransform>();
