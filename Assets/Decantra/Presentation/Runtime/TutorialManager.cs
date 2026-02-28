@@ -233,11 +233,6 @@ namespace Decantra.Presentation
                 "SCORE\nPress SCORE to view your high score and maximum level reached."
             ));
             _steps.Add(new TutorialStepData(
-                "logo",
-                "BrandLockup",
-                "The Decantra logo anchors your active game session and HUD state."
-            ));
-            _steps.Add(new TutorialStepData(
                 "reset",
                 "ResetButton",
                 "Use RESET to restart only the current level."
@@ -693,8 +688,6 @@ namespace Decantra.Presentation
 
     public sealed class TutorialFocusPulse
     {
-        private readonly RectTransform _target;
-        private readonly Vector3 _baseScale;
         private readonly Shadow _shadow;
         private readonly bool _shadowCreatedByUs;
         private readonly Color _baseShadowColor;
@@ -703,8 +696,6 @@ namespace Decantra.Presentation
 
         public TutorialFocusPulse(RectTransform target)
         {
-            _target = target;
-            _baseScale = target.localScale;
             _shadow = target.GetComponent<Shadow>();
             _shadowCreatedByUs = _shadow == null;
             if (_shadowCreatedByUs)
@@ -719,14 +710,7 @@ namespace Decantra.Presentation
 
         public void Tick(float time)
         {
-            if (_target == null)
-            {
-                return;
-            }
-
             float wave = 0.5f + 0.5f * Mathf.Sin(time * 3.2f);
-            float scale = Mathf.Lerp(1.03f, 1.06f, wave);
-            _target.localScale = _baseScale * scale;
 
             Color glow = new Color(0.85f, 0.93f, 1f, Mathf.Lerp(0.18f, 0.3f, wave));
             _shadow.effectColor = glow;
@@ -735,11 +719,6 @@ namespace Decantra.Presentation
 
         public void Dispose()
         {
-            if (_target != null)
-            {
-                _target.localScale = _baseScale;
-            }
-
             if (_shadow != null)
             {
                 if (_shadowCreatedByUs)
