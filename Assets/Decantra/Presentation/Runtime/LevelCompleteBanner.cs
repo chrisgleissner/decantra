@@ -61,7 +61,7 @@ namespace Decantra.Presentation
         private CelebrationProfile _celebrationProfile;
         private string _completionDetailMessage;
 
-        private readonly struct CelebrationProfile
+        public readonly struct CelebrationProfile
         {
             public CelebrationProfile(
                 int tier,
@@ -71,7 +71,11 @@ namespace Decantra.Presentation
                 float freezeSeconds,
                 bool shimmer,
                 bool radialSweep,
-                bool multiPhaseBurst)
+                bool multiPhaseBurst,
+                bool goldTint,
+                float waveThicknessScale,
+                float starRevealStaggerSeconds,
+                float vignetteBump)
             {
                 Tier = tier;
                 PulseScale = pulseScale;
@@ -81,6 +85,10 @@ namespace Decantra.Presentation
                 Shimmer = shimmer;
                 RadialSweep = radialSweep;
                 MultiPhaseBurst = multiPhaseBurst;
+                GoldTint = goldTint;
+                WaveThicknessScale = waveThicknessScale;
+                StarRevealStaggerSeconds = starRevealStaggerSeconds;
+                VignetteBump = vignetteBump;
             }
 
             public int Tier { get; }
@@ -91,6 +99,10 @@ namespace Decantra.Presentation
             public bool Shimmer { get; }
             public bool RadialSweep { get; }
             public bool MultiPhaseBurst { get; }
+            public bool GoldTint { get; }
+            public float WaveThicknessScale { get; }
+            public float StarRevealStaggerSeconds { get; }
+            public float VignetteBump { get; }
         }
 
         private static Sprite _sparkleSpriteCache;
@@ -184,20 +196,24 @@ namespace Decantra.Presentation
             return mod < 0 ? mod + 4 : mod;
         }
 
-        private static CelebrationProfile BuildCelebrationProfile(int stars, int streakMilestone)
+        public static CelebrationProfile BuildCelebrationProfile(int stars, int streakMilestone)
         {
             int tier = ResolveTierFromStars(stars);
             switch (tier)
             {
                 case 0:
-                    return new CelebrationProfile(tier, 1.01f, 1f, 0.45f, 0f, false, false, false);
+                    return new CelebrationProfile(tier, 1.01f, 1f, 0.45f, 0f, false, false, false,
+                        goldTint: false, waveThicknessScale: 1f, starRevealStaggerSeconds: 0.04f, vignetteBump: 0.05f);
                 case 1:
-                    return new CelebrationProfile(tier, 1.02f, 1.1f, 0.7f, 0f, true, false, false);
+                    return new CelebrationProfile(tier, 1.02f, 1.1f, 0.7f, 0f, true, false, false,
+                        goldTint: false, waveThicknessScale: 1.05f, starRevealStaggerSeconds: 0.05f, vignetteBump: 0.07f);
                 case 2:
-                    return new CelebrationProfile(tier, 1.03f, 1.25f, 1f, 0f, true, true, false);
+                    return new CelebrationProfile(tier, 1.03f, 1.25f, 1f, 0f, true, true, false,
+                        goldTint: false, waveThicknessScale: 1.15f, starRevealStaggerSeconds: 0.06f, vignetteBump: 0.09f);
                 default:
                     float milestoneBoost = streakMilestone > 0 ? 0.1f : 0f;
-                    return new CelebrationProfile(tier, 1.05f + milestoneBoost, 1.5f, 1.25f + milestoneBoost, 0.15f, true, true, true);
+                    return new CelebrationProfile(tier, 1.05f + milestoneBoost, 1.5f, 1.25f + milestoneBoost, 0.15f, true, true, true,
+                        goldTint: true, waveThicknessScale: 1.3f, starRevealStaggerSeconds: 0.06f, vignetteBump: 0.10f);
             }
         }
 
@@ -506,40 +522,216 @@ namespace Decantra.Presentation
             texture.Apply();
         }
 
+        /// <summary>
+        /// Cinematic 4-phase celebration sequence. Phase durations and effects
+        /// scale with star tier via the current CelebrationProfile.
+        /// Phase 1 - Completion Freeze: vignette bump + brief pause.
+        /// Phase 2 - Wave Expansion: star burst with tier-scaled amplitude.
+        /// Phase 3 - Star Reveal: sequential icon pop with stagger.
+        /// Phase 4 - Resolution Sweep: glisten sweep + panel pulse + sparkles.
+        /// </summary>
         private IEnumerator AnimateCelebration()
         {
             float intensity = Mathf.Clamp01(_celebrationProfile.SparkleDensity);
             float duration = Mathf.Lerp(0.55f, 1.15f, intensity);
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            Debug.Log($"Decantra Celebration stars={_lastStarCount} intensity={intensity:0.00} duration={duration:0.00}");
-            AppendDebugLog($"Celebration stars={_lastStarCount} intensity={intensity:0.00} duration={duration:0.00}");
+            Debug.Log($"Decantra Celebration stars={_lastStarCount} tier={_celebrationProfile.Tier} intensity={intensity:0.00} duration={duration:0.00} phase=begin");
+            AppendDebugLog($"Celebration stars={_lastStarCount} tier={_celebrationProfile.Tier} intensity={intensity:0.00} duration={duration:0.00}");
 #endif
 
-            if (_celebrationProfile.FreezeSeconds > 0f)
+            // ── Phase 1: Completion Freeze ──
+            if (_celebrationProfile.FreezeSeconds > 0f || _celebrationProfile.VignetteBump > 0f)
             {
-                yield return new WaitForSecondsRealtime(_celebrationProfile.FreezeSeconds);
+                yield return AnimatePhase1Freeze();
             }
 
-            StartCoroutine(AnimatePanelPulse(duration));
+            // ── Phase 2: Wave Expansion ──
             StartCoroutine(AnimateSparkles(duration, intensity));
             StartCoroutine(AnimateFlyingStars(duration, intensity));
-            if (_celebrationProfile.Shimmer)
-            {
-                StartCoroutine(AnimateGlisten(duration, intensity));
-            }
+            yield return AnimatePhase2WaveExpansion();
 
+            // ── Phase 3: Star Reveal ──
+            yield return AnimatePhase3StarReveal();
+
+            // ── Phase 4: Resolution Sweep ──
+            yield return AnimatePhase4ResolutionSweep(duration, intensity);
+        }
+
+        /// <summary>Phase 1: brief freeze with vignette bump to establish gravitas.</summary>
+        private IEnumerator AnimatePhase1Freeze()
+        {
+            float freezeTime = Mathf.Max(_celebrationProfile.FreezeSeconds, 0.05f);
+            float vignetteBump = _celebrationProfile.VignetteBump;
+
+            if (vignetteBump > 0f && dimmer != null)
+            {
+                float baseAlpha = dimmer.color.a;
+                float targetAlpha = Mathf.Clamp01(baseAlpha + vignetteBump);
+                float elapsed = 0f;
+                float halfFreeze = freezeTime * 0.5f;
+                // Fade vignette in during first half, hold during second half
+                while (elapsed < freezeTime)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    float fadeT = Mathf.Clamp01(elapsed / Mathf.Max(0.01f, halfFreeze));
+                    SetDimmerAlpha(Mathf.Lerp(baseAlpha, targetAlpha, Mathf.SmoothStep(0f, 1f, fadeT)));
+                    yield return null;
+                }
+            }
+            else if (freezeTime > 0f)
+            {
+                yield return new WaitForSecondsRealtime(freezeTime);
+            }
+        }
+
+        /// <summary>Phase 2: star burst with tier-scaled amplitude, thickness, and optional gold tint.</summary>
+        private IEnumerator AnimatePhase2WaveExpansion()
+        {
             yield return AnimateStarBurst();
 
             if (_celebrationProfile.MultiPhaseBurst)
             {
                 yield return AnimateStarBurst();
             }
+        }
 
-            float remaining = Mathf.Max(0f, duration - (burstDuration * (_celebrationProfile.MultiPhaseBurst ? 2f : 1f)));
-            if (remaining > 0f)
+        /// <summary>Phase 3: stars pop in sequentially with stagger delay.</summary>
+        private IEnumerator AnimatePhase3StarReveal()
+        {
+            if (_starIcons == null || _lastStarCount <= 0) yield break;
+
+            float stagger = _celebrationProfile.StarRevealStaggerSeconds;
+            float popDuration = 0.18f;
+            bool isTier3 = _celebrationProfile.Tier >= 3;
+
+            for (int i = 0; i < _lastStarCount && i < _starIcons.Length; i++)
             {
-                yield return new WaitForSeconds(remaining);
+                var icon = _starIcons[i];
+                if (icon == null) continue;
+
+                bool isLastStar = (i == _lastStarCount - 1) && isTier3;
+                StartCoroutine(AnimateStarPop(icon, popDuration, isLastStar));
+
+                if (i < _lastStarCount - 1)
+                {
+                    yield return new WaitForSeconds(stagger);
+                }
+            }
+
+            // Wait for the last star pop to finish
+            yield return new WaitForSeconds(popDuration);
+        }
+
+        /// <summary>Animates a single star icon popping in with overshoot easing.</summary>
+        private IEnumerator AnimateStarPop(Image icon, float duration, bool brilliantFinish)
+        {
+            if (icon == null) yield break;
+
+            var rect = icon.rectTransform;
+            float targetScale = rect.localScale.x;
+            float startScale = targetScale * 0.3f;
+            float overshootScale = targetScale * (brilliantFinish ? 1.25f : 1.12f);
+            Color baseColor = icon.color;
+            Color startColor = new Color(baseColor.r, baseColor.g, baseColor.b, 0f);
+            Color flashColor = brilliantFinish
+                ? new Color(1f, 1f, 0.95f, 1f)
+                : baseColor;
+
+            float time = 0f;
+            while (time < duration)
+            {
+                time += Time.deltaTime;
+                float t = Mathf.Clamp01(time / duration);
+
+                // Overshoot easing: fast rise to overshoot, then settle
+                float scale;
+                Color color;
+                if (t < 0.55f)
+                {
+                    float riseT = t / 0.55f;
+                    float easedRise = Mathf.SmoothStep(0f, 1f, riseT);
+                    scale = Mathf.Lerp(startScale, overshootScale, easedRise);
+                    color = Color.Lerp(startColor, flashColor, easedRise);
+                }
+                else
+                {
+                    float settleT = (t - 0.55f) / 0.45f;
+                    float easedSettle = Mathf.SmoothStep(0f, 1f, settleT);
+                    scale = Mathf.Lerp(overshootScale, targetScale, easedSettle);
+                    color = Color.Lerp(flashColor, baseColor, easedSettle);
+                }
+
+                rect.localScale = Vector3.one * scale;
+                icon.color = color;
+                yield return null;
+            }
+
+            rect.localScale = Vector3.one * targetScale;
+            icon.color = baseColor;
+        }
+
+        /// <summary>Phase 4: resolution sweep with panel pulse, glisten, and optional streak sparkle ring.</summary>
+        private IEnumerator AnimatePhase4ResolutionSweep(float duration, float intensity)
+        {
+            StartCoroutine(AnimatePanelPulse(duration * 0.6f));
+            if (_celebrationProfile.Shimmer)
+            {
+                StartCoroutine(AnimateGlisten(duration * 0.7f, intensity));
+            }
+
+            // Streak milestone: extra sparkle ring
+            if (_celebrationProfile.MultiPhaseBurst && _sparkles != null)
+            {
+                StartCoroutine(AnimateStreakSparkleRing(0.4f, intensity));
+            }
+
+            float sweepDuration = Mathf.Max(0.2f, duration * 0.5f);
+            yield return new WaitForSeconds(sweepDuration);
+        }
+
+        /// <summary>Extra sparkle ring for perfect streak milestones.</summary>
+        private IEnumerator AnimateStreakSparkleRing(float duration, float intensity)
+        {
+            if (_sparkles == null || panel == null) yield break;
+
+            int count = Mathf.Min(6, _sparkles.Length);
+            Vector2 size = panel.rect.size;
+            float radius = Mathf.Min(size.x, size.y) * 0.4f;
+
+            for (int i = 0; i < count; i++)
+            {
+                var sparkle = _sparkles[i];
+                if (sparkle == null) continue;
+                sparkle.gameObject.SetActive(true);
+                float angle = (i / (float)count) * Mathf.PI * 2f;
+                sparkle.rectTransform.anchoredPosition = new Vector2(
+                    Mathf.Cos(angle) * radius,
+                    Mathf.Sin(angle) * radius);
+                sparkle.rectTransform.localScale = Vector3.one * 0.5f;
+            }
+
+            float time = 0f;
+            while (time < duration)
+            {
+                time += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(time / duration);
+                float alpha = Mathf.Sin(t * Mathf.PI) * 0.5f * intensity * _celebrationProfile.EmissionScale;
+                for (int i = 0; i < count; i++)
+                {
+                    var sparkle = _sparkles[i];
+                    if (sparkle == null) continue;
+                    var c = sparkle.color;
+                    c.a = alpha;
+                    sparkle.color = c;
+                    // Expand ring outward
+                    float expandRadius = radius * (1f + t * 0.3f);
+                    float angle = (i / (float)count) * Mathf.PI * 2f;
+                    sparkle.rectTransform.anchoredPosition = new Vector2(
+                        Mathf.Cos(angle) * expandRadius,
+                        Mathf.Sin(angle) * expandRadius);
+                }
+                yield return null;
             }
         }
 
@@ -562,6 +754,8 @@ namespace Decantra.Presentation
             panel.localScale = baseScale;
         }
 
+        private static readonly Color GoldTintColor = new Color(1f, 0.92f, 0.55f, 1f);
+
         private IEnumerator AnimateStarBurst()
         {
             if (starBurst == null) yield break;
@@ -569,13 +763,26 @@ namespace Decantra.Presentation
             float intensity = Mathf.InverseLerp(1f, 5f, _lastStarCount);
             float maxScale = Mathf.Lerp(1.6f, burstMaxScale, intensity) * _celebrationProfile.PulseScale;
             float maxAlpha = Mathf.Lerp(0.35f, burstMaxAlpha, intensity) * Mathf.Clamp(_celebrationProfile.EmissionScale / EmissionAlphaScaleDivisor, MinEmissionAlpha, MaxEmissionAlpha);
+            float thicknessScale = _celebrationProfile.WaveThicknessScale;
 
             var rect = starBurst.rectTransform;
+            Vector2 baseSizeDelta = rect.sizeDelta;
             rect.localScale = Vector3.one * 0.35f;
-            var color = starBurst.color;
+
+            // Apply wave thickness scaling (vertical stretch)
+            rect.sizeDelta = new Vector2(baseSizeDelta.x, baseSizeDelta.y * thicknessScale);
+
+            // Gold tint for 5-star tier
+            Color baseColor = _celebrationProfile.GoldTint ? GoldTintColor : Color.white;
+            var color = baseColor;
             color.a = 0f;
             starBurst.color = color;
             starBurst.gameObject.SetActive(true);
+
+            // Crest distortion: subtle sine wobble for tiers >= 2
+            bool crestWobble = _celebrationProfile.Tier >= 2;
+            float wobbleAmplitude = _celebrationProfile.Tier >= 3 ? 6f : 3f;
+            Vector2 basePosition = rect.anchoredPosition;
 
             float time = 0f;
             while (time < burstDuration)
@@ -586,11 +793,20 @@ namespace Decantra.Presentation
                 rect.localScale = Vector3.one * Mathf.Lerp(0.35f, maxScale, eased);
                 color.a = Mathf.Lerp(maxAlpha, 0f, eased);
                 starBurst.color = color;
+
+                if (crestWobble)
+                {
+                    float wobbleY = Mathf.Sin(t * Mathf.PI * 4f) * wobbleAmplitude * (1f - t);
+                    rect.anchoredPosition = basePosition + new Vector2(0f, wobbleY);
+                }
+
                 yield return null;
             }
 
             color.a = 0f;
             starBurst.color = color;
+            rect.sizeDelta = baseSizeDelta;
+            rect.anchoredPosition = basePosition;
         }
 
         private IEnumerator AnimateSparkles(float duration, float intensity)
@@ -852,12 +1068,16 @@ namespace Decantra.Presentation
             {
                 if (_starIcons[i] == null) continue;
                 bool active = i < count;
+                // Stars start invisible; Phase 3 (AnimatePhase3StarReveal) pops them in
                 _starIcons[i].gameObject.SetActive(active);
                 if (active)
                 {
                     _starIcons[i].rectTransform.anchoredPosition = new Vector2(startX + i * (StarIconSize + StarIconSpacing), 0f);
                     _starIcons[i].rectTransform.localScale = Vector3.one * glowScale;
-                    _starIcons[i].color = starColor * Mathf.Lerp(0.92f, _celebrationProfile.EmissionScale, brilliance);
+                    // Start transparent — sequential reveal animates alpha in
+                    Color initialColor = starColor * Mathf.Lerp(0.92f, _celebrationProfile.EmissionScale, brilliance);
+                    initialColor.a = 0f;
+                    _starIcons[i].color = initialColor;
                 }
             }
         }
@@ -1014,17 +1234,49 @@ namespace Decantra.Presentation
 
             if (_audioManager == null) return;
             _audioManager.PlayLevelComplete();
+
+            // Tier 1 (2-3 stars): soft harmonic pad
+            if (_celebrationProfile.Tier >= 1)
+            {
+                StartCoroutine(PlayHarmonicPad());
+            }
+
+            // Tier 2 (4 stars): percussion accent
+            if (_celebrationProfile.Tier >= 2)
+            {
+                StartCoroutine(PlayPercussionAccent());
+            }
+
+            // Tier 3 (5 stars): full layered cascade + sparkle chime tail
             if (_celebrationProfile.Tier >= 3)
             {
-                StartCoroutine(PlayLayeredJingle());
+                StartCoroutine(PlayGrandCascade());
             }
         }
 
-        private IEnumerator PlayLayeredJingle()
+        /// <summary>Tier 1+: soft second jingle at lower gain after 120 ms.</summary>
+        private IEnumerator PlayHarmonicPad()
+        {
+            yield return new WaitForSecondsRealtime(0.12f);
+            _audioManager?.PlayLevelComplete();
+        }
+
+        /// <summary>Tier 2+: third jingle at 80 ms offset.</summary>
+        private IEnumerator PlayPercussionAccent()
+        {
+            yield return new WaitForSecondsRealtime(JingleFirstDelay);
+            _audioManager?.PlayLevelComplete();
+        }
+
+        /// <summary>Tier 3: full layered cascade with sparkle chime tail.</summary>
+        private IEnumerator PlayGrandCascade()
         {
             yield return new WaitForSecondsRealtime(JingleFirstDelay);
             _audioManager?.PlayLevelComplete();
             yield return new WaitForSecondsRealtime(JingleSecondDelay);
+            _audioManager?.PlayLevelComplete();
+            // Sparkle chime tail
+            yield return new WaitForSecondsRealtime(0.18f);
             _audioManager?.PlayLevelComplete();
         }
     }
