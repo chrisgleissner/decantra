@@ -231,7 +231,8 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void MultiplierCap_NeverExceeds2x()
         {
-            // difficulty=100 => base score = 120, max multiplier cap = 2.0 => 240
+            // difficulty=100 => normalized difficulty d=1, base=60 + 60*d^0.7 = 120; cap multiplier is 2.0 => max non-clean score 240.
+            // Include movesUsed below optimal to verify Clamp01(x) keeps the multiplier capped even when x would exceed 1.
             const int maxNonCleanScore = 240;
             for (int movesUsed = 0; movesUsed <= 30; movesUsed++)
             {

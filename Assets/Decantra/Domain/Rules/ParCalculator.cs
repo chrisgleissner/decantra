@@ -18,7 +18,7 @@ namespace Decantra.Domain.Rules
             if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
             if (movesAllowed < optimalMoves)
             {
-                throw new ArgumentOutOfRangeException(nameof(movesAllowed), "movesAllowed must be greater than or equal to optimalMoves.");
+                throw new ArgumentOutOfRangeException(nameof(movesAllowed), $"movesAllowed ({movesAllowed}) must be greater than or equal to optimalMoves ({optimalMoves}).");
             }
 
             int slack = movesAllowed - optimalMoves;
