@@ -1,7 +1,97 @@
 # PLANS
 
-Last updated: 2026-02-22 UTC  
+Last updated: 2026-02-28 UTC  
 Execution engineer: GitHub Copilot
+
+## 2026-02-28 — Research: Optimal-Move Overshadowing at High Levels
+
+### Scope
+
+Investigate and propose minimal-effort ways to keep higher levels interesting when the
+dominant difficulty becomes "optimal-move precision" due to a very tight move budget
+(e.g., min moves = 5, max allowed = 6), which overshadows other complexities
+(more colours, more bottles, sink-only "black bottles").
+
+**Deliverables (research-only — no code changes):**
+
+1. This execution plan in PLANS.md.
+2. `doc/research/optimal-move-overshadowing-2026-02-28/README.md` — full research document.
+
+### Non-goals
+
+- No production code, test, asset, build, or configuration changes.
+- No time-based difficulty proposals (timers, countdowns, speed scoring).
+- No bottle visual redesign unless explicitly justified.
+- No online services, accounts, or monetisation changes.
+
+### Constraints
+
+- **Backward compatibility**: Any future implementation must preserve level progress,
+  best move records, stars, streaks, and all other persisted player metrics.
+- **No time pressure**: The game must keep its "infinite time + unlimited restarts" feel.
+- **Research only**: No commits of code changes.
+
+### Repo Touchpoints Inspected
+
+| File | Key Symbols |
+|------|-------------|
+| `Assets/Decantra/Domain/Rules/MoveAllowanceCalculator.cs` | `ComputeMovesAllowed`, `ComputeSlackFactor` (slack 2.0→1.0 over levels 1-500) |
+| `Assets/Decantra/Domain/Rules/LevelDifficultyEngine.cs` | `GetProfile`, `MaxEffectiveLevel=100`, `DetermineSinkCount`, `ResolveColorCount`, `ComputeReverseMoves` |
+| `Assets/Decantra/Domain/Rules/StarEconomy.cs` | `ResolveResetMultiplier`, `ResolveAwardedStars`, `ResolveAwardedScore`, `ResolveAutoSolveCost` |
+| `Assets/Decantra/Domain/Scoring/ScoreCalculator.cs` | `CalculateEfficiency`, `CalculateGrade`, `CalculateLevelScore`, `CalculateStars`, `CalculateTotalScore` |
+| `Assets/Decantra/Domain/Scoring/PerformanceTracker.cs` | `GetBest`, `UpdateBest` |
+| `Assets/Decantra/Domain/Scoring/ScoreSession.cs` | `UpdateProvisional`, `CommitLevel`, `ResetAttempt` |
+| `Assets/Decantra/Domain/Persistence/ProgressData.cs` | `HighestUnlockedLevel`, `CurrentScore`, `HighScore`, `StarBalance`, `CompletedLevels`, `BestPerformances` |
+| `Assets/Decantra/Domain/Persistence/LevelPerformanceRecord.cs` | `LevelIndex`, `BestMoves`, `BestEfficiency`, `BestGrade` |
+| `Assets/Decantra/App/Services/ProgressStore.cs` | `Load`, `Save`, `EnsureDefaults` (JSON, no schema version field) |
+| `Assets/Decantra/Domain/Solver/BfsSolver.cs` | `SolveOptimal`, `SolveWithPath`, A* with heuristic |
+| `Assets/Decantra/Domain/Generation/DifficultyScorer.cs` | `ComputeIntrinsicDifficulty100`, `TargetDifficultyForLevel`, `SoftMinOptimalForLevel` |
+| `Assets/Decantra/Domain/Generation/MonotonicLevelSelector.cs` | `Generate`, `TargetDifficulty` (35→92 over levels 1-200), `MinimumDifficulty` |
+| `Assets/Decantra/Domain/Generation/LevelMetrics.cs` | `ForcedMoveRatio`, `AverageBranchingFactor`, `TrapScore`, `SolutionMultiplicity` |
+| `Assets/Decantra/Domain/Generation/QualityThresholds.cs` | `ForBand`, `Passes`, `Relaxed` |
+| `Assets/Decantra/Domain/Rules/CapacityProfile.cs` | `ForLevel`, capacity pools 2-8 by tier |
+| `Assets/Decantra/Domain/Rules/DifficultyProfile.cs` | `LevelIndex`, `Band`, `BottleCount`, `ColorCount`, `EmptyBottleCount`, `ReverseMoves` |
+| `Assets/Decantra/Domain/Model/LevelState.cs` | `IsWin`, `IsFail`, `MovesAllowed`, `OptimalMoves` |
+| `Assets/Decantra/Domain/Model/Bottle.cs` | `Capacity`, `IsSink`, `IsMonochrome`, `ContiguousTopCount` |
+
+### Investigation Steps
+
+- [x] 1. Read move allowance logic (`MoveAllowanceCalculator`)
+- [x] 2. Read difficulty engine (`LevelDifficultyEngine`, bands, sinks, colors)
+- [x] 3. Read scoring model (`ScoreCalculator`, `StarEconomy`, `PerformanceTracker`)
+- [x] 4. Read persistence format (`ProgressData`, `ProgressStore`)
+- [x] 5. Read solver (`BfsSolver`, `DifficultyScorer`, `MonotonicLevelSelector`)
+- [x] 6. Read quality gating (`QualityThresholds`, `LevelMetrics`)
+- [x] 7. Read capacity diversity (`CapacityProfile`)
+- [x] 8. Generate ≥15 candidate ideas (non-time-based)
+- [x] 9. Score all candidates on 7-axis rubric
+- [x] 10. Select top 5 recommendations with implementation sketches
+- [x] 11. Write full research document
+- [x] 12. Update PLANS.md with final status
+
+### Evaluation Rubric (weights)
+
+| Axis | Weight | Description |
+|------|--------|-------------|
+| A — Engagement uplift | 0.20 | Variety, excitement, freshness |
+| B — Reduces overshadowing | 0.20 | Makes tight move budget less central |
+| C — Implementation effort | 0.15 | Lower effort = higher score |
+| D — Risk | 0.10 | Lower risk = higher score |
+| E — Testability | 0.10 | Easier deterministic verification = higher |
+| F — Save compatibility | 0.15 | Safer additive persistence = higher |
+| G — Mechanic compatibility | 0.10 | Better fit with stars/restarts/sinks/gen = higher |
+
+### Deliverables Checklist
+
+- [x] PLANS.md updated with this section
+- [x] `doc/research/optimal-move-overshadowing-2026-02-28/` created
+- [x] `doc/research/optimal-move-overshadowing-2026-02-28/README.md` complete
+- [x] All 8 required sections present in README.md
+- [x] ≥15 candidate ideas with scoring
+- [x] Top 5 recommendations with implementation sketches
+- [x] No code changes committed
+
+---
 
 ## 2026-02-22 — Release Workflow Hardening
 
