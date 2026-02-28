@@ -574,16 +574,24 @@ namespace Decantra.Presentation
         private readonly RectTransform _target;
         private readonly Vector3 _baseScale;
         private readonly Shadow _shadow;
+        private readonly bool _shadowCreatedByUs;
         private readonly Color _baseShadowColor;
         private readonly Vector2 _baseShadowDistance;
+        private readonly bool _baseUseGraphicAlpha;
 
         public TutorialFocusPulse(RectTransform target)
         {
             _target = target;
             _baseScale = target.localScale;
-            _shadow = target.GetComponent<Shadow>() ?? target.gameObject.AddComponent<Shadow>();
+            _shadow = target.GetComponent<Shadow>();
+            _shadowCreatedByUs = _shadow == null;
+            if (_shadowCreatedByUs)
+            {
+                _shadow = target.gameObject.AddComponent<Shadow>();
+            }
             _baseShadowColor = _shadow.effectColor;
             _baseShadowDistance = _shadow.effectDistance;
+            _baseUseGraphicAlpha = _shadow.useGraphicAlpha;
             _shadow.useGraphicAlpha = true;
         }
 
@@ -612,8 +620,16 @@ namespace Decantra.Presentation
 
             if (_shadow != null)
             {
-                _shadow.effectColor = _baseShadowColor;
-                _shadow.effectDistance = _baseShadowDistance;
+                if (_shadowCreatedByUs)
+                {
+                    Object.Destroy(_shadow);
+                }
+                else
+                {
+                    _shadow.effectColor = _baseShadowColor;
+                    _shadow.effectDistance = _baseShadowDistance;
+                    _shadow.useGraphicAlpha = _baseUseGraphicAlpha;
+                }
             }
         }
     }
