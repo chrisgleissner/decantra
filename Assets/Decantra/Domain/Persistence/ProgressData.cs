@@ -21,6 +21,11 @@ namespace Decantra.Domain.Persistence
         public int HighScore;
         public int StarBalance;
         public List<int> CompletedLevels;
+        public List<string> UnlockedThemes;
+        public int SessionCurrentPerfectStreak;
+        public int SessionBestPerfectStreak;
+        public int LifetimeBestPerfectStreak;
+        public int LifetimeOptimalCount;
         public List<LevelPerformanceRecord> BestPerformances;
     }
 }

@@ -925,7 +925,20 @@ namespace Decantra.Tests.PlayMode
                 CurrentLevel = 7,
                 CurrentSeed = 777,
                 CurrentScore = 120,
-                HighScore = 200
+                HighScore = 200,
+                SessionCurrentPerfectStreak = 4,
+                SessionBestPerfectStreak = 6,
+                LifetimeBestPerfectStreak = 9,
+                LifetimeOptimalCount = 12,
+                BestPerformances = new System.Collections.Generic.List<LevelPerformanceRecord>
+                {
+                    new LevelPerformanceRecord
+                    {
+                        LevelIndex = 1,
+                        BestStars = 4,
+                        BestMoves = 18
+                    }
+                }
             };
 
             SetPrivateField(controller, "_progressStore", store);
@@ -966,9 +979,15 @@ namespace Decantra.Tests.PlayMode
             Assert.AreEqual(1, updated.CurrentLevel);
             Assert.AreEqual(0, updated.CurrentScore);
             Assert.AreEqual(0, updated.StarBalance);
+            Assert.AreEqual(0, updated.SessionCurrentPerfectStreak);
+            Assert.AreEqual(0, updated.SessionBestPerfectStreak);
             // Lifetime stats are preserved
             Assert.AreEqual(200, updated.HighScore, "HighScore must be preserved across a game reset.");
             Assert.AreEqual(7, updated.HighestUnlockedLevel, "HighestUnlockedLevel must be preserved across a game reset.");
+            Assert.AreEqual(9, updated.LifetimeBestPerfectStreak, "Lifetime streak record must survive reset.");
+            Assert.AreEqual(12, updated.LifetimeOptimalCount, "Lifetime optimal count must survive reset.");
+            Assert.AreEqual(4, updated.BestPerformances[0].BestStars, "Per-level best stars must survive reset.");
+            Assert.AreEqual(18, updated.BestPerformances[0].BestMoves, "Per-level best moves must survive reset.");
         }
 
         [UnityTest]

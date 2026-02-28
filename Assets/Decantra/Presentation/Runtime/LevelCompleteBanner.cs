@@ -37,6 +37,13 @@ namespace Decantra.Presentation
 
         private const float StarIconSize = 80f;
         private const float StarIconSpacing = 8f;
+        private const float EmissionAlphaScaleDivisor = 1.5f;
+        private const float MinEmissionAlpha = 0.6f;
+        private const float MaxEmissionAlpha = 1.1f;
+        private static readonly Color BaseStarColor = new Color(1f, 0.9f, 0.45f, 1f);
+        private static readonly Color BrilliantStarColor = new Color(1f, 0.98f, 0.72f, 1f);
+        private const float JingleFirstDelay = 0.08f;
+        private const float JingleSecondDelay = 0.1f;
 
         private AudioManager _audioManager;
         private int _lastStarCount;
@@ -50,6 +57,41 @@ namespace Decantra.Presentation
         private Vector2 _starsBasePosition;
         private Vector2 _scoreBasePosition;
         private bool _layoutCached;
+        private int _styleIndex;
+        private CelebrationProfile _celebrationProfile;
+        private string _completionDetailMessage;
+
+        private readonly struct CelebrationProfile
+        {
+            public CelebrationProfile(
+                int tier,
+                float pulseScale,
+                float emissionScale,
+                float sparkleDensity,
+                float freezeSeconds,
+                bool shimmer,
+                bool radialSweep,
+                bool multiPhaseBurst)
+            {
+                Tier = tier;
+                PulseScale = pulseScale;
+                EmissionScale = emissionScale;
+                SparkleDensity = sparkleDensity;
+                FreezeSeconds = freezeSeconds;
+                Shimmer = shimmer;
+                RadialSweep = radialSweep;
+                MultiPhaseBurst = multiPhaseBurst;
+            }
+
+            public int Tier { get; }
+            public float PulseScale { get; }
+            public float EmissionScale { get; }
+            public float SparkleDensity { get; }
+            public float FreezeSeconds { get; }
+            public bool Shimmer { get; }
+            public bool RadialSweep { get; }
+            public bool MultiPhaseBurst { get; }
+        }
 
         private static Sprite _sparkleSpriteCache;
         private static Sprite _glistenSpriteCache;
@@ -127,12 +169,54 @@ namespace Decantra.Presentation
             return enterDuration + Mathf.Min(0.3f, starsHoldDuration * 0.5f);
         }
 
+        public static int ResolveTierFromStars(int stars)
+        {
+            int clamped = Mathf.Clamp(stars, 0, 5);
+            if (clamped <= 1) return 0;
+            if (clamped <= 3) return 1;
+            if (clamped == 4) return 2;
+            return 3;
+        }
+
+        public static int ResolveStyleIndex(int levelIndex)
+        {
+            int mod = levelIndex % 4;
+            return mod < 0 ? mod + 4 : mod;
+        }
+
+        private static CelebrationProfile BuildCelebrationProfile(int stars, int streakMilestone)
+        {
+            int tier = ResolveTierFromStars(stars);
+            switch (tier)
+            {
+                case 0:
+                    return new CelebrationProfile(tier, 1.01f, 1f, 0.45f, 0f, false, false, false);
+                case 1:
+                    return new CelebrationProfile(tier, 1.02f, 1.1f, 0.7f, 0f, true, false, false);
+                case 2:
+                    return new CelebrationProfile(tier, 1.03f, 1.25f, 1f, 0f, true, true, false);
+                default:
+                    float milestoneBoost = streakMilestone > 0 ? 0.1f : 0f;
+                    return new CelebrationProfile(tier, 1.05f + milestoneBoost, 1.5f, 1.25f + milestoneBoost, 0.15f, true, true, true);
+            }
+        }
+
         private void Awake()
         {
             _audioManager = FindFirstObjectByType<AudioManager>();
         }
 
-        public void Show(int level, int stars, int awardedScore, bool sfxEnabled, Action onScoreApply, Action onComplete)
+        public void Show(
+            int level,
+            int stars,
+            int awardedScore,
+            bool sfxEnabled,
+            Action onScoreApply,
+            Action onComplete,
+            string completionDetailMessage = null,
+            bool newStreakRecord = false,
+            int streakMilestone = 0,
+            int styleLevelIndex = 0)
         {
             if (panel == null || canvasGroup == null || starsText == null || levelText == null)
             {
@@ -159,11 +243,16 @@ namespace Decantra.Presentation
             _onScoreApply = onScoreApply;
             int clampedStars = Mathf.Clamp(stars, 0, 5);
             _lastStarCount = clampedStars;
+            _styleIndex = ResolveStyleIndex(styleLevelIndex);
+            _celebrationProfile = BuildCelebrationProfile(clampedStars, streakMilestone);
+            _completionDetailMessage = completionDetailMessage;
             EnsureStarIcons();
             ApplyStarIcons(clampedStars);
             starsText.text = " ";
             var tag = messages[Mathf.Abs(level) % messages.Length];
-            levelText.text = $"LEVEL {level + 1}\n{tag}";
+            levelText.text = string.IsNullOrWhiteSpace(_completionDetailMessage)
+                ? $"LEVEL {level + 1}\n{tag}"
+                : $"LEVEL {level + 1}\n{tag}\n{_completionDetailMessage}";
             if (scoreText != null)
             {
                 scoreText.text = $"+{awardedScore}";
@@ -419,7 +508,7 @@ namespace Decantra.Presentation
 
         private IEnumerator AnimateCelebration()
         {
-            float intensity = Mathf.InverseLerp(1f, 5f, _lastStarCount);
+            float intensity = Mathf.Clamp01(_celebrationProfile.SparkleDensity);
             float duration = Mathf.Lerp(0.55f, 1.15f, intensity);
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -427,17 +516,50 @@ namespace Decantra.Presentation
             AppendDebugLog($"Celebration stars={_lastStarCount} intensity={intensity:0.00} duration={duration:0.00}");
 #endif
 
+            if (_celebrationProfile.FreezeSeconds > 0f)
+            {
+                yield return new WaitForSecondsRealtime(_celebrationProfile.FreezeSeconds);
+            }
+
+            StartCoroutine(AnimatePanelPulse(duration));
             StartCoroutine(AnimateSparkles(duration, intensity));
             StartCoroutine(AnimateFlyingStars(duration, intensity));
-            StartCoroutine(AnimateGlisten(duration, intensity));
+            if (_celebrationProfile.Shimmer)
+            {
+                StartCoroutine(AnimateGlisten(duration, intensity));
+            }
 
             yield return AnimateStarBurst();
 
-            float remaining = Mathf.Max(0f, duration - burstDuration);
+            if (_celebrationProfile.MultiPhaseBurst)
+            {
+                yield return AnimateStarBurst();
+            }
+
+            float remaining = Mathf.Max(0f, duration - (burstDuration * (_celebrationProfile.MultiPhaseBurst ? 2f : 1f)));
             if (remaining > 0f)
             {
                 yield return new WaitForSeconds(remaining);
             }
+        }
+
+        private IEnumerator AnimatePanelPulse(float duration)
+        {
+            if (panel == null) yield break;
+
+            Vector3 baseScale = Vector3.one;
+            float maxScale = Mathf.Max(1f, _celebrationProfile.PulseScale);
+            float time = 0f;
+            while (time < duration)
+            {
+                time += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(time / duration);
+                float pulse = Mathf.Sin(t * Mathf.PI);
+                panel.localScale = baseScale * Mathf.Lerp(1f, maxScale, pulse);
+                yield return null;
+            }
+
+            panel.localScale = baseScale;
         }
 
         private IEnumerator AnimateStarBurst()
@@ -445,8 +567,8 @@ namespace Decantra.Presentation
             if (starBurst == null) yield break;
 
             float intensity = Mathf.InverseLerp(1f, 5f, _lastStarCount);
-            float maxScale = Mathf.Lerp(1.6f, burstMaxScale, intensity);
-            float maxAlpha = Mathf.Lerp(0.35f, burstMaxAlpha, intensity);
+            float maxScale = Mathf.Lerp(1.6f, burstMaxScale, intensity) * _celebrationProfile.PulseScale;
+            float maxAlpha = Mathf.Lerp(0.35f, burstMaxAlpha, intensity) * Mathf.Clamp(_celebrationProfile.EmissionScale / EmissionAlphaScaleDivisor, MinEmissionAlpha, MaxEmissionAlpha);
 
             var rect = starBurst.rectTransform;
             rect.localScale = Vector3.one * 0.35f;
@@ -475,7 +597,7 @@ namespace Decantra.Presentation
         {
             if (_sparkles == null || _sparkles.Length == 0 || panel == null) yield break;
 
-            int count = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(4f, maxSparkles, intensity)), 1, _sparkles.Length);
+            int count = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(2f, maxSparkles, intensity)), 1, _sparkles.Length);
             Vector2 size = panel.rect.size;
             float[] phases = new float[count];
             float[] speeds = new float[count];
@@ -487,7 +609,7 @@ namespace Decantra.Presentation
                 if (sparkle == null) continue;
                 sparkle.gameObject.SetActive(true);
                 phases[i] = UnityEngine.Random.Range(0f, 1f);
-                speeds[i] = UnityEngine.Random.Range(2.2f, 4.2f);
+                speeds[i] = UnityEngine.Random.Range(2.2f, 4.2f) * (0.9f + (_celebrationProfile.EmissionScale - 1f));
                 scales[i] = UnityEngine.Random.Range(0.25f, 0.6f) + intensity * 0.25f;
 
                 var rect = sparkle.rectTransform;
@@ -507,7 +629,7 @@ namespace Decantra.Presentation
                     if (sparkle == null) continue;
                     float twinkle = Mathf.Sin((time * speeds[i] + phases[i]) * Mathf.PI * 2f) * 0.5f + 0.5f;
                     var color = sparkle.color;
-                    color.a = Mathf.Lerp(0.15f, 0.55f, twinkle) * (0.6f + 0.4f * intensity);
+                    color.a = Mathf.Lerp(0.15f, 0.55f, twinkle) * (0.6f + 0.4f * intensity) * _celebrationProfile.EmissionScale;
                     sparkle.color = color;
                 }
                 yield return null;
@@ -530,8 +652,30 @@ namespace Decantra.Presentation
                 var star = _flyingStars[i];
                 if (star == null) continue;
                 star.gameObject.SetActive(true);
-                starts[i] = new Vector2(UnityEngine.Random.Range(-size.x * 0.2f, size.x * 0.2f), UnityEngine.Random.Range(-size.y * 0.05f, size.y * 0.1f));
-                ends[i] = starts[i] + new Vector2(UnityEngine.Random.Range(-size.x * 0.35f, size.x * 0.35f), UnityEngine.Random.Range(size.y * 0.25f, size.y * 0.5f));
+                float normalized = count <= 1 ? 0f : i / (float)(count - 1);
+                switch (_styleIndex)
+                {
+                    case 1: // Spiral
+                        starts[i] = new Vector2(Mathf.Lerp(-size.x * 0.08f, size.x * 0.08f, normalized), -size.y * 0.05f);
+                        ends[i] = new Vector2(
+                            Mathf.Cos(normalized * Mathf.PI * 2f) * size.x * 0.35f,
+                            Mathf.Sin(normalized * Mathf.PI * 2f) * size.y * 0.25f + size.y * 0.25f);
+                        break;
+                    case 2: // Wave
+                        starts[i] = new Vector2(Mathf.Lerp(-size.x * 0.35f, size.x * 0.35f, normalized), -size.y * 0.02f);
+                        ends[i] = new Vector2(starts[i].x, size.y * 0.45f);
+                        break;
+                    case 3: // Radiant
+                        starts[i] = Vector2.zero;
+                        ends[i] = new Vector2(
+                            Mathf.Lerp(-size.x * 0.45f, size.x * 0.45f, normalized),
+                            Mathf.Lerp(size.y * 0.2f, size.y * 0.55f, normalized));
+                        break;
+                    default: // Burst
+                        starts[i] = new Vector2(UnityEngine.Random.Range(-size.x * 0.2f, size.x * 0.2f), UnityEngine.Random.Range(-size.y * 0.05f, size.y * 0.1f));
+                        ends[i] = starts[i] + new Vector2(UnityEngine.Random.Range(-size.x * 0.35f, size.x * 0.35f), UnityEngine.Random.Range(size.y * 0.25f, size.y * 0.5f));
+                        break;
+                }
                 delays[i] = UnityEngine.Random.Range(0f, duration * 0.3f);
 
                 var rect = star.rectTransform;
@@ -550,10 +694,15 @@ namespace Decantra.Presentation
                     float local = Mathf.Clamp01((time - delays[i]) / Mathf.Max(0.01f, duration - delays[i]));
                     float eased = Mathf.SmoothStep(0f, 1f, local);
                     var rect = star.rectTransform;
-                    rect.anchoredPosition = Vector2.Lerp(starts[i], ends[i], eased);
+                    Vector2 position = Vector2.Lerp(starts[i], ends[i], eased);
+                    if (_styleIndex == 2)
+                    {
+                        position.x += Mathf.Sin((time + i * 0.37f) * Mathf.PI * 2f) * size.x * 0.05f;
+                    }
+                    rect.anchoredPosition = position;
                     rect.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(0f, 30f, eased));
                     var color = star.color;
-                    color.a = Mathf.Lerp(0.65f, 0f, eased);
+                    color.a = Mathf.Lerp(0.65f * _celebrationProfile.EmissionScale, 0f, eased);
                     star.color = color;
                 }
                 yield return null;
@@ -575,9 +724,10 @@ namespace Decantra.Presentation
                 time += Time.unscaledDeltaTime;
                 float t = Mathf.Clamp01(time / duration);
                 float eased = Mathf.SmoothStep(0f, 1f, t);
-                rect.anchoredPosition = new Vector2(Mathf.Lerp(-size.x * 0.6f, size.x * 0.6f, eased), size.y * 0.15f);
+                float sweepY = _celebrationProfile.RadialSweep ? Mathf.Lerp(size.y * 0.08f, size.y * 0.3f, eased) : size.y * 0.15f;
+                rect.anchoredPosition = new Vector2(Mathf.Lerp(-size.x * 0.6f, size.x * 0.6f, eased), sweepY);
                 var color = _glistenImage.color;
-                color.a = Mathf.Lerp(0f, 0.4f, Mathf.Sin(t * Mathf.PI)) * (0.6f + 0.4f * intensity);
+                color.a = Mathf.Lerp(0f, 0.4f, Mathf.Sin(t * Mathf.PI)) * (0.6f + 0.4f * intensity) * _celebrationProfile.EmissionScale;
                 _glistenImage.color = color;
                 yield return null;
             }
@@ -694,6 +844,9 @@ namespace Decantra.Presentation
             if (_starIcons == null) return;
             float totalWidth = count * StarIconSize + Mathf.Max(0, count - 1) * StarIconSpacing;
             float startX = -totalWidth * 0.5f + StarIconSize * 0.5f;
+            float brilliance = Mathf.Lerp(0.35f, 1f, Mathf.Clamp01(count / 5f));
+            Color starColor = Color.Lerp(BaseStarColor, BrilliantStarColor, brilliance);
+            float glowScale = Mathf.Lerp(1f, 1.08f, brilliance);
 
             for (int i = 0; i < _starIcons.Length; i++)
             {
@@ -703,6 +856,8 @@ namespace Decantra.Presentation
                 if (active)
                 {
                     _starIcons[i].rectTransform.anchoredPosition = new Vector2(startX + i * (StarIconSize + StarIconSpacing), 0f);
+                    _starIcons[i].rectTransform.localScale = Vector3.one * glowScale;
+                    _starIcons[i].color = starColor * Mathf.Lerp(0.92f, _celebrationProfile.EmissionScale, brilliance);
                 }
             }
         }
@@ -859,6 +1014,18 @@ namespace Decantra.Presentation
 
             if (_audioManager == null) return;
             _audioManager.PlayLevelComplete();
+            if (_celebrationProfile.Tier >= 3)
+            {
+                StartCoroutine(PlayLayeredJingle());
+            }
+        }
+
+        private IEnumerator PlayLayeredJingle()
+        {
+            yield return new WaitForSecondsRealtime(JingleFirstDelay);
+            _audioManager?.PlayLevelComplete();
+            yield return new WaitForSecondsRealtime(JingleSecondDelay);
+            _audioManager?.PlayLevelComplete();
         }
     }
 }
