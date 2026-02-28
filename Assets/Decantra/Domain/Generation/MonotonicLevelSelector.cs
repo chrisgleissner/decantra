@@ -213,6 +213,12 @@ namespace Decantra.Domain.Generation
                 // Score: distance from target (lower is better)
                 int score = Math.Abs(candidate.IntrinsicDifficulty - targetDiff);
 
+                // Soft preference: at high difficulty, prefer multi-solution candidates
+                if (targetDiff >= 70 && candidate.Metrics.SolutionMultiplicity >= 2)
+                {
+                    score -= 3;
+                }
+
                 if (score < bestScore)
                 {
                     bestScore = score;

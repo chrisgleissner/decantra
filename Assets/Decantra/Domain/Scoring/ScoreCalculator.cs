@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System;
+using Decantra.Domain.Rules;
 
 namespace Decantra.Domain.Scoring
 {
@@ -55,11 +56,11 @@ namespace Decantra.Domain.Scoring
             // Scoring spec constants:
             // - Difficulty normalization focuses on 70..100 using (D - 70) / 30.
             // - Base = 60 + 60 * d^0.7 (curved to favor high difficulty band).
-            // - PerfMult = 0.10 + 1.90 * x^4 (strongly nonlinear performance).
+            // - PerfMult = 0.20 + 1.80 * x^2 (softened quadratic performance).
             // - Clean bonus = 25 for no undo/restart/hints.
             double d = Clamp01((difficulty100 - 70) / 30.0);
             double baseScore = 60.0 + 60.0 * Math.Pow(d, 0.7);
-            double perfMult = 0.10 + 1.90 * Math.Pow(x, 4.0);
+            double perfMult = 0.20 + 1.80 * Math.Pow(x, 2.0);
             int cleanBonus = cleanSolve ? 25 : 0;
 
             int levelScore = (int)Math.Round(baseScore * perfMult) + cleanBonus;
@@ -72,10 +73,11 @@ namespace Decantra.Domain.Scoring
             if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
             if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
 
-            int slack = movesAllowed - optimalMoves;
-            int delta = movesUsed - optimalMoves;
+            int par = ParCalculator.ComputePar(optimalMoves, movesAllowed);
+            int slack = movesAllowed - par;
+            int delta = movesUsed - par;
 
-            // Treat equal-or-better-than-optimal solves as a perfect 5-star result.
+            // Treat equal-or-better-than-par solves as a perfect 5-star result.
             if (delta <= 0) return 5;
             if (slack <= 0) return 0;
 
