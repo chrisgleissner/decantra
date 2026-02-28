@@ -70,5 +70,37 @@ namespace Decantra.Tests.EditMode
             Assert.AreEqual(18, best.BestMoves);
             Assert.AreEqual(PerformanceGrade.A, best.BestGrade);
         }
+
+        [Test]
+        public void BestPerformance_DoesNotReplaceBestMovesWithLowerStarRun()
+        {
+            var data = new ProgressData
+            {
+                BestPerformances = new System.Collections.Generic.List<LevelPerformanceRecord>
+                {
+                    new LevelPerformanceRecord
+                    {
+                        LevelIndex = 3,
+                        BestStars = 5,
+                        BestMoves = 15,
+                        BestDeviation = 0
+                    }
+                }
+            };
+
+            PerformanceTracker.RecordCompletion(
+                data,
+                levelIndex: 3,
+                stars: 4,
+                moves: 14,
+                optimalMoves: 12,
+                efficiency: 0.8f,
+                grade: PerformanceGrade.B);
+
+            var best = PerformanceTracker.GetBest(data, 3);
+            Assert.AreEqual(5, best.BestStars);
+            Assert.AreEqual(15, best.BestMoves);
+            Assert.AreEqual(0, best.BestDeviation);
+        }
     }
 }

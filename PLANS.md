@@ -1,7 +1,74 @@
 # PLANS
 
-Last updated: 2026-02-22 UTC  
+Last updated: 2026-02-28 UTC  
 Execution engineer: GitHub Copilot
+
+## 2026-02-28 — CI Build Failure Fix
+
+### Scope
+
+Workflows analyzed:
+- `.github/workflows/build.yml` — Android build, Unity tests, iOS build, release job
+- `.github/workflows/web.yml` — WebGL build + smoke tests  
+- `.github/workflows/ios.yml` — iOS-specific workflow
+
+### Failure Inventory
+
+| Workflow | Job | Failing Step | Error Signature |
+|----------|-----|--------------|-----------------|
+| `build.yml` | Unity tests (EditMode + PlayMode) | Run PlayMode tests | `error CS0234: The type or namespace name 'Presentation' does not exist in the namespace 'Decantra'` |
+| `web.yml` | Build WebGL and run smoke tests | Build Unity WebGL | `error CS0234: The type or namespace name 'Presentation' does not exist in the namespace 'Decantra'` |
+
+Both failures share the same root cause.
+
+### Root Cause Analysis
+
+**File:** `Assets/Decantra/Tests/EditMode/LevelCompleteBannerMappingTests.cs`
+
+**Problem:** The test file references `Decantra.Presentation.LevelCompleteBanner` (a MonoBehaviour in the Presentation layer), but it resides in the `Decantra.Domain.Tests` assembly which only has a reference to `Decantra.Domain`. The assembly definition (`Decantra.Domain.Tests.asmdef`) does not include `Decantra.Presentation` in its references, and it has `noEngineReferences: true`.
+
+**Why this matters:** The Domain.Tests assembly intentionally avoids Unity engine references to keep Domain logic pure C#. The test file was incorrectly placed here when it should be in PlayMode tests.
+
+### Fix Strategy
+
+- [x] Move `LevelCompleteBannerMappingTests.cs` and its `.meta` file from `Tests/EditMode/` to `Tests/PlayMode/`.
+- [x] Update namespace from `Decantra.Tests.EditMode` to `Decantra.Tests.PlayMode`.
+- [ ] Push changes and verify both workflows pass.
+
+### Verification Matrix
+
+| Check | Local | CI |
+|-------|-------|-----|
+| No CS0234 errors | ✓ File moved to assembly with Presentation reference | Pending workflow rerun |
+| Tests still run | N/A (Unity not available locally) | Pending workflow rerun |
+| Architecture preserved | ✓ Domain.Tests remains pure C# | ✓ |
+
+### Risk Register
+
+| Risk | Mitigation |
+|------|------------|
+| PlayMode test assembly may have different test execution behavior | Low risk — these are simple static method tests with no async/coroutine behavior |
+| Meta file GUID change | Acceptable — no external references to this test file |
+
+---
+
+## 2026-02-27 — Reset-safe streak/performance polish
+
+- [x] Define reset-safe model split in code: session progress resets, lifetime performance persists.
+- [x] Add strict perfect qualification (`stars == 5`, no auto-solve, no black-bottle conversion) and apply streak lifecycle updates.
+- [x] Preserve per-level best performance and lifetime streak/optimal counters on game reset.
+- [x] Add reset-safe personal-best resolution and completion messaging (`Personal best`, `Optimal again`, `X moves to optimal`).
+- [x] Add star-tier celebration mapping and deterministic transition style rotation (`levelIndex % 4`).
+- [x] Add upward-only star brilliance scaling (emission/glow/sparkle emphasis) with grand tier boost.
+- [x] Add focused tests for: strict perfect breaks, reset persistence, post-reset PB detection, tier mapping, style determinism.
+- [ ] Run available automated tests in this sandbox (Unity runner unavailable here) and capture UI validation screenshot once runnable.
+
+### Edge cases handled
+
+- Perfect streak always breaks for non-perfect completions (including assisted or under-5-star clears).
+- Reset clears session streak values but keeps lifetime streak record and per-level best stars/moves.
+- Existing save files are forward-compatible: new fields default to safe values.
+- Tier/style mapping clamps star count and normalizes modulo style index to deterministic `0..3`.
 
 ## 2026-02-22 — Release Workflow Hardening
 
