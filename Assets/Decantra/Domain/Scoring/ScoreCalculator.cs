@@ -72,6 +72,7 @@ namespace Decantra.Domain.Scoring
             if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
             if (movesUsed < 0) throw new ArgumentOutOfRangeException(nameof(movesUsed));
             if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
+            if (movesUsed > movesAllowed) return 0;
 
             int par = ParCalculator.ComputePar(optimalMoves, movesAllowed);
             int slack = movesAllowed - par;

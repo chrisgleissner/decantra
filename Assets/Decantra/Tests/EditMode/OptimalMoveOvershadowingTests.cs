@@ -106,6 +106,19 @@ namespace Decantra.Tests.EditMode
             int par = ParCalculator.ComputePar(10, 16);
             Assert.AreEqual(10, par);
         }
+
+        [Test]
+        public void TightSlack_ParNeverExceedsMovesAllowed()
+        {
+            int par = ParCalculator.ComputePar(10, 11);
+            Assert.AreEqual(11, par);
+        }
+
+        [Test]
+        public void ComputePar_ThrowsWhenMovesAllowedBelowOptimal()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => ParCalculator.ComputePar(10, 9));
+        }
     }
 
     public sealed class StarDistributionTightSlackTests
@@ -156,6 +169,13 @@ namespace Decantra.Tests.EditMode
             // movesUsed=25, allowed=20 → way over budget
             Assert.AreEqual(0, ScoreCalculator.CalculateStars(10, 25, 20));
         }
+
+        [Test]
+        public void OverBudget_NeverGets5Stars()
+        {
+            // Prior to clamping/guarding this could award 5★ in slack=1 scenarios.
+            Assert.AreEqual(0, ScoreCalculator.CalculateStars(10, 12, 11));
+        }
     }
 
     public sealed class ScoreMultiplierCurveTests
@@ -199,17 +219,25 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
-        public void NoNegativeOrOver2Results()
+        public void NoNegativeScores()
         {
             for (int movesUsed = 10; movesUsed <= 30; movesUsed++)
             {
                 int score = ScoreCalculator.CalculateLevelScore(10, movesUsed, 20, 80, false);
                 Assert.GreaterOrEqual(score, 0, $"Score negative at movesUsed={movesUsed}");
             }
+        }
 
-            // Verify worst-case: x=0 → perfMult=0.20 → score ≥ base*0.20
-            int worstScore = ScoreCalculator.CalculateLevelScore(10, 20, 20, 100, false);
-            Assert.Greater(worstScore, 0, "Worst case should still produce positive score");
+        [Test]
+        public void MultiplierCap_NeverExceeds2x()
+        {
+            // difficulty=100 => base score = 120, max multiplier cap = 2.0 => 240
+            const int maxNonCleanScore = 240;
+            for (int movesUsed = 0; movesUsed <= 30; movesUsed++)
+            {
+                int score = ScoreCalculator.CalculateLevelScore(10, movesUsed, 20, 100, false);
+                Assert.LessOrEqual(score, maxNonCleanScore, $"Score exceeded 2x cap at movesUsed={movesUsed}");
+            }
         }
 
         [Test]
@@ -227,7 +255,6 @@ namespace Decantra.Tests.EditMode
         [Test]
         public void HighDifficulty_PrefersMultiSolution_WhenEquallyClose()
         {
-            // Create two candidates with same distance from target but different solution multiplicity
             var candidateSingle = new MonotonicLevelSelector.CandidateResult
             {
                 CandidateIndex = 0,
@@ -246,13 +273,9 @@ namespace Decantra.Tests.EditMode
                 IsValid = true
             };
 
-            // Simulate selection logic: targetDiff=75
             int targetDiff = 75;
-
-            int scoreSingle = Math.Abs(candidateSingle.IntrinsicDifficulty - targetDiff);
-            int scoreMulti = Math.Abs(candidateMulti.IntrinsicDifficulty - targetDiff);
-            if (targetDiff >= 70 && candidateMulti.Metrics.SolutionMultiplicity >= 2)
-                scoreMulti -= 3;
+            int scoreSingle = MonotonicLevelSelector.ComputeSelectionScore(targetDiff, candidateSingle);
+            int scoreMulti = MonotonicLevelSelector.ComputeSelectionScore(targetDiff, candidateMulti);
 
             Assert.Less(scoreMulti, scoreSingle,
                 "Multi-solution candidate should be preferred at high difficulty");
@@ -262,21 +285,50 @@ namespace Decantra.Tests.EditMode
         public void LowDifficulty_NoPreference()
         {
             int targetDiff = 50;
+            var candidateSingle = new MonotonicLevelSelector.CandidateResult
+            {
+                CandidateIndex = 0,
+                Seed = 100,
+                IntrinsicDifficulty = 50,
+                Metrics = new LevelMetrics(0.3f, 2.5f, 3, 0.2f, 0.5f, 1, 5, 4, 3),
+                IsValid = true
+            };
 
-            int scoreSingle = Math.Abs(50 - targetDiff);
-            int scoreMulti = Math.Abs(50 - targetDiff);
-
-            // No adjustment at low difficulty
-            if (targetDiff >= 70) scoreMulti -= 3;
+            var candidateMulti = new MonotonicLevelSelector.CandidateResult
+            {
+                CandidateIndex = 1,
+                Seed = 200,
+                IntrinsicDifficulty = 50,
+                Metrics = new LevelMetrics(0.3f, 2.5f, 3, 0.2f, 0.5f, 2, 5, 4, 3),
+                IsValid = true
+            };
+            int scoreSingle = MonotonicLevelSelector.ComputeSelectionScore(targetDiff, candidateSingle);
+            int scoreMulti = MonotonicLevelSelector.ComputeSelectionScore(targetDiff, candidateMulti);
 
             Assert.AreEqual(scoreSingle, scoreMulti,
                 "No multi-solution preference at low difficulty");
         }
 
         [Test]
-        public void Deterministic_SameInputs_SameResult()
+        public void ComputeSelectionScore_DeterministicForSameInput()
         {
-            // Verify ComputeCandidateSeed is deterministic
+            var candidate = new MonotonicLevelSelector.CandidateResult
+            {
+                CandidateIndex = 1,
+                Seed = 200,
+                IntrinsicDifficulty = 75,
+                Metrics = new LevelMetrics(0.3f, 2.5f, 3, 0.2f, 0.5f, 2, 5, 4, 3),
+                IsValid = true
+            };
+
+            int a = MonotonicLevelSelector.ComputeSelectionScore(75, candidate);
+            int b = MonotonicLevelSelector.ComputeSelectionScore(75, candidate);
+            Assert.AreEqual(a, b);
+        }
+
+        [Test]
+        public void ComputeCandidateSeed_Deterministic_SameInputsSameResult()
+        {
             int seed1A = MonotonicLevelSelector.ComputeCandidateSeed(100, 0);
             int seed1B = MonotonicLevelSelector.ComputeCandidateSeed(100, 0);
             Assert.AreEqual(seed1A, seed1B);

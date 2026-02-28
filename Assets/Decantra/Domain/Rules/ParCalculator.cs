@@ -6,12 +6,21 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using System;
+
 namespace Decantra.Domain.Rules
 {
     public static class ParCalculator
     {
         public static int ComputePar(int optimalMoves, int movesAllowed)
         {
+            if (optimalMoves < 0) throw new ArgumentOutOfRangeException(nameof(optimalMoves));
+            if (movesAllowed < 0) throw new ArgumentOutOfRangeException(nameof(movesAllowed));
+            if (movesAllowed < optimalMoves)
+            {
+                throw new ArgumentOutOfRangeException(nameof(movesAllowed), "movesAllowed must be greater than or equal to optimalMoves.");
+            }
+
             int slack = movesAllowed - optimalMoves;
 
             int buffer;
@@ -22,7 +31,9 @@ namespace Decantra.Domain.Rules
             else
                 buffer = 0;
 
-            return optimalMoves + buffer;
+            int par = optimalMoves + buffer;
+            if (par > movesAllowed) par = movesAllowed;
+            return par;
         }
     }
 }

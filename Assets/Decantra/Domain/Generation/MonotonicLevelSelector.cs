@@ -81,6 +81,22 @@ namespace Decantra.Domain.Generation
             return MinDifficulty + (int)Math.Round(t * (MaxDifficulty - MinDifficulty));
         }
 
+        public static int ComputeSelectionScore(int targetIntrinsicDifficulty, CandidateResult candidate)
+        {
+            if (candidate == null) throw new ArgumentNullException(nameof(candidate));
+
+            // Score: distance from target (lower is better)
+            int score = Math.Abs(candidate.IntrinsicDifficulty - targetIntrinsicDifficulty);
+
+            // Soft preference: at high difficulty, prefer multi-solution candidates
+            if (targetIntrinsicDifficulty >= 70 && candidate.Metrics != null && candidate.Metrics.SolutionMultiplicity >= 2)
+            {
+                score -= 3;
+            }
+
+            return score;
+        }
+
         /// <summary>
         /// Gets the minimum acceptable difficulty for a level.
         /// Uses a window-based approach to allow local variance while maintaining overall trend.
@@ -210,14 +226,7 @@ namespace Decantra.Domain.Generation
                 var candidate = candidates[i];
                 if (!candidate.IsValid) continue;
 
-                // Score: distance from target (lower is better)
-                int score = Math.Abs(candidate.IntrinsicDifficulty - targetDiff);
-
-                // Soft preference: at high difficulty, prefer multi-solution candidates
-                if (targetDiff >= 70 && candidate.Metrics.SolutionMultiplicity >= 2)
-                {
-                    score -= 3;
-                }
+                int score = ComputeSelectionScore(targetDiff, candidate);
 
                 if (score < bestScore)
                 {
