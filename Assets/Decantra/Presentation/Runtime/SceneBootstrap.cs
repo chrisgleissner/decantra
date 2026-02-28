@@ -2503,10 +2503,12 @@ namespace Decantra.Presentation
             focusMaskRect.offsetMax = Vector2.zero;
             var focusMaskImage = focusMaskGo.AddComponent<Image>();
             focusMaskImage.raycastTarget = false;
+            focusMaskImage.color = Color.clear;
             var spotlightShader = Shader.Find("Decantra/TutorialSpotlightMask");
             if (spotlightShader != null)
             {
                 focusMaskImage.material = new Material(spotlightShader);
+                focusMaskImage.color = Color.white;
             }
 
             var highlight = CreateUiChild(root.transform, "HighlightFrame");

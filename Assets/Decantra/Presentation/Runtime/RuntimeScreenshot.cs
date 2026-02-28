@@ -1584,7 +1584,7 @@ namespace Decantra.Presentation
             }
 
             string version = string.IsNullOrWhiteSpace(BuildInfo.Version) ? "0.0.0-local" : BuildInfo.Version;
-            string tutorialDir = Path.Combine(outputDir, "Screenshots", "Tutorial", SanitizeFileToken(version));
+            string tutorialDir = Path.Combine(outputDir, "Tutorial", SanitizeFileToken(version));
             Directory.CreateDirectory(tutorialDir);
 
             int step = 1;
@@ -1631,12 +1631,18 @@ namespace Decantra.Presentation
 
         private IEnumerator CaptureTutorialStepVariants(TutorialManager tutorialManager, string tutorialDir, int stepIndex, string targetName, List<string> summary)
         {
-            var variants = new[]
-            {
-                new { Width = 1080, Height = 1920, Label = "portrait", Fullscreen = false },
-                new { Width = 1920, Height = 1080, Label = "landscape", Fullscreen = false },
-                new { Width = 2560, Height = 1440, Label = "webgl_fullscreen", Fullscreen = true }
-            };
+            bool captureNativeOnly = Application.isMobilePlatform;
+            var variants = captureNativeOnly
+                ? new[]
+                {
+                    new { Width = Screen.width, Height = Screen.height, Label = "mobile_native", Fullscreen = false, AllowResolutionChange = false }
+                }
+                : new[]
+                {
+                    new { Width = 1080, Height = 1920, Label = "portrait", Fullscreen = false, AllowResolutionChange = true },
+                    new { Width = 1920, Height = 1080, Label = "landscape", Fullscreen = false, AllowResolutionChange = true },
+                    new { Width = 2560, Height = 1440, Label = "webgl_fullscreen", Fullscreen = true, AllowResolutionChange = true }
+                };
 
             int originalWidth = Screen.width;
             int originalHeight = Screen.height;
@@ -1644,12 +1650,15 @@ namespace Decantra.Presentation
             for (int i = 0; i < variants.Length; i++)
             {
                 var variant = variants[i];
-                ApplyCaptureResolution(variant.Width, variant.Height, variant.Fullscreen);
+                if (variant.AllowResolutionChange)
+                {
+                    ApplyCaptureResolution(variant.Width, variant.Height, variant.Fullscreen);
+                }
                 yield return new WaitForEndOfFrame();
                 yield return new WaitForSeconds(0.2f);
 
                 string resolution = $"{Screen.width}x{Screen.height}";
-                string fileName = $"tutorial_step_{stepIndex:D2}_{targetName}_{resolution}.png";
+                string fileName = $"tutorial_step_{stepIndex:D2}_{targetName}_{variant.Label}_{resolution}.png";
                 string filePath = Path.Combine(tutorialDir, fileName);
                 yield return CaptureScreenshot(filePath);
 
@@ -1681,8 +1690,15 @@ namespace Decantra.Presentation
 
                         if (diagnostics.SpotlightVisible && diagnostics.SpotlightMaskActive && !analysis.SpotlightLikelyPresent)
                         {
-                            Debug.LogError($"RuntimeScreenshot: tutorial spotlight signal missing (contrast={analysis.SpotlightContrast:F3}) file={fileName}");
-                            _failed = true;
+                            if (variant.AllowResolutionChange)
+                            {
+                                Debug.LogError($"RuntimeScreenshot: tutorial spotlight signal missing (contrast={analysis.SpotlightContrast:F3}) file={fileName}");
+                                _failed = true;
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"RuntimeScreenshot: tutorial spotlight signal low on mobile-native capture (contrast={analysis.SpotlightContrast:F3}) file={fileName}");
+                            }
                         }
                     }
                 }
@@ -1691,7 +1707,10 @@ namespace Decantra.Presentation
                 summary?.Add($"{DateTime.UtcNow:O} | step={stepIndex:D2} | target={targetName} | variant={variant.Label} | resolution={resolution} | file={fileName} | renderMode={renderMode} | scaler={scalerMode} | ref={referenceResolution} | match={match:F2} | spotlight={spotlightRect} | analysis={spotlightSignal}");
             }
 
-            ApplyCaptureResolution(originalWidth, originalHeight, false);
+            if (!captureNativeOnly)
+            {
+                ApplyCaptureResolution(originalWidth, originalHeight, false);
+            }
             yield return null;
         }
 

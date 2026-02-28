@@ -360,8 +360,12 @@ namespace Decantra.Presentation
 
             if (highlightMask != null)
             {
-                highlightMask.gameObject.SetActive(true);
-                UpdateMaskMaterial(canvasRect, _smoothCenter, _smoothSize, _activeStep != null && _activeStep.FocusShape == TutorialFocusShape.Circle);
+                bool hasMaskMaterial = highlightMask.material != null;
+                highlightMask.gameObject.SetActive(hasMaskMaterial);
+                if (hasMaskMaterial)
+                {
+                    UpdateMaskMaterial(canvasRect, _smoothCenter, _smoothSize, _activeStep != null && _activeStep.FocusShape == TutorialFocusShape.Circle);
+                }
             }
 
             CacheHighlightFrameVisuals();
