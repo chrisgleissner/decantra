@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace Decantra.Presentation
@@ -19,6 +20,7 @@ namespace Decantra.Presentation
         private const float FadeInSeconds = 0.008f;
         private const float FadeOutSeconds = 0.02f;
         private static readonly bool EnablePourSfxDiagnostics = false;
+        private static readonly bool EnableIosAudioSessionDiagnostics = false;
 
         private readonly Dictionary<int, AudioClip> _safeClipCache = new Dictionary<int, AudioClip>();
         private readonly Dictionary<int, ClipSampleData> _clipSampleCache = new Dictionary<int, ClipSampleData>();
@@ -41,6 +43,10 @@ namespace Decantra.Presentation
         // The very first source.Play() fires before the Promise resolves, so no sound is heard.
         // Scheduling a one-frame retry ensures the second attempt runs after the Promise resolves.
         private bool _firstPlayLaunched;
+#endif
+#if UNITY_IOS && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern bool DecantraConfigureAudioSession(bool forcePlaybackCategory);
 #endif
 
         private struct ClipSampleData
@@ -94,7 +100,28 @@ namespace Decantra.Presentation
             _selectedPourClip = _pourClips.Length > 0 ? _pourClips[0] : null;
             _selectedPourClipIndex = _selectedPourClip != null ? 0 : -1;
 
+            ConfigureIosAudioSessionIfNeeded();
             ApplyAudioState();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus)
+            {
+                return;
+            }
+
+            ConfigureIosAudioSessionIfNeeded();
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+            {
+                return;
+            }
+
+            ConfigureIosAudioSessionIfNeeded();
         }
 
         private void OnDestroy()
@@ -545,6 +572,30 @@ namespace Decantra.Presentation
                 hash = hash * 31 + seed;
                 return hash;
             }
+        }
+
+        private static void ConfigureIosAudioSessionIfNeeded()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            bool configured = false;
+            try
+            {
+                configured = DecantraConfigureAudioSession(true);
+            }
+            catch (System.Exception ex)
+            {
+                if (EnableIosAudioSessionDiagnostics)
+                {
+                    Debug.LogWarning($"Decantra iOS audio session configuration threw exception: {ex.Message}");
+                }
+                return;
+            }
+
+            if (EnableIosAudioSessionDiagnostics && !configured)
+            {
+                Debug.LogWarning("Decantra iOS audio session was not configured successfully.");
+            }
+#endif
         }
 
         public static void HardenSampleData(float[] data, int sampleRate, int channels, float attackDuration, float releaseDuration)
