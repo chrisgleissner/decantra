@@ -3,7 +3,8 @@ name: WebGL Build + Deploy
 on:
   push:
     branches:
-      - "**"
+      - main
+      - "feat/**"
     tags:
       - "*"
   pull_request:

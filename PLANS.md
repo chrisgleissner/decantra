@@ -123,11 +123,11 @@ Enhance:
 - [x] `StarTierMapping_IsCorrect` — existing, covers 0–5 stars → tiers 0–3.
 - [x] `StyleRotation_IsDeterministic` — existing, covers `levelIndex % 4`.
 - [ ] `PhaseOrder_IsCorrect` — new: verify 4 phases execute in order.
-- [ ] `StreakMilestone_BoostsCelebration` — new: verify milestone > 0 increases profile values.
-- [ ] `StarReveal_SequentialTiming` — new: verify 60 ms stagger per star.
-- [ ] `GoldTint_OnlyForTier3` — new: verify gold tint applied only at 5★.
-- [ ] `WaveThickness_ScalesWithTier` — new: verify burst height scaling.
-- [ ] `ParticleCounts_RespectCaps` — new: verify sparkle/flying star count ≤ max.
+- [x] `StreakMilestone_BoostsCelebration` — new: verify milestone > 0 increases profile values.
+- [x] `StarReveal_SequentialTiming` — new: verify 60 ms stagger per star.
+- [x] `GoldTint_OnlyForTier3` — new: verify gold tint applied only at 5★.
+- [x] `WaveThickness_ScalesWithTier` — new: verify burst height scaling.
+- [x] `ParticleCounts_RespectCaps` — new: verify sparkle/flying star count ≤ max.
 
 ### Files Modified
 

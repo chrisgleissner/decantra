@@ -58,6 +58,7 @@ namespace Decantra.Presentation
         private Vector2 _scoreBasePosition;
         private bool _layoutCached;
         private int _styleIndex;
+        private int _streakMilestone;
         private CelebrationProfile _celebrationProfile;
         private string _completionDetailMessage;
 
@@ -260,6 +261,7 @@ namespace Decantra.Presentation
             int clampedStars = Mathf.Clamp(stars, 0, 5);
             _lastStarCount = clampedStars;
             _styleIndex = ResolveStyleIndex(styleLevelIndex);
+            _streakMilestone = streakMilestone;
             _celebrationProfile = BuildCelebrationProfile(clampedStars, streakMilestone);
             _completionDetailMessage = completionDetailMessage;
             EnsureStarIcons();
@@ -541,7 +543,7 @@ namespace Decantra.Presentation
 #endif
 
             // ── Phase 1: Completion Freeze ──
-            if (_celebrationProfile.FreezeSeconds > 0f || _celebrationProfile.VignetteBump > 0f)
+            if (_celebrationProfile.FreezeSeconds > 0f)
             {
                 yield return AnimatePhase1Freeze();
             }
@@ -561,7 +563,8 @@ namespace Decantra.Presentation
         /// <summary>Phase 1: brief freeze with vignette bump to establish gravitas.</summary>
         private IEnumerator AnimatePhase1Freeze()
         {
-            float freezeTime = Mathf.Max(_celebrationProfile.FreezeSeconds, 0.05f);
+            float freezeTime = _celebrationProfile.FreezeSeconds;
+            if (freezeTime <= 0f) yield break;
             float vignetteBump = _celebrationProfile.VignetteBump;
 
             if (vignetteBump > 0f && dimmer != null)
@@ -633,6 +636,7 @@ namespace Decantra.Presentation
             float startScale = targetScale * 0.3f;
             float overshootScale = targetScale * (brilliantFinish ? 1.25f : 1.12f);
             Color baseColor = icon.color;
+            baseColor.a = 1f;
             Color startColor = new Color(baseColor.r, baseColor.g, baseColor.b, 0f);
             Color flashColor = brilliantFinish
                 ? new Color(1f, 1f, 0.95f, 1f)
@@ -680,8 +684,8 @@ namespace Decantra.Presentation
                 StartCoroutine(AnimateGlisten(duration * 0.7f, intensity));
             }
 
-            // Streak milestone: extra sparkle ring
-            if (_celebrationProfile.MultiPhaseBurst && _sparkles != null)
+            // Perfect streak milestone: extra sparkle ring
+            if (_celebrationProfile.MultiPhaseBurst && _streakMilestone > 0 && _sparkles != null)
             {
                 StartCoroutine(AnimateStreakSparkleRing(0.4f, intensity));
             }
@@ -1242,7 +1246,7 @@ namespace Decantra.Presentation
             }
 
             // Tier 2 (4 stars): percussion accent
-            if (_celebrationProfile.Tier >= 2)
+            if (_celebrationProfile.Tier == 2)
             {
                 StartCoroutine(PlayPercussionAccent());
             }
