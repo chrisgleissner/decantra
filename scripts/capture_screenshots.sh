@@ -193,7 +193,11 @@ if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
   extras+=(--ez decantra_screenshots_only true)
 fi
 
-adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null
+launch_timeout_secs="${DECANTRA_LAUNCH_TIMEOUT:-60}"
+if ! timeout "${launch_timeout_secs}" adb -s "${DEVICE_ID}" shell am start -S -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null 2>&1; then
+  echo "Failed to launch ${PACKAGE_NAME}/${ACTIVITY_NAME} on device ${DEVICE_ID}." >&2
+  exit 1
+fi
 
 expected=(
   "initial_render.png"
@@ -221,6 +225,7 @@ expected=(
   "screenshot-05-level-24.png"
   "screenshot-06-interstitial.png"
   "screenshot-07-level-36.png"
+  "screenshot-level-506.png"
   "screenshot-10-options.png"
 )
 
@@ -229,6 +234,7 @@ complete_marker="${remote_dir}/capture.complete"
 
 start_time=$(date +%s)
 run_as_ok=false
+last_progress_log=0
 
 if adb -s "${DEVICE_ID}" shell run-as uk.gleissner.decantra ls "${remote_dir}" >/dev/null 2>&1; then
   run_as_ok=true
@@ -246,7 +252,23 @@ while true; do
   fi
 
   now=$(date +%s)
-  if (( now - start_time > DECANTRA_SCREENSHOT_TIMEOUT )); then
+  elapsed=$((now - start_time))
+
+  if (( elapsed - last_progress_log >= 15 )); then
+    focus_line="$(adb -s "${DEVICE_ID}" shell dumpsys activity activities | grep -m1 'mCurrentFocus=' || true)"
+    echo "Waiting for screenshot capture marker... elapsed=${elapsed}s focus='${focus_line}'" >&2
+    last_progress_log=${elapsed}
+  fi
+
+  if (( elapsed > 30 )); then
+    focus_line="$(adb -s "${DEVICE_ID}" shell dumpsys activity activities | grep -m1 'mCurrentFocus=' || true)"
+    if [[ "${focus_line}" == *"NotificationShade"* ]]; then
+      echo "Screenshot capture blocked: device focus is NotificationShade. Unlock device and dismiss notification shade, then retry." >&2
+      exit 1
+    fi
+  fi
+
+  if (( elapsed > DECANTRA_SCREENSHOT_TIMEOUT )); then
     echo "Timed out waiting for screenshot capture." >&2
     exit 1
   fi
@@ -344,7 +366,7 @@ if [[ "${CAPTURE_MOTION}" == "true" ]]; then
   motion_extras=(--ez decantra_motion_capture true)
 
   adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
-  adb -s "${DEVICE_ID}" shell am start -S -W -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${motion_extras[@]}" >/dev/null
+  adb -s "${DEVICE_ID}" shell am start -S -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${motion_extras[@]}" >/dev/null
 
   motion_remote_dir="/sdcard/Android/data/${PACKAGE_NAME}/files/DecantraScreenshots/motion"
   motion_complete="${motion_remote_dir}/motion.complete"
