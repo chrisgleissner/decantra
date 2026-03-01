@@ -45,8 +45,8 @@ namespace Decantra.Presentation
         private bool _firstPlayLaunched;
 #endif
 #if UNITY_IOS && !UNITY_EDITOR
-        [DllImport("__Internal")]
-        private static extern bool DecantraConfigureAudioSession(bool forcePlaybackCategory);
+    [DllImport("__Internal")]
+    private static extern bool DecantraConfigureAudioSession(bool forcePlaybackCategory);
 #endif
 
         private struct ClipSampleData
@@ -101,15 +101,6 @@ namespace Decantra.Presentation
             _selectedPourClipIndex = _selectedPourClip != null ? 0 : -1;
 
             ConfigureIosAudioSessionIfNeeded();
-            WarmUpClipAudioData(_buttonClickClip);
-            WarmUpClipAudioData(_levelCompleteClip);
-            WarmUpClipAudioData(_bottleFullClip);
-            WarmUpClipAudioData(_stageUnlockedClip);
-            for (int i = 0; i < _pourClips.Length; i++)
-            {
-                WarmUpClipAudioData(_pourClips[i]);
-            }
-
             ApplyAudioState();
         }
 
@@ -247,7 +238,6 @@ namespace Decantra.Presentation
 
             var safeClip = EnsureSafeClip(clip);
             if (safeClip == null) return;
-            if (!EnsureClipReadyForPlayback(safeClip)) return;
 
             source.Stop();
             source.clip = safeClip;
@@ -267,7 +257,6 @@ namespace Decantra.Presentation
 
             var safeClip = EnsureSafeClip(clip);
             if (safeClip == null || safeClip.length <= 0f) return;
-            if (!EnsureClipReadyForPlayback(safeClip)) return;
 
             float clampedStartRatio = Mathf.Clamp01(startRatio);
             float clampedEndRatio = Mathf.Clamp01(endRatio);
@@ -488,39 +477,6 @@ namespace Decantra.Presentation
 
             _safeClipCache[id] = safe;
             return safe;
-        }
-
-        private static void WarmUpClipAudioData(AudioClip clip)
-        {
-            if (clip == null)
-            {
-                return;
-            }
-
-            if (clip.loadState == AudioDataLoadState.Unloaded)
-            {
-                clip.LoadAudioData();
-            }
-        }
-
-        private static bool EnsureClipReadyForPlayback(AudioClip clip)
-        {
-            if (clip == null)
-            {
-                return false;
-            }
-
-            if (clip.loadState == AudioDataLoadState.Failed)
-            {
-                return false;
-            }
-
-            if (clip.loadState == AudioDataLoadState.Unloaded)
-            {
-                clip.LoadAudioData();
-            }
-
-            return clip.loadState != AudioDataLoadState.Failed;
         }
 
         private ClipSampleData GetClipSampleData(AudioClip clip)

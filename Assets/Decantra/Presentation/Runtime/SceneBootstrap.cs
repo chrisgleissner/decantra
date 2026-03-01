@@ -9,7 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 using System.Collections.Generic;
 using System.Reflection;
 using Decantra.App.Services;
-using Decantra.App;
 using Decantra.Domain.Background;
 using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
@@ -92,9 +91,7 @@ namespace Decantra.Presentation
             var existingController = Object.FindFirstObjectByType<GameController>();
             if (existingController != null && HasRequiredWiring(existingController))
             {
-                EnsureRuntimeCanvasConfiguration(cameras);
                 EnsureBackgroundRendering(existingController, cameras);
-                EnsurePortraitGameplayContainers();
                 EnsureRestartDialog(existingController);
                 EnsureResetLevelDialog(existingController);
                 EnsureTutorialOverlay(existingController);
@@ -117,14 +114,12 @@ namespace Decantra.Presentation
             var backgroundCanvas = CreateCanvas("Canvas_Background", cameras.Background, GetLayerIndex("BackgroundClouds"), false);
             var gameCanvas = CreateCanvas("Canvas_Game", cameras.Game, GetLayerIndex("Game"), false);
             var uiCanvas = CreateCanvas("Canvas_UI", cameras.UI, GetLayerIndex("UI"), true);
-            var gameplayGameContainer = EnsureGameplayContainer(gameCanvas);
-            var gameplayUiContainer = EnsureGameplayContainer(uiCanvas);
 
             var backgroundLayers = CreateBackground(backgroundCanvas.transform);
             CreateEventSystem();
 
-            var hudView = CreateHud(gameplayUiContainer, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect);
-            var gridRoot = CreateGridRoot(gameplayGameContainer, out var bottleAreaRect);
+            var hudView = CreateHud(uiCanvas.transform, out var topHudRect, out var secondaryHudRect, out var brandLockupRect, out var bottomHudRect);
+            var gridRoot = CreateGridRoot(gameCanvas.transform, out var bottleAreaRect);
 
             var hudSafeLayout = uiCanvas.gameObject.AddComponent<Decantra.Presentation.View.HudSafeLayout>();
             hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), 0f, 0f);
@@ -259,7 +254,7 @@ namespace Decantra.Presentation
             var dialog = root != null ? root.GetComponent<ResetLevelDialog>() : null;
             if (dialog == null)
             {
-                var canvas = FindOrCreateUiCanvas();
+                var canvas = Object.FindFirstObjectByType<Canvas>();
                 if (canvas == null) return;
                 dialog = CreateResetLevelDialog(canvas.transform);
             }
@@ -277,7 +272,7 @@ namespace Decantra.Presentation
             var manager = root != null ? root.GetComponent<TutorialManager>() : null;
             if (manager == null)
             {
-                var canvas = FindOrCreateUiCanvas();
+                var canvas = Object.FindFirstObjectByType<Canvas>();
                 if (canvas == null) return;
                 manager = CreateTutorialOverlay(canvas.transform);
             }
@@ -312,7 +307,7 @@ namespace Decantra.Presentation
                 }
                 else
                 {
-                    var canvas = FindOrCreateUiCanvas();
+                    var canvas = Object.FindFirstObjectByType<Canvas>();
                     if (canvas != null)
                     {
                         var created = CreateOptionsOverlay(canvas.transform, controller);
@@ -334,7 +329,7 @@ namespace Decantra.Presentation
                 var existingHighContrast = FindObjectByNameIncludingInactive("HighContrastOverlay", targetScene);
                 if (existingHighContrast == null)
                 {
-                    var canvas = FindOrCreateUiCanvas();
+                    var canvas = Object.FindFirstObjectByType<Canvas>();
                     if (canvas != null)
                     {
                         existingHighContrast = CreateHighContrastOverlay(canvas.transform);
@@ -370,7 +365,7 @@ namespace Decantra.Presentation
                     Transform parent = options != null ? options.transform : null;
                     if (parent == null)
                     {
-                        var canvas = FindOrCreateUiCanvas();
+                        var canvas = Object.FindFirstObjectByType<Canvas>();
                         parent = canvas != null ? canvas.transform : null;
                     }
 
@@ -414,7 +409,7 @@ namespace Decantra.Presentation
                     var parent = options != null ? options.transform : null;
                     if (parent == null)
                     {
-                        var canvas = FindOrCreateUiCanvas();
+                        var canvas = Object.FindFirstObjectByType<Canvas>();
                         parent = canvas != null ? canvas.transform : null;
                     }
 
@@ -457,7 +452,7 @@ namespace Decantra.Presentation
                     var parent = options != null ? options.transform : null;
                     if (parent == null)
                     {
-                        var canvas = FindOrCreateUiCanvas();
+                        var canvas = Object.FindFirstObjectByType<Canvas>();
                         parent = canvas != null ? canvas.transform : null;
                     }
 
@@ -605,7 +600,7 @@ namespace Decantra.Presentation
             var overlayGo = GameObject.Find("LevelJumpOverlay");
             if (overlayGo == null)
             {
-                var canvas = FindOrCreateUiCanvas();
+                var canvas = Object.FindFirstObjectByType<Canvas>();
                 if (canvas == null) return;
                 var created = CreateLevelJumpOverlay(canvas.transform);
                 SetPrivateField(controller, "levelJumpOverlay", created.Root);
@@ -739,82 +734,17 @@ namespace Decantra.Presentation
         {
             var canvasGo = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
-            EnsureCanvasConfiguration(canvas, camera, layer, pixelPerfect);
-            return canvas;
-        }
-
-        private static void EnsureCanvasConfiguration(Canvas canvas, Camera camera, int layer, bool pixelPerfect)
-        {
-            if (canvas == null)
-            {
-                return;
-            }
-
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.worldCamera = camera;
             canvas.planeDistance = 10f;
             canvas.pixelPerfect = pixelPerfect;
 
-            var scaler = canvas.GetComponent<CanvasScaler>() ?? canvas.gameObject.AddComponent<CanvasScaler>();
+            var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080f, 1920f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 1f;
+            scaler.referenceResolution = new Vector2(1080, 1920);
 
-            SetLayerRecursively(canvas.gameObject, layer);
-        }
-
-        private static RectTransform EnsureGameplayContainer(Canvas canvas)
-        {
-            if (canvas == null)
-            {
-                return null;
-            }
-
-            var existing = canvas.transform.Find("GameplayContainer") as RectTransform;
-            RectTransform rect = existing;
-            if (rect == null)
-            {
-                var go = CreateUiChild(canvas.transform, "GameplayContainer");
-                rect = go.GetComponent<RectTransform>();
-            }
-
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = Vector2.zero;
-
-            var aspect = rect.GetComponent<AspectRatioFitter>();
-            if (aspect == null)
-            {
-                aspect = rect.gameObject.AddComponent<AspectRatioFitter>();
-            }
-
-            aspect.aspectMode = AspectRatioFitter.AspectMode.HeightControlsWidth;
-            aspect.aspectRatio = 1080f / 1920f;
-            return rect;
-        }
-
-        private static void EnsurePortraitGameplayContainers()
-        {
-            var uiCanvas = GameObject.Find("Canvas_UI")?.GetComponent<Canvas>();
-            var gameCanvas = GameObject.Find("Canvas_Game")?.GetComponent<Canvas>();
-
-            var uiGameplay = EnsureGameplayContainer(uiCanvas);
-            var gameGameplay = EnsureGameplayContainer(gameCanvas);
-
-            var hudRoot = GameObject.Find("Hud")?.transform;
-            if (hudRoot != null && uiGameplay != null && hudRoot.parent != uiGameplay)
-            {
-                hudRoot.SetParent(uiGameplay, false);
-            }
-
-            var bottleArea = GameObject.Find("BottleArea")?.transform;
-            if (bottleArea != null && gameGameplay != null && bottleArea.parent != gameGameplay)
-            {
-                bottleArea.SetParent(gameGameplay, false);
-            }
+            SetLayerRecursively(canvasGo, layer);
+            return canvas;
         }
 
         private static int GetLayerIndex(string name)
@@ -879,52 +809,7 @@ namespace Decantra.Presentation
                 }
             }
 
-            var allCanvases = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-            Canvas best = null;
-            int bestScore = int.MinValue;
-            for (int i = 0; i < allCanvases.Length; i++)
-            {
-                var canvas = allCanvases[i];
-                if (canvas == null)
-                {
-                    continue;
-                }
-
-                int score = 0;
-                if (canvas.name.Contains("UI")) score += 1000;
-                if (canvas.renderMode == RenderMode.ScreenSpaceOverlay) score += 100;
-                if (canvas.worldCamera != null) score += Mathf.RoundToInt(canvas.worldCamera.depth * 10f);
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = canvas;
-                }
-            }
-
-            return best;
-        }
-
-        private static void EnsureRuntimeCanvasConfiguration(RenderCameras cameras)
-        {
-            var background = GameObject.Find("Canvas_Background")?.GetComponent<Canvas>();
-            var game = GameObject.Find("Canvas_Game")?.GetComponent<Canvas>();
-            var ui = GameObject.Find("Canvas_UI")?.GetComponent<Canvas>();
-
-            if (background != null)
-            {
-                EnsureCanvasConfiguration(background, cameras.Background, GetLayerIndex("BackgroundClouds"), false);
-            }
-
-            if (game != null)
-            {
-                EnsureCanvasConfiguration(game, cameras.Game, GetLayerIndex("Game"), false);
-            }
-
-            if (ui != null)
-            {
-                EnsureCanvasConfiguration(ui, cameras.UI, GetLayerIndex("UI"), true);
-            }
+            return Object.FindFirstObjectByType<Canvas>();
         }
 
         private static Camera EnsureCamera(string name, CameraClearFlags clearFlags, float depth, int cullingMask, Color background)
@@ -2561,10 +2446,8 @@ namespace Decantra.Presentation
             instructionText.verticalOverflow = VerticalWrapMode.Truncate;
             instructionText.text = "Tutorial";
             instructionText.color = ModalDesignTokens.Colors.PrimaryText;
-            instructionText.supportRichText = false;
             var instructionElement = instructionText.gameObject.AddComponent<LayoutElement>();
             instructionElement.flexibleHeight = 1f;
-            instructionElement.flexibleWidth = 1f;
             instructionElement.minHeight = 260f;
 
             var buttonsRow = CreateUiChild(instructionPanel.transform, "ButtonsRow");
@@ -3226,7 +3109,7 @@ namespace Decantra.Presentation
                 return;
             }
 
-            var canvas = FindOrCreateUiCanvas();
+            var canvas = Object.FindFirstObjectByType<Canvas>();
             if (canvas == null) return;
             var result = CreateScoreDetailsOverlay(canvas.transform, controller);
             SetPrivateField(controller, "_scoreDetailsOverlay", result.Root);
@@ -3674,27 +3557,27 @@ namespace Decantra.Presentation
 
         private static string BuildVersionFooterText()
         {
-            string versionName = string.IsNullOrWhiteSpace(BuildInfo.Version)
-                ? (string.IsNullOrWhiteSpace(Application.version) ? "0.0.0-local" : Application.version)
-                : BuildInfo.Version;
-            string revision = string.IsNullOrWhiteSpace(BuildInfo.Revision) ? "local" : BuildInfo.Revision;
+            string versionName = string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version;
             string versionNumber = GetRuntimeVersionNumber();
             string buildUtc = GetRuntimeBuildUtcTimestamp();
-            return $"Version {versionName} [{revision}] ({versionNumber})\nBuild UTC {buildUtc}";
+            return $"Version {versionName} ({versionNumber})\nBuild UTC {buildUtc}";
         }
 
         private static string GetRuntimeBuildUtcTimestamp()
         {
-            string raw = string.IsNullOrWhiteSpace(BuildInfo.BuildUtc)
-                ? System.DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
-                : BuildInfo.BuildUtc.Trim();
+            var buildInfo = Resources.Load<TextAsset>("Build/build_utc");
+            if (buildInfo == null || string.IsNullOrWhiteSpace(buildInfo.text))
+            {
+                return "unknown";
+            }
 
+            string raw = buildInfo.text.Trim();
             if (System.DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out System.DateTime parsed))
             {
                 return parsed.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
             }
 
-            return System.DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            return raw;
         }
 
         private static string BuildHowToPlayBodyText()

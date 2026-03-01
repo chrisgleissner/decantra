@@ -1020,6 +1020,14 @@ namespace Decantra.Presentation.Controller
                         _progress.HighScore = _progress.CurrentScore;
                     }
 
+                    PerformanceTracker.UpdateBest(_progress, new Decantra.Domain.Persistence.LevelPerformanceRecord
+                    {
+                        LevelIndex = _state.LevelIndex,
+                        BestMoves = _state.MovesUsed,
+                        BestEfficiency = efficiency,
+                        BestGrade = _lastGrade
+                    });
+
                     _progressStore.Save(_progress);
                 }
                 Render();
@@ -1479,6 +1487,11 @@ namespace Decantra.Presentation.Controller
                 text.resizeTextForBestFit = false;
                 text.horizontalOverflow = HorizontalWrapMode.Wrap;
                 text.verticalOverflow = VerticalWrapMode.Overflow;
+
+                if (string.Equals(text.name, "InstructionText", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.verticalOverflow = VerticalWrapMode.Truncate;
+                }
 
                 if (string.Equals(text.name, "Title", StringComparison.OrdinalIgnoreCase))
                 {
@@ -2624,7 +2637,56 @@ namespace Decantra.Presentation.Controller
             _isCompleting = false;
             _isFailing = false;
 
-            _progress = ProgressResetPolicy.ResetForNewGame(_progress);
+            // Preserve lifetime stats across the session reset.
+            int preservedHighScore = _progress?.HighScore ?? 0;
+            int preservedMaxLevel = _progress?.HighestUnlockedLevel ?? 1;
+            int preservedLifetimeBestPerfectStreak = _progress?.LifetimeBestPerfectStreak ?? 0;
+            int preservedLifetimeOptimalCount = _progress?.LifetimeOptimalCount ?? 0;
+            var preservedUnlockedThemes = new List<string>();
+            if (_progress?.UnlockedThemes != null)
+            {
+                preservedUnlockedThemes.AddRange(_progress.UnlockedThemes);
+            }
+            var preservedBestPerformances = new List<LevelPerformanceRecord>();
+            if (_progress?.BestPerformances != null)
+            {
+                for (int i = 0; i < _progress.BestPerformances.Count; i++)
+                {
+                    var record = _progress.BestPerformances[i];
+                    if (record == null)
+                    {
+                        continue;
+                    }
+
+                    preservedBestPerformances.Add(new LevelPerformanceRecord
+                    {
+                        LevelIndex = record.LevelIndex,
+                        BestStars = record.BestStars,
+                        BestMoves = record.BestMoves,
+                        BestDeviation = record.BestDeviation,
+                        TimesCompleted = record.TimesCompleted,
+                        BestEfficiency = record.BestEfficiency,
+                        BestGrade = record.BestGrade
+                    });
+                }
+            }
+
+            _progress = new ProgressData
+            {
+                HighestUnlockedLevel = preservedMaxLevel,
+                CurrentLevel = 1,
+                CurrentSeed = 0,
+                CurrentScore = 0,
+                StarBalance = 0,
+                HighScore = preservedHighScore,
+                CompletedLevels = new List<int>(),
+                UnlockedThemes = preservedUnlockedThemes,
+                SessionCurrentPerfectStreak = 0,
+                SessionBestPerfectStreak = 0,
+                LifetimeBestPerfectStreak = preservedLifetimeBestPerfectStreak,
+                LifetimeOptimalCount = preservedLifetimeOptimalCount,
+                BestPerformances = preservedBestPerformances
+            };
 
             _progressStore?.Save(_progress);
 

@@ -286,6 +286,17 @@ namespace Decantra.Tests.PlayMode
             var controller = Object.FindFirstObjectByType<GameController>();
             Assert.IsNotNull(controller);
 
+            // Stop stale coroutines (e.g. celebration animations from a prior level completion)
+            // and reset completion flags so they don't interfere with the injected state.
+            controller.StopAllCoroutines();
+            SetPrivateField(controller, "_isCompleting", false);
+            SetPrivateField(controller, "_isFailing", false);
+
+            // Also stop the level-complete banner to prevent its onScoreApply callback
+            // from firing and modifying the injected progress during the test.
+            var banner = GetPrivateField(controller, "levelBanner") as LevelCompleteBanner;
+            if (banner != null) banner.HideImmediate();
+
             string root = Path.Combine(Path.GetTempPath(), "decantra-tests", System.Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
             string path = Path.Combine(root, "progress.json");

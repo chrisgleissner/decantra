@@ -62,6 +62,9 @@ namespace Decantra.Presentation
         private const string Level24FileName = "screenshot-05-level-24.png";
         private const string InterstitialFileName = "screenshot-06-interstitial.png";
         private const string Level36FileName = "screenshot-07-level-36.png";
+        private const string Level506FileName = "screenshot-level-506.png";
+        private const string Level506OverlapReportFileName = "level-506-overlap-evidence.json";
+        private const int Level506Seed = 506091;
         private const string OptionsLegacyFileName = "screenshot-10-options.png";
         private const int MaxTutorialPagesToCapture = 12;
         private const float TutorialWhitePixelFailRatio = 0.88f;
@@ -143,6 +146,7 @@ namespace Decantra.Presentation
             yield return CaptureAutoSolveEvidence(controller, outputDir);
             yield return CaptureInterstitialScreenshot(outputDir);
             yield return CaptureLevelScreenshot(controller, outputDir, 36, 192731, Level36FileName);
+            yield return CaptureLevelOverlapEvidence(controller, outputDir, 506, Level506Seed, Level506FileName, Level506OverlapReportFileName);
             yield return CaptureOptionsScreenshot(controller, outputDir, OptionsPanelTypographyFileName);
             yield return CaptureOptionsCoverageScreenshots(controller, outputDir);
             yield return CaptureStarTradeInScreenshot(controller, outputDir, StarTradeInLowStarsFileName);
@@ -830,6 +834,157 @@ namespace Decantra.Presentation
             yield return new WaitForSeconds(0.9f);
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+        }
+
+        [Serializable]
+        private sealed class LevelOverlapEvidence
+        {
+            public int levelIndex;
+            public int seed;
+            public int bottleCount;
+            public int pairCount;
+            public bool hasOverlap;
+            public float maxOverlapWidthPx;
+            public float maxOverlapHeightPx;
+            public float maxOverlapAreaPx;
+        }
+
+        private IEnumerator CaptureLevelOverlapEvidence(
+            GameController controller,
+            string outputDir,
+            int levelIndex,
+            int seed,
+            string screenshotFileName,
+            string reportFileName)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.LoadLevel(levelIndex, seed);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.9f);
+            yield return new WaitForEndOfFrame();
+
+            if (!TryMeasureBottleOverlap(controller, out int bottleCount, out int pairCount, out float maxOverlapWidthPx, out float maxOverlapHeightPx, out float maxOverlapAreaPx))
+            {
+                Debug.LogError($"RuntimeScreenshot: failed to measure bottle overlap for level={levelIndex}.");
+                _failed = true;
+                yield break;
+            }
+
+            bool hasOverlap = maxOverlapAreaPx > 0f;
+            var evidence = new LevelOverlapEvidence
+            {
+                levelIndex = levelIndex,
+                seed = seed,
+                bottleCount = bottleCount,
+                pairCount = pairCount,
+                hasOverlap = hasOverlap,
+                maxOverlapWidthPx = maxOverlapWidthPx,
+                maxOverlapHeightPx = maxOverlapHeightPx,
+                maxOverlapAreaPx = maxOverlapAreaPx,
+            };
+
+            string reportPath = Path.Combine(outputDir, reportFileName);
+            File.WriteAllText(reportPath, JsonUtility.ToJson(evidence, true));
+
+            Debug.Log($"RuntimeScreenshot: level-overlap level={levelIndex} seed={seed} bottles={bottleCount} pairs={pairCount} hasOverlap={hasOverlap} maxOverlapAreaPx={maxOverlapAreaPx:F4}");
+
+            if (hasOverlap)
+            {
+                Debug.LogError($"RuntimeScreenshot: bottle overlap detected in level={levelIndex} seed={seed} area={maxOverlapAreaPx:F4}px^2.");
+                _failed = true;
+            }
+
+            yield return CaptureScreenshot(Path.Combine(outputDir, screenshotFileName));
+        }
+
+        private static bool TryMeasureBottleOverlap(
+            GameController controller,
+            out int bottleCount,
+            out int pairCount,
+            out float maxOverlapWidthPx,
+            out float maxOverlapHeightPx,
+            out float maxOverlapAreaPx)
+        {
+            bottleCount = 0;
+            pairCount = 0;
+            maxOverlapWidthPx = 0f;
+            maxOverlapHeightPx = 0f;
+            maxOverlapAreaPx = 0f;
+
+            if (controller == null)
+            {
+                return false;
+            }
+
+            var field = typeof(GameController).GetField("bottleViews", BindingFlags.Instance | BindingFlags.NonPublic);
+            var list = field?.GetValue(controller) as System.Collections.IList;
+            if (list == null)
+            {
+                return false;
+            }
+
+            var bottleRects = new List<Rect>(list.Count);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var view = list[i] as BottleView;
+                if (view == null || !view.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                var rectTransform = view.transform as RectTransform;
+                if (rectTransform == null)
+                {
+                    continue;
+                }
+
+                var corners = new Vector3[4];
+                rectTransform.GetWorldCorners(corners);
+                var rect = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+                bottleRects.Add(rect);
+            }
+
+            bottleCount = bottleRects.Count;
+            if (bottleCount < 2)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < bottleRects.Count; i++)
+            {
+                Rect a = bottleRects[i];
+                for (int j = i + 1; j < bottleRects.Count; j++)
+                {
+                    Rect b = bottleRects[j];
+                    pairCount++;
+
+                    float overlapWidth = Mathf.Min(a.xMax, b.xMax) - Mathf.Max(a.xMin, b.xMin);
+                    float overlapHeight = Mathf.Min(a.yMax, b.yMax) - Mathf.Max(a.yMin, b.yMin);
+                    if (overlapWidth <= 0f || overlapHeight <= 0f)
+                    {
+                        continue;
+                    }
+
+                    float overlapArea = overlapWidth * overlapHeight;
+                    if (overlapArea > maxOverlapAreaPx)
+                    {
+                        maxOverlapAreaPx = overlapArea;
+                        maxOverlapWidthPx = overlapWidth;
+                        maxOverlapHeightPx = overlapHeight;
+                    }
+                }
+            }
+
+            return true;
         }
 
         private IEnumerator CaptureOptionsScreenshot(GameController controller, string outputDir, string fileName)
@@ -1597,7 +1752,7 @@ namespace Decantra.Presentation
                 yield return new WaitForSeconds(0.22f);
                 yield return WaitForTutorialSpotlightSettle(tutorialManager);
 
-                if (!tutorialManager.TryGetCurrentStepSnapshot(out int currentStepIndex, out string targetName))
+                if (!TryGetTutorialStepSnapshot(tutorialManager, out int currentStepIndex, out string targetName))
                 {
                     currentStepIndex = step - 1;
                     targetName = "unknown";
@@ -1669,10 +1824,10 @@ namespace Decantra.Presentation
                 string spotlightRect = "none";
                 string spotlightSignal = "n/a";
 
-                if (tutorialManager != null && tutorialManager.TryGetRenderDiagnostics(out var diagnostics))
+                if (TryGetTutorialRenderDiagnostics(tutorialManager, out var diagnostics))
                 {
-                    renderMode = diagnostics.RenderMode.ToString();
-                    scalerMode = diagnostics.ScaleMode.ToString();
+                    renderMode = diagnostics.RenderMode;
+                    scalerMode = diagnostics.ScaleMode;
                     referenceResolution = $"{diagnostics.ReferenceResolution.x:F0}x{diagnostics.ReferenceResolution.y:F0}";
                     match = diagnostics.MatchWidthOrHeight;
                     spotlightRect = diagnostics.SpotlightVisible
@@ -1728,7 +1883,7 @@ namespace Decantra.Presentation
 
             while (elapsed < TutorialSpotlightSettleTimeout)
             {
-                if (tutorialManager.TryGetRenderDiagnostics(out var diagnostics) && diagnostics.SpotlightVisible)
+                if (TryGetTutorialRenderDiagnostics(tutorialManager, out var diagnostics) && diagnostics.SpotlightVisible)
                 {
                     var current = diagnostics.SpotlightRectLocal;
                     if (hasPrevious)
@@ -1760,7 +1915,7 @@ namespace Decantra.Presentation
             }
         }
 
-        private static bool TryAnalyzeTutorialCapture(string filePath, TutorialRenderDiagnostics diagnostics, out TutorialFrameAnalysis analysis)
+        private static bool TryAnalyzeTutorialCapture(string filePath, TutorialDiagnosticsSnapshot diagnostics, out TutorialFrameAnalysis analysis)
         {
             analysis = default;
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
@@ -1835,7 +1990,7 @@ namespace Decantra.Presentation
             return total > 0 ? (float)white / total : 0f;
         }
 
-        private static bool TryEstimateSpotlightContrast(Texture2D texture, TutorialRenderDiagnostics diagnostics, out float contrast)
+        private static bool TryEstimateSpotlightContrast(Texture2D texture, TutorialDiagnosticsSnapshot diagnostics, out float contrast)
         {
             contrast = 0f;
             if (texture == null)
@@ -1928,6 +2083,180 @@ namespace Decantra.Presentation
             public float WhiteRatio { get; }
             public float SpotlightContrast { get; }
             public bool SpotlightLikelyPresent { get; }
+        }
+
+        private readonly struct TutorialDiagnosticsSnapshot
+        {
+            public TutorialDiagnosticsSnapshot(
+                string renderMode,
+                string scaleMode,
+                Vector2 referenceResolution,
+                float matchWidthOrHeight,
+                bool spotlightVisible,
+                bool spotlightMaskActive,
+                Rect spotlightRectLocal,
+                Rect canvasRectLocal)
+            {
+                RenderMode = renderMode;
+                ScaleMode = scaleMode;
+                ReferenceResolution = referenceResolution;
+                MatchWidthOrHeight = matchWidthOrHeight;
+                SpotlightVisible = spotlightVisible;
+                SpotlightMaskActive = spotlightMaskActive;
+                SpotlightRectLocal = spotlightRectLocal;
+                CanvasRectLocal = canvasRectLocal;
+            }
+
+            public string RenderMode { get; }
+            public string ScaleMode { get; }
+            public Vector2 ReferenceResolution { get; }
+            public float MatchWidthOrHeight { get; }
+            public bool SpotlightVisible { get; }
+            public bool SpotlightMaskActive { get; }
+            public Rect SpotlightRectLocal { get; }
+            public Rect CanvasRectLocal { get; }
+        }
+
+        private static bool TryGetTutorialRenderDiagnostics(TutorialManager tutorialManager, out TutorialDiagnosticsSnapshot diagnostics)
+        {
+            diagnostics = default;
+            if (tutorialManager == null)
+            {
+                return false;
+            }
+
+            var method = tutorialManager.GetType().GetMethod("TryGetRenderDiagnostics", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (method == null)
+            {
+                return false;
+            }
+
+            var args = new object[] { null };
+            bool success;
+            try
+            {
+                object result = method.Invoke(tutorialManager, args);
+                success = result is bool flag && flag;
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (!success || args[0] == null)
+            {
+                return false;
+            }
+
+            object source = args[0];
+            diagnostics = new TutorialDiagnosticsSnapshot(
+                ReadMember(source, "RenderMode", "unknown"),
+                ReadMember(source, "ScaleMode", "unknown"),
+                ReadMember(source, "ReferenceResolution", new Vector2(1080f, 1920f)),
+                ReadMember(source, "MatchWidthOrHeight", 0f),
+                ReadMember(source, "SpotlightVisible", false),
+                ReadMember(source, "SpotlightMaskActive", false),
+                ReadMember(source, "SpotlightRectLocal", default(Rect)),
+                ReadMember(source, "CanvasRectLocal", default(Rect)));
+            return true;
+        }
+
+        private static T ReadMember<T>(object source, string memberName, T fallback)
+        {
+            if (source == null || string.IsNullOrWhiteSpace(memberName))
+            {
+                return fallback;
+            }
+
+            var type = source.GetType();
+            var property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (property != null)
+            {
+                try
+                {
+                    object value = property.GetValue(source);
+                    if (value is T typed)
+                    {
+                        return typed;
+                    }
+
+                    if (typeof(T) == typeof(string) && value != null)
+                    {
+                        return (T)(object)value.ToString();
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            var field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (field != null)
+            {
+                try
+                {
+                    object value = field.GetValue(source);
+                    if (value is T typed)
+                    {
+                        return typed;
+                    }
+
+                    if (typeof(T) == typeof(string) && value != null)
+                    {
+                        return (T)(object)value.ToString();
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return fallback;
+        }
+
+        private static bool TryGetTutorialStepSnapshot(TutorialManager tutorialManager, out int currentStepIndex, out string targetName)
+        {
+            currentStepIndex = 0;
+            targetName = "unknown";
+            if (tutorialManager == null)
+            {
+                return false;
+            }
+
+            var method = tutorialManager.GetType().GetMethod("TryGetCurrentStepSnapshot", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (method == null)
+            {
+                return false;
+            }
+
+            var args = new object[] { 0, "" };
+            bool success;
+            try
+            {
+                object result = method.Invoke(tutorialManager, args);
+                success = result is bool flag && flag;
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (!success)
+            {
+                return false;
+            }
+
+            if (args[0] is int idx)
+            {
+                currentStepIndex = idx;
+            }
+
+            if (args[1] != null)
+            {
+                targetName = args[1].ToString();
+            }
+
+            return true;
         }
 
         private static void ApplyCaptureResolution(int width, int height, bool fullscreen)

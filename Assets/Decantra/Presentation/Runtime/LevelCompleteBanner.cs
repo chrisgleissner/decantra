@@ -655,23 +655,23 @@ namespace Decantra.Presentation
                 float normalized = count <= 1 ? 0f : i / (float)(count - 1);
                 switch (_styleIndex)
                 {
-                    case 1: // Spiral
+                    case 1:
                         starts[i] = new Vector2(Mathf.Lerp(-size.x * 0.08f, size.x * 0.08f, normalized), -size.y * 0.05f);
                         ends[i] = new Vector2(
                             Mathf.Cos(normalized * Mathf.PI * 2f) * size.x * 0.35f,
                             Mathf.Sin(normalized * Mathf.PI * 2f) * size.y * 0.25f + size.y * 0.25f);
                         break;
-                    case 2: // Wave
+                    case 2:
                         starts[i] = new Vector2(Mathf.Lerp(-size.x * 0.35f, size.x * 0.35f, normalized), -size.y * 0.02f);
                         ends[i] = new Vector2(starts[i].x, size.y * 0.45f);
                         break;
-                    case 3: // Radiant
+                    case 3:
                         starts[i] = Vector2.zero;
                         ends[i] = new Vector2(
                             Mathf.Lerp(-size.x * 0.45f, size.x * 0.45f, normalized),
                             Mathf.Lerp(size.y * 0.2f, size.y * 0.55f, normalized));
                         break;
-                    default: // Burst
+                    default:
                         starts[i] = new Vector2(UnityEngine.Random.Range(-size.x * 0.2f, size.x * 0.2f), UnityEngine.Random.Range(-size.y * 0.05f, size.y * 0.1f));
                         ends[i] = starts[i] + new Vector2(UnityEngine.Random.Range(-size.x * 0.35f, size.x * 0.35f), UnityEngine.Random.Range(size.y * 0.25f, size.y * 0.5f));
                         break;
@@ -1014,18 +1014,6 @@ namespace Decantra.Presentation
 
             if (_audioManager == null) return;
             _audioManager.PlayLevelComplete();
-            if (_celebrationProfile.Tier >= 3)
-            {
-                StartCoroutine(PlayLayeredJingle());
-            }
-        }
-
-        private IEnumerator PlayLayeredJingle()
-        {
-            yield return new WaitForSecondsRealtime(JingleFirstDelay);
-            _audioManager?.PlayLevelComplete();
-            yield return new WaitForSecondsRealtime(JingleSecondDelay);
-            _audioManager?.PlayLevelComplete();
         }
     }
 }

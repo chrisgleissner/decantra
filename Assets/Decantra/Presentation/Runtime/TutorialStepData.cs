@@ -10,12 +10,6 @@ using System;
 
 namespace Decantra.Presentation
 {
-    public enum TutorialFocusShape
-    {
-        RoundedRect = 0,
-        Circle = 1
-    }
-
     [Serializable]
     public sealed class TutorialStepData
     {
@@ -23,15 +17,13 @@ namespace Decantra.Presentation
         public string TargetObjectName;
         public string Instruction;
         public bool Optional;
-        public TutorialFocusShape FocusShape;
 
-        public TutorialStepData(string id, string targetObjectName, string instruction, bool optional = false, TutorialFocusShape focusShape = TutorialFocusShape.RoundedRect)
+        public TutorialStepData(string id, string targetObjectName, string instruction, bool optional = false)
         {
             Id = id;
             TargetObjectName = targetObjectName;
             Instruction = instruction;
             Optional = optional;
-            FocusShape = focusShape;
         }
     }
 }
