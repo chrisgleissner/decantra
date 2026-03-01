@@ -2368,16 +2368,46 @@ namespace Decantra.Presentation
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
 
-            var dimmer = root.AddComponent<Image>();
-            dimmer.color = new Color(0f, 0f, 0f, 0.46f);
-            dimmer.raycastTarget = true;
+            var dimLayerGo = CreateUiChild(root.transform, "DimLayer");
+            var dimLayerRect = dimLayerGo.GetComponent<RectTransform>();
+            dimLayerRect.anchorMin = Vector2.zero;
+            dimLayerRect.anchorMax = Vector2.one;
+            dimLayerRect.offsetMin = Vector2.zero;
+            dimLayerRect.offsetMax = Vector2.zero;
+            var dimLayer = dimLayerGo.AddComponent<Image>();
+            dimLayer.color = new Color(0f, 0f, 0f, 0.56f);
+            dimLayer.raycastTarget = true;
+
+            var raycastBlocker = dimLayerGo.AddComponent<TutorialRaycastBlocker>();
+
+            var focusMaskGo = CreateUiChild(root.transform, "FocusMask");
+            var focusMaskRect = focusMaskGo.GetComponent<RectTransform>();
+            focusMaskRect.anchorMin = Vector2.zero;
+            focusMaskRect.anchorMax = Vector2.one;
+            focusMaskRect.offsetMin = Vector2.zero;
+            focusMaskRect.offsetMax = Vector2.zero;
+            var focusMaskImage = focusMaskGo.AddComponent<Image>();
+            focusMaskImage.raycastTarget = false;
+            focusMaskImage.color = Color.clear;
+            var spotlightShader = Shader.Find("Decantra/TutorialSpotlightMask");
+            if (spotlightShader != null)
+            {
+                focusMaskImage.material = new Material(spotlightShader);
+                focusMaskImage.color = Color.white;
+            }
 
             var highlight = CreateUiChild(root.transform, "HighlightFrame");
             var highlightRect = highlight.GetComponent<RectTransform>();
             var highlightImage = highlight.AddComponent<Image>();
-            highlightImage.sprite = CreateRingSprite();
-            highlightImage.color = new Color(1f, 0.97f, 0.8f, 0.95f);
+            highlightImage.sprite = GetRoundedSprite();
+            highlightImage.type = Image.Type.Sliced;
+            highlightImage.color = new Color(0.78f, 0.9f, 1f, 0.2f);
             highlightImage.raycastTarget = false;
+
+            var highlightGlow = highlight.AddComponent<Shadow>();
+            highlightGlow.useGraphicAlpha = true;
+            highlightGlow.effectColor = new Color(0.58f, 0.78f, 1f, 0.42f);
+            highlightGlow.effectDistance = new Vector2(0f, -14f);
 
             var instructionPanel = CreateUiChild(root.transform, "InstructionPanel");
             var panelRect = instructionPanel.GetComponent<RectTransform>();
@@ -2460,6 +2490,9 @@ namespace Decantra.Presentation
             var manager = root.AddComponent<TutorialManager>();
             SetPrivateField(manager, "root", rootRect);
             SetPrivateField(manager, "highlightFrame", highlightRect);
+            SetPrivateField(manager, "highlightMask", focusMaskImage);
+            SetPrivateField(manager, "dimLayer", dimLayer);
+            SetPrivateField(manager, "raycastBlocker", raycastBlocker);
             SetPrivateField(manager, "instructionText", instructionText);
             SetPrivateField(manager, "nextButton", nextButton);
             SetPrivateField(manager, "skipButton", skipButton);

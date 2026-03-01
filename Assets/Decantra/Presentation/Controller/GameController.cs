@@ -104,6 +104,8 @@ namespace Decantra.Presentation.Controller
         private bool _usedHints;
         private bool _usedRestart;
         private bool _isCurrentLevelAssisted;
+        private bool _autoSolveUsedThisLevel;
+        private bool _blackBottleConvertedThisLevel;
         private int _levelResetCount;
         private SettingsStore _settingsStore;
         private bool _sfxEnabled = true;
@@ -441,6 +443,8 @@ namespace Decantra.Presentation.Controller
             _usedHints = false;
             _usedRestart = false;
             _isCurrentLevelAssisted = false;
+            _autoSolveUsedThisLevel = false;
+            _blackBottleConvertedThisLevel = false;
             _levelResetCount = 0;
             _isAutoSolving = false;
             _autoSolvePlaybackActive = false;
@@ -944,6 +948,9 @@ namespace Decantra.Presentation.Controller
             _lastGrade = ScoreCalculator.CalculateGrade(_state.OptimalMoves, _state.MovesUsed);
             int baseStars = CalculateStars(_state.OptimalMoves, _state.MovesUsed, _state.MovesAllowed);
             _lastStars = ResolveAwardedStars(baseStars);
+            string completionMessage = string.Empty;
+            bool newStreakRecord = false;
+            int streakMilestone = 0;
 
             if (_isCurrentLevelAssisted)
             {
@@ -961,6 +968,24 @@ namespace Decantra.Presentation.Controller
 #endif
             // CommitLevel delayed to onScoreApply
             _completionStreak++;
+
+            if (_progress != null)
+            {
+                bool isPerfect = PerfectStreakTracker.IsPerfectCompletion(
+                    _lastStars,
+                    _autoSolveUsedThisLevel,
+                    _blackBottleConvertedThisLevel);
+                PerfectStreakTracker.RecordCompletion(_progress, isPerfect, out newStreakRecord, out streakMilestone);
+                var feedback = PerformanceTracker.RecordCompletion(
+                    _progress,
+                    _state.LevelIndex,
+                    _lastStars,
+                    _state.MovesUsed,
+                    _state.OptimalMoves,
+                    efficiency,
+                    _lastGrade);
+                completionMessage = newStreakRecord ? "New streak record" : feedback.Message;
+            }
 
             bool finished = false;
 
@@ -1011,8 +1036,17 @@ namespace Decantra.Presentation.Controller
 
             if (levelBanner != null)
             {
-                PlayLevelCompleteSfx();
-                levelBanner.Show(_currentLevel, _lastStars, awardedScore, false, onScoreApply, () => finished = true);
+                levelBanner.Show(
+                    _currentLevel,
+                    _lastStars,
+                    awardedScore,
+                    _sfxEnabled,
+                    onScoreApply,
+                    () => finished = true,
+                    completionMessage,
+                    newStreakRecord,
+                    streakMilestone,
+                    _state.LevelIndex);
                 float bannerWait = 0f;
                 while (!finished && bannerWait < BannerTimeoutSeconds)
                 {
@@ -1977,6 +2011,7 @@ namespace Decantra.Presentation.Controller
             if (!TrySpendStars(convertCost)) return;
 
             _isCurrentLevelAssisted = true;
+            _blackBottleConvertedThisLevel = true;
             ConvertAllSinksToNormalBottles();
         }
 
@@ -2054,6 +2089,7 @@ namespace Decantra.Presentation.Controller
             }
 
             _isCurrentLevelAssisted = true;
+            _autoSolveUsedThisLevel = true;
             _isAutoSolving = true;
             _inputLocked = true;
             _levelResetCount++;
@@ -2062,6 +2098,7 @@ namespace Decantra.Presentation.Controller
             // RestartCurrentLevel -> ApplyLoadedState resets runtime flags for normal gameplay.
             // Re-assert auto-solve execution flags so the first orchestrated move is allowed.
             _isCurrentLevelAssisted = true;
+            _autoSolveUsedThisLevel = true;
             _isAutoSolving = true;
             _inputLocked = true;
 
@@ -2673,6 +2710,8 @@ namespace Decantra.Presentation.Controller
             _usedHints = false;
             _usedRestart = false;
             _isCurrentLevelAssisted = false;
+            _autoSolveUsedThisLevel = false;
+            _blackBottleConvertedThisLevel = false;
             _levelResetCount = 0;
             _isAutoSolving = false;
             _autoSolvePlaybackActive = false;
