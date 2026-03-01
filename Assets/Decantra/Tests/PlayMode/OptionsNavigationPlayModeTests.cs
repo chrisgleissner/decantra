@@ -172,8 +172,11 @@ namespace Decantra.Tests.PlayMode
 
             var activeTarget = GetPrivateField<RectTransform>(tutorialManager, "_activeTarget");
             Assert.IsNotNull(activeTarget, "Tutorial should resolve an active focus target.");
-            Assert.Greater(activeTarget.localScale.x, 1.01f, "Focused target should be enlarged during pulse.");
-            Assert.Greater(activeTarget.localScale.y, 1.01f, "Focused target should be enlarged during pulse.");
+
+            // Pulse now uses a shadow glow instead of localScale enlargement.
+            var pulseShadow = activeTarget.GetComponent<Shadow>();
+            Assert.IsNotNull(pulseShadow, "Focused target should have a glow shadow during pulse.");
+            Assert.Greater(pulseShadow.effectColor.a, 0.05f, "Pulse glow shadow should be visibly active.");
 
             var backgroundCanvas = GameObject.Find("Canvas_Background")?.GetComponent<Canvas>();
             var gameCanvas = GameObject.Find("Canvas_Game")?.GetComponent<Canvas>();
