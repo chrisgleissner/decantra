@@ -208,7 +208,7 @@ namespace Decantra.Presentation
         public void PlayLevelComplete()
         {
             if (!_isEnabled || _levelCompleteClip == null) return;
-            PlayTransientExclusiveRaw(_levelCompleteClip, 0.52f, 1f);
+            PlayTransient(_levelCompleteClip, 0.52f, 1f, useSafeClip: false, stopAllBeforePlay: true);
         }
 
         public void PlayButtonClick()
@@ -229,59 +229,53 @@ namespace Decantra.Presentation
             PlayTransient(_stageUnlockedClip, 0.56f, 1f);
         }
 
-        private void PlayTransientExclusiveRaw(AudioClip clip, float gain, float pitch = 1f)
-        {
-            if (_sources != null)
-            {
-                for (int i = 0; i < _sources.Length; i++)
-                {
-                    var source = _sources[i];
-                    if (source == null || !source.isPlaying)
-                    {
-                        continue;
-                    }
-
-                    source.Stop();
-                    source.clip = null;
-                }
-            }
-
-            PlayTransientRaw(clip, gain, pitch);
-        }
-
-        private void PlayTransientRaw(AudioClip clip, float gain, float pitch = 1f)
-        {
-            if (!_isEnabled || clip == null || !HasAnySource()) return;
-
-            var source = GetNextSource();
-            if (source == null) return;
-
-            source.Stop();
-            source.clip = clip;
-            source.pitch = Mathf.Max(0.01f, pitch);
-            source.volume = Mathf.Clamp01(gain) * _volume01;
-            source.mute = !_isEnabled || _volume01 <= 0.0001f;
-            source.time = 0f;
-            source.Play();
-        }
-
         public void PlayTransient(AudioClip clip, float gain, float pitch = 1f)
         {
+            PlayTransient(clip, gain, pitch, useSafeClip: true, stopAllBeforePlay: false);
+        }
+
+        private void PlayTransient(AudioClip clip, float gain, float pitch, bool useSafeClip, bool stopAllBeforePlay)
+        {
             if (!_isEnabled || clip == null || !HasAnySource()) return;
+
+            if (stopAllBeforePlay)
+            {
+                StopAllSources();
+            }
 
             var source = GetNextSource();
             if (source == null) return;
 
-            var safeClip = EnsureSafeClip(clip);
-            if (safeClip == null) return;
+            var playbackClip = useSafeClip ? EnsureSafeClip(clip) : clip;
+            if (playbackClip == null) return;
 
             source.Stop();
-            source.clip = safeClip;
+            source.clip = playbackClip;
             source.pitch = Mathf.Max(0.01f, pitch);
             source.volume = Mathf.Clamp01(gain) * _volume01;
             source.mute = !_isEnabled || _volume01 <= 0.0001f;
             source.time = 0f;
             source.Play();
+        }
+
+        private void StopAllSources()
+        {
+            if (_sources == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _sources.Length; i++)
+            {
+                var source = _sources[i];
+                if (source == null || !source.isPlaying)
+                {
+                    continue;
+                }
+
+                source.Stop();
+                source.clip = null;
+            }
         }
 
         private void PlayTransientSegment(AudioClip clip, float startRatio, float endRatio, float gain)
