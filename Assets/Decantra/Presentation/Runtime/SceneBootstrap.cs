@@ -759,7 +759,7 @@ namespace Decantra.Presentation
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 1f;
+            scaler.matchWidthOrHeight = 0f;
 
             SetLayerRecursively(canvas.gameObject, layer);
         }
@@ -779,8 +779,8 @@ namespace Decantra.Presentation
                 rect = go.GetComponent<RectTransform>();
             }
 
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = Vector2.zero;
             rect.sizeDelta = Vector2.zero;
@@ -791,7 +791,7 @@ namespace Decantra.Presentation
                 aspect = rect.gameObject.AddComponent<AspectRatioFitter>();
             }
 
-            aspect.aspectMode = AspectRatioFitter.AspectMode.HeightControlsWidth;
+            aspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
             aspect.aspectRatio = 1080f / 1920f;
             return rect;
         }

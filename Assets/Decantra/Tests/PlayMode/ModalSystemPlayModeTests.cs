@@ -147,7 +147,7 @@ namespace Decantra.Tests.PlayMode
             Assert.IsNotNull(scaler, "Tutorial canvas requires CanvasScaler.");
             Assert.AreEqual(CanvasScaler.ScaleMode.ScaleWithScreenSize, scaler.uiScaleMode, "Tutorial canvas must scale with screen size.");
             Assert.AreEqual(new Vector2(1080f, 1920f), scaler.referenceResolution, "Tutorial canvas reference resolution mismatch.");
-            Assert.AreEqual(1f, scaler.matchWidthOrHeight, 0.001f, "Tutorial canvas match mode should be height-prioritized.");
+            Assert.AreEqual(0f, scaler.matchWidthOrHeight, 0.001f, "Tutorial canvas match mode should be width-prioritized.");
 
             var instructionPanel = tutorialOverlay.transform.Find("InstructionPanel");
             Assert.IsNotNull(instructionPanel);

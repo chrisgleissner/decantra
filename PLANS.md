@@ -1,151 +1,127 @@
 # PLANS
 
-Last updated: 2026-02-28 UTC  
+Last updated: 2026-03-01 UTC  
 Execution engineer: GitHub Copilot (Claude Opus 4.6)
 
 ---
 
-## Active Track — Cinematic Level Transition Upgrade
+## Active Track — Layout Regression Fix (1.4.2-rc1 → 1.4.2-rc2)
 
-### Goal
+### Root Cause
 
-Transform the existing wave-based level transition in `LevelCompleteBanner` into a
-layered, star-scaled, multi-phase cinematic sequence that scales excitement with
-star count, remains performant and deterministic, and preserves accessibility.
+Commit `61f73f7` (tag 1.4.2-rc2) introduced two interacting changes to
+`SceneBootstrap.cs` that together cause the playfield to overflow the screen:
 
-### Invariants
+1. **CanvasScaler `matchWidthOrHeight` changed from `0` (width) to `1` (height).**
+   - rc1 set `ScaleWithScreenSize` with `referenceResolution = 1080×1920` and
+     left `matchWidthOrHeight` at the Unity default of `0` (width matching).
+   - rc2 explicitly set `matchWidthOrHeight = 1f` (height matching).
+   - On a modern tall phone (e.g. 1080×2400, aspect 9:20), height matching
+     yields `scaleFactor = 2400/1920 = 1.25`, shrinking the canvas logical
+     width to `1080/1.25 = 864` while filling height at 1920.
 
-- **No gameplay changes**: scoring logic, solver, star calculation unchanged.
-- **Determinism**: style rotation, tier mapping, phase durations are all deterministic.
-- **Cosmetic randomness only**: sparkle positions, particle jitter. Already present.
-- **60 FPS**: particle counts capped per tier; no full-screen post-processing.
-- **Duration cap**: total transition ≤ previous duration + 600 ms.
-- **No scene reloads**.
-- **Architecture boundaries**: Domain is pure C# (no UnityEngine). All transition
-  code lives in Presentation layer.
+2. **New `GameplayContainer` with `AspectRatioFitter` in `HeightControlsWidth` mode.**
+   - The container is anchored full-height (0→1), and the fitter computes
+     `width = canvasHeight × (9/16) = 1920 × 0.5625 = 1080`.
+   - But the canvas logical width is only 864 → **container overflows by 25%.**
 
-### Existing System Summary
+Combined effect:
+- The gameplay rect is 1080 logical units wide on an 864-wide canvas →
+  extends 108 units past each screen edge.
+- All bottles, HUD, and margins are rendered at 125% of intended size.
+- Outer border disappears; bottles overlap.
 
-`LevelCompleteBanner.cs` already contains:
-- `CelebrationProfile` struct with tier / pulseScale / emissionScale / sparkleDensity
-  / freezeSeconds / shimmer / radialSweep / multiPhaseBurst.
-- `BuildCelebrationProfile(stars, streakMilestone)` mapping stars → tiers 0–3.
-- 4 style variants via `styleIndex = levelIndex % 4` (Burst / Spiral / Wave / Radiant).
-- Animation coroutines: panel pulse, star burst, sparkles, flying stars, glisten.
-- Audio layering: base jingle + repeat jingle for tier 3.
-- Star icons with dynamic color/scale per brilliance.
-- Streak milestone boost on tier-3 profile.
+### Fix
 
-### Phase Plan
+| # | Change | File | Rationale |
+|---|--------|------|-----------|
+| 1 | `matchWidthOrHeight = 1f` → `0f` | `SceneBootstrap.cs` | Restore rc1 width-matching. Canvas logical width = 1080 always. Height varies with device. |
+| 2 | `HeightControlsWidth` → `FitInParent` | `SceneBootstrap.cs` | Container never overflows. On portrait phones (9:20), container = 1080×1920 with vertical margins. On landscape web, container = portrait strip centered horizontally. |
+| 3 | Container anchors `(0.5,0)-(0.5,1)` → `(0,0)-(1,1)` | `SceneBootstrap.cs` | `FitInParent` needs a fill-parent reference rect to compute fit. |
+| 4 | Update test assertion `matchWidthOrHeight` from 1f → 0f | `ModalSystemPlayModeTests.cs` | Test must match new canvas configuration. |
 
-#### Phase 1 — Transition Phase Architecture (4-phase sequence)
+### What Is Preserved
 
-Refactor `AnimateCelebration()` into four explicit sub-phases:
+- **WebGL fullscreen** — `DecantraResponsive` template, CSS, and JS: untouched.
+- **GameplayContainer / AspectRatioFitter architecture** — kept, just corrected.
+- **`EnsureRuntimeCanvasConfiguration` / `EnsurePortraitGameplayContainers`** — kept.
+- **Tutorial overlay, highlight shader, audio session** — untouched.
 
-| Phase | Name | Duration | Behaviour |
-|-------|------|----------|-----------|
-| 1 | Completion Freeze | 0–150 ms (tier-scaled) | Vignette fade-in via dimmer alpha bump. Already uses `FreezeSeconds`. |
-| 2 | Wave Expansion | Existing enter/burst timing | Star burst amplitude & brightness scale with tier. Wave thickness increase for ≥4★. Gold tint for 5★. |
-| 3 | Star Reveal | Sequential pop | Stars animate upward from burst center with 60 ms stagger. Final star (5★) gets brighter flash + extra sparkle burst. |
-| 4 | Resolution Sweep | Light sweep + UI pulse | Glisten sweep; panel scale pulse; fade to next level. |
+### Invariants Restored
 
-Implementation: rewrite `AnimateCelebration` to call sub-phase coroutines
-sequentially. Keep existing animation helpers.
+| Invariant | Mechanism |
+|-----------|-----------|
+| Outer border exists | `FitInParent` + width-match → container ≤ canvas on all axes |
+| No bottle overlap | Container width = 1080 (matches design); `HudSafeLayout` gap math valid again |
+| Web fullscreen | WebGL template + JS unchanged |
+| Android/iOS portrait | Width-match at 1080 ref = identical to rc1 |
+| Web landscape | `FitInParent` produces centered portrait strip |
 
-#### Phase 2 — Wave / Burst Scaling Logic
+### Layout Math Proof
 
-Enhance `AnimateStarBurst` and introduce emission ramp:
-- Burst max scale / alpha already scale with star count; add **wave thickness**
-  parameter (burst rect height scales 1.0× → 1.3× for tier 3).
-- Add depth shadow under burst (subtle darkened copy behind starBurst, offset -4 px).
-- 5★ gold rim: tint starBurst color toward gold `(1, 0.92, 0.55)` for tier 3.
-- Crest distortion: slight sine wobble on burst Y position for tiers ≥ 2.
+**Portrait phone 1080×2400 (9:20):**
+- `scaleFactor = 1080/1080 = 1.0`. Canvas = 1080×2400.
+- `FitInParent` at 9:16: fit by width → 1080×1920. Vertical margin = 240 px each side.
 
-#### Phase 3 — Star Material / Icon Upgrade
+**Portrait phone 1080×1920 (9:16):**
+- Canvas = 1080×1920. Container = 1080×1920. Exact fit.
 
-Replace static `ApplyStarIcons` with sequential reveal:
-- Each star icon pops in with 60 ms delay, scale from 0.3 → glowScale with
-  overshoot easing.
-- Per-icon emission: color.a animates 0 → 1 with brief overshoot.
-- 5★ final star: extra bright flash (scale 1.25× of normal, brief white overlay).
-- Add shimmer animation: per-star continuous micro-rotation ±3° for 5★ only.
+**Web landscape 1920×1080:**
+- `scaleFactor = 1920/1080 ≈ 1.778`. Canvas = 1080×607.
+- `FitInParent` at 9:16: fit by height → 341×607. Horizontal margin ≈ 370 each side.
+- Portrait gameplay strip centered. Physical size ≈ 607×1080 px.
 
-#### Phase 4 — Style Overlay Enhancements
+**Web portrait 1080×1920:**
+- Identical to phone 9:16 case.
 
-Existing 4 style variants for flying stars. Enhance each:
+### Test Matrix
 
-| Index | Name | Enhancement |
-|-------|------|-------------|
-| 0 | Burst | Add subtle radial lines behind burst (via thin elongated sparkle images) |
-| 1 | Spiral | Increase rotation factor; add dust trail alpha |
-| 2 | Wave | Add horizontal sweep band (reuse glisten, dual pass) |
-| 3 | Radiant | Add vertical bloom (upward alpha gradient on glisten) |
+| Platform | Window | Levels | Status |
+|----------|--------|--------|--------|
+| Android emulator | portrait | 1, 506, 1000, tutorial | pending |
+| iOS simulator | portrait | 1, 506, 1000, tutorial | pending |
+| Web portrait | browser | 1, 506 | pending |
+| Web landscape wide | browser | 1, 506 | pending |
+| Web narrow resize | browser | 1, 506 | pending |
+| Web fullscreen | browser | 1, 506 | pending |
 
-Tier modifies intensity of each overlay via `EmissionScale`.
+### Rollback Criteria
 
-#### Phase 5 — Audio Layering Refinement
+Revert the two SceneBootstrap changes if:
+- Any test failure in EditMode or PlayMode suite.
+- Bottle overlap observed on any tested level/platform combination.
+- Web fullscreen ceases to function.
 
-Current: base jingle + 2× repeat for tier 3.
-Enhanced layering:
-- Tier 0–1: single jingle (unchanged).
-- Tier 1 (2–3★): add soft second jingle at lower gain after 120 ms.
-- Tier 2 (4★): add percussion accent (third jingle at 80 ms offset, 0.35 gain).
-- Tier 3 (5★): full layered cascade — 3 jingles + sparkle chime tail at end.
+### Risk Register
 
-#### Phase 6 — Perfect Streak Integration
-
-Already handled via `streakMilestone` boost in `BuildCelebrationProfile`.
-Enhance:
-- When `streakMilestone > 0`: add extra sparkle ring (reuse sparkle pool, wider radius).
-- Brief outer glow on star burst (extend burst alpha duration by 80 ms max).
-- No negative animations for broken streak.
-
-### Tier Scaling Matrix
-
-| Stars | Tier | Freeze | Pulse | Emission | Sparkle Density | Shimmer | Radial | MultiBurst | Wave Gold |
-|-------|------|--------|-------|----------|-----------------|---------|--------|------------|-----------|
-| 0–1 | 0 | 0 ms | 1.01 | 1.0 | 0.45 | no | no | no | no |
-| 2–3 | 1 | 0 ms | 1.02 | 1.1 | 0.70 | yes | no | no | no |
-| 4 | 2 | 0 ms | 1.03 | 1.25 | 1.0 | yes | yes | no | no |
-| 5 | 3 | 150 ms | 1.05 | 1.5 | 1.25 | yes | yes | yes | yes |
-
-### Performance Safeguards
-
-- Sparkle count: max 12 (existing cap). Tier 0 uses ~2–5.
-- Flying star count: max 8 (existing cap). Tier 0 uses ~2–3.
-- No new GameObjects allocated per transition (pool reused).
-- No full-screen blur beyond existing low-res downscale.
-- No real-time post-processing effects.
-- Material property reuse (no material duplication).
-
-### Test Checklist
-
-- [x] `StarTierMapping_IsCorrect` — existing, covers 0–5 stars → tiers 0–3.
-- [x] `StyleRotation_IsDeterministic` — existing, covers `levelIndex % 4`.
-- [ ] `PhaseOrder_IsCorrect` — new: verify 4 phases execute in order.
-- [x] `StreakMilestone_BoostsCelebration` — new: verify milestone > 0 increases profile values.
-- [x] `StarReveal_SequentialTiming` — new: verify 60 ms stagger per star.
-- [x] `GoldTint_OnlyForTier3` — new: verify gold tint applied only at 5★.
-- [x] `WaveThickness_ScalesWithTier` — new: verify burst height scaling.
-- [x] `ParticleCounts_RespectCaps` — new: verify sparkle/flying star count ≤ max.
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| `FitInParent` causes portrait gameplay to be smaller than rc1 | Low — width-match keeps 1080 baseline identical | Verified via math proof above |
+| HUD elements misaligned in GameplayContainer | Low — HUD uses relative anchors within container | Existing `HudSafeLayout` tests validate gaps |
+| Web landscape gameplay too narrow | Medium — 341 logical width is small | Expected per spec: "centered portrait-style region" |
+| `AspectRatioFitter.FitInParent` anchor override conflicts | Low | Unity FitInParent is stable; no manual anchor manipulation after setup |
 
 ### Files Modified
 
-- `Assets/Decantra/Presentation/Runtime/LevelCompleteBanner.cs` — main transition logic.
-- `Assets/Decantra/Tests/PlayMode/LevelCompleteBannerMappingTests.cs` — additional tests.
+- `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs` — canvas scaler + container fix.
+- `Assets/Decantra/Tests/PlayMode/ModalSystemPlayModeTests.cs` — test assertion update.
+- `doc/research/layout-regression-1.4.2/report.md` — root cause documentation.
 - `PLANS.md` — this file.
 
 ### Definition of Done
 
-- [ ] 4-phase transition architecture implemented.
-- [ ] Star tier excitement scaling verified.
-- [ ] Sequential star reveal with stagger.
-- [ ] Wave thickness / gold tint for 5★.
-- [ ] Style overlay enhancements.
-- [ ] Audio layering per tier.
-- [ ] Perfect streak extra sparkle ring.
-- [ ] All tests green.
-- [ ] Manual verification: 1★ minimal, 3★ energetic, 5★ grand.
+- [x] Root cause identified and documented.
+- [ ] Fix implemented in SceneBootstrap.cs.
+- [ ] Test assertion updated.
+- [ ] EditMode tests pass.
+- [ ] Root cause report written.
+- [ ] All changes committed.
+
+---
+
+## Completed Track — Cinematic Level Transition Upgrade
+
+Moved to completed. See git history for details.
 
 ---
 
