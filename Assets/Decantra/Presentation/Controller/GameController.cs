@@ -1454,6 +1454,11 @@ namespace Decantra.Presentation.Controller
                 text.horizontalOverflow = HorizontalWrapMode.Wrap;
                 text.verticalOverflow = VerticalWrapMode.Overflow;
 
+                if (string.Equals(text.name, "InstructionText", StringComparison.OrdinalIgnoreCase))
+                {
+                    text.verticalOverflow = VerticalWrapMode.Truncate;
+                }
+
                 if (string.Equals(text.name, "Title", StringComparison.OrdinalIgnoreCase))
                 {
                     text.fontSize = Mathf.Max(text.fontSize, ModalDesignTokens.Typography.ModalHeader + 4);
@@ -2598,6 +2603,36 @@ namespace Decantra.Presentation.Controller
             // Preserve lifetime stats across the session reset.
             int preservedHighScore = _progress?.HighScore ?? 0;
             int preservedMaxLevel = _progress?.HighestUnlockedLevel ?? 1;
+            int preservedLifetimeBestPerfectStreak = _progress?.LifetimeBestPerfectStreak ?? 0;
+            int preservedLifetimeOptimalCount = _progress?.LifetimeOptimalCount ?? 0;
+            var preservedUnlockedThemes = new List<string>();
+            if (_progress?.UnlockedThemes != null)
+            {
+                preservedUnlockedThemes.AddRange(_progress.UnlockedThemes);
+            }
+            var preservedBestPerformances = new List<LevelPerformanceRecord>();
+            if (_progress?.BestPerformances != null)
+            {
+                for (int i = 0; i < _progress.BestPerformances.Count; i++)
+                {
+                    var record = _progress.BestPerformances[i];
+                    if (record == null)
+                    {
+                        continue;
+                    }
+
+                    preservedBestPerformances.Add(new LevelPerformanceRecord
+                    {
+                        LevelIndex = record.LevelIndex,
+                        BestStars = record.BestStars,
+                        BestMoves = record.BestMoves,
+                        BestDeviation = record.BestDeviation,
+                        TimesCompleted = record.TimesCompleted,
+                        BestEfficiency = record.BestEfficiency,
+                        BestGrade = record.BestGrade
+                    });
+                }
+            }
 
             _progress = new ProgressData
             {
@@ -2608,7 +2643,12 @@ namespace Decantra.Presentation.Controller
                 StarBalance = 0,
                 HighScore = preservedHighScore,
                 CompletedLevels = new List<int>(),
-                BestPerformances = new List<LevelPerformanceRecord>()
+                UnlockedThemes = preservedUnlockedThemes,
+                SessionCurrentPerfectStreak = 0,
+                SessionBestPerfectStreak = 0,
+                LifetimeBestPerfectStreak = preservedLifetimeBestPerfectStreak,
+                LifetimeOptimalCount = preservedLifetimeOptimalCount,
+                BestPerformances = preservedBestPerformances
             };
 
             _progressStore?.Save(_progress);

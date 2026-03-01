@@ -2413,7 +2413,7 @@ namespace Decantra.Presentation
             instructionText.fontStyle = FontStyle.Normal;
             instructionText.lineSpacing = 1.16f;
             instructionText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            instructionText.verticalOverflow = VerticalWrapMode.Overflow;
+            instructionText.verticalOverflow = VerticalWrapMode.Truncate;
             instructionText.text = "Tutorial";
             instructionText.color = ModalDesignTokens.Colors.PrimaryText;
             var instructionElement = instructionText.gameObject.AddComponent<LayoutElement>();
