@@ -208,7 +208,7 @@ namespace Decantra.Presentation
         public void PlayLevelComplete()
         {
             if (!_isEnabled || _levelCompleteClip == null) return;
-            PlayTransient(_levelCompleteClip, 0.52f, 1f);
+            PlayTransientExclusiveRaw(_levelCompleteClip, 0.52f, 1f);
         }
 
         public void PlayButtonClick()
@@ -227,6 +227,42 @@ namespace Decantra.Presentation
         {
             if (!_isEnabled || _stageUnlockedClip == null) return;
             PlayTransient(_stageUnlockedClip, 0.56f, 1f);
+        }
+
+        private void PlayTransientExclusiveRaw(AudioClip clip, float gain, float pitch = 1f)
+        {
+            if (_sources != null)
+            {
+                for (int i = 0; i < _sources.Length; i++)
+                {
+                    var source = _sources[i];
+                    if (source == null || !source.isPlaying)
+                    {
+                        continue;
+                    }
+
+                    source.Stop();
+                    source.clip = null;
+                }
+            }
+
+            PlayTransientRaw(clip, gain, pitch);
+        }
+
+        private void PlayTransientRaw(AudioClip clip, float gain, float pitch = 1f)
+        {
+            if (!_isEnabled || clip == null || !HasAnySource()) return;
+
+            var source = GetNextSource();
+            if (source == null) return;
+
+            source.Stop();
+            source.clip = clip;
+            source.pitch = Mathf.Max(0.01f, pitch);
+            source.volume = Mathf.Clamp01(gain) * _volume01;
+            source.mute = !_isEnabled || _volume01 <= 0.0001f;
+            source.time = 0f;
+            source.Play();
         }
 
         public void PlayTransient(AudioClip clip, float gain, float pitch = 1f)

@@ -85,6 +85,12 @@ $"        public const string Revision = \"{Escape(revision)}\";\n" +
                 return commandLineRevision.Trim();
             }
 
+            string envRevision = FirstNonEmptyEnv("BUILD_REVISION", "DECANTRA_BUILD_REVISION", "VERSION_CODE", "DECANTRA_VERSION_CODE", "GITHUB_RUN_NUMBER");
+            if (!string.IsNullOrWhiteSpace(envRevision))
+            {
+                return envRevision.Trim();
+            }
+
             string githubSha = Environment.GetEnvironmentVariable("GITHUB_SHA");
             if (!string.IsNullOrWhiteSpace(githubSha))
             {
