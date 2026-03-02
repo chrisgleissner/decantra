@@ -118,6 +118,89 @@ All must be true before stop:
 - Local NCI is green.
 - This `PLANS.md` updated with final outcomes and measured deltas.
 
+## 10) Web Landscape Layout Fix (2026-03-02)
+
+### Scope
+Fix rendering regression on the WebGL build where bottles appear extremely small in landscape
+orientation, while Android / iOS portrait layout remain pixel-identical.
+
+### Root Cause
+
+`SceneBootstrap.CreateCanvas` leaves `CanvasScaler.matchWidthOrHeight` at its Unity default of
+`0f` (width-matching).
+
+| Orientation | Screen | scaleFactor | Canvas (logical) | Available height | Bottle scale |
+|-------------|--------|-------------|-----------------|-----------------|--------------|
+| Android portrait | 1080×1920 | 1.0 | 1080 × 1920 | ~1600 | 1.0 ✓ |
+| Web portrait | 1080×1920 | 1.0 | 1080 × 1920 | ~1600 | 1.0 ✓ |
+| Web landscape (broken) | 1920×1080 | 1.778 | 1080 × 607.5 | ~307 | 0.24 ✗ |
+
+With `scaleFactor = 1920/1080 = 1.778` the canvas height drops to 607.5 logical units.
+`HudSafeLayout` has ~307 units available for 3 rows × 420-unit bottles → scale collapses to
+0.24, making bottles tiny.  The HUD (fixed logical size ~300 units) then appears to dominate.
+
+### Non-negotiable invariants (unchanged)
+- Android portrait: layout MUST be bit-for-bit identical (no code path change).
+- iOS portrait: same.
+- Web portrait: canvas remains 1080 × 1920 (matchWidthOrHeight = 0 in portrait).
+- Web landscape: canvas height stays 1920, gameplay centred, background fills extra width.
+
+### Fix — `WebCanvasScalerController` runtime component (WebGL-only)
+
+New file: `Assets/Decantra/Presentation/View/WebCanvasScalerController.cs`
+
+Guarded by `#if UNITY_WEBGL && !UNITY_EDITOR` so it is never compiled into Android/iOS.
+
+Behaviour:
+```
+Screen.width > Screen.height  →  matchWidthOrHeight = 1f  (height-matching)
+Screen.width ≤ Screen.height  →  matchWidthOrHeight = 0f  (width-matching)
+```
+
+Height-matching in landscape:
+| Dimension | Value |
+|-----------|-------|
+| scaleFactor | 1080/1920 = 0.5625 |
+| Canvas logical | 3413 × 1920 |
+| Available gameplay height | ~1620 (same as portrait) |
+| Bottle size | 420 logical units (full, unscaled) |
+| Bottle physical height | 420 × 0.5625 = 236 px on 1080-px tall screen |
+| Ratio bottle/screen height | 236/1080 = 21.9% = same as portrait ✓ |
+
+HUD elements: all are `anchorMin/Max.x = 0.5f` (center-anchored) so they remain
+centred in the wider canvas regardless of its width.  The extra horizontal canvas
+area is filled only by the background layer (full-stretch anchors).
+
+`[DefaultExecutionOrder(-100)]` ensures the scaler is updated before
+`HudSafeLayout.LateUpdate()` performs its layout pass.
+
+`SceneBootstrap` changes:
+1. `CreateCanvas`: attaches `WebCanvasScalerController` to every newly created canvas.
+2. `EnsureScene` early-return path: calls `EnsureWebCanvasControllers()` (also WebGL-only)
+   to attach the component to canvases in pre-built scenes.
+
+### Verification matrix
+
+| Target | Match mode | Canvas | Bottles | Status |
+|--------|-----------|--------|---------|--------|
+| Android portrait | 0f (width) | 1080×1920 | 420 logical | ✓ unchanged |
+| iOS portrait | 0f (width) | 1080×1920 | 420 logical | ✓ unchanged |
+| Web portrait | 0f (width) | 1080×1920 | 420 logical | ✓ identical to Android |
+| Web landscape | 1f (height) | 3413×1920 | 420 logical, centred | ✓ fixed |
+
+### Test impact
+
+`ModalSystemPlayModeTests.TutorialAndStarModals_UseResponsiveAndScrollableStructures` asserts
+`matchWidthOrHeight == 0f`.  Tests run in the Unity Editor (`UNITY_EDITOR` defined), so
+`WebCanvasScalerController` is never compiled in that context.  Assert continues to pass. ✓
+
+### Files changed
+- `Assets/Decantra/Presentation/View/WebCanvasScalerController.cs` (new)
+- `Assets/Decantra/Presentation/View/WebCanvasScalerController.cs.meta` (new)
+- `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs` (3-site patch)
+- `docs/render-baseline.md` (new — measurement methodology)
+- `PLANS.md` (this update)
+
 ## 9) Final execution status (2026-03-01)
 
 Completed:
