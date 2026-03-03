@@ -1,0 +1,15 @@
+<!--
+  Preserve types accessed only via reflection so that IL2CPP managed-code
+  stripping (High level) does not remove them from the Android/iOS player build.
+
+  BuildInfo is generated at build time (gitignored) and read at runtime
+  exclusively through BuildInfoReader, which uses AppDomain reflection to
+  locate the type. Without this entry the High stripping level removes the
+  whole class and every property comes back as an empty string, causing the
+  About section to display "Build UTC unknown".
+-->
+<linker>
+  <assembly fullname="Decantra.App">
+    <type fullname="Decantra.App.BuildInfo" preserve="all"/>
+  </assembly>
+</linker>
