@@ -59,8 +59,14 @@ Ensure this branch does not introduce pixel-identical screenshots versus `main`,
 - [x] Capture workflow integration added.
 - [x] CI workflow added.
 - [x] Pre-push hook + installer added.
-- [ ] Apply dedupe cleanup against `main` and commit.
+- [x] Apply dedupe cleanup against `main` and commit (result: no pixel-identical findings).
 - [ ] Push and verify CI green.
+
+### CI verification notes (2026-03-03)
+- Build Decantra run `22624293858` failed in `Unity tests (EditMode + PlayMode)` due to compile errors:
+  - `The name 'BuildInfo' does not exist in the current context`
+- Root cause: `BuildInfo.cs` is generated and gitignored, so clean CI checkouts can compile runtime code before any placeholder file is materialized.
+- Fix applied: added `BuildInfoReader` reflection-based accessor and replaced direct `BuildInfo.*` usage in runtime call sites.
 
 ## 1) Scope
 

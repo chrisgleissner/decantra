@@ -3589,9 +3589,9 @@ namespace Decantra.Presentation
 
         private static string BuildVersionFooterText()
         {
-            string versionName = string.IsNullOrWhiteSpace(BuildInfo.Version)
+            string versionName = string.IsNullOrWhiteSpace(BuildInfoReader.Version)
                 ? (string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version)
-                : BuildInfo.Version;
+                : BuildInfoReader.Version;
             string versionNumber = GetRuntimeVersionNumber();
             string buildUtc = GetRuntimeBuildUtcTimestamp();
             return $"Version {versionName} ({versionNumber})\nBuild UTC {buildUtc}";
@@ -3599,12 +3599,12 @@ namespace Decantra.Presentation
 
         private static string GetRuntimeBuildUtcTimestamp()
         {
-            if (string.IsNullOrWhiteSpace(BuildInfo.BuildUtc))
+            if (string.IsNullOrWhiteSpace(BuildInfoReader.BuildUtc))
             {
                 return "unknown";
             }
 
-            string raw = BuildInfo.BuildUtc.Trim();
+            string raw = BuildInfoReader.BuildUtc.Trim();
             if (System.DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out System.DateTime parsed))
             {
                 return parsed.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -3652,9 +3652,9 @@ namespace Decantra.Presentation
                 return "unknown";
             }
 #else
-            if (!string.IsNullOrWhiteSpace(BuildInfo.Revision))
+            if (!string.IsNullOrWhiteSpace(BuildInfoReader.Revision))
             {
-                return BuildInfo.Revision.Trim();
+                return BuildInfoReader.Revision.Trim();
             }
 
             return "unknown";
