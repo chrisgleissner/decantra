@@ -3,6 +3,39 @@
 Last updated: 2026-03-03 UTC  
 Execution engineer: GitHub Copilot (Claude Sonnet 4.6)
 
+## 14) Fix BuildInfo compile-time reference in tests (2026-03-03)
+
+### Status: COMPLETED
+
+### Root Cause
+`Assets/Decantra/Tests/EditModeApp/BuildInfoReaderTests.cs` contained 4 tests that directly
+referenced `BuildInfo.Version` and `BuildInfo.BuildUtc` at compile time. Since `BuildInfo.cs`
+is gitignored and absent on clean CI checkouts, this caused:
+
+```
+error CS0103: The name 'BuildInfo' does not exist in the current context
+```
+
+This broke the Unity tests job and all downstream builds (WebGL, iOS) on `fix/build-time`.
+
+### Fix Applied
+File: `Assets/Decantra/Tests/EditModeApp/BuildInfoReaderTests.cs`
+
+- Removed 3 tests that used `BuildInfo.*` directly:
+  `BuildInfo_Version_IsNotEmpty`, `BuildInfo_BuildUtc_IsNotEmpty`, `BuildInfo_BuildUtc_IsValidIso8601`
+- Removed 1 test that compared `BuildInfo.BuildUtc` to `BuildInfoReader.BuildUtc`:
+  `BuildInfoReader_BuildUtc_MatchesBuildInfo`
+- Added `BuildInfoReader_Version_IsNotEmpty` (uses `BuildInfoReader.Version` via reflection)
+- Added `BuildInfoReader_BuildUtc_IsValidIso8601` (uses `BuildInfoReader.BuildUtc` via reflection)
+
+All 4 remaining tests use `BuildInfoReader.*` (reflection), so they compile without `BuildInfo.cs`.
+
+### Files Changed
+- `Assets/Decantra/Tests/EditModeApp/BuildInfoReaderTests.cs` — removed direct `BuildInfo.*` references
+
+---
+
+
 ## 13) Tutorial Logo Invariance Fix (2026-03-03)
 
 ### Status: COMPLETED
