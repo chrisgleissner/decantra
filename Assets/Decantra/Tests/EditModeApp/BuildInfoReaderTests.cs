@@ -22,49 +22,30 @@ namespace Decantra.Tests.EditModeApp
     /// managed-code stripping removed BuildInfo (only referenced via reflection).
     /// Fix: link.xml preserves Decantra.App.BuildInfo; [Preserve] on the class
     /// and each member is defence-in-depth.
+    ///
+    /// Note: All assertions go through BuildInfoReader (reflection) rather than
+    /// BuildInfo directly, to avoid a compile-time dependency on the gitignored
+    /// generated file Assets/Decantra/App/Runtime/BuildInfo.cs.
     /// </summary>
     public class BuildInfoReaderTests
     {
-        // ── BuildInfo direct-field contract ──────────────────────────────────
-
         [Test]
-        public void BuildInfo_Version_IsNotEmpty()
+        public void BuildInfoReader_Version_IsNotEmpty()
         {
-            Assert.IsFalse(string.IsNullOrWhiteSpace(BuildInfo.Version),
-                "BuildInfo.Version should have been written by GenerateAndImport()." +
-                " If this fails in CI, check that EnsureExists/GenerateAndImport ran before compilation.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(BuildInfoReader.Version),
+                "BuildInfoReader.Version is empty — check that EnsureExists/GenerateAndImport ran.");
         }
 
         [Test]
-        public void BuildInfo_BuildUtc_IsNotEmpty()
+        public void BuildInfoReader_BuildUtc_IsValidIso8601()
         {
-            Assert.IsFalse(string.IsNullOrWhiteSpace(BuildInfo.BuildUtc),
-                "BuildInfo.BuildUtc is empty — the About section will show 'Build UTC unknown'.");
-        }
-
-        [Test]
-        public void BuildInfo_BuildUtc_IsValidIso8601()
-        {
-            string raw = BuildInfo.BuildUtc;
+            string raw = BuildInfoReader.BuildUtc;
             bool parsed = DateTime.TryParse(raw, null,
                 System.Globalization.DateTimeStyles.AdjustToUniversal |
                 System.Globalization.DateTimeStyles.AssumeUniversal,
                 out _);
             Assert.IsTrue(parsed,
-                $"BuildInfo.BuildUtc '{raw}' could not be parsed as a UTC date/time.");
-        }
-
-        // ── BuildInfoReader reflection contract ──────────────────────────────
-
-        [Test]
-        public void BuildInfoReader_BuildUtc_MatchesBuildInfo()
-        {
-            // BuildInfoReader uses AppDomain reflection to locate BuildInfo.
-            // This mirrors exactly what the About section in SceneBootstrap does at runtime.
-            Assert.AreEqual(BuildInfo.BuildUtc, BuildInfoReader.BuildUtc,
-                "BuildInfoReader.BuildUtc returned a different value than BuildInfo.BuildUtc. " +
-                "If BuildInfoReader.BuildUtc is empty here, IL2CPP stripping may be active — " +
-                "check that link.xml preserves Decantra.App.BuildInfo and that [Preserve] is present.");
+                $"BuildInfoReader.BuildUtc '{raw}' could not be parsed as a UTC date/time.");
         }
 
         [Test]
