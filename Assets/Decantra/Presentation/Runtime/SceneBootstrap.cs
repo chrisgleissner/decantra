@@ -143,7 +143,8 @@ namespace Decantra.Presentation
 
                 SetPrivateField(bottleInput, "bottleView", bottleView);
 
-                // Wire 3D visual overlay on the same GameObject
+#if !UNITY_WEBGL
+                // Wire 3D visual overlay on the same GameObject (native platforms only)
                 var bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
                 var pourStreamGo = new GameObject($"PourStream_{i + 1}");
                 pourStreamGo.transform.SetParent(bottleView.transform, false);
@@ -153,6 +154,7 @@ namespace Decantra.Presentation
                 SetPrivateField(pourStream, "sourceBottleIndex", i);
                 SetPrivateField(bottle3DView, "pourStream", pourStream);
                 bottle3DViews.Add(bottle3DView);
+#endif
             }
 
             var controller = existingController;
