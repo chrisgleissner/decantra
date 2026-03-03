@@ -3,7 +3,6 @@
   "references": [
     "Decantra.Domain",
     "Decantra.App",
-    "Decantra.Presentation",
     "Decantra.Presentation.Visual"
   ],
   "includePlatforms": [],

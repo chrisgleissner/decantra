@@ -8,7 +8,6 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System.Collections.Generic;
 using Decantra.Domain.Model;
-using Decantra.Presentation.View;
 using Decantra.Presentation.Visual.Simulation;
 using UnityEngine;
 
@@ -20,7 +19,7 @@ namespace Decantra.Presentation.View3D
     /// Relationship to legacy BottleView
     /// ------------------------------------
     /// This component is intended to sit alongside (or replace) the existing Canvas-UI
-    /// <see cref="BottleView"/>.  During the transition phase it acts as a visual overlay:
+    /// BottleView.  During the transition phase it acts as a visual overlay:
     ///   - It reads the same <see cref="Bottle"/> data model.
     ///   - It does NOT own or modify any gameplay logic.
     ///   - It creates child 3D GameObjects (bottleMeshGO, liquidLayerGOs[]).

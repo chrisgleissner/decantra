@@ -15,6 +15,7 @@ using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -131,6 +132,7 @@ namespace Decantra.Presentation
             var palette = CreatePalette();
 
             var bottleViews = new List<BottleView>();
+            var bottle3DViews = new List<Bottle3DView>();
             for (int i = 0; i < 9; i++)
             {
                 var bottleView = CreateBottle(gridRoot.transform, i + 1, palette);
@@ -140,6 +142,17 @@ namespace Decantra.Presentation
                 bottleViews.Add(bottleView);
 
                 SetPrivateField(bottleInput, "bottleView", bottleView);
+
+                // Wire 3D visual overlay on the same GameObject
+                var bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
+                var pourStreamGo = new GameObject($"PourStream_{i + 1}");
+                pourStreamGo.transform.SetParent(bottleView.transform, false);
+                pourStreamGo.AddComponent<MeshFilter>();
+                pourStreamGo.AddComponent<MeshRenderer>();
+                var pourStream = pourStreamGo.AddComponent<PourStreamController>();
+                SetPrivateField(pourStream, "sourceBottleIndex", i);
+                SetPrivateField(bottle3DView, "pourStream", pourStream);
+                bottle3DViews.Add(bottle3DView);
             }
 
             var controller = existingController;
@@ -149,6 +162,8 @@ namespace Decantra.Presentation
                 controller = controllerGo.AddComponent<GameController>();
             }
             SetPrivateField(controller, "bottleViews", bottleViews);
+            SetPrivateField(controller, "_bottle3DViews", bottle3DViews);
+            SetPrivateField(controller, "_colorPalette", palette);
             SetPrivateField(controller, "hudView", hudView);
             SetPrivateField(controller, "backgroundImage", backgroundLayers.Base);
             SetPrivateField(controller, "backgroundDetail", backgroundLayers.Detail);
