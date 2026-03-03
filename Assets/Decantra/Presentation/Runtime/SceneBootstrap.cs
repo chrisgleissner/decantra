@@ -107,6 +107,9 @@ namespace Decantra.Presentation
                 EnsureLevelJumpOverlay(existingController);
                 WireLevelJumpOverlay(existingController);
                 ResetModalVisibility(existingController);
+#if UNITY_WEBGL && !UNITY_EDITOR
+                EnsureWebCanvasControllers();
+#endif
                 return;
             }
 
@@ -232,6 +235,26 @@ namespace Decantra.Presentation
             // Match runtime bootstrap defaults when wiring an existing scene.
             safeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, bottleGridRect, 0f, 0f);
         }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        /// <summary>
+        /// Ensures each main canvas has a <see cref="Decantra.Presentation.View.WebCanvasScalerController"/>
+        /// attached.  Called from the early-return path of <see cref="EnsureScene"/> when the
+        /// scene layout is already wired and <see cref="CreateCanvas"/> has not run.
+        /// </summary>
+        private static void EnsureWebCanvasControllers()
+        {
+            var canvasNames = new[] { "Canvas_Background", "Canvas_Game", "Canvas_UI" };
+            foreach (var canvasName in canvasNames)
+            {
+                var go = GameObject.Find(canvasName);
+                if (go != null && go.GetComponent<Decantra.Presentation.View.WebCanvasScalerController>() == null)
+                {
+                    go.AddComponent<Decantra.Presentation.View.WebCanvasScalerController>();
+                }
+            }
+        }
+#endif
 
         private static void EnsureRestartDialog(GameController controller)
         {
@@ -743,6 +766,14 @@ namespace Decantra.Presentation
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // WebCanvasScalerController adjusts matchWidthOrHeight at runtime based on
+            // orientation so landscape uses height-matching (preserving the 1920-unit tall
+            // portrait gameplay area) while portrait uses width-matching (1080-unit wide,
+            // identical to the Android canvas).  Mobile builds never include this component.
+            canvasGo.AddComponent<Decantra.Presentation.View.WebCanvasScalerController>();
+#endif
 
             SetLayerRecursively(canvasGo, layer);
             return canvas;
@@ -3558,9 +3589,9 @@ namespace Decantra.Presentation
 
         private static string BuildVersionFooterText()
         {
-            string versionName = string.IsNullOrWhiteSpace(BuildInfo.Version)
+            string versionName = string.IsNullOrWhiteSpace(BuildInfoReader.Version)
                 ? (string.IsNullOrWhiteSpace(Application.version) ? "unknown" : Application.version)
-                : BuildInfo.Version;
+                : BuildInfoReader.Version;
             string versionNumber = GetRuntimeVersionNumber();
             string buildUtc = GetRuntimeBuildUtcTimestamp();
             return $"Version {versionName} ({versionNumber})\nBuild UTC {buildUtc}";
@@ -3568,12 +3599,12 @@ namespace Decantra.Presentation
 
         private static string GetRuntimeBuildUtcTimestamp()
         {
-            if (string.IsNullOrWhiteSpace(BuildInfo.BuildUtc))
+            if (string.IsNullOrWhiteSpace(BuildInfoReader.BuildUtc))
             {
                 return "unknown";
             }
 
-            string raw = BuildInfo.BuildUtc.Trim();
+            string raw = BuildInfoReader.BuildUtc.Trim();
             if (System.DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out System.DateTime parsed))
             {
                 return parsed.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -3621,9 +3652,9 @@ namespace Decantra.Presentation
                 return "unknown";
             }
 #else
-            if (!string.IsNullOrWhiteSpace(BuildInfo.Revision))
+            if (!string.IsNullOrWhiteSpace(BuildInfoReader.Revision))
             {
-                return BuildInfo.Revision.Trim();
+                return BuildInfoReader.Revision.Trim();
             }
 
             return "unknown";

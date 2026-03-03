@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using Decantra.App.Services;
 using Decantra.Presentation.Controller;
 using UnityEngine;
+using UnityEngine.Scripting;
 using UnityEngine.UI;
 
 namespace Decantra.Presentation
@@ -47,6 +48,39 @@ namespace Decantra.Presentation
         public bool IsRunning => _running;
         public int StepCount => _steps.Count;
         public int CurrentStepIndex => _stepIndex;
+
+        [Preserve]
+        private readonly struct RenderDiagnostics
+        {
+            public RenderDiagnostics(
+                string renderMode,
+                string scaleMode,
+                Vector2 referenceResolution,
+                float matchWidthOrHeight,
+                bool spotlightVisible,
+                bool spotlightMaskActive,
+                Rect spotlightRectLocal,
+                Rect canvasRectLocal)
+            {
+                RenderMode = renderMode;
+                ScaleMode = scaleMode;
+                ReferenceResolution = referenceResolution;
+                MatchWidthOrHeight = matchWidthOrHeight;
+                SpotlightVisible = spotlightVisible;
+                SpotlightMaskActive = spotlightMaskActive;
+                SpotlightRectLocal = spotlightRectLocal;
+                CanvasRectLocal = canvasRectLocal;
+            }
+
+            [Preserve] public string RenderMode { get; }
+            [Preserve] public string ScaleMode { get; }
+            [Preserve] public Vector2 ReferenceResolution { get; }
+            [Preserve] public float MatchWidthOrHeight { get; }
+            [Preserve] public bool SpotlightVisible { get; }
+            [Preserve] public bool SpotlightMaskActive { get; }
+            [Preserve] public Rect SpotlightRectLocal { get; }
+            [Preserve] public Rect CanvasRectLocal { get; }
+        }
 
         public void Initialize(GameController controller, SettingsStore settingsStore)
         {
@@ -103,6 +137,71 @@ namespace Decantra.Presentation
             }
 
             HideImmediate();
+        }
+
+        [Preserve]
+        private bool TryGetRenderDiagnostics(out object diagnostics)
+        {
+            if (_canvas == null)
+            {
+                _canvas = GetComponentInParent<Canvas>();
+            }
+
+            var scaler = _canvas != null ? _canvas.GetComponent<CanvasScaler>() : null;
+            string renderMode = _canvas != null ? _canvas.renderMode.ToString() : "unknown";
+            string scaleMode = scaler != null ? scaler.uiScaleMode.ToString() : "unknown";
+            Vector2 referenceResolution = scaler != null ? scaler.referenceResolution : default;
+            float matchWidthOrHeight = scaler != null ? scaler.matchWidthOrHeight : 0f;
+
+            bool spotlightVisible = highlightFrame != null
+                && highlightFrame.gameObject.activeSelf
+                && _lastFocusVisible;
+
+            bool spotlightMaskActive = highlightMask != null
+                && highlightMask.gameObject.activeSelf
+                && highlightMask.material != null;
+
+            Rect spotlightRectLocal = new Rect(
+                _smoothCenter.x - (_smoothSize.x * 0.5f),
+                _smoothCenter.y - (_smoothSize.y * 0.5f),
+                _smoothSize.x,
+                _smoothSize.y);
+
+            Rect canvasRectLocal = default;
+            if (_canvas != null)
+            {
+                var canvasRectTransform = _canvas.GetComponent<RectTransform>();
+                if (canvasRectTransform != null)
+                {
+                    canvasRectLocal = canvasRectTransform.rect;
+                }
+            }
+
+            diagnostics = new RenderDiagnostics(
+                renderMode,
+                scaleMode,
+                referenceResolution,
+                matchWidthOrHeight,
+                spotlightVisible,
+                spotlightMaskActive,
+                spotlightRectLocal,
+                canvasRectLocal);
+
+            return true;
+        }
+
+        [Preserve]
+        private bool TryGetCurrentStepSnapshot(out int stepIndex, out string targetName)
+        {
+            stepIndex = _stepIndex;
+            targetName = string.Empty;
+
+            if (_stepIndex >= 0 && _stepIndex < _steps.Count)
+            {
+                targetName = _steps[_stepIndex].TargetObjectName ?? string.Empty;
+            }
+
+            return true;
         }
 
         private void LateUpdate()
@@ -246,6 +345,10 @@ namespace Decantra.Presentation
                 {
                     highlightMask.gameObject.SetActive(false);
                 }
+
+                // No spotlight — restore plain dim layer so the instruction panel
+                // remains readable against a darkened background.
+                if (dimLayer != null) dimLayer.gameObject.SetActive(true);
                 _lastFocusVisible = false;
                 return;
             }
@@ -304,6 +407,19 @@ namespace Decantra.Presentation
                 if (hasMaskMaterial)
                 {
                     UpdateMaskMaterial(canvasRect, _smoothCenter, _smoothSize);
+                    // The spotlight shader draws the dark overlay with a transparent
+                    // hole around the focus target.  If the dim layer is also active it
+                    // darkens the entire canvas uniformly — including the hole — so the
+                    // highlighted element appears just as dim as the rest of the screen.
+                    // Hide the dim layer while the spotlight mask is active so that only
+                    // the area OUTSIDE the hole is darkened and the target stays bright.
+                    if (dimLayer != null) dimLayer.gameObject.SetActive(false);
+                }
+                else
+                {
+                    // No spotlight shader available (e.g. shader not found at runtime).
+                    // Fall back to the plain dim layer for uniform darkening.
+                    if (dimLayer != null) dimLayer.gameObject.SetActive(true);
                 }
             }
 
@@ -547,6 +663,10 @@ namespace Decantra.Presentation
         private readonly Color _baseShadowColor;
         private readonly Vector2 _baseShadowDistance;
         private readonly bool _baseUseGraphicAlpha;
+        private readonly Graphic[] _graphics;
+        private readonly Color[] _baseGraphicColors;
+        private readonly SpriteRenderer[] _spriteRenderers;
+        private readonly Color[] _baseSpriteColors;
 
         public TutorialFocusPulse(RectTransform target)
         {
@@ -562,6 +682,20 @@ namespace Decantra.Presentation
             _baseShadowDistance = _shadow.effectDistance;
             _baseUseGraphicAlpha = _shadow.useGraphicAlpha;
             _shadow.useGraphicAlpha = true;
+
+            _graphics = target.GetComponentsInChildren<Graphic>(includeInactive: false);
+            _baseGraphicColors = new Color[_graphics.Length];
+            for (int i = 0; i < _graphics.Length; i++)
+            {
+                _baseGraphicColors[i] = _graphics[i] != null ? _graphics[i].color : Color.white;
+            }
+
+            _spriteRenderers = target.GetComponentsInChildren<SpriteRenderer>(includeInactive: false);
+            _baseSpriteColors = new Color[_spriteRenderers.Length];
+            for (int i = 0; i < _spriteRenderers.Length; i++)
+            {
+                _baseSpriteColors[i] = _spriteRenderers[i] != null ? _spriteRenderers[i].color : Color.white;
+            }
         }
 
         public void Tick(float time)
@@ -574,6 +708,39 @@ namespace Decantra.Presentation
             float wave = 0.5f + 0.5f * Mathf.Sin(time * 3.2f);
             float scale = Mathf.Lerp(1.03f, 1.06f, wave);
             _target.localScale = _baseScale * scale;
+            float brightness = Mathf.Lerp(1.0f, 1.1f, wave);
+
+            for (int i = 0; i < _graphics.Length; i++)
+            {
+                Graphic graphic = _graphics[i];
+                if (graphic == null)
+                {
+                    continue;
+                }
+
+                Color baseColor = _baseGraphicColors[i];
+                graphic.color = new Color(
+                    Mathf.Clamp01(baseColor.r * brightness),
+                    Mathf.Clamp01(baseColor.g * brightness),
+                    Mathf.Clamp01(baseColor.b * brightness),
+                    baseColor.a);
+            }
+
+            for (int i = 0; i < _spriteRenderers.Length; i++)
+            {
+                SpriteRenderer spriteRenderer = _spriteRenderers[i];
+                if (spriteRenderer == null)
+                {
+                    continue;
+                }
+
+                Color baseColor = _baseSpriteColors[i];
+                spriteRenderer.color = new Color(
+                    Mathf.Clamp01(baseColor.r * brightness),
+                    Mathf.Clamp01(baseColor.g * brightness),
+                    Mathf.Clamp01(baseColor.b * brightness),
+                    baseColor.a);
+            }
 
             Color glow = new Color(0.85f, 0.93f, 1f, Mathf.Lerp(0.18f, 0.3f, wave));
             _shadow.effectColor = glow;
@@ -598,6 +765,22 @@ namespace Decantra.Presentation
                     _shadow.effectColor = _baseShadowColor;
                     _shadow.effectDistance = _baseShadowDistance;
                     _shadow.useGraphicAlpha = _baseUseGraphicAlpha;
+                }
+            }
+
+            for (int i = 0; i < _graphics.Length; i++)
+            {
+                if (_graphics[i] != null)
+                {
+                    _graphics[i].color = _baseGraphicColors[i];
+                }
+            }
+
+            for (int i = 0; i < _spriteRenderers.Length; i++)
+            {
+                if (_spriteRenderers[i] != null)
+                {
+                    _spriteRenderers[i].color = _baseSpriteColors[i];
                 }
             }
         }

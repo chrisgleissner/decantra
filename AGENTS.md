@@ -48,6 +48,17 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
 - Coverage target: ≥80% for domain logic (Code Coverage package).
 - PR gate: tests green + coverage target met + maintainer review.
 
+## Generated files (DO NOT EDIT OR COMMIT)
+
+- [`Assets/Decantra/App/Runtime/BuildInfo.cs`](Assets/Decantra/App/Runtime/BuildInfo.cs)
+  is **build-time generated** and listed in `.gitignore`. **Never modify or stage it.**
+  - `BuildInfoGenerator.GenerateAndImport()` overwrites it at every Android/iOS/WebGL build
+    with the real version, UTC timestamp, and revision.
+  - `BuildInfoAutoCreate` (`[InitializeOnLoad]`) recreates an **empty placeholder** on
+    editor startup so freshly-cloned repos compile without a build step.
+  - To reset manually: `git checkout HEAD -- Assets/Decantra/App/Runtime/BuildInfo.cs`
+    (or just delete it and reopen Unity — the auto-create runs on domain reload).
+
 ## Coding standards (observed)
 
 - `sealed` classes, guard clauses, PascalCase publics, `_privateFields`.

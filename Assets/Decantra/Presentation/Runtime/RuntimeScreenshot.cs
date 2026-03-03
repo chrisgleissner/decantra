@@ -1738,7 +1738,7 @@ namespace Decantra.Presentation
                 yield break;
             }
 
-            string version = string.IsNullOrWhiteSpace(BuildInfo.Version) ? "0.0.0-local" : BuildInfo.Version;
+            string version = string.IsNullOrWhiteSpace(BuildInfoReader.Version) ? "0.0.0-local" : BuildInfoReader.Version;
             string tutorialDir = Path.Combine(outputDir, "Tutorial", SanitizeFileToken(version));
             Directory.CreateDirectory(tutorialDir);
 

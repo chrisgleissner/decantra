@@ -97,6 +97,10 @@ solutions-1-1000.txt
 release.keystore
 TestResults-*.xml
 
+# Generated at build time — never commit, auto-recreated by BuildInfoAutoCreate [InitializeOnLoad]
+Assets/Decantra/App/Runtime/BuildInfo.cs
+Assets/Decantra/App/Runtime/BuildInfo.cs.meta
+
 # Unity Test Framework temporary scenes/artifacts
 Assets/InitTestScene*.unity
 Assets/InitTestScene*.unity.meta
