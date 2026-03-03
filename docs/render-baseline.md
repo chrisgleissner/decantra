@@ -96,22 +96,34 @@ Compare files:
 Pass threshold: `|delta| ≤ 1 px` and `|normalised delta| ≤ 0.001` for all geometry
 metrics.
 
-### Manual verification checklist
+### Automated regression tests
 
-1. Web portrait at 1080 × 1920 viewport:
-   - [ ] Bottles fill full viewport height (same as Android portrait screenshot).
-   - [ ] HUD visible at top and bottom.
-   - [ ] No overlap between HUD and bottles.
+All items below are verified by
+`Assets/Decantra/Tests/PlayMode/RenderChecklistPlayModeTests.cs`
+and run as part of the standard Unity Test Runner (EditMode + PlayMode) gate.
 
-2. Web landscape at 1920 × 1080 viewport:
-   - [ ] Gameplay area is centred horizontally.
-   - [ ] Background fills the full viewport (no black bars).
-   - [ ] Bottle height is the same proportion of viewport height as in portrait.
-   - [ ] HUD elements remain centred and readable.
-   - [ ] No bottle overlap.
+| # | Check | Test method |
+|---|-------|-------------|
+| 1a | Web / Android portrait — bottles occupy ≥ 30% of canvas height | `Portrait_Bottles_OccupyAtLeast30PctOfCanvasHeight` |
+| 1b | Web / Android portrait — brand lockup visible and centred at top | `Portrait_BrandLockup_IsVisibleAndCentredAtCanvasTop` |
+| 1b | Web / Android portrait — TopHud stat panel visible and centred | `Portrait_TopHud_IsVisibleAndCentredAtCanvasTop` |
+| 1c | Web / Android portrait — HUD does not overlap bottle grid | `Portrait_HudDoesNotOverlapBottleGrid` |
+| 2a | Web landscape — gameplay area centred horizontally | `LandscapeSimulated_GameplayArea_IsCentredHorizontally` |
+| 2b | Web landscape — background fills full canvas (structural anchor invariant) | `Background_FillsFullCanvas_GuaranteesNoBlackBars` |
+| 2b | Web landscape — canvas wider than portrait reference (no black bars) | `LandscapeSimulated_BackgroundCanvas_IsWiderThanPortraitReference` |
+| 2c | Web landscape — canvas height = 1920 (same proportions as portrait) | `LandscapeSimulated_AllCanvases_HavePortraitReferenceHeight` |
+| 2c | Web landscape — bottles occupy ≥ 30% of canvas height | `LandscapeSimulated_Bottles_OccupyAtLeast30PctOfCanvasHeight` |
+| 2d | Web landscape — HUD elements centred on wider canvas | `LandscapeSimulated_HudElements_AreCentredOnCanvas` |
+| 2e | Web landscape — no bottle bounding-box overlap | `LandscapeSimulated_NoBottleOverlap` |
+| 2f | Web landscape — HUD in upper half, bottles in lower half of 1920-u canvas | `LandscapeSimulated_HudIsAboveMidpoint_BottlesAreBelowMidpoint` |
+| 3  | Android / iOS portrait — pixel identity (ratio baseline) | `AndroidLayoutInvariancePlayModeTests.LayoutMetrics_MatchPreFixBaseline_NoDeltaExceedsTolerance` |
+| 3  | Math model: portrait and landscape both produce canvas height 1920 | `WebPortraitAndLandscape_CanvasScalerMath_BothProduceReferenceCanvasHeight` |
 
-3. Android / iOS portrait:
-   - [ ] Visual output identical to pre-fix build (pixel baseline screenshots unchanged).
+The landscape checks (rows 2a–2f) are simulated in the Unity Editor by setting
+`matchWidthOrHeight = 1f` on all three CanvasScalers — exactly what
+`WebCanvasScalerController` does on a live WebGL build in landscape orientation.
+A `[TearDown]` method restores the scalers to `0f` after every test to prevent
+cross-test contamination.
 
 ---
 

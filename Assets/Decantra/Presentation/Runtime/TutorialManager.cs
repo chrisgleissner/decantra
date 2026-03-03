@@ -246,6 +246,10 @@ namespace Decantra.Presentation
                 {
                     highlightMask.gameObject.SetActive(false);
                 }
+
+                // No spotlight — restore plain dim layer so the instruction panel
+                // remains readable against a darkened background.
+                if (dimLayer != null) dimLayer.gameObject.SetActive(true);
                 _lastFocusVisible = false;
                 return;
             }
@@ -304,6 +308,19 @@ namespace Decantra.Presentation
                 if (hasMaskMaterial)
                 {
                     UpdateMaskMaterial(canvasRect, _smoothCenter, _smoothSize);
+                    // The spotlight shader draws the dark overlay with a transparent
+                    // hole around the focus target.  If the dim layer is also active it
+                    // darkens the entire canvas uniformly — including the hole — so the
+                    // highlighted element appears just as dim as the rest of the screen.
+                    // Hide the dim layer while the spotlight mask is active so that only
+                    // the area OUTSIDE the hole is darkened and the target stays bright.
+                    if (dimLayer != null) dimLayer.gameObject.SetActive(false);
+                }
+                else
+                {
+                    // No spotlight shader available (e.g. shader not found at runtime).
+                    // Fall back to the plain dim layer for uniform darkening.
+                    if (dimLayer != null) dimLayer.gameObject.SetActive(true);
                 }
             }
 
