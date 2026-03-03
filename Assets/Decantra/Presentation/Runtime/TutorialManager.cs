@@ -72,14 +72,14 @@ namespace Decantra.Presentation
                 CanvasRectLocal = canvasRectLocal;
             }
 
-            public string RenderMode { get; }
-            public string ScaleMode { get; }
-            public Vector2 ReferenceResolution { get; }
-            public float MatchWidthOrHeight { get; }
-            public bool SpotlightVisible { get; }
-            public bool SpotlightMaskActive { get; }
-            public Rect SpotlightRectLocal { get; }
-            public Rect CanvasRectLocal { get; }
+            [Preserve] public string RenderMode { get; }
+            [Preserve] public string ScaleMode { get; }
+            [Preserve] public Vector2 ReferenceResolution { get; }
+            [Preserve] public float MatchWidthOrHeight { get; }
+            [Preserve] public bool SpotlightVisible { get; }
+            [Preserve] public bool SpotlightMaskActive { get; }
+            [Preserve] public Rect SpotlightRectLocal { get; }
+            [Preserve] public Rect CanvasRectLocal { get; }
         }
 
         public void Initialize(GameController controller, SettingsStore settingsStore)
