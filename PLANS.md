@@ -3,6 +3,65 @@
 Last updated: 2026-03-01 UTC  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
 
+## 12) Screenshot Hygiene Plan (2026-03-03)
+
+### Objective
+Ensure this branch does not introduce pixel-identical screenshots versus `main`, and enforce deterministic automatic pruning/checking so future screenshot generation cannot add redundant image blobs.
+
+### Definitions
+- Pixel-identical: same decoded width/height and same RGBA pixel buffer after image decode (metadata ignored).
+- Modified-in-branch: image path exists in both `main` and `HEAD` and appears in `git diff --name-status main...HEAD`.
+- Duplicate: image in `HEAD` that is pixel-identical to a screenshot in `main` (same path or different path).
+
+### Assumptions
+- `main` is available locally or via `origin/main`.
+- Python 3 is available in local and CI environments.
+- Deterministic screenshot generation paths remain under `doc/play-store-assets/screenshots` and related artifacts directories.
+
+### Constraints
+- No lossy recompression.
+- No visual edits to genuinely changed screenshots.
+- No history rewrite.
+- Pixel comparison must decode images and ignore metadata-only differences.
+
+### Risks
+- Large screenshot sets can make naive O(n²) comparisons slow.
+- Missing Pillow dependency can break checks in fresh CI runners.
+- Pull request path filters can accidentally bypass screenshot hygiene checks.
+
+### Step-by-step execution plan
+1. Compute screenshot diff scope against `main`.
+2. Detect modified files that are pixel-identical to `main` and restore them from `main`.
+3. Detect newly added files that duplicate any screenshot on `main` and remove them from branch diff.
+4. Add deterministic script (`scripts/prune_duplicate_screenshots.py`) with `report/check/apply` modes.
+5. Integrate auto-prune into screenshot capture workflow.
+6. Add CI workflow enforcing duplicate-free screenshot diffs on push and PR.
+7. Add pre-push git hook and installer script.
+8. Re-run screenshot flow and dedupe pass; verify diff contains only visually changed screenshots.
+
+### Verification strategy
+- Local check command: `python scripts/prune_duplicate_screenshots.py --base main --mode check`.
+- CI check command: `python scripts/prune_duplicate_screenshots.py --base origin/main --mode check`.
+- Confirm `git diff --name-status main...HEAD` contains no redundant screenshot modifications.
+- Confirm screenshot capture flow calls prune script and fails if duplicates remain.
+
+### Rollback strategy
+- Revert hygiene changes with:
+  - `git checkout -- scripts/prune_duplicate_screenshots.py scripts/capture_screenshots.sh .github/workflows/screenshot-hygiene.yml .githooks/pre-push scripts/install_git_hooks.sh`
+- Restore screenshots from `main` selectively:
+  - `git checkout main -- <path>`
+- Remove newly added duplicate screenshots:
+  - `git rm -- <path>`
+
+### Progress log
+- [x] Plan section created in `PLANS.md`.
+- [x] Pixel-prune script implemented.
+- [x] Capture workflow integration added.
+- [x] CI workflow added.
+- [x] Pre-push hook + installer added.
+- [ ] Apply dedupe cleanup against `main` and commit.
+- [ ] Push and verify CI green.
+
 ## 1) Scope
 
 Restore gameplay layout geometry regression introduced between tags `1.4.1` and `1.4.2-rc3` while preserving Web fullscreen behavior.

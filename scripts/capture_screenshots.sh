@@ -393,3 +393,7 @@ if [[ "${CAPTURE_MOTION}" == "true" ]]; then
   fi
   echo "Motion frames captured to ${OUTPUT_DIR}/motion"
 fi
+
+echo "\n==> Pruning pixel-identical screenshots against main"
+python3 "${PROJECT_ROOT}/scripts/prune_duplicate_screenshots.py" --base main --mode apply
+python3 "${PROJECT_ROOT}/scripts/prune_duplicate_screenshots.py" --base main --mode check
