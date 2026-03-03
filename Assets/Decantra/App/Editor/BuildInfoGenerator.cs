@@ -17,6 +17,41 @@ namespace Decantra.App.Editor
     {
         private const string BuildInfoPath = "Assets/Decantra/App/Runtime/BuildInfo.cs";
 
+        private const string EmptyContent =
+"/*\n" +
+"Decantra - A Unity-based bottle-sorting puzzle game\n" +
+"Copyright (C) 2026 Christian Gleissner\n\n" +
+"Licensed under the GNU General Public License v2.0 or later.\n" +
+"See <https://www.gnu.org/licenses/> for details.\n" +
+"*/\n\n" +
+"namespace Decantra.App\n" +
+"{\n" +
+"    public static class BuildInfo\n" +
+"    {\n" +
+"        public const string Version = \"\";\n" +
+"        public const string BuildUtc = \"\";\n" +
+"        public const string Revision = \"\";\n" +
+"    }\n" +
+"}\n";
+
+        /// <summary>
+        /// Creates an empty placeholder BuildInfo.cs if it does not already exist on disk.
+        /// Called by <see cref="BuildInfoAutoCreate"/> on every editor startup so that a
+        /// freshly-cloned repository (where the gitignored file is absent) still compiles.
+        /// </summary>
+        public static void EnsureExists()
+        {
+            if (File.Exists(BuildInfoPath))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(BuildInfoPath) ?? "Assets/Decantra/App/Runtime");
+            File.WriteAllText(BuildInfoPath, EmptyContent);
+            AssetDatabase.ImportAsset(BuildInfoPath, ImportAssetOptions.ForceSynchronousImport);
+            Debug.Log("BuildInfoGenerator: created empty BuildInfo.cs placeholder (file was absent after clone).");
+        }
+
         public static void GenerateAndImport()
         {
             string version = ResolveVersionName();
