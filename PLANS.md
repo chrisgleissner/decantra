@@ -199,7 +199,56 @@ area is filled only by the background layer (full-stretch anchors).
 - `Assets/Decantra/Presentation/View/WebCanvasScalerController.cs.meta` (new)
 - `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs` (3-site patch)
 - `docs/render-baseline.md` (new — measurement methodology)
+- `docs/render-verification.md` (new — verification report)
 - `PLANS.md` (this update)
+
+## 11) Verification Plan & Results (2026-03-02)
+
+### Scope
+Prove that the fix introduced in section 10 has not changed any Android/iOS layout metric,
+and that the Web landscape behaviour now matches the portrait baseline.
+
+### Verification approach
+
+**Static analysis (EditMode, runs on all platforms):**
+
+New test class `WebCanvasScalerGuardTests` (7 tests):
+- Reads `WebCanvasScalerController.cs` source and asserts it is entirely wrapped in
+  `#if UNITY_WEBGL && !UNITY_EDITOR`.
+- Reads `SceneBootstrap.cs` and asserts every reference to `WebCanvasScalerController`
+  is inside a `#if UNITY_WEBGL && !UNITY_EDITOR` block.
+- Asserts `referenceResolution = new Vector2(1080, 1920)` is present.
+- Asserts no `matchWidthOrHeight` assignment exists outside a WebGL guard.
+
+**Runtime invariance (PlayMode):**
+
+New test class `AndroidLayoutInvariancePlayModeTests` (5 tests):
+- All three main canvases have `matchWidthOrHeight = 0f` and `referenceResolution = 1080×1920`.
+- No `WebCanvasScalerController` MonoBehaviour present in Editor/Android scene.
+- `LayoutProbe` ratio metrics match `layout-baseline-1.4.1.json` with zero delta.
+- ActiveBottles bounding-box overlap test passes (no intersections).
+- Math model asserts: portrait canvas height = 1920, broken landscape = 607.5, fixed = 1920.
+
+### Test run result (2026-03-02 23:12–23:15)
+```
+total=329 passed=329 failed=0
+```
+Includes 7 new `WebCanvasScalerGuardTests` (EditMode guard analysis).
+All pre-existing 322 tests continue to pass.
+
+### Completion criteria — ALL MET
+- [x] Android matchWidthOrHeight = 0f (runtime + static)
+- [x] referenceResolution unchanged (static + runtime)
+- [x] No WebCanvasScalerController in Editor/Android build  
+- [x] Layout ratios: all 0.000000 delta
+- [x] No bottle overlap
+- [x] Web landscape canvas height math verified = portrait height
+- [x] All 329 tests pass (322 pre-existing + 7 new WebCanvasScalerGuardTests)
+- [x] docs/render-baseline.md committed
+- [x] docs/render-verification.md committed
+- [x] Android APK builds successfully (66 MB, 2026-03-02 23:27)
+- [x] WebCanvasScalerController absent from Android build log (0 grep matches)
+- [x] PLANS.md updated
 
 ## 9) Final execution status (2026-03-01)
 
