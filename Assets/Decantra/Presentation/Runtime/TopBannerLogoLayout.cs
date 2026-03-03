@@ -177,10 +177,26 @@ namespace Decantra.Presentation
             {
                 var rect = buttonRects[i];
                 if (rect == null) continue;
+
+                // Strip the element's own localScale before measuring bounds so that
+                // tutorial pulse animation (which scales the button between 1.03–1.06×)
+                // does not cause the logo to resize every frame.
+                // rect.position gives the pivot's world position, which is NOT affected
+                // by the element's own localScale — only children are scaled about it.
+                float sx = rect.localScale.x;
+                float sy = rect.localScale.y;
+                Vector2 pivotLocal = _parent.InverseTransformPoint(rect.position);
+
                 rect.GetWorldCorners(_corners);
                 for (int c = 0; c < _corners.Length; c++)
                 {
                     var local = _parent.InverseTransformPoint(_corners[c]);
+
+                    // Undo the element's own scale: corner_unscaled = pivot + (corner_scaled − pivot) / scale.
+                    // When localScale == (1,1,1) this is a no-op.
+                    if (Mathf.Abs(sx) > 1e-5f) local.x = pivotLocal.x + (local.x - pivotLocal.x) / sx;
+                    if (Mathf.Abs(sy) > 1e-5f) local.y = pivotLocal.y + (local.y - pivotLocal.y) / sy;
+
                     minX = Mathf.Min(minX, local.x);
                     maxX = Mathf.Max(maxX, local.x);
                     minY = Mathf.Min(minY, local.y);

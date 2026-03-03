@@ -54,8 +54,8 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
   is **build-time generated** and listed in `.gitignore`. **Never modify or stage it.**
   - `BuildInfoGenerator.GenerateAndImport()` overwrites it at every Android/iOS/WebGL build
     with the real version, UTC timestamp, and revision.
-  - `BuildInfoAutoCreate` (`[InitializeOnLoad]`) recreates an **empty placeholder** on
-    editor startup so freshly-cloned repos compile without a build step.
+  - `BuildInfoAutoCreate` (`[InitializeOnLoad]`) creates the file with real values on
+    editor startup if it is absent, so the About section shows a timestamp even in Play-mode.
   - To reset manually: `git checkout HEAD -- Assets/Decantra/App/Runtime/BuildInfo.cs`
     (or just delete it and reopen Unity — the auto-create runs on domain reload).
 

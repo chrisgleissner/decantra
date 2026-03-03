@@ -35,9 +35,10 @@ namespace Decantra.App.Editor
 "}\n";
 
         /// <summary>
-        /// Creates an empty placeholder BuildInfo.cs if it does not already exist on disk.
-        /// Called by <see cref="BuildInfoAutoCreate"/> on every editor startup so that a
-        /// freshly-cloned repository (where the gitignored file is absent) still compiles.
+        /// Creates BuildInfo.cs with real version/timestamp/revision values if it does not
+        /// already exist on disk.  Called by <see cref="BuildInfoAutoCreate"/> on every
+        /// editor startup so that a freshly-cloned repository (where the gitignored file is
+        /// absent) still compiles and shows a meaningful timestamp in the About section.
         /// </summary>
         public static void EnsureExists()
         {
@@ -46,10 +47,9 @@ namespace Decantra.App.Editor
                 return;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(BuildInfoPath) ?? "Assets/Decantra/App/Runtime");
-            File.WriteAllText(BuildInfoPath, EmptyContent);
-            AssetDatabase.ImportAsset(BuildInfoPath, ImportAssetOptions.ForceSynchronousImport);
-            Debug.Log("BuildInfoGenerator: created empty BuildInfo.cs placeholder (file was absent after clone).");
+            // Write real values so the About screen shows a timestamp even in editor
+            // Play-mode. Production builds overwrite this via GenerateAndImport().
+            GenerateAndImport();
         }
 
         public static void GenerateAndImport()
