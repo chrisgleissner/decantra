@@ -1,7 +1,42 @@
 # PLANS
 
-Last updated: 2026-03-01 UTC  
+Last updated: 2026-03-03 UTC  
 Execution engineer: GitHub Copilot (GPT-5.3-Codex)
+
+## 12) Tutorial spotlight stabilization execution (2026-03-03)
+
+### Objective coverage
+- Regenerated Android tutorial screenshots via `./build --screenshots` and `./build --skip-tests --screenshots` on physical device (`2113b87f`).
+- Verified spotlight diagnostics now resolve correctly during runtime capture (no fallback `unknown` values).
+- Produced short tutorial demo video artifact showing active tutorial spotlight sequence.
+- Verified local Android and WebGL release builds complete successfully.
+- Re-ran Unity local test pipeline with `./build --skip-build` (exit code 0).
+
+### Root cause and fix
+- Root cause: tutorial render diagnostics were consumed by reflection from `RuntimeScreenshot`, and diagnostics metadata could fall back to defaults in release capture runs.
+- Fix implemented in `TutorialManager`:
+  - Added/retained `TryGetRenderDiagnostics(out object diagnostics)` and `TryGetCurrentStepSnapshot(...)` reflection endpoints.
+  - Added `[Preserve]` annotations on diagnostics struct members used by reflective readers.
+  - Added gentle highlight brightness pulsing in `TutorialFocusPulse` by modulating child `Graphic`/`SpriteRenderer` colors and restoring base colors on dispose.
+
+### Verified artifacts
+- Tutorial summary: `doc/play-store-assets/screenshots/phone/Tutorial/1.4.2/tutorial_capture_summary.log`
+  - `renderMode=ScreenSpaceCamera`
+  - `scaler=ScaleWithScreenSize`
+  - spotlight rect values populated per step
+  - `analysis.present=True` for all captured tutorial steps
+  - `contrast` range observed: `0.146 .. 0.298` (> required `0.05`)
+- Spotlight metrics JSON: `doc/stabilization-evidence/spotlight-metrics-2026-03-03.json`
+- Tutorial MP4: `doc/stabilization-evidence/tutorial-demo-2026-03-03.mp4` (540×1200, ~9.77s)
+
+### Local validation status
+- Android build: PASS
+- WebGL build: PASS (`Builds/WebGL/index.html` generated)
+- Unity tests (`./build --skip-build`): PASS
+
+### Remaining release loop
+- Commit and push finalized files.
+- Monitor PR checks until fully green and address any CI regressions if they appear.
 
 ## 12) Screenshot Hygiene Plan (2026-03-03)
 
