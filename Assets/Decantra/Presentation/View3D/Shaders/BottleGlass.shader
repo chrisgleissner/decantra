@@ -29,9 +29,9 @@ Shader "Decantra/BottleGlass"
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
-        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.08)
+        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.15)
         _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.22)
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.38)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
@@ -43,8 +43,8 @@ Shader "Decantra/BottleGlass"
         _ReflectionWidth("Reflection Strip Width", Range(0.01,0.5)) = 0.08
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
-        // liquid_visible >= 1 - _MaxGlassAlpha. Default 0.18 → ≥82% liquid shows through.
-        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.18
+        // liquid_visible >= 1 - _MaxGlassAlpha. Default 0.35 → ≥65% liquid shows through.
+        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.35
 
         // Block A: cap on additive specular luminance contribution (0..1). Prevents
         // bright specular highlight from bleaching the liquid colour underneath.
@@ -60,6 +60,9 @@ Shader "Decantra/BottleGlass"
         // Per-bottle capacity ratio (0.1..1.0). Applied in the vertex shader to
         // scale ONLY the cylindrical body; the hemispherical dome (bottom) and
         // neck+rim (top) keep their full size so they remain clearly identifiable.
+        // NOTE: Mesh is now generated with the correct proportions baked in by
+        // BottleMeshGenerator.GenerateBottleMesh(capacityRatio). This property
+        // is kept for compatibility but the vertex deformation has been removed.
         _CapacityRatio  ("Capacity Ratio", Range(0.1, 1.0)) = 1.0
     }
 
@@ -88,7 +91,6 @@ Shader "Decantra/BottleGlass"
 
             float4 _GlassTint;
             float  _SinkOnly;
-            float  _CapacityRatio;
 
             struct Attributes { float4 posOS : POSITION; float2 uv : TEXCOORD0; };
             struct Varyings   { float4 posCS : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -96,23 +98,6 @@ Shader "Decantra/BottleGlass"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                // Body-only height scaling so dome (bottom) and shoulder+neck+rim (top)
-                // keep their full shape — only the cylindrical body section changes height.
-                // Mesh coordinate ranges (from BottleMeshGenerator constants):
-                //   Dome spans yMin=-0.80 up to kDomeTop=-0.61  (= -BodyHalf + DomeRadius*0.5)
-                //   Body cylinder from -0.61 to kBodyTop=+0.80  (= BodyHalfHeight)
-                //   Shoulder/neck/rim above +0.80
-                //   kBodyHeight = 0.80 - (-0.61) = 1.41
-                const float kDomeTop   = -0.61; // dome / body boundary
-                const float kBodyTop   =  0.80; // body / shoulder boundary
-                const float kBodyHeight = 1.41; // kBodyTop - kDomeTop
-                float posY = IN.posOS.y;
-                if (posY > kBodyTop)
-                    posY -= kBodyHeight * (1.0 - _CapacityRatio); // shift shoulder/neck down
-                else if (posY > kDomeTop)
-                    posY = kDomeTop + (posY - kDomeTop) * _CapacityRatio; // scale body
-                // posY <= kDomeTop: dome untouched
-                IN.posOS.y = posY;
                 OUT.posCS = UnityObjectToClipPos(IN.posOS);
                 OUT.uv = IN.uv;
                 return OUT;
@@ -169,7 +154,6 @@ Shader "Decantra/BottleGlass"
             float  _MaxGlassAlpha;
             float  _SpecMaxContrib;
             float  _SinkOnly;
-            float  _CapacityRatio;
 
             // URP main directional light.  Built-in pipeline fills _WorldSpaceLightPos0;
             // URP fills _MainLightPosition.  We declare both and use whichever is non-zero.
@@ -195,16 +179,6 @@ Shader "Decantra/BottleGlass"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                // Body-only height scaling — same 3-zone logic as the back-face pass.
-                const float kDomeTop   = -0.61;
-                const float kBodyTop   =  0.80;
-                const float kBodyHeight = 1.41;
-                float posY = IN.posOS.y;
-                if (posY > kBodyTop)
-                    posY -= kBodyHeight * (1.0 - _CapacityRatio);
-                else if (posY > kDomeTop)
-                    posY = kDomeTop + (posY - kDomeTop) * _CapacityRatio;
-                IN.posOS.y = posY;
                 OUT.posCS    = UnityObjectToClipPos(IN.posOS);
                 OUT.normalWS = UnityObjectToWorldNormal(IN.normalOS);
                 float3 worldPos = mul(unity_ObjectToWorld, IN.posOS).xyz;

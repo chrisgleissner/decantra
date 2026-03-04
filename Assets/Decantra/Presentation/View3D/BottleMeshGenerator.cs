@@ -57,13 +57,22 @@ namespace Decantra.Presentation.View3D
         public const float DomeRadius = BodyRadius;
 
         /// <summary>Number of azimuthal segments (longitude). Higher = smoother cylinder.</summary>
-        public const int Segments = 24;
+        public const int Segments = 40;
 
         /// <summary>Number of latitude segments for the base dome.</summary>
-        public const int DomeLatitudes = 8;
+        public const int DomeLatitudes = 12;
 
         /// <summary>Number of vertical segments for the shoulder taper.</summary>
         public const int ShoulderSteps = 6;
+
+        /// <summary>Nominal wall thickness for the glass shell.</summary>
+        public const float GlassThickness = 0.028f;
+
+        /// <summary>Small outer overhang at the rim to form a visible lip.</summary>
+        public const float RimLipOverhang = 0.018f;
+
+        /// <summary>Rim lip height.</summary>
+        public const float RimLipHeight = 0.035f;
 
         private const float BodyHalfHeight = BodyHeight * 0.5f;
 
@@ -95,44 +104,104 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         /// <param name="keepReadable">Keep CPU-side mesh data readable (true for tests).</param>
         /// <returns>A new <see cref="Mesh"/> instance. Caller is responsible for lifetime.</returns>
-        public static Mesh GenerateBottleMesh(bool keepReadable = false)
+        /// <param name="capacityRatio">Fraction of full body height to generate, in [0.1..1]. Only the
+        /// cylindrical body section scales; the dome (bottom), shoulder, neck, and rim stay at their
+        /// reference sizes — matching the 2D BottleView body-only stretch philosophy.</param>
+        public static Mesh GenerateBottleMesh(float capacityRatio = 1f, bool keepReadable = false)
         {
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
             var uvs = new List<Vector2>();
             var tris = new List<int>();
 
-            float totalHeight = DomeRadius + BodyHeight + ShoulderHeight + NeckHeight;
-            float yMin = -BodyHalfHeight;
+            // Only the body cylinder scales; all other sections stay fixed.
+            float scaledBodyHeight = BodyHeight * Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            float yMin        = -BodyHalfHeight;
+            float bodyBottom  = yMin + DomeRadius * 0.5f;      // dome always same (-0.61)
+            float bodyTop     = bodyBottom + scaledBodyHeight;  // body end floats up/down
+            float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+            float shoulderTop = bodyTop + ShoulderHeight;
+            float neckTop = shoulderTop + NeckHeight;
+            float rimTop = neckTop + RimLipHeight;
 
-            // ── 1. Hemispherical base dome (bottom) ──────────────────────────
-            AppendDome(verts, norms, uvs, tris, yMin, totalHeight, flipY: true);
+            // Inner shell dimensions (clamped for robustness)
+            float innerBodyRadius = Mathf.Max(BodyRadius - GlassThickness, 0.01f);
+            float innerNeckRadius = Mathf.Max(NeckRadius - GlassThickness * 0.9f, 0.01f);
+            float innerDomeRadius = Mathf.Max(DomeRadius - GlassThickness, 0.01f);
+            float innerBodyBottom = bodyBottom + GlassThickness * 0.55f;
+            float innerBodyTop = bodyTop - GlassThickness * 0.25f;
+            float innerShoulderTop = shoulderTop - GlassThickness * 0.15f;
+            float innerNeckTop = neckTop + RimLipHeight * 0.58f;
 
-            // ── 2. Cylindrical body ──────────────────────────────────────────
-            float bodyBottom = yMin + DomeRadius * 0.5f;
-            float bodyTop = BodyHalfHeight;
+            // ── Outer shell ───────────────────────────────────────────────────
+            AppendDome(verts, norms, uvs, tris, yMin, totalHeight, DomeRadius, flipY: true, invertWinding: false, invertNormal: false);
             AppendCylinder(verts, norms, uvs, tris,
                            y0: bodyBottom, y1: bodyTop,
                            r0: BodyRadius, r1: BodyRadius,
-                           totalHeight: totalHeight);
-
-            // ── 3. Shoulder taper ────────────────────────────────────────────
-            float shoulderTop = bodyTop + ShoulderHeight;
+                           totalHeight: totalHeight,
+                           invertWinding: false,
+                           invertNormal: false);
             AppendCylinder(verts, norms, uvs, tris,
                            y0: bodyTop, y1: shoulderTop,
                            r0: BodyRadius, r1: NeckRadius,
                            totalHeight: totalHeight,
-                           steps: ShoulderSteps);
-
-            // ── 4. Neck cylinder ─────────────────────────────────────────────
-            float neckTop = shoulderTop + NeckHeight;
+                           steps: ShoulderSteps,
+                           invertWinding: false,
+                           invertNormal: false);
             AppendCylinder(verts, norms, uvs, tris,
                            y0: shoulderTop, y1: neckTop,
                            r0: NeckRadius, r1: NeckRadius,
-                           totalHeight: totalHeight);
+                           totalHeight: totalHeight,
+                           invertWinding: false,
+                           invertNormal: false);
 
-            // ── 5. Neck top cap ──────────────────────────────────────────────
-            AppendDisk(verts, norms, uvs, tris, neckTop, NeckRadius, totalHeight, faceUp: true);
+            // Rim lip profile (slight flare outward)
+            float rimMid = neckTop + RimLipHeight * 0.45f;
+            float lipRadius = NeckRadius + RimLipOverhang;
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: neckTop, y1: rimMid,
+                           r0: NeckRadius, r1: lipRadius,
+                           totalHeight: totalHeight,
+                           steps: 2,
+                           invertWinding: false,
+                           invertNormal: false);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: rimMid, y1: rimTop,
+                           r0: lipRadius, r1: NeckRadius + RimLipOverhang * 0.75f,
+                           totalHeight: totalHeight,
+                           steps: 2,
+                           invertWinding: false,
+                           invertNormal: false);
+
+            // ── Inner shell (inward normals, reversed winding) ──────────────
+            AppendDome(verts, norms, uvs, tris, yMin + GlassThickness * 0.55f, totalHeight, innerDomeRadius, flipY: true, invertWinding: true, invertNormal: true);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: innerBodyBottom, y1: innerBodyTop,
+                           r0: innerBodyRadius, r1: innerBodyRadius,
+                           totalHeight: totalHeight,
+                           invertWinding: true,
+                           invertNormal: true);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: innerBodyTop, y1: innerShoulderTop,
+                           r0: innerBodyRadius, r1: innerNeckRadius,
+                           totalHeight: totalHeight,
+                           steps: ShoulderSteps,
+                           invertWinding: true,
+                           invertNormal: true);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: innerShoulderTop, y1: innerNeckTop,
+                           r0: innerNeckRadius, r1: innerNeckRadius,
+                           totalHeight: totalHeight,
+                           invertWinding: true,
+                           invertNormal: true);
+
+            // ── Top rim bridge: closes wall thickness at mouth ───────────────
+            AppendRingBridge(verts, norms, uvs, tris,
+                             y: innerNeckTop,
+                             outerRadius: NeckRadius + RimLipOverhang * 0.72f,
+                             innerRadius: innerNeckRadius,
+                             totalHeight: totalHeight,
+                             faceUp: true);
 
             var mesh = new Mesh
             {
@@ -160,12 +229,13 @@ namespace Decantra.Presentation.View3D
         /// rendered at each fragment.
         ///
         /// <paramref name="fillMin"/> and <paramref name="fillMax"/> are [0..1] fractions
-        /// of <see cref="InteriorHeight"/>.
+        /// of the scaled interior height (<see cref="InteriorHeight"/> × <paramref name="capacityRatio"/>).
         /// </summary>
-        public static Mesh GenerateLiquidLayerMesh(float fillMin, float fillMax)
+        public static Mesh GenerateLiquidLayerMesh(float fillMin, float fillMax, float capacityRatio = 1f)
         {
-            float yBottom = InteriorBottomY + fillMin * InteriorHeight;
-            float yTop = InteriorBottomY + fillMax * InteriorHeight;
+            float scaledInteriorHeight = InteriorHeight * Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            float yBottom = InteriorBottomY + fillMin  * scaledInteriorHeight;
+            float yTop    = InteriorBottomY + fillMax * scaledInteriorHeight;
 
             // Slightly inset X so layer quad sits just inside the glass wall
             const float inset = BodyRadius * 0.92f;
@@ -190,7 +260,7 @@ namespace Decantra.Presentation.View3D
             };
             var tris = new List<int> { 0, 2, 1, 0, 3, 2 };
 
-            var mesh = new Mesh { name = $"LiquidLayer_{fillMin:F2}_{fillMax:F2}" };
+            var mesh = new Mesh { name = $"LiquidLayer_{fillMin:F2}_{fillMax:F2}_cap{capacityRatio:F2}" };
             mesh.SetVertices(verts);
             mesh.SetNormals(norms);
             mesh.SetUVs(0, uv);
@@ -205,11 +275,11 @@ namespace Decantra.Presentation.View3D
         /// <summary>Append a hemisphere, dome-up or dome-down depending on flipY.</summary>
         private static void AppendDome(
             List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> tris,
-            float yBase, float totalHeight, bool flipY)
+            float yBase, float totalHeight, float domeRadius, bool flipY, bool invertWinding, bool invertNormal)
         {
             int baseIdx = verts.Count;
             float ySign = flipY ? -1f : 1f;
-            float domeCenter = flipY ? yBase + DomeRadius : yBase - DomeRadius;
+            float domeCenter = flipY ? yBase + domeRadius : yBase - domeRadius;
 
             for (int lat = 0; lat <= DomeLatitudes; lat++)
             {
@@ -225,12 +295,13 @@ namespace Decantra.Presentation.View3D
                     float sinTheta = Mathf.Sin(theta);
 
                     var pos = new Vector3(
-                        DomeRadius * sinPhi * cosTheta,
-                        domeCenter + ySign * DomeRadius * cosPhi,
-                        DomeRadius * sinPhi * sinTheta);
+                        domeRadius * sinPhi * cosTheta,
+                        domeCenter + ySign * domeRadius * cosPhi,
+                        domeRadius * sinPhi * sinTheta);
 
                     var n = new Vector3(sinPhi * cosTheta, ySign * cosPhi, sinPhi * sinTheta);
                     if (flipY) n.y = -Mathf.Abs(n.y);
+                    if (invertNormal) n = -n;
 
                     float v = (pos.y - (yBase - totalHeight)) / totalHeight;
                     verts.Add(pos);
@@ -249,7 +320,7 @@ namespace Decantra.Presentation.View3D
                     int i1 = i0 + 1;
                     int i2 = i0 + stride;
                     int i3 = i2 + 1;
-                    if (flipY)
+                    if (flipY ^ invertWinding)
                     {
                         tris.Add(i0); tris.Add(i2); tris.Add(i1);
                         tris.Add(i1); tris.Add(i2); tris.Add(i3);
@@ -266,7 +337,7 @@ namespace Decantra.Presentation.View3D
         /// <summary>Append a truncated cylinder (cone if r0 ≠ r1).</summary>
         private static void AppendCylinder(
             List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> tris,
-            float y0, float y1, float r0, float r1, float totalHeight, int steps = 1)
+            float y0, float y1, float r0, float r1, float totalHeight, bool invertWinding, bool invertNormal, int steps = 1)
         {
             int baseIdx = verts.Count;
             int stride = Segments + 1;
@@ -276,7 +347,6 @@ namespace Decantra.Presentation.View3D
                 float t = (float)step / steps;
                 float y = Mathf.Lerp(y0, y1, t);
                 float r = Mathf.Lerp(r0, r1, t);
-                float vCoord = (y - (verts.Count > 0 ? -BodyHalfHeight - DomeRadius : y)) / totalHeight;
                 float vFrac = Mathf.Clamp01((y + BodyHalfHeight + DomeRadius) / totalHeight);
 
                 // Outward normal tilt for taper
@@ -292,6 +362,7 @@ namespace Decantra.Presentation.View3D
 
                     verts.Add(new Vector3(r * cosT, y, r * sinT));
                     var n = new Vector3(cosT, -nSlope, sinT);
+                    if (invertNormal) n = -n;
                     norms.Add(n.normalized);
                     uvs.Add(new Vector2((float)lon / Segments, vFrac));
                 }
@@ -307,6 +378,56 @@ namespace Decantra.Presentation.View3D
                     int i2 = i0 + stride;
                     int i3 = i2 + 1;
 
+                    if (invertWinding)
+                    {
+                        tris.Add(i0); tris.Add(i2); tris.Add(i1);
+                        tris.Add(i1); tris.Add(i2); tris.Add(i3);
+                    }
+                    else
+                    {
+                        tris.Add(i0); tris.Add(i1); tris.Add(i2);
+                        tris.Add(i1); tris.Add(i3); tris.Add(i2);
+                    }
+                }
+            }
+        }
+
+        private static void AppendRingBridge(
+            List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> tris,
+            float y, float outerRadius, float innerRadius, float totalHeight, bool faceUp)
+        {
+            int baseIdx = verts.Count;
+            float ny = faceUp ? 1f : -1f;
+            float vFrac = Mathf.Clamp01((y + BodyHalfHeight + DomeRadius) / totalHeight);
+
+            for (int lon = 0; lon <= Segments; lon++)
+            {
+                float theta = (float)lon / Segments * Mathf.PI * 2f;
+                float cos = Mathf.Cos(theta);
+                float sin = Mathf.Sin(theta);
+                verts.Add(new Vector3(outerRadius * cos, y, outerRadius * sin));
+                norms.Add(new Vector3(0f, ny, 0f));
+                uvs.Add(new Vector2((float)lon / Segments, vFrac));
+                verts.Add(new Vector3(innerRadius * cos, y, innerRadius * sin));
+                norms.Add(new Vector3(0f, ny, 0f));
+                uvs.Add(new Vector2((float)lon / Segments, vFrac));
+            }
+
+            int stride = 2;
+            for (int lon = 0; lon < Segments; lon++)
+            {
+                int i0 = baseIdx + lon * stride;
+                int i1 = i0 + 1;
+                int i2 = i0 + stride;
+                int i3 = i2 + 1;
+
+                if (faceUp)
+                {
+                    tris.Add(i0); tris.Add(i2); tris.Add(i1);
+                    tris.Add(i1); tris.Add(i2); tris.Add(i3);
+                }
+                else
+                {
                     tris.Add(i0); tris.Add(i1); tris.Add(i2);
                     tris.Add(i1); tris.Add(i3); tris.Add(i2);
                 }

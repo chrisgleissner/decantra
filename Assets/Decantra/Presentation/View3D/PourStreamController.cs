@@ -54,6 +54,7 @@ namespace Decantra.Presentation.View3D
         [SerializeField] private float bubbleSpeed = 0.4f;
         [SerializeField] private float bubbleSize = 0.03f;
         [SerializeField] private Color bubbleColor = new Color(1f, 1f, 1f, 0.45f);
+        [SerializeField] private Color streamColor = new Color(0.92f, 0.97f, 1f, 0.6f);
 
         // ── Internal state ────────────────────────────────────────────────────
         private MeshFilter _streamMeshFilter;
@@ -64,6 +65,7 @@ namespace Decantra.Presentation.View3D
         private float _pourRate;
         private Transform _targetTransform;
         private Mesh _streamMesh;
+        private Material _streamMaterial;
 
         // ── Unity lifecycle ───────────────────────────────────────────────────
 
@@ -74,6 +76,8 @@ namespace Decantra.Presentation.View3D
 
             _streamMesh = new Mesh { name = "PourStream" };
             _streamMeshFilter.sharedMesh = _streamMesh;
+            _streamMaterial = CreateStreamMaterial();
+            _streamRenderer.sharedMaterial = _streamMaterial;
 
             SetupParticleSystem();
 
@@ -84,6 +88,8 @@ namespace Decantra.Presentation.View3D
         {
             if (_streamMesh != null)
                 Destroy(_streamMesh);
+            if (_streamMaterial != null)
+                Destroy(_streamMaterial);
         }
 
         private void LateUpdate()
@@ -119,6 +125,12 @@ namespace Decantra.Presentation.View3D
             mainModule.loop = true;
 
             _emission.rateOverTime = maxBubblesPerSec * _pourRate;
+
+            if (_streamMaterial != null)
+            {
+                float alpha = Mathf.Lerp(0.35f, streamColor.a, _pourRate);
+                _streamMaterial.color = new Color(streamColor.r, streamColor.g, streamColor.b, alpha);
+            }
 
             SetActive(true);
             _bubbleSystem.Play();
@@ -171,13 +183,24 @@ namespace Decantra.Presentation.View3D
             // Renderer setup: use default sprite
             var psr = psGO.GetComponent<ParticleSystemRenderer>();
             psr.renderMode = ParticleSystemRenderMode.Billboard;
-            psr.sharedMaterial = new Material(Shader.Find("Sprites/Default"))
-            {
-                name = "BubbleMaterial"
-            };
+            psr.sharedMaterial = CreateBubbleMaterial();
 
             _bubbleSystem.Stop(withChildren: true,
                                stopBehavior: ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        private Material CreateBubbleMaterial()
+        {
+            var bubbleShader = Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Standard");
+            return new Material(bubbleShader) { name = "BubbleMaterial" };
+        }
+
+        private Material CreateStreamMaterial()
+        {
+            var streamShader = Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default") ?? Shader.Find("Standard");
+            var material = new Material(streamShader) { name = "PourStreamMaterial" };
+            material.color = streamColor;
+            return material;
         }
 
         private void SetActive(bool active)

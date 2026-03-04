@@ -77,6 +77,7 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image normalShadow;
         [SerializeField] private Image liquidSurface;
         [SerializeField] private Sprite liquidSprite;
+        [SerializeField] private bool _presentation3DEnabled;
 
         private readonly List<int> segmentUnits = new List<int>();
         private readonly List<Image> incomingSlots = new List<Image>();
@@ -94,6 +95,7 @@ namespace Decantra.Presentation.View
         private readonly List<ChildLayoutInfo> _originalChildLayouts = new List<ChildLayoutInfo>();
         private readonly Dictionary<Image, Color> _defaultContourColors = new Dictionary<Image, Color>();
         private Image _sinkHeavyBaseBand;
+        private CanvasGroup _renderGroup;
 
         /// <summary>Cached original layout of a child RectTransform for capacity-based resizing.</summary>
         private struct ChildLayoutInfo
@@ -132,6 +134,7 @@ namespace Decantra.Presentation.View
 
         private void Awake()
         {
+            EnsureRenderGroup();
             if (outline != null)
             {
                 outlineBaseColor = outline.color;
@@ -151,6 +154,7 @@ namespace Decantra.Presentation.View
 
             baseScale = transform.localScale;
             ConfigureGlassVisuals();
+            SetPresentation3DEnabled(_presentation3DEnabled);
         }
 
         private void ConfigureGlassVisuals()
@@ -190,10 +194,27 @@ namespace Decantra.Presentation.View
             Index = index;
         }
 
+        public void SetPresentation3DEnabled(bool enabled)
+        {
+            _presentation3DEnabled = enabled;
+            EnsureRenderGroup();
+            _renderGroup.alpha = enabled ? 0f : 1f;
+            _renderGroup.blocksRaycasts = true;
+            _renderGroup.interactable = true;
+        }
+
         public void Render(Bottle bottle)
         {
             if (bottle == null) return;
             lastBottle = bottle;
+            if (_presentation3DEnabled)
+            {
+                if (stopper != null)
+                {
+                    stopper.gameObject.SetActive(false);
+                }
+                return;
+            }
             if (slotRoot == null)
             {
                 var found = transform.Find("LiquidRoot");
@@ -292,6 +313,16 @@ namespace Decantra.Presentation.View
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UpdateInteriorBoundsDebugOverlay();
 #endif
+        }
+
+        private void EnsureRenderGroup()
+        {
+            if (_renderGroup != null) return;
+            _renderGroup = GetComponent<CanvasGroup>();
+            if (_renderGroup == null)
+            {
+                _renderGroup = gameObject.AddComponent<CanvasGroup>();
+            }
         }
 
         public void SetOutlineColor(Color color)

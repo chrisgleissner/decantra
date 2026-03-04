@@ -9,7 +9,7 @@ DEVICE_ID=""
 SCREENSHOTS_ONLY=false
 CAPTURE_MOTION=false
 DECANTRA_SCREENSHOT_TIMEOUT="${DECANTRA_SCREENSHOT_TIMEOUT:-240}"
-DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5039}"
+DECANTRA_ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT:-5037}"
 SINK_COUNT_CSV="${PROJECT_ROOT}/doc/sink-bottles-levels-1-1000.csv"
 
 export ADB_SERVER_PORT="${DECANTRA_ADB_SERVER_PORT}"
@@ -79,7 +79,7 @@ if [[ ! -f "${APK_PATH}" ]]; then
 fi
 
 PACKAGE_NAME="uk.gleissner.decantra"
-ACTIVITY_NAME="com.unity3d.player.UnityPlayerActivity"
+ACTIVITY_NAME="com.unity3d.player.UnityPlayerGameActivity"
 if command -v aapt >/dev/null 2>&1; then
   apk_info="$(aapt dump badging "${APK_PATH}" 2>/dev/null || true)"
   if [[ -n "${apk_info}" ]]; then
@@ -194,8 +194,29 @@ if [[ "${SCREENSHOTS_ONLY}" == "true" ]]; then
 fi
 
 launch_timeout_secs="${DECANTRA_LAUNCH_TIMEOUT:-60}"
-if ! timeout "${launch_timeout_secs}" adb -s "${DEVICE_ID}" shell am start -S -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" >/dev/null 2>&1; then
-  echo "Failed to launch ${PACKAGE_NAME}/${ACTIVITY_NAME} on device ${DEVICE_ID}." >&2
+launch_app() {
+  local launch_output=""
+  local launch_status=0
+
+  launch_output="$(timeout "${launch_timeout_secs}" adb -s "${DEVICE_ID}" shell am start -S -n "${PACKAGE_NAME}/${ACTIVITY_NAME}" "${extras[@]}" 2>&1)" || launch_status=$?
+  if [[ ${launch_status} -ne 0 ]]; then
+    echo "Failed to launch ${PACKAGE_NAME}/${ACTIVITY_NAME} on device ${DEVICE_ID}." >&2
+    if [[ -n "${launch_output}" ]]; then
+      echo "${launch_output}" >&2
+    fi
+    return 1
+  fi
+
+  if [[ "${launch_output}" == *"Error type"* || "${launch_output}" == *"does not exist"* || "${launch_output}" == *"Exception occurred"* ]]; then
+    echo "Launch command reported an activity error for ${PACKAGE_NAME}/${ACTIVITY_NAME}." >&2
+    echo "${launch_output}" >&2
+    return 1
+  fi
+
+  return 0
+}
+
+if ! launch_app; then
   exit 1
 fi
 
@@ -262,10 +283,40 @@ while true; do
 
   if (( elapsed > 30 )); then
     focus_line="$(adb -s "${DEVICE_ID}" shell dumpsys activity activities | grep -m1 'mCurrentFocus=' || true)"
-    if [[ "${focus_line}" == *"NotificationShade"* ]]; then
-      echo "Screenshot capture blocked: device focus is NotificationShade. Unlock device and dismiss notification shade, then retry." >&2
-      exit 1
+    if [[ "${focus_line}" == *"Application Not Responding"* ]]; then
+      echo "ANR dialog detected; attempting dismissal and relaunch." >&2
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_ENTER >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell am force-stop "${PACKAGE_NAME}" >/dev/null 2>&1 || true
+      if ! launch_app; then
+        exit 1
+      fi
+      continue
     fi
+
+    if [[ "${focus_line}" == *"NotificationShade"* ]]; then
+      adb -s "${DEVICE_ID}" shell cmd statusbar collapse >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell service call statusbar 2 >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell am start -n "${PACKAGE_NAME}/com.unity3d.player.UnityPlayerGameActivity" >/dev/null 2>&1 || true
+
+      focused_app_line="$(adb -s "${DEVICE_ID}" shell dumpsys activity activities | grep -m1 'mFocusedApp=' || true)"
+      if [[ "${focused_app_line}" != *"${PACKAGE_NAME}"* ]]; then
+        echo "Screenshot capture blocked: device focus is NotificationShade and app ${PACKAGE_NAME} is not focused. Unlock device and dismiss notification shade, then retry." >&2
+        exit 1
+      fi
+      echo "NotificationShade detected; attempted auto-dismiss while ${PACKAGE_NAME} remains focused." >&2
+    fi
+
+    if [[ "${focus_line}" == *"ImmersiveModeConfirmation"* ]]; then
+      echo "Immersive mode confirmation detected; attempting dismissal." >&2
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_ENTER >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+      adb -s "${DEVICE_ID}" shell input tap 540 960 >/dev/null 2>&1 || true
+    fi
+
   fi
 
   if (( elapsed > DECANTRA_SCREENSHOT_TIMEOUT )); then

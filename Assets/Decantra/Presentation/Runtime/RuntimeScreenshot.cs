@@ -1406,7 +1406,7 @@ namespace Decantra.Presentation
                     if (captureScheduledAt >= 0f && Time.unscaledTime - captureScheduledAt >= 0.3f)
                     {
                         string stepIndex = pendingCaptureIndex.ToString("D2");
-                        string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_mid.png");
+                        string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_pour.png");
                         Debug.Log($"RuntimeScreenshot: auto-solve mid-pour capture step={stepIndex} displacementSampleTime={Time.unscaledTime - captureScheduledAt:F3}s");
                         yield return CaptureScreenshot(pourPath);
                         lastCapturedPour = pendingCaptureIndex;

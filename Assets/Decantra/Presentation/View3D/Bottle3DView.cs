@@ -93,6 +93,7 @@ namespace Decantra.Presentation.View3D
 
         private Bottle _lastBottle;
         private int _levelMaxCapacity = 4;
+        private float _capacityRatio = 1f;
         private float _previousZRotation;
         private float _previousAngularVelocityRad;
         private float _currentSurfaceTiltDeg;
@@ -110,8 +111,7 @@ namespace Decantra.Presentation.View3D
         private const float AngularAccelerationImpulseScale = 0.02f;
 
         // Glass body property IDs
-        private static readonly int PropSinkOnly       = Shader.PropertyToID("_SinkOnly");
-        private static readonly int PropCapacityRatio  = Shader.PropertyToID("_CapacityRatio");
+        private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -386,7 +386,7 @@ namespace Decantra.Presentation.View3D
             _glassBodyGO.transform.SetParent(_worldRoot.transform, false);
             _glassBodyGO.layer = targetLayer;
             var meshFilter = _glassBodyGO.AddComponent<MeshFilter>();
-            meshFilter.sharedMesh = BottleMeshGenerator.GenerateBottleMesh();
+            meshFilter.sharedMesh = BottleMeshGenerator.GenerateBottleMesh(_capacityRatio);
             var meshRenderer = _glassBodyGO.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = glassMaterialTemplate != null
                 ? glassMaterialTemplate
@@ -520,7 +520,7 @@ namespace Decantra.Presentation.View3D
                 _cachedFillBounds.Add((-1f, -1f)); // sentinel: force mesh build on first render
 
                 // Placeholder mesh (will be replaced in ApplyLayerProperties)
-                mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(0f, 0f);
+                mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(0f, 0f, _capacityRatio);
             }
 
             // Activate layers up to required count
@@ -550,7 +550,7 @@ namespace Decantra.Presentation.View3D
                     {
                         if (mf.sharedMesh != null)
                             Destroy(mf.sharedMesh);  // async destroy (not DestroyImmediate)
-                        mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(layer.FillMin, layer.FillMax);
+                        mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(layer.FillMin, layer.FillMax, _capacityRatio);
                         _cachedFillBounds[i] = (layer.FillMin, layer.FillMax);
                     }
                 }
@@ -647,14 +647,37 @@ namespace Decantra.Presentation.View3D
         }
 
         /// <summary>
-        /// Push <paramref name="ratio"/> (bottle.Capacity / levelMaxCapacity) to the
-        /// <c>_CapacityRatio</c> property of the glass and all liquid-layer shaders.
-        /// The shaders use this to scale only the cylindrical body section in the
-        /// vertex shader, leaving the dome and neck+rim at their original sizes.
+        /// Apply <paramref name="ratio"/> (bottle.Capacity / levelMaxCapacity) using the
+        /// 2D BottleView body-only stretch philosophy: the glass mesh is regenerated with
+        /// the scaled body height baked in, so normals and UVs are always correct.
+        /// Only the cylindrical body section scales; the dome (bottom) and shoulder+neck+rim
+        /// (top) stay at their reference sizes.
         /// </summary>
         private void ApplyCapacityRatio(float ratio)
         {
-            // Glass body
+            // 2D-style body-only stretch: regenerate the glass mesh with the
+            // scaled body height baked in, so normals and UVs are always correct.
+            // Only dome (bottom) and shoulder/neck/rim (top) stay at full size.
+            bool ratioChanged = Mathf.Abs(ratio - _capacityRatio) > 1e-4f;
+            _capacityRatio = ratio;
+
+            // Glass body — rebuild mesh if ratio changed
+            if (ratioChanged && _glassBodyGO != null)
+            {
+                var mf = _glassBodyGO.GetComponent<MeshFilter>();
+                if (mf != null)
+                {
+                    if (mf.sharedMesh != null)
+                        Destroy(mf.sharedMesh);
+                    mf.sharedMesh = BottleMeshGenerator.GenerateBottleMesh(_capacityRatio);
+                }
+
+                // Invalidate all liquid layer meshes so they rebuild with the new ratio
+                for (int i = 0; i < _cachedFillBounds.Count; i++)
+                    _cachedFillBounds[i] = (-1f, -1f);
+            }
+
+            // Sync sink-only flag on the glass renderer
             if (_glassBodyGO != null)
             {
                 var mr = _glassBodyGO.GetComponent<MeshRenderer>();
@@ -663,19 +686,8 @@ namespace Decantra.Presentation.View3D
                     var block = new MaterialPropertyBlock();
                     mr.GetPropertyBlock(block);
                     block.SetFloat(PropSinkOnly, _isSinkOnly ? 1f : 0f);
-                    block.SetFloat(PropCapacityRatio, ratio);
                     mr.SetPropertyBlock(block);
                 }
-            }
-
-            // Liquid layers
-            for (int i = 0; i < _layerRenderers.Count; i++)
-            {
-                var lr = _layerRenderers[i];
-                if (lr == null) continue;
-                var block = _layerBlocks[i];
-                block.SetFloat(PropCapacityRatio, ratio);
-                lr.SetPropertyBlock(block);
             }
         }
 

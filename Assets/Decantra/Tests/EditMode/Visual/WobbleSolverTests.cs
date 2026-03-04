@@ -99,6 +99,19 @@ namespace Decantra.Presentation.Visual.Tests
         }
 
         [Test]
+        public void RepeatedImpulses_DisplacementRemainsWithinMaxBound()
+        {
+            for (int i = 0; i < 120; i++)
+            {
+                _solver.ApplyImpulse(8f);
+                _solver.Step(WobbleSolver.FixedDeltaTime);
+            }
+
+            Assert.LessOrEqual(Math.Abs(_solver.Displacement), WobbleSolver.MaxDisplacement + 1e-6f,
+                "Displacement must remain clamped to MaxDisplacement under repeated impulses");
+        }
+
+        [Test]
         public void NegativeImpulse_ProducesNegativeTilt()
         {
             _solver.ApplyImpulse(-2f);

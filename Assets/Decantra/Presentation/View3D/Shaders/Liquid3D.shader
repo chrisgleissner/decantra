@@ -86,13 +86,13 @@ Shader "Decantra/Liquid3D"
         _TranslucencyStrength ("Translucency", Range(0,1)) = 0.35
 
         // Foam/agitation band thickness at layer boundaries (0 = off).
-        _FoamBandHeight ("Foam Band Height", Range(0,0.05)) = 0.008
+        _FoamBandHeight ("Foam Band Height", Range(0,0.20)) = 0.06
 
         // Runtime agitation signal from deterministic wobble solver [0..1].
         _Agitation ("Agitation", Range(0,1)) = 0
 
         // Foam activates only when agitation exceeds this threshold.
-        _FoamAgitationThreshold ("Foam Agitation Threshold", Range(0,1)) = 0.45
+        _FoamAgitationThreshold ("Foam Agitation Threshold", Range(0,1)) = 0.20
 
         // Hard edge sharpness at layer boundaries; higher = sharper.
         _BoundarySharpness ("Boundary Sharpness", Float) = 200
@@ -181,7 +181,6 @@ Shader "Decantra/Liquid3D"
             float  _CylPower;
             float  _CylAmbient;
             float  _SatBoost;
-            float  _CapacityRatio;
 
             // ── Vertex I/O ─────────────────────────────────────────────────
             struct Attributes
@@ -200,19 +199,9 @@ Shader "Decantra/Liquid3D"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                // Body-only height scaling.
-                // The liquid quad Y is always within [InteriorBottomY, InteriorTopY]
-                // = [-0.61, 0.80], which is exactly the body cylinder zone, so only the
-                // body branch runs here — dome and neck zones are unreachable for liquid.
-                const float kDomeTop   = -0.61;
-                const float kBodyTop   =  0.80;
-                const float kBodyHeight = 1.41;
-                float posY = IN.positionOS.y;
-                if (posY > kBodyTop)
-                    posY -= kBodyHeight * (1.0 - _CapacityRatio);
-                else if (posY > kDomeTop)
-                    posY = kDomeTop + (posY - kDomeTop) * _CapacityRatio;
-                IN.positionOS.y = posY;
+                // Liquid quad Y is already in the correct (capacity-scaled) range
+                // because GenerateLiquidLayerMesh(fillMin, fillMax, capacityRatio)
+                // bakes the proportional height into the mesh vertices.
                 OUT.positionCS = UnityObjectToClipPos(IN.positionOS);
                 OUT.uv         = IN.uv;
                 return OUT;
@@ -255,7 +244,7 @@ Shader "Decantra/Liquid3D"
     if (idx < _LayerCount && effectiveFill >= minV && effectiveFill < maxV) { \
         float t = (effectiveFill - minV) / max(maxV - minV, 1e-5); \
         float foam = (_FoamBandHeight > 0 && _Agitation >= _FoamAgitationThreshold) ? \
-            smoothstep(1.0 - _FoamBandHeight/(maxV-minV+1e-5), 1.0, t) * 0.35 : 0.0; \
+            smoothstep(1.0 - _FoamBandHeight/(maxV-minV+1e-5), 1.0, t) * 0.70 : 0.0; \
         float lowerShade = 1.0 - _BottomDarkening * saturate(1.0 - effectiveFill); \
         float surfaceRim = smoothstep(_TotalFill - _SurfaceRimWidth, _TotalFill, effectiveFill) * _SurfaceRimStrength; \
         float4 c = col; \
