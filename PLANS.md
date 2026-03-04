@@ -5,7 +5,126 @@ Execution engineer: GitHub Copilot (Claude Sonnet 4.6)
 
 ---
 
-## 17) 3D Bottle Visibility Fix — World-Space Root (2026-03-04)
+## 18) 3D Bottle Visual Cues: Lighting, Custom Shader, Drag Rotation (2026-03-04)
+
+### Status: IMPLEMENTED — PENDING BUILD VERIFICATION
+
+Last updated: 2026-03-04
+
+### Objective
+Make 3D bottle visuals unmistakably different from the prior 2D flat-sprite
+implementation. Three systemic issues were preventing perceptible 3D appearance:
+1. No directional lights in scene → shaders computed zero specular highlight.
+2. Glass material used URP Lit fallback (lower visual quality) instead of custom shader.
+3. No drag-driven 3D rotation → bottles appeared as static flat objects during drag.
+
+### Root Cause Analysis
+
+**Bug 1: No directional light in Main.unity scene — zero specular highlights**
+
+- `Main.unity` contains exactly one GameObject ("Main Camera"). No lights.
+- `SceneBootstrap.EnsureRenderCameras()` created cameras but added ZERO lights.
+- `BottleGlass.shader` uses `_WorldSpaceLightPos0.xyz` (built-in) and `_MainLightPosition.xyz`
+  (URP) for Blinn-Phong specular. Without a light, both are `(0,0,0,0)` →
+  specular term = 0 for all pixels.
+- URP Lit fallback glass material also requires a directional light for specular
+  highlights. Without one, bottles rendered as a nearly flat blue-tinted shape.
+- Fresnel edge-darkening and the static reflection strip were the only 3D cues —
+  barely perceptible, identical from any viewing angle.
+
+**Bug 2: Glass material used URP Lit instead of custom Decantra/BottleGlass shader**
+
+- `Bottle3DView.CreateFallbackGlassMaterial()` tried `Universal Render Pipeline/Lit`
+  as first priority, then `Decantra/BottleGlass` as second.
+- In URP projects, URP Lit is always available → custom shader was NEVER used.
+- The custom shader has superior visual model (Fresnel, Blinn-Phong, reflection strip,
+  micro-normal perturbation, dual-pass glass interior/exterior rendering).
+
+**Bug 3: No drag-based 3D rotation — specular shifts are view-dependent but static**
+
+- `BottleInput.OnDrag()` only applied Z rotation (pour tilt) when over a valid target.
+  During free drag, the bottle had NO rotation at all.
+- `Bottle3DView._worldRoot` rotation was always `Quaternion.identity`.  
+- A viewer cannot distinguish a perfectly flat sprite from a 3D mesh if neither the
+  viewing angle nor the light direction relative to the surface changes.
+
+**Bug 4 (shader): `_WorldSpaceLightPos0` is URP-legacy; may be zero in URP 17**
+
+- URP 17 (com.unity.render-pipelines.universal 17.3.0) fills `_MainLightPosition`
+  as the primary directional light variable. `_WorldSpaceLightPos0` is filled via a
+  legacy compatibility layer but should not be relied on exclusively in URP.
+- `BottleGlass.shader` used only `_WorldSpaceLightPos0`. If the URP compatibility
+  layer does not fill it for some camera setups, specular = 0.
+
+### Fix Implementation
+
+**File: `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs`**
+- Added `EnsureSceneLighting()` — called at the top of `EnsureScene()` (both fresh-build
+  and early-return paths).
+- Creates `Light_Key3D`: warm-white directional (35°, -40°), intensity 1.1, no shadows.
+  This is the main light that drives Blinn-Phong specular highlights on the glass mesh.
+- Creates `Light_Rim3D`: cool-blue directional (155°, 55°), intensity 0.42, no shadows.
+  This enhances Fresnel edge brightening, providing glass silhouette separation.
+- Both are idempotent (check for existing GO before creating).
+
+**File: `Assets/Decantra/Presentation/View3D/BottleGlass.shader`**
+- Added `float4 _MainLightPosition; float4 _MainLightColor;` uniform declarations.
+- Fragment shader now uses `_MainLightPosition.xyz` when non-zero, falls back to
+  `_WorldSpaceLightPos0.xyz`. This is URP/built-in pipeline compatible.
+
+**File: `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`**
+- `CreateFallbackGlassMaterial()` now prefers `Decantra/BottleGlass` first.
+  Falls back to `Universal Render Pipeline/Lit` if the custom shader is not found
+  (e.g. stripped builds).
+- Added drag rotation fields: `_targetDragYaw`, `_currentDragYaw`, `_targetDragRoll`,
+  `_currentDragRoll`.
+- Added `SetDragRotation(float yawDeg, float rollDeg=0)` and `ClearDragRotation()`.
+- `Update()` now smoothly lerps drag rotation (rate 10 s⁻¹) and applies it to
+  `_worldRoot.transform.rotation`, combining drag yaw with existing canvas Z tilt.
+  This makes the specular highlight visibly shift as the bottle is dragged left/right.
+
+**File: `Assets/Decantra/Presentation/View/BottleInput.cs`**
+- Added `using Decantra.Presentation.View3D;` — assembly already references View3D.
+- Added `_bottle3DView` field (resolved lazily in `EnsureComponents()`).
+- `OnDrag()`: computes horizontal world-space displacement from `originalPosition`,
+  maps ±1.5 world-unit offset → ±12° yaw,  calls `_bottle3DView.SetDragRotation(yaw)`.
+- `AnimateReturn()`: calls `_bottle3DView?.ClearDragRotation()` so world root smoothly
+  returns to identity after bottle snaps back to grid position.
+
+### Visual Effect Chain
+1. Player lifts a bottle → OnBeginDrag caches `_bottle3DView`.
+2. Player drags right → `rawOffsetX` grows → `yaw` grows toward +12°.
+3. Bottle3DView.Update() lerps `_currentDragYaw` → `_worldRoot.transform.rotation` yaws.
+4. Camera-relative normals on glass mesh change → specular highlight shifts position.
+5. Fresnel term also changes as normals rotate → edge brightening changes character.
+6. When bottle is dragged over valid target: canvas Z rotates by -30° (pour tilt)
+   → `canvasZ = -30°` → world root also tilts → surface tilt in liquid shader activates.
+7. OnEndDrag → AnimateReturn → `ClearDragRotation()` → world root smoothly returns.
+
+### Testing
+- Existing EditMode + PlayMode tests should still pass (no domain/gameplay logic changed).
+- All drag rotation is purely presentational (world root, not RectTransform).
+- Layout invariants unaffected (RectTransform positions unchanged).
+
+### Acceptance Criteria
+- [ ] EditMode tests pass (run via `./scripts/test.sh`).
+- [ ] Android build succeeds with visible specular highlights on bottles.
+- [ ] Dragging a bottle produces a visible yaw that makes specular highlight shift.
+- [ ] When bottle tilts at pour angle (-30°), liquid surface is visibly tilted.
+- [ ] Pour stream ribbon visible during an actual pour.
+- [ ] Layout unchanged: 3×3 grid still correct, no HUD overlap.
+
+### Risk Register
+| Risk | Likelihood | Mitigation |
+|---|---|---|
+| `Decantra/BottleGlass` stripped from production builds | Medium | URP Lit fallback still has specular with scene lights |
+| `_MainLightPosition` undefined in some URP versions | Low | Fallback to `_WorldSpaceLightPos0` in shader |
+| Drag yaw scale feels wrong | Low | Clamp ±12°; easily tunable via `1.5f` divisor constant |
+| Light intensity washes out 2D background sprites | Low | Lights affect only 3D mesh layer; sprites are unlit |
+
+---
+
+
 
 ### Status: IMPLEMENTED; VERIFIED — TESTS PASS, ANDROID SCREENSHOT CONFIRMS 3-COLUMN BOTTLE GRID VISIBLE
 

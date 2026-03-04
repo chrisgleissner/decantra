@@ -99,6 +99,12 @@ namespace Decantra.Presentation.View3D
         private bool _hasPreviousRotationSample;
         private bool _initialised;
 
+        // 3D drag rotation — applied to _worldRoot; does not affect canvas layout/gameplay
+        private float _targetDragYaw;
+        private float _currentDragYaw;
+        private float _targetDragRoll;
+        private float _currentDragRoll;
+
         private const float AngularVelocityImpulseScale = 0.08f;
         private const float AngularAccelerationImpulseScale = 0.02f;
 
@@ -191,6 +197,24 @@ namespace Decantra.Presentation.View3D
         }
 
         /// <summary>
+        /// Apply a 3D yaw (Y-axis) and optional roll to the world-root mesh during drag.
+        /// Provides visible parallax / specular-shift cue without affecting canvas layout.
+        /// Smoothly lerps back to zero when <see cref="ClearDragRotation"/> is called.
+        /// </summary>
+        public void SetDragRotation(float yawDeg, float rollDeg = 0f)
+        {
+            _targetDragYaw  = Mathf.Clamp(yawDeg,  -15f, 15f);
+            _targetDragRoll = Mathf.Clamp(rollDeg, -10f, 10f);
+        }
+
+        /// <summary>Clear drag rotation; world root smoothly returns to neutral.</summary>
+        public void ClearDragRotation()
+        {
+            _targetDragYaw  = 0f;
+            _targetDragRoll = 0f;
+        }
+
+        /// <summary>
         /// World-space Transform of the 3D mesh root (scene root, correct scale).
         /// Use this instead of <c>transform</c> when supplying positions to 3D systems
         /// (pour stream target, Physics raycasting, etc.).
@@ -219,6 +243,21 @@ namespace Decantra.Presentation.View3D
             SyncWorldRootPosition();
 
             float dt = Time.deltaTime;
+
+            // Smooth drag rotation toward target and apply to world root.
+            // Rate = 10 s⁻¹ → 90% settled in ~0.23 s, feels snappy but not jerky.
+            float lerpRate = dt * 10f;
+            _currentDragYaw  = Mathf.Lerp(_currentDragYaw,  _targetDragYaw,  lerpRate);
+            _currentDragRoll = Mathf.Lerp(_currentDragRoll, _targetDragRoll, lerpRate);
+            if (_worldRoot != null)
+            {
+                // Normalize canvas Z to signed angle so Euler doesn't wrap unexpectedly.
+                float canvasZ = Mathf.DeltaAngle(0f, transform.eulerAngles.z);
+                _worldRoot.transform.rotation = Quaternion.Euler(
+                    -_currentDragRoll * 0.4f,  // slight pitch for roll realism
+                    _currentDragYaw,            // horizontal-drag yaw
+                    canvasZ);                   // preserve pour-tilt from canvas rotation
+            }
 
             // Update base tilt and derive deterministic slosh impulses from rotation dynamics.
             UpdateTiltFromRotation(transform.eulerAngles.z, dt);
@@ -541,8 +580,11 @@ namespace Decantra.Presentation.View3D
 
         private static Material CreateFallbackGlassMaterial()
         {
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                      ?? Shader.Find("Decantra/BottleGlass")
+            // Prefer the custom BottleGlass shader first — it has Fresnel + Blinn-Phong
+            // specular driven by scene directional lights (visible 3D highlights).
+            // Fall back to URP Lit if the custom shader is unavailable (e.g. stripped build).
+            var shader = Shader.Find("Decantra/BottleGlass")
+                      ?? Shader.Find("Universal Render Pipeline/Lit")
                       ?? Shader.Find("Standard")
                       ?? Shader.Find("Sprites/Default")
                       ?? Shader.Find("Unlit/Color");
