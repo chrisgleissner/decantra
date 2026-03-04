@@ -200,11 +200,18 @@ Shader "Decantra/Liquid3D"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                // Body-only scaling: dome (Y <= -0.425) and neck/rim (Y > 0.800) keep
-                // their full size; only the cylindrical body is stretched by _CapacityRatio.
+                // Body-only height scaling.
+                // The liquid quad Y is always within [InteriorBottomY, InteriorTopY]
+                // = [-0.61, 0.80], which is exactly the body cylinder zone, so only the
+                // body branch runs here — dome and neck zones are unreachable for liquid.
+                const float kDomeTop   = -0.61;
+                const float kBodyTop   =  0.80;
+                const float kBodyHeight = 1.41;
                 float posY = IN.positionOS.y;
-                if      (posY >  0.800) posY -= 1.225 * (1.0 - _CapacityRatio);
-                else if (posY > -0.425) posY  = -0.425 + (posY + 0.425) * _CapacityRatio;
+                if (posY > kBodyTop)
+                    posY -= kBodyHeight * (1.0 - _CapacityRatio);
+                else if (posY > kDomeTop)
+                    posY = kDomeTop + (posY - kDomeTop) * _CapacityRatio;
                 IN.positionOS.y = posY;
                 OUT.positionCS = UnityObjectToClipPos(IN.positionOS);
                 OUT.uv         = IN.uv;

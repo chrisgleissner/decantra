@@ -96,11 +96,22 @@ Shader "Decantra/BottleGlass"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                // Body-only scaling: dome (Y <= -0.425) and neck/rim (Y > 0.800) keep
-                // their full size; only the cylindrical body is stretched by _CapacityRatio.
+                // Body-only height scaling so dome (bottom) and shoulder+neck+rim (top)
+                // keep their full shape — only the cylindrical body section changes height.
+                // Mesh coordinate ranges (from BottleMeshGenerator constants):
+                //   Dome spans yMin=-0.80 up to kDomeTop=-0.61  (= -BodyHalf + DomeRadius*0.5)
+                //   Body cylinder from -0.61 to kBodyTop=+0.80  (= BodyHalfHeight)
+                //   Shoulder/neck/rim above +0.80
+                //   kBodyHeight = 0.80 - (-0.61) = 1.41
+                const float kDomeTop   = -0.61; // dome / body boundary
+                const float kBodyTop   =  0.80; // body / shoulder boundary
+                const float kBodyHeight = 1.41; // kBodyTop - kDomeTop
                 float posY = IN.posOS.y;
-                if      (posY >  0.800) posY -= 1.225 * (1.0 - _CapacityRatio);
-                else if (posY > -0.425) posY  = -0.425 + (posY + 0.425) * _CapacityRatio;
+                if (posY > kBodyTop)
+                    posY -= kBodyHeight * (1.0 - _CapacityRatio); // shift shoulder/neck down
+                else if (posY > kDomeTop)
+                    posY = kDomeTop + (posY - kDomeTop) * _CapacityRatio; // scale body
+                // posY <= kDomeTop: dome untouched
                 IN.posOS.y = posY;
                 OUT.posCS = UnityObjectToClipPos(IN.posOS);
                 OUT.uv = IN.uv;
@@ -184,11 +195,15 @@ Shader "Decantra/BottleGlass"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                // Body-only scaling: dome (Y <= -0.425) and neck/rim (Y > 0.800) keep
-                // their full size; only the cylindrical body is stretched by _CapacityRatio.
+                // Body-only height scaling — same 3-zone logic as the back-face pass.
+                const float kDomeTop   = -0.61;
+                const float kBodyTop   =  0.80;
+                const float kBodyHeight = 1.41;
                 float posY = IN.posOS.y;
-                if      (posY >  0.800) posY -= 1.225 * (1.0 - _CapacityRatio);
-                else if (posY > -0.425) posY  = -0.425 + (posY + 0.425) * _CapacityRatio;
+                if (posY > kBodyTop)
+                    posY -= kBodyHeight * (1.0 - _CapacityRatio);
+                else if (posY > kDomeTop)
+                    posY = kDomeTop + (posY - kDomeTop) * _CapacityRatio;
                 IN.posOS.y = posY;
                 OUT.posCS    = UnityObjectToClipPos(IN.posOS);
                 OUT.normalWS = UnityObjectToWorldNormal(IN.normalOS);
