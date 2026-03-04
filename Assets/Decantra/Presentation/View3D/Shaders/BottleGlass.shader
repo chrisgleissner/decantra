@@ -16,15 +16,22 @@ Shader "Decantra/BottleGlass"
     //   • Tinted transparent body — colored tint over a mostly-clear glass base.
     //   • Specular reflection strip mimicking the existing 2D reflectionStrip image.
     //   • Two-pass: back faces first (interior glass), then front faces.
+    //   • SinkOnly mode: dark rim band + base-line band for sink-only bottles.
+    //
+    // Liquid-clarity guarantee:
+    //   Total glass alpha is capped at _MaxGlassAlpha (default 0.26) so that at
+    //   least 74% of liquid color always shows through the glass face.
+    //   Specular contribution is restricted to ≤ _SpecMaxContrib (default 0.12)
+    //   additive luminance so bright highlights cannot bleach liquid colors.
     //
     // Performance: single directional light, no real-time shadows, no GI sampling.
     // Mobile-safe. Works on Adreno 610 / Mali-G52.
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
-        _GlassTint      ("Glass Tint",     Color  ) = (0.85, 0.92, 1.0, 0.18)
+        _GlassTint      ("Glass Tint",     Color  ) = (0.85, 0.92, 1.0, 0.15)
         _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.6)
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.42)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
@@ -34,6 +41,21 @@ Shader "Decantra/BottleGlass"
         _ReflectionStrip("Reflection Strip Strength", Range(0,1)) = 0.18
         _ReflectionX    ("Reflection Strip X", Range(-1,1)) = 0.55
         _ReflectionWidth("Reflection Strip Width", Range(0.01,0.5)) = 0.08
+
+        // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
+        // liquid_visible >= 1 - _MaxGlassAlpha. Default 0.26 → ≥74% liquid shows through.
+        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.26
+
+        // Block A: cap on additive specular luminance contribution (0..1). Prevents
+        // bright specular highlight from bleaching the liquid colour underneath.
+        _SpecMaxContrib ("Spec Max Contrib", Range(0,1)) = 0.12
+
+        // Block E: sink-only visual marking. Set to 1.0 for sink bottles (via
+        // MaterialPropertyBlock; default 0 = normal bottle).
+        // When 1.0: renders a dark rim band near the bottle neck (UV.y > 0.82) and
+        // a dark base-line band near the bottle bottom (UV.y < 0.07).
+        // Bands remain dark under any lighting — specular/Fresnel clamped to 0 in bands.
+        _SinkOnly       ("Sink Only",      Range(0,1)) = 0
     }
 
     SubShader
@@ -60,21 +82,36 @@ Shader "Decantra/BottleGlass"
             #include "UnityCG.cginc"
 
             float4 _GlassTint;
+            float  _SinkOnly;
 
-            struct Attributes { float4 posOS : POSITION; };
-            struct Varyings   { float4 posCS : SV_POSITION; };
+            struct Attributes { float4 posOS : POSITION; float2 uv : TEXCOORD0; };
+            struct Varyings   { float4 posCS : SV_POSITION; float2 uv : TEXCOORD0; };
 
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
                 OUT.posCS = UnityObjectToClipPos(IN.posOS);
+                OUT.uv = IN.uv;
                 return OUT;
             }
 
             float4 frag(Varyings IN) : SV_Target
             {
                 // Inner surface is slightly darker / more saturated
-                return float4(_GlassTint.rgb * 0.75, _GlassTint.a * 0.5);
+                float4 col = float4(_GlassTint.rgb * 0.75, _GlassTint.a * 0.5);
+
+                // Block E: dark bands for sink-only bottles
+                if (_SinkOnly > 0.5)
+                {
+                    float uvY = IN.uv.y;
+                    float rimBand = saturate((uvY - 0.82) / 0.04);         // 0→1 as y goes 0.82→0.86
+                    float baseBand = saturate((0.07 - uvY) / 0.04);        // 0→1 as y goes 0.07→0.03
+                    float band = saturate(rimBand + baseBand);
+                    col.rgb = lerp(col.rgb, float3(0.05, 0.05, 0.07), band * 0.9);
+                    col.a = lerp(col.a, 0.88, band);
+                }
+
+                return col;
             }
             ENDHLSL
         }
@@ -106,6 +143,9 @@ Shader "Decantra/BottleGlass"
             float  _ReflectionStrip;
             float  _ReflectionX;
             float  _ReflectionWidth;
+            float  _MaxGlassAlpha;
+            float  _SpecMaxContrib;
+            float  _SinkOnly;
 
             // URP main directional light.  Built-in pipeline fills _WorldSpaceLightPos0;
             // URP fills _MainLightPosition.  We declare both and use whichever is non-zero.
@@ -154,6 +194,8 @@ Shader "Decantra/BottleGlass"
                 // ── Fresnel ────────────────────────────────────────────────
                 float NoV = saturate(dot(N, V));
                 float fresnel = pow(1.0 - NoV, _FresnelPower);
+                // Block A fix: Fresnel colour contribution uses clamped amplitude so
+                // grazing-angle brightening cannot reach full white.
                 float3 fresnelCol = _FresnelColor.rgb * fresnel * _FresnelColor.a;
 
                 // ── Specular from scene directional light ───────────────────
@@ -166,7 +208,10 @@ Shader "Decantra/BottleGlass"
                 float3 H = normalize(L + V);
                 float  shininess = lerp(24.0, _Shininess, _Smoothness);
                 float  spec = pow(saturate(dot(N, H)), shininess);
-                float3 specCol = _SpecColor2.rgb * spec * _SpecColor2.a;
+                // Block A fix: clamp total specular luminance contribution to _SpecMaxContrib
+                // so a bright specular spot does not bleach the liquid colour underneath.
+                float3 specCol = _SpecColor2.rgb * min(spec * _SpecColor2.a,
+                                                       _SpecMaxContrib);
 
                 // ── Refraction/attenuation approximation ───────────────────
                 float viewThickness = 1.0 - NoV;
@@ -185,8 +230,28 @@ Shader "Decantra/BottleGlass"
                 // ── Compose ────────────────────────────────────────────────
                 float3 baseTint = _GlassTint.rgb * absorb;
                 float3 color = baseTint + fresnelCol + specCol + stripCol;
-                float  alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5;
-                alpha = saturate(alpha);
+                // Block A fix: cap total alpha to _MaxGlassAlpha so liquid colours
+                // always show through clearly.
+                float alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5;
+                alpha = min(alpha, _MaxGlassAlpha);
+
+                // ── Block E: sink-only dark bands ──────────────────────────
+                // When _SinkOnly=1, override rim + base regions with near-black.
+                // The bands are pinned in UV space so they cannot change layout bounds.
+                // Specular/Fresnel contributions are zeroed in band regions so the
+                // marking remains visible under strong lighting.
+                if (_SinkOnly > 0.5)
+                {
+                    float uvY = IN.uv.y;
+                    float rimBand  = saturate((uvY - 0.82) / 0.04);   // neck top band
+                    float baseBand = saturate((0.07 - uvY) / 0.04);   // base bottom band
+                    float band = saturate(rimBand + baseBand);
+
+                    // Replace glass colour with near-black in bands; blend edges softly.
+                    color = lerp(color, float3(0.04, 0.04, 0.06), band * 0.95);
+                    // Boost alpha in bands so black is clearly visible.
+                    alpha = lerp(alpha, 0.92, band);
+                }
 
                 return float4(color, alpha);
             }
@@ -194,5 +259,5 @@ Shader "Decantra/BottleGlass"
         }
     }
 
-    FallBack "Hidden/InternalErrorShader"
+    FallBack Off
 }

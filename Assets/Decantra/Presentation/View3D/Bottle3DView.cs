@@ -98,6 +98,7 @@ namespace Decantra.Presentation.View3D
         private float _currentSurfaceTiltDeg;
         private bool _hasPreviousRotationSample;
         private bool _initialised;
+        private bool _isSinkOnly;
 
         // 3D drag rotation — applied to _worldRoot; does not affect canvas layout/gameplay
         private float _targetDragYaw;
@@ -107,6 +108,9 @@ namespace Decantra.Presentation.View3D
 
         private const float AngularVelocityImpulseScale = 0.08f;
         private const float AngularAccelerationImpulseScale = 0.02f;
+
+        // Glass body property IDs
+        private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -152,6 +156,25 @@ namespace Decantra.Presentation.View3D
 
             EnsureInitialised();
 
+            // Block B fix: apply per-bottle Y scale so that capacity drives visible bottle
+            // height, matching the 2D BottleView.ApplyCapacityScale() body-height reduction.
+            // Only the Y axis scales; X and Z stay at 1.0 to preserve bottle width/depth.
+            if (_worldRoot != null)
+            {
+                float ratio = _levelMaxCapacity > 0
+                    ? Mathf.Clamp01((float)bottle.Capacity / _levelMaxCapacity)
+                    : 1f;
+                _worldRoot.transform.localScale = new Vector3(1f, ratio, 1f);
+            }
+
+            // Block E fix: sync sink-only visual state from bottle state.
+            bool bottleIsSink = bottle.IsSink;
+            if (_isSinkOnly != bottleIsSink)
+            {
+                _isSinkOnly = bottleIsSink;
+                ApplySinkOnlyToGlass();
+            }
+
             // Build layer data from current bottle state
             FillHeightMapper.Build(bottle, _layers, colorResolver);
 
@@ -195,7 +218,16 @@ namespace Decantra.Presentation.View3D
         {
             _wobble.Reset();
         }
-
+        /// <summary>
+        /// Mark this bottle as a sink-only bottle so the glass shader renders dark rim
+        /// and base-line bands.  Call before or during <see cref="Render"/>.
+        /// </summary>
+        public void SetSinkOnly(bool isSink)
+        {
+            if (_isSinkOnly == isSink) return;
+            _isSinkOnly = isSink;
+            ApplySinkOnlyToGlass();
+        }
         /// <summary>
         /// Apply a 3D yaw (Y-axis) and optional roll to the world-root mesh during drag.
         /// Provides visible parallax / specular-shift cue without affecting canvas layout.
@@ -203,14 +235,14 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         public void SetDragRotation(float yawDeg, float rollDeg = 0f)
         {
-            _targetDragYaw  = Mathf.Clamp(yawDeg,  -15f, 15f);
+            _targetDragYaw = Mathf.Clamp(yawDeg, -15f, 15f);
             _targetDragRoll = Mathf.Clamp(rollDeg, -10f, 10f);
         }
 
         /// <summary>Clear drag rotation; world root smoothly returns to neutral.</summary>
         public void ClearDragRotation()
         {
-            _targetDragYaw  = 0f;
+            _targetDragYaw = 0f;
             _targetDragRoll = 0f;
         }
 
@@ -226,6 +258,23 @@ namespace Decantra.Presentation.View3D
         private void Awake()
         {
             EnsureInitialised();
+        }
+
+        // ── Block D fix: propagate canvas GO active-state to scene-root _worldRoot ──
+        // When GameController.Render() calls bottleViews[i].gameObject.SetActive(false)
+        // (for bottles beyond the level's count), this MonoBehaviour's Update() stops
+        // but _worldRoot — a scene-root GO — remains active at its last position.
+        // This caused 9 visible 3D bottle GOs on a 5-bottle level (Level 10 regression).
+        private void OnEnable()
+        {
+            if (_worldRoot != null)
+                _worldRoot.SetActive(true);
+        }
+
+        private void OnDisable()
+        {
+            if (_worldRoot != null)
+                _worldRoot.SetActive(false);
         }
 
         private void Start()
@@ -247,7 +296,7 @@ namespace Decantra.Presentation.View3D
             // Smooth drag rotation toward target and apply to world root.
             // Rate = 10 s⁻¹ → 90% settled in ~0.23 s, feels snappy but not jerky.
             float lerpRate = dt * 10f;
-            _currentDragYaw  = Mathf.Lerp(_currentDragYaw,  _targetDragYaw,  lerpRate);
+            _currentDragYaw = Mathf.Lerp(_currentDragYaw, _targetDragYaw, lerpRate);
             _currentDragRoll = Mathf.Lerp(_currentDragRoll, _targetDragRoll, lerpRate);
             if (_worldRoot != null)
             {
@@ -576,6 +625,23 @@ namespace Decantra.Presentation.View3D
             _layerRenderers.Clear();
             _layerBlocks.Clear();
             _cachedFillBounds.Clear();
+        }
+
+        /// <summary>
+        /// Block E fix: push the <c>_SinkOnly</c> flag to the glass body MaterialPropertyBlock
+        /// so that the BottleGlass shader renders dark rim + base-line bands for sink bottles.
+        /// Uses a MaterialPropertyBlock (not material instance) to avoid material draw-call break.
+        /// </summary>
+        private void ApplySinkOnlyToGlass()
+        {
+            if (_glassBodyGO == null) return;
+            var mr = _glassBodyGO.GetComponent<MeshRenderer>();
+            if (mr == null) return;
+
+            var block = new MaterialPropertyBlock();
+            mr.GetPropertyBlock(block);
+            block.SetFloat(PropSinkOnly, _isSinkOnly ? 1f : 0f);
+            mr.SetPropertyBlock(block);
         }
 
         private static Material CreateFallbackGlassMaterial()

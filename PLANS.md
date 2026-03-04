@@ -981,3 +981,87 @@ Unblock action:
 - Connect an arm64-compatible Android device/emulator, then run:
   - `./build --screenshots` (preferred full pipeline)
   - or `./build --screenshots-only` (after a fresh APK already exists)
+
+---
+
+## 19) 3D Bottle Regressions: Fixes for feat/3d-bottles (2026-03-04)
+
+### Status: IN PROGRESS
+
+Last updated: 2026-03-04
+
+### Scope Summary
+
+Fix five regressions introduced by the 3D bottle visual implementation:
+
+- **A. Liquid washout** — Glass shader washes out liquid colors due to high Fresnel + additive specular at grazing angles.
+- **B. Uniform scaling** — All 3D bottles render at identical size; capacity-based size variance is lost.
+- **C. Auto-solver screenshots static** — Screenshots captured after pour completes (rest state), not during animation.
+- **D. Level 10 duplicate/overlap bottles** — WorldRoot GOs for inactive 2D bottle slots remain visible, producing 9 overlapping instances for a 5-bottle level.
+- **E. Sink-only bottles indistinguishable** — No visual marking for sink bottles in 3D mode.
+
+### Risk Register
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Bottle transform Y-scale causes layout mismatch | Medium | High | Scale only applies to `_worldRoot`, not canvas. Canvas layout unchanged. |
+| Glass alpha changes affect visual identity cue | Low | Medium | Keep total alpha ≤ 0.28 max; verify with screenshot. |
+| Solver capture timing change misses animation | Low | Medium | Wait 0.3 s after PourStarted before capture. |
+| SinkOnly shader param defaults to wrong value | Low | Low | Default property = 0 (normal); only Render() sets it to 1. |
+| OnDisable/_worldRoot hide race with animation | Low | Medium | Safe — OnDisable fires on SetActive(false) before first deactivated Update. |
+
+### Root Causes Found
+
+**D (Level 10):**
+- `Bottle3DView._worldRoot` is a scene-root `GameObject` with no parent.
+- When `bottleViews[i].gameObject.SetActive(false)` is called (for inactive level slots), `Bottle3DView.Update()` stops but `_worldRoot` stays active at its last position.
+- For Level 10 (5 bottles), bottles 5–8 have active `_worldRoot` GOs at grid positions → 9 visible 3D bottles in a 5-bottle level.
+- **Fix**: Add `OnEnable`/`OnDisable` to `Bottle3DView` to propagate active state to `_worldRoot`.
+
+**B (Bottle size variance):**
+- `Bottle3DView.Render()` never changes `_worldRoot.localScale`; it is always `Vector3.one`.
+- `BottleView.ApplyCapacityScale()` only resizes 2D canvas elements (body height), which are invisible in 3D mode.
+- **Fix**: In `Render()`, set `_worldRoot.localScale = new Vector3(1f, ratio, 1f)` where `ratio = capacity / _levelMaxCapacity`.
+
+**A (Liquid washout):**
+- `BottleGlass.shader` final alpha `= _GlassTint.a + fresnel * FresnelColor.a * 0.5`. Default `_GlassTint.a=0.18`, Fresnel adds up to `0.3` → total can reach `0.48` at grazing.
+- Output `color = baseTint + fresnelCol + specCol + stripCol`. At grazing, all terms are near-white, making the glass appear opaque and white, washing out the liquid color behind.
+- **Fix**: Cap total alpha to `0.26`. Guard specular contribution to not exceed a max `0.12` additive contribution. Reduce `_FresnelColor` default alpha from `0.6` to `0.45`.
+
+**C (Solver screenshot timing):**
+- `CaptureAutoSolveEvidence` fires screenshot on `PourCompleted`, which means bottle is already back at rest.
+- **Fix**: Fire screenshot 0.3 s after `PourStarted` (mid-animation) instead of `PourCompleted`.
+
+**E (Sink-only):**
+- `BottleView.ApplySinkStyle()` applies heavy black bands to 2D canvas; these are invisible in 3D mode.
+- **Fix**: Add `_SinkOnly` float property to `BottleGlass.shader`. When `1.0`, render dark rim band near top and base-line band near bottom. No new meshes/renderers; purely shader-based. Add `SetSinkOnly(bool)` to `Bottle3DView`.
+
+### Verification Plan
+
+| Objective | Criterion | Artifact |
+|---|---|---|
+| A: Liquid clarity | 3+ screenshots with vivid distinct liquid layers, no white wash | `docs/repro/3d-bottle-regressions/liquid-brilliance/` |
+| B: Size variance | 2+ screenshots showing different bottle heights on same level | `docs/repro/3d-bottle-regressions/bottle-size-variance/` |
+| C: Solver motion | ≥80% of auto-solve step screenshots show displaced source bottle | `docs/repro/3d-bottle-regressions/solver-capture/` |
+| D: Level 10 | Exactly 5 active _worldRoot objects, 3+2 layout, no overlap | `docs/repro/3d-bottle-regressions/level-10-layout/` |
+| E: Sink-only | Dark rim+base bands on sink bottle; transforms identical without them | `docs/repro/3d-bottle-regressions/sink-only-visual/` |
+
+### Task Breakdown
+
+| # | Task | File | Status |
+|---|---|---|---|
+| D1 | Add `OnEnable`/`OnDisable` to `Bottle3DView` to propagate active state to `_worldRoot` | `Bottle3DView.cs` | ✅ |
+| B1 | Apply Y scale to `_worldRoot` based on capacity ratio in `Render()` | `Bottle3DView.cs` | ✅ |
+| A1 | Cap Fresnel alpha, reduce glass alpha default, guard specular | `BottleGlass.shader` | ✅ |
+| C1 | Change auto-solve screenshot to fire 0.3 s after `PourStarted` | `RuntimeScreenshot.cs` | ✅ |
+| E1 | Add `_SinkOnly` property+bands to `BottleGlass.shader` | `BottleGlass.shader` | ✅ |
+| E2 | Add `SetSinkOnly(bool)` to `Bottle3DView`; call in `Render()` | `Bottle3DView.cs` | ✅ |
+| V1 | Run EditMode tests; verify no regressions | test runner | ⬜ |
+| V2 | Produce `docs/repro/3d-bottle-regressions/RESULTS.md` | docs | ⬜ |
+
+### Decision Log
+
+- 2026-03-04: Using Y-axis-only scale for capacity variance to match 2D behavior (height differs, width stays the same). The 2D `ApplyCapacityScale` only changes body HEIGHT, not width. Y-only scale on `_worldRoot` preserves bottle width parity.
+- 2026-03-04: Capture at 0.3 s after `PourStarted` for solver screenshots. The `AutoSolveMinDragSeconds=0.35`, so 0.3 s falls at ~85% of min drag duration (well into animation).
+- 2026-03-04: Sink-only bands implemented as shader overlay to avoid any renderer/mesh additions that could change layout bounds.
+- 2026-03-04: Glass alpha cap set to 0.26 to preserve visible glass identity (minimum 74% liquid showing through) while eliminating washout.
