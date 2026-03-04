@@ -29,22 +29,22 @@ Shader "Decantra/BottleGlass"
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
-        _GlassTint      ("Glass Tint",     Color  ) = (0.85, 0.92, 1.0, 0.15)
+        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.08)
         _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.42)
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.22)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
         _RefractionStrength("Refraction Strength", Range(0,0.08)) = 0.02
         _AbsorptionStrength("Absorption Strength", Range(0,4)) = 1.1
         _MicroNormalScale("Micro Normal Scale", Range(0,0.2)) = 0.06
-        _ReflectionStrip("Reflection Strip Strength", Range(0,1)) = 0.18
+        _ReflectionStrip("Reflection Strip Strength", Range(0,1)) = 0.10
         _ReflectionX    ("Reflection Strip X", Range(-1,1)) = 0.55
         _ReflectionWidth("Reflection Strip Width", Range(0.01,0.5)) = 0.08
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
-        // liquid_visible >= 1 - _MaxGlassAlpha. Default 0.26 → ≥74% liquid shows through.
-        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.26
+        // liquid_visible >= 1 - _MaxGlassAlpha. Default 0.18 → ≥82% liquid shows through.
+        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.18
 
         // Block A: cap on additive specular luminance contribution (0..1). Prevents
         // bright specular highlight from bleaching the liquid colour underneath.
@@ -56,6 +56,11 @@ Shader "Decantra/BottleGlass"
         // a dark base-line band near the bottle bottom (UV.y < 0.07).
         // Bands remain dark under any lighting — specular/Fresnel clamped to 0 in bands.
         _SinkOnly       ("Sink Only",      Range(0,1)) = 0
+
+        // Per-bottle capacity ratio (0.1..1.0). Applied in the vertex shader to
+        // scale ONLY the cylindrical body; the hemispherical dome (bottom) and
+        // neck+rim (top) keep their full size so they remain clearly identifiable.
+        _CapacityRatio  ("Capacity Ratio", Range(0.1, 1.0)) = 1.0
     }
 
     SubShader
@@ -83,6 +88,7 @@ Shader "Decantra/BottleGlass"
 
             float4 _GlassTint;
             float  _SinkOnly;
+            float  _CapacityRatio;
 
             struct Attributes { float4 posOS : POSITION; float2 uv : TEXCOORD0; };
             struct Varyings   { float4 posCS : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -90,6 +96,12 @@ Shader "Decantra/BottleGlass"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
+                // Body-only scaling: dome (Y <= -0.425) and neck/rim (Y > 0.800) keep
+                // their full size; only the cylindrical body is stretched by _CapacityRatio.
+                float posY = IN.posOS.y;
+                if      (posY >  0.800) posY -= 1.225 * (1.0 - _CapacityRatio);
+                else if (posY > -0.425) posY  = -0.425 + (posY + 0.425) * _CapacityRatio;
+                IN.posOS.y = posY;
                 OUT.posCS = UnityObjectToClipPos(IN.posOS);
                 OUT.uv = IN.uv;
                 return OUT;
@@ -146,6 +158,7 @@ Shader "Decantra/BottleGlass"
             float  _MaxGlassAlpha;
             float  _SpecMaxContrib;
             float  _SinkOnly;
+            float  _CapacityRatio;
 
             // URP main directional light.  Built-in pipeline fills _WorldSpaceLightPos0;
             // URP fills _MainLightPosition.  We declare both and use whichever is non-zero.
@@ -171,6 +184,12 @@ Shader "Decantra/BottleGlass"
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
+                // Body-only scaling: dome (Y <= -0.425) and neck/rim (Y > 0.800) keep
+                // their full size; only the cylindrical body is stretched by _CapacityRatio.
+                float posY = IN.posOS.y;
+                if      (posY >  0.800) posY -= 1.225 * (1.0 - _CapacityRatio);
+                else if (posY > -0.425) posY  = -0.425 + (posY + 0.425) * _CapacityRatio;
+                IN.posOS.y = posY;
                 OUT.posCS    = UnityObjectToClipPos(IN.posOS);
                 OUT.normalWS = UnityObjectToWorldNormal(IN.normalOS);
                 float3 worldPos = mul(unity_ObjectToWorld, IN.posOS).xyz;

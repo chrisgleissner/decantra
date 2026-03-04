@@ -110,7 +110,8 @@ namespace Decantra.Presentation.View3D
         private const float AngularAccelerationImpulseScale = 0.02f;
 
         // Glass body property IDs
-        private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
+        private static readonly int PropSinkOnly       = Shader.PropertyToID("_SinkOnly");
+        private static readonly int PropCapacityRatio  = Shader.PropertyToID("_CapacityRatio");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -156,17 +157,6 @@ namespace Decantra.Presentation.View3D
 
             EnsureInitialised();
 
-            // Block B fix: apply per-bottle Y scale so that capacity drives visible bottle
-            // height, matching the 2D BottleView.ApplyCapacityScale() body-height reduction.
-            // Only the Y axis scales; X and Z stay at 1.0 to preserve bottle width/depth.
-            if (_worldRoot != null)
-            {
-                float ratio = _levelMaxCapacity > 0
-                    ? Mathf.Clamp01((float)bottle.Capacity / _levelMaxCapacity)
-                    : 1f;
-                _worldRoot.transform.localScale = new Vector3(1f, ratio, 1f);
-            }
-
             // Block E fix: sync sink-only visual state from bottle state.
             bool bottleIsSink = bottle.IsSink;
             if (_isSinkOnly != bottleIsSink)
@@ -180,6 +170,18 @@ namespace Decantra.Presentation.View3D
 
             // Rebuild liquid layer GameObjects if slot count changed
             EnsureLayerObjects(_layers.Count, bottle.Capacity);
+
+            // Block B fix: drive per-bottle capacity ratio into the glass and liquid
+            // shaders so only the cylindrical body scales; the hemispherical dome (bottom)
+            // and the neck+rim (top) stay at their full original size.
+            // Must run after EnsureLayerObjects so all layers (including newly created
+            // ones) receive the ratio.
+            {
+                float ratio = _levelMaxCapacity > 0
+                    ? Mathf.Clamp01((float)bottle.Capacity / _levelMaxCapacity)
+                    : 1f;
+                ApplyCapacityRatio(ratio);
+            }
 
             // Apply per-layer shader properties
             ApplyLayerProperties(_layers, bottle);
@@ -642,6 +644,39 @@ namespace Decantra.Presentation.View3D
             mr.GetPropertyBlock(block);
             block.SetFloat(PropSinkOnly, _isSinkOnly ? 1f : 0f);
             mr.SetPropertyBlock(block);
+        }
+
+        /// <summary>
+        /// Push <paramref name="ratio"/> (bottle.Capacity / levelMaxCapacity) to the
+        /// <c>_CapacityRatio</c> property of the glass and all liquid-layer shaders.
+        /// The shaders use this to scale only the cylindrical body section in the
+        /// vertex shader, leaving the dome and neck+rim at their original sizes.
+        /// </summary>
+        private void ApplyCapacityRatio(float ratio)
+        {
+            // Glass body
+            if (_glassBodyGO != null)
+            {
+                var mr = _glassBodyGO.GetComponent<MeshRenderer>();
+                if (mr != null)
+                {
+                    var block = new MaterialPropertyBlock();
+                    mr.GetPropertyBlock(block);
+                    block.SetFloat(PropSinkOnly, _isSinkOnly ? 1f : 0f);
+                    block.SetFloat(PropCapacityRatio, ratio);
+                    mr.SetPropertyBlock(block);
+                }
+            }
+
+            // Liquid layers
+            for (int i = 0; i < _layerRenderers.Count; i++)
+            {
+                var lr = _layerRenderers[i];
+                if (lr == null) continue;
+                var block = _layerBlocks[i];
+                block.SetFloat(PropCapacityRatio, ratio);
+                lr.SetPropertyBlock(block);
+            }
         }
 
         private static Material CreateFallbackGlassMaterial()

@@ -88,8 +88,41 @@ Shader "Decantra/Liquid3D"
         // Foam/agitation band thickness at layer boundaries (0 = off).
         _FoamBandHeight ("Foam Band Height", Range(0,0.05)) = 0.008
 
+        // Runtime agitation signal from deterministic wobble solver [0..1].
+        _Agitation ("Agitation", Range(0,1)) = 0
+
+        // Foam activates only when agitation exceeds this threshold.
+        _FoamAgitationThreshold ("Foam Agitation Threshold", Range(0,1)) = 0.45
+
         // Hard edge sharpness at layer boundaries; higher = sharper.
         _BoundarySharpness ("Boundary Sharpness", Float) = 200
+
+        // Additional realism controls
+        _BottomDarkening ("Bottom Darkening", Range(0,1)) = 0.22
+        _SurfaceRimStrength ("Surface Rim Strength", Range(0,1)) = 0.22
+        _SurfaceRimWidth ("Surface Rim Width", Range(0.001,0.08)) = 0.018
+        _MeniscusStrength ("Meniscus Strength", Range(0,0.04)) = 0.013
+        _MeniscusEdgeStart ("Meniscus Edge Start", Range(0,1)) = 0.48
+
+        // Cylindrical 3D edge shading.
+        // Simulates a directional light illuminating a cylinder: the front-center
+        // strip (UV.x = 0.5) receives full brightness; side edges fall off.
+        // _CylPower: roll-off exponent (higher = sharper fall-off).
+        // _CylAmbient: minimum brightness floor at the outermost edge (0..1).
+        // Together they guarantee the center stripe is always at full saturation
+        // while sides are significantly darker to emphasise the round 3D shape.
+        _CylPower  ("Cyl Power",   Range(0.5, 4.0)) = 1.8
+        _CylAmbient("Cyl Ambient", Range(0.0, 0.5)) = 0.14
+
+        // Saturation boost applied after cylindrical shading.
+        // Moves colour further from its luminance grey toward pure chroma.
+        // 0 = no boost; 0.4 = saturated, vivid liquids.
+        _SatBoost  ("Sat Boost",   Range(0.0, 1.0)) = 0.40
+
+        // Per-bottle capacity ratio (0.1..1.0). Applied in the vertex shader to
+        // scale ONLY the cylindrical body; dome (bottom) and neck+rim (top) stay
+        // at their original size so every bottle has a clear top and bottom.
+        _CapacityRatio ("Capacity Ratio", Range(0.1, 1.0)) = 1.0
     }
 
     SubShader
@@ -137,33 +170,44 @@ Shader "Decantra/Liquid3D"
             float  _Alpha;
             float  _TranslucencyStrength;
             float  _FoamBandHeight;
+            float  _Agitation;
+            float  _FoamAgitationThreshold;
             float  _BoundarySharpness;
+            float  _BottomDarkening;
+            float  _SurfaceRimStrength;
+            float  _SurfaceRimWidth;
+            float  _MeniscusStrength;
+            float  _MeniscusEdgeStart;
+            float  _CylPower;
+            float  _CylAmbient;
+            float  _SatBoost;
+            float  _CapacityRatio;
 
             // ── Vertex I/O ─────────────────────────────────────────────────
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float2 uv         : TEXCOORD0;
-                float3 normalOS   : NORMAL;
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv         : TEXCOORD0;
-                float3 normalWS   : TEXCOORD1;
-                float3 viewDirWS  : TEXCOORD2;
             };
 
             // ── Vertex shader ──────────────────────────────────────────────
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
+                // Body-only scaling: dome (Y <= -0.425) and neck/rim (Y > 0.800) keep
+                // their full size; only the cylindrical body is stretched by _CapacityRatio.
+                float posY = IN.positionOS.y;
+                if      (posY >  0.800) posY -= 1.225 * (1.0 - _CapacityRatio);
+                else if (posY > -0.425) posY  = -0.425 + (posY + 0.425) * _CapacityRatio;
+                IN.positionOS.y = posY;
                 OUT.positionCS = UnityObjectToClipPos(IN.positionOS);
                 OUT.uv         = IN.uv;
-                OUT.normalWS   = UnityObjectToWorldNormal(IN.normalOS);
-                float3 worldPos = mul(unity_ObjectToWorld, IN.positionOS).xyz;
-                OUT.viewDirWS  = normalize(_WorldSpaceCameraPos - worldPos);
                 return OUT;
             }
 
@@ -175,15 +219,26 @@ Shader "Decantra/Liquid3D"
                 return saturate((x - edge) * sharpness + 0.5);
             }
 
+            float ComputeMeniscusOffset(float uX)
+            {
+                float edge = saturate(abs(uX - 0.5) * 2.0);
+                float edgeCurve = smoothstep(_MeniscusEdgeStart, 1.0, edge);
+                return edgeCurve * edgeCurve * _MeniscusStrength;
+            }
+
+            float ComputeEffectiveFill(float fillY, float uX)
+            {
+                float tiltRad = _SurfaceTiltDegrees * (3.14159265 / 180.0);
+                float tiltOffset = tan(tiltRad) * (uX - 0.5) * 0.5;
+                float meniscus = ComputeMeniscusOffset(uX);
+                return fillY - tiltOffset - meniscus + _WobbleOffset;
+            }
+
             // Sample the liquid color at fill-fraction fillY.
             // Returns RGBA with zero alpha outside all layers or above totalFill.
             float4 sampleLiquid(float fillY, float uX)
             {
-                // Apply surface tilt: effective fill position varies with horizontal UV.
-                // tiltOffset is proportional to UV.x offset from centre (0..1 → -0.5..+0.5).
-                float tiltRad = _SurfaceTiltDegrees * (3.14159265 / 180.0);
-                float tiltOffset = tan(tiltRad) * (uX - 0.5) * 0.5; // scaled to half-width
-                float effectiveFill = fillY - tiltOffset + _WobbleOffset;
+                float effectiveFill = ComputeEffectiveFill(fillY, uX);
 
                 // Clip above total fill surface
                 if (effectiveFill > _TotalFill) return float4(0,0,0,0);
@@ -192,10 +247,14 @@ Shader "Decantra/Liquid3D"
 #define SAMPLE_LAYER(idx, minV, maxV, col) \
     if (idx < _LayerCount && effectiveFill >= minV && effectiveFill < maxV) { \
         float t = (effectiveFill - minV) / max(maxV - minV, 1e-5); \
-        float foam = (_FoamBandHeight > 0) ? \
+        float foam = (_FoamBandHeight > 0 && _Agitation >= _FoamAgitationThreshold) ? \
             smoothstep(1.0 - _FoamBandHeight/(maxV-minV+1e-5), 1.0, t) * 0.35 : 0.0; \
+        float lowerShade = 1.0 - _BottomDarkening * saturate(1.0 - effectiveFill); \
+        float surfaceRim = smoothstep(_TotalFill - _SurfaceRimWidth, _TotalFill, effectiveFill) * _SurfaceRimStrength; \
         float4 c = col; \
         c.rgb = lerp(c.rgb, float3(1,1,1), foam); \
+        c.rgb *= lowerShade; \
+        c.rgb = lerp(c.rgb, float3(1,1,1), surfaceRim); \
         c.rgb = lerp(c.rgb, c.rgb * (1.0 + _TranslucencyStrength), 0.5); \
         c.a = _Alpha; \
         return c; \
@@ -220,6 +279,23 @@ Shader "Decantra/Liquid3D"
             {
                 float4 col = sampleLiquid(IN.uv.y, IN.uv.x);
                 if (col.a < 0.001) discard;
+
+                // ── Cylindrical 3D shading ─────────────────────────────────
+                // UV.x = 0 (left edge) → 0.5 (front center) → 1 (right edge).
+                // cos((uv.x - 0.5)*π): 1.0 at center, 0.0 at both side edges.
+                // Guarantees center vertical stripe is at full color saturation
+                // while sides fall off strongly to reinforce the rounded shape.
+                float cylCos = cos((IN.uv.x - 0.5) * 3.14159265);
+                // pow drives roll-off sharpness; lerp keeps ambient floor so
+                // outermost edges are dark but never fully black.
+                float cylShade = lerp(_CylAmbient, 1.0, pow(cylCos, _CylPower));
+                col.rgb *= cylShade;
+
+                // Saturation boost: push colour away from grey toward pure chroma.
+                // Operates after cylindrical shading so edge darkening stays clean.
+                float lum = dot(col.rgb, float3(0.299, 0.587, 0.114));
+                col.rgb = saturate(lerp(float3(lum, lum, lum), col.rgb, 1.0 + _SatBoost));
+
                 return col;
             }
 
@@ -227,5 +303,5 @@ Shader "Decantra/Liquid3D"
         }
     }
 
-    FallBack "Hidden/InternalErrorShader"
+    FallBack Off
 }
