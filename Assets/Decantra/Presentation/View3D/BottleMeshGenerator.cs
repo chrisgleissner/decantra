@@ -75,24 +75,38 @@ namespace Decantra.Presentation.View3D
         public const float RimLipHeight = 0.035f;
 
         // ── Stopper / cork geometry ───────────────────────────────────────────
-        /// <summary>
-        /// Radius of the cylindrical cork/stopper that sits in and peeks above the neck.
-        /// Slightly smaller than the inner neck wall so the stopper fits snugly.
-        /// </summary>
-        public const float StopperRadius = NeckRadius - GlassThickness * 0.65f;  // ≈ 0.1218
+        // Spec:
+        //   cork diameter  ≈ neck_diameter × 1.05  →  StopperRadius = NeckRadius × 1.05
+        //   cork thickness ≈ neck_diameter × 0.20  →  2 × NeckRadius × 0.20 = 0.056 wu
+        //   60–80% inside neck, 20–40% protrudes above rim  →  70% / 30% split
+        //
+        // NeckDiameter = 2 × NeckRadius = 0.280 wu
+        // CorkDiameter = 0.280 × 1.05   = 0.294 wu  (slightly wider than neck — creates seal)
+        // CorkThickness = 0.280 × 0.20  = 0.056 wu
+        //   InsideDepth = 0.056 × 0.70  = 0.039 wu   (70% inside)
+        //   PeekHeight  = 0.056 × 0.30  = 0.017 wu   (30% above rim)
 
         /// <summary>
-        /// How far below the top of the neck lip the stopper extends (depth inside neck).
+        /// Radius of the cylindrical cork stopper.
+        /// Spec: cork diameter ≈ neck diameter × 1.05 so the cork is visible slightly
+        /// wider than the outer neck, creating a physical seal impression.
         /// </summary>
-        public const float StopperInsideDepth = 0.030f;
+        public const float StopperRadius = NeckRadius * 1.05f;               // ≈ 0.147 wu
 
         /// <summary>
-        /// How far the stopper peeks above the outer rim top.
+        /// Depth the stopper is inserted into the neck (70% of total thickness).
+        /// The stopper mesh bottom sits at StopperBaseY; the glass neck walls surround it.
         /// </summary>
-        public const float StopperPeekHeight = 0.028f;
+        public const float StopperInsideDepth = 2f * NeckRadius * 0.2f * 0.70f;  // ≈ 0.039 wu
 
         /// <summary>
-        /// Total height of the stopper cylinder mesh (inside portion + peek portion).
+        /// Height the stopper protrudes above the outer rim top (30% of total thickness).
+        /// </summary>
+        public const float StopperPeekHeight = 2f * NeckRadius * 0.2f * 0.30f;   // ≈ 0.017 wu
+
+        /// <summary>
+        /// Total height of the stopper cylinder mesh = InsideDepth + PeekHeight.
+        /// Equals neck_diameter × 0.20 = 0.056 wu.
         /// </summary>
         public const float StopperTotalHeight = StopperInsideDepth + StopperPeekHeight;
 

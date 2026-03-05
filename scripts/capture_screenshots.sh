@@ -239,6 +239,7 @@ expected=(
   "auto_solve_complete.png"
   "completed_bottle_topper.png"
   "v2-layout-report.json"
+  "cork-layout-report.json"
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"
   "screenshot-03-level-01.png"
@@ -425,6 +426,17 @@ cp -f "${OUTPUT_DIR}/sink_count_1.png"             "${v2_dir}/sink-bottle.png"  
 cp -f "${OUTPUT_DIR}/completed_bottle_topper.png"  "${v2_dir}/completed-bottle-topper.png" 2>/dev/null || true
 cp -f "${OUTPUT_DIR}/v2-layout-report.json"        "${PROJECT_ROOT}/docs/repro/3d-bottle-regressions/v2-layout-report.json" 2>/dev/null || true
 echo "   v2 verification artifacts at ${v2_dir}"
+
+# ── Copy v3 verification artifacts to docs repo path (cork stoppers, Plan 21) ───
+echo "==> Copying v3 verification artifacts (cork stoppers)..."
+v3_dir="${PROJECT_ROOT}/docs/repro/3d-bottle-regressions/final-verification-v3"
+mkdir -p "${v3_dir}"
+cp -f "${OUTPUT_DIR}/screenshot-09-level-20.png"        "${v3_dir}/level-20.png"              2>/dev/null || true
+cp -f "${OUTPUT_DIR}/screenshot-07-level-36.png"        "${v3_dir}/level-36.png"              2>/dev/null || true
+cp -f "${OUTPUT_DIR}/screenshot-08-level-10.png"        "${v3_dir}/level-3x3.png"             2>/dev/null || true
+cp -f "${OUTPUT_DIR}/completed_bottle_topper.png"       "${v3_dir}/completed-bottle-cork.png"  2>/dev/null || true
+cp -f "${OUTPUT_DIR}/cork-layout-report.json"           "${PROJECT_ROOT}/docs/repro/3d-bottle-regressions/cork-layout-report.json" 2>/dev/null || true
+echo "   v3 verification artifacts at ${v3_dir}"
 
 if [[ "${CAPTURE_MOTION}" == "true" ]]; then
   echo "\n==> Capturing starfield motion frames"

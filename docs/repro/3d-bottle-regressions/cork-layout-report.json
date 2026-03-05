@@ -1,0 +1,11 @@
+{
+  "overlapDetected": false,
+  "hudIntrusionDetected": false,
+  "completedBottleCount": 0,
+  "corkCount": 0,
+  "topperCount": 0,
+  "sinkBottleCount": 0,
+  "activeBottleCount": 0,
+  "generatedAt": "PENDING — run ./build --screenshots to populate",
+  "_note": "This stub will be overwritten by Bottle3DView.WriteReport() during a live screenshot run."
+}

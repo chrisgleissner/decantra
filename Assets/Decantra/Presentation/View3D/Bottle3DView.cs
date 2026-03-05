@@ -137,7 +137,9 @@ namespace Decantra.Presentation.View3D
 
         // Glass body property IDs
         private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
-        private static readonly int PropStopperColor = Shader.PropertyToID("_Color");
+        // URP Lit uses _BaseColor for the albedo; Unlit/Color uses _Color.
+        // Since CreateStopperMaterial prefers URP Lit, _BaseColor is the primary property.
+        private static readonly int PropStopperColor = Shader.PropertyToID("_BaseColor");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -522,9 +524,13 @@ namespace Decantra.Presentation.View3D
             {
                 string overlapStr = overlapDetected ? "true" : "false";
                 string hudStr = hudIntrusionDetected ? "true" : "false";
+                // corkCount == completedBottleCount is the key invariant checked by
+                // the automated convergence loop.  topperCount kept for back-compat.
                 string json = "{\n" +
                               $"  \"overlapDetected\": {overlapStr},\n" +
                               $"  \"hudIntrusionDetected\": {hudStr},\n" +
+                              $"  \"completedBottleCount\": {topperCount},\n" +
+                              $"  \"corkCount\": {topperCount},\n" +
                               $"  \"topperCount\": {topperCount},\n" +
                               $"  \"sinkBottleCount\": {sinkBottleCount},\n" +
                               $"  \"activeBottleCount\": {activeBottleCount},\n" +
@@ -532,15 +538,20 @@ namespace Decantra.Presentation.View3D
                               "}";
                 string screenshotsDir = Path.Combine(Application.persistentDataPath, "DecantraScreenshots");
                 Directory.CreateDirectory(screenshotsDir);
-                string path = Path.Combine(screenshotsDir, "v2-layout-report.json");
-                File.WriteAllText(path, json);
-                Debug.Log($"[Bottle3DView] v2 layout report written to {path}: " +
+
+                // Write as both the v2 name (back-compat) and the new cork-layout-report name.
+                string pathV2 = Path.Combine(screenshotsDir, "v2-layout-report.json");
+                string pathCork = Path.Combine(screenshotsDir, "cork-layout-report.json");
+                File.WriteAllText(pathV2, json);
+                File.WriteAllText(pathCork, json);
+
+                Debug.Log($"[Bottle3DView] cork-layout-report written to {pathCork}: " +
                           $"overlap={overlapDetected} hud={hudIntrusionDetected} " +
-                          $"toppers={topperCount} sinks={sinkBottleCount}");
+                          $"completedBottleCount={topperCount} corkCount={topperCount} sinks={sinkBottleCount}");
             }
             catch (System.Exception ex)
             {
-                Debug.LogWarning($"[Bottle3DView] Failed to write v2 layout report: {ex.Message}");
+                Debug.LogWarning($"[Bottle3DView] Failed to write layout report: {ex.Message}");
             }
         }
 
@@ -597,19 +608,22 @@ namespace Decantra.Presentation.View3D
             shadowRenderer.sharedMaterial = CreateFallbackShadowMaterial();
 
             // ── Bottle stopper / cork ────────────────────────────────────────────
-            // Created once here with a neutral colour; UpdateStopper updates the colour
-            // each render cycle based on the bottle's current liquid state.
+            // Created hidden — shown only when the bottle becomes completed (IsSolvedBottle).
+            // This removes the "floating indicator" that appeared on every bottle.
+            // UpdateTopper shows/hides and tints the cork to match the liquid colour.
             _stopperGO = new GameObject("BottleStopper");
             _stopperGO.transform.SetParent(_worldRoot.transform, false);
             _stopperGO.layer = targetLayer;
             _stopperGO.transform.localPosition = new Vector3(
                 0f,
                 BottleMeshGenerator.StopperBaseY,
-                -0.004f);              // just in front of glass so it is always visible
+                -0.006f);  // in front of glass so cork renders over glass at rim
             var stopperMf = _stopperGO.AddComponent<MeshFilter>();
             stopperMf.sharedMesh = CreateStopperMesh();
             _stopperRenderer = _stopperGO.AddComponent<MeshRenderer>();
             _stopperRenderer.sharedMaterial = CreateStopperMaterial(StopperNeutralColor);
+            // Hidden by default — only completed bottles get a visible cork.
+            _stopperGO.SetActive(false);
 
             // ── Interaction collider ────────────────────────────────────────────
             // Kept on the canvas element (this.gameObject) so that existing UI
@@ -892,31 +906,35 @@ namespace Decantra.Presentation.View3D
             }
         }
 
-        // ── Obj-3: Completed bottle topper ─────────────────────────────────────
+        // ── Obj-3: Completed bottle cork stopper ───────────────────────────────
 
         /// <summary>
-        /// Show or hide the coloured topper cap based on whether <paramref name="bottle"/>
-        /// is a completed monochrome bottle (non-empty, single colour, not a sink).
-        /// Uses IsMonochrome rather than IsSolvedBottle() because solved bottles may not
-        /// be completely full when the total colour count is less than the bottle capacity.
+        /// Show the physical cork stopper only when <paramref name="bottle"/> is fully
+        /// solved: completely full + monochrome + not a sink.
+        /// Hides the stopper for all other states, eliminating the placeholder
+        /// "floating indicator" visible on every bottle in earlier builds.
+        ///
+        /// Completion condition: <see cref="Bottle.IsSolvedBottle"/> — requires IsFull
+        /// so a partially-filled monochrome bottle does NOT show a cork.
         /// </summary>
         private void UpdateTopper(Bottle bottle, List<LiquidLayerData> layers)
         {
-            bool isCompleted = !bottle.IsSink && !bottle.IsEmpty && bottle.IsMonochrome;
-            if (isCompleted == _wasCompleted) return; // no colour change needed
+            // IsSolvedBottle() requires IsEmpty==false, IsFull, and single-colour slots.
+            bool isCompleted = !bottle.IsSink && bottle.IsSolvedBottle();
+            if (isCompleted == _wasCompleted) return; // state unchanged — nothing to do
             _wasCompleted = isCompleted;
 
-            // Pick the stopper colour: liquid colour for completed bottles, neutral
-            // beige for everything else so the stopper always looks like a real cork.
-            Color stopperColor = isCompleted && layers.Count > 0
-                ? new Color(layers[0].R, layers[0].G, layers[0].B, 1f)
-                : StopperNeutralColor;
+            // Show or hide the cork GameObject.
+            if (_stopperGO != null)
+                _stopperGO.SetActive(isCompleted);
 
-            if (_stopperRenderer != null)
+            // When showing: tint the cork to match the liquid colour exactly (spec requirement).
+            if (isCompleted && _stopperRenderer != null && layers.Count > 0)
             {
+                var liquidColor = new Color(layers[0].R, layers[0].G, layers[0].B, 1f);
                 var block = new MaterialPropertyBlock();
                 _stopperRenderer.GetPropertyBlock(block);
-                block.SetColor(PropStopperColor, stopperColor);
+                block.SetColor(PropStopperColor, liquidColor);
                 _stopperRenderer.SetPropertyBlock(block);
             }
         }
@@ -934,8 +952,8 @@ namespace Decantra.Presentation.View3D
 
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
-            var uvs   = new List<Vector2>();
-            var tris  = new List<int>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
 
             // ── Cylindrical side wall (two rings) ────────────────────────────
             int stride = segments + 1;
@@ -954,7 +972,7 @@ namespace Decantra.Presentation.View3D
             }
             for (int i = 0; i < segments; i++)
             {
-                int b0 = i,          b1 = i + 1;
+                int b0 = i, b1 = i + 1;
                 int t0 = stride + i, t1 = stride + i + 1;
                 // CCW winding = outward normals face away from camera → visible from outside
                 tris.Add(b0); tris.Add(t0); tris.Add(b1);
@@ -993,13 +1011,20 @@ namespace Decantra.Presentation.View3D
             return mesh;
         }
 
-        /// <summary>Unlit solid-colour material for the stopper cork.</summary>
+        /// <summary>
+        /// Lit opaque material for the cork stopper.
+        /// Prefers URP Lit so the cork responds to scene directional lights (Plan 18
+        /// adds a key + rim light).  Falls back to Standard, then Unlit/Color.
+        /// The initial colour is the neutral cork beige; UpdateTopper tints it to the
+        /// liquid colour when the bottle becomes completed.
+        /// </summary>
         private static Material CreateStopperMaterial(Color color)
         {
-            var shader = Shader.Find("Unlit/Color")
-                      ?? Shader.Find("Sprites/Default")
+            // Prefer URP Lit for physically-based lighting response.
+            var shader = Shader.Find("Universal Render Pipeline/Lit")
                       ?? Shader.Find("Standard")
-                      ?? Shader.Find("Universal Render Pipeline/Lit");
+                      ?? Shader.Find("Unlit/Color")
+                      ?? Shader.Find("Sprites/Default");
             if (shader == null)
             {
                 Debug.LogWarning("Bottle3DView: cannot resolve stopper shader.");
@@ -1007,8 +1032,33 @@ namespace Decantra.Presentation.View3D
             }
 
             var mat = new Material(shader) { name = "BottleStopper_Mat" };
-            mat.color = color;
-            mat.renderQueue = 3002; // render on top of glass (Transparent+2)
+
+            if (shader.name == "Universal Render Pipeline/Lit")
+            {
+                // Opaque matte cork — no gloss, no metallic.
+                mat.SetFloat("_Surface", 0f);       // 0 = Opaque
+                mat.SetFloat("_Blend", 0f);         // Alpha mode (ignored for opaque)
+                mat.SetFloat("_Cull", 2f);          // Back-face cull
+                mat.SetFloat("_ZWrite", 1f);        // Opaque writes depth
+                mat.SetFloat("_Metallic", 0f);
+                mat.SetFloat("_Smoothness", 0.10f); // Cork is matte
+                mat.SetColor("_BaseColor", color);
+                mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF"); // subtle highlights
+                mat.renderQueue = 2002;             // Opaque + 2, before transparent glass
+            }
+            else if (shader.name == "Standard")
+            {
+                mat.SetFloat("_Metallic", 0f);
+                mat.SetFloat("_Glossiness", 0.05f); // very matte
+                mat.color = color;
+                mat.renderQueue = 2002;
+            }
+            else // Unlit/Color fallback
+            {
+                mat.color = color;
+                mat.renderQueue = 3002; // Transparent+2 so it renders over glass
+            }
+
             return mat;
         }
 

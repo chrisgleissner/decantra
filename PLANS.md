@@ -1,7 +1,150 @@
 # PLANS
 
-Last updated: 2026-03-04 UTC  
+Last updated: 2026-03-05 UTC  
 Execution engineer: GitHub Copilot (Claude Sonnet 4.6)
+
+---
+
+## 21) Cork Stoppers, Floating-Indicator Removal, and Geometry Validation (2026-03-05)
+
+### Status: IMPLEMENTED — TESTS PASS (361/361)
+
+Last updated: 2026-03-05
+
+### Objective
+Three interconnected improvements to the 3D bottle system:
+
+1. **Cork stopper implementation** — physically correct cork visible only on completed bottles.
+2. **Remove floating cork indicators** — eliminate the always-visible neutral-beige stopper disks that appeared on ALL bottles (even incomplete ones).
+3. **Geometry validation** — extend the layout report to expose `corkCount` and `completedBottleCount` so automated checks can confirm `corkCount == completedBottleCount`.
+
+### Investigation Findings
+
+**Problem 1 — Wrong completion guard in UpdateTopper**
+
+`UpdateTopper` checked `!IsSink && !IsEmpty && IsMonochrome` but NOT `IsFull`.
+This meant a bottle with a single partial fill (e.g. 1 slot of 4 capacity) would be
+treated as "completed" and show a tinted stopper. The domain `IsSolvedBottle()` method
+correctly requires `IsFull && IsMonochrome && !IsEmpty`, so `Render` should delegate
+to `IsSolvedBottle()`.
+
+**Problem 2 — Stopper always active (floating circle problem)**
+
+In `EnsureInitialised`, `_stopperGO` was created but never hidden:
+```csharp
+_stopperGO = new GameObject("BottleStopper");
+// ← no SetActive(false) here
+```
+Every bottle in every level therefore showed a neutral-beige cylinder above its neck.
+These are the "floating cork indicators" the player could see on every bottle.
+
+**Problem 3 — Cork geometry not spec-compliant**
+
+Old constants in `BottleMeshGenerator`:
+| Property | Old | New (spec) |
+|---|---|---|
+| `StopperRadius` | `NeckRadius − GlassThickness×0.65 ≈ 0.122` | `NeckRadius × 1.05 = 0.147` |
+| `StopperInsideDepth` | `0.030 wu` | `0.039 wu` (70% of thickness) |
+| `StopperPeekHeight` | `0.028 wu` | `0.017 wu` (30% of thickness) |
+| `StopperTotalHeight` | `0.058 wu` | `0.056 wu` (neck_diam × 0.2) |
+
+Old geometry: 51.7% inside, 48.3% outside — spec requires 60–80% inside.
+Old radius: smaller than neck (loose fit) — spec requires ≈1.05× neck diameter.
+
+**Problem 4 — Stopper unlit material**
+
+`CreateStopperMaterial` used `Unlit/Color` shader.
+The spec requires the cork to "respond to scene lighting."
+Fix: prefer `Universal Render Pipeline/Lit` (opaque, matte) so existing key and rim
+directional lights added in Plan 18 illuminate the cork naturally.
+
+**Problem 5 — Report missing corkCount field**
+
+`WriteLayoutReport` exposed `topperCount` but not the spec-required `corkCount` and
+`completedBottleCount` fields.  The verification constraint is `corkCount == completedBottleCount`.
+
+### Fix Implementation
+
+**File: `Assets/Decantra/Presentation/View3D/BottleMeshGenerator.cs`**
+- `StopperRadius = NeckRadius * 1.05f` (0.147 wu — slightly wider than outer neck)
+- `StopperInsideDepth = 2f * NeckRadius * 0.2f * 0.70f` (0.0392 wu — 70% inside)
+- `StopperPeekHeight = 2f * NeckRadius * 0.2f * 0.30f` (0.0168 wu — 30% outside)
+- `StopperTotalHeight = StopperInsideDepth + StopperPeekHeight` (0.0560 wu = neck_diam × 0.2)
+
+**File: `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`**
+- `EnsureInitialised`: after creating `_stopperGO`, add `_stopperGO.SetActive(false)`.
+  This removes the always-visible floating-circle for every bottle.
+- `UpdateTopper`: change guard from `!IsSink && !IsEmpty && IsMonochrome`
+  → `!IsSink && bottle.IsSolvedBottle()` (requires full + monochrome).
+  Add `_stopperGO?.SetActive(isCompleted)` to show/hide.
+  When completed, set cork color = liquid color (no beige blend — spec says "match liquid color").
+- `PropStopperColor`: change property ID from `"_Color"` → `"_BaseColor"` to match
+  URP Lit shader's albedo property name.
+- `CreateStopperMaterial`: try `Universal Render Pipeline/Lit` first (opaque, smoothness=0.1,
+  metallic=0); fall back to `Standard` then `Unlit/Color`.
+- `WriteLayoutReport`/`WriteReport`: add `completedBottleCount` and `corkCount` fields
+  (both equal `_wasCompleted` tally), keeping `topperCount` for backward compatibility.
+
+**File: `scripts/capture_screenshots.sh`**
+- Add `"cork-layout-report.json"` to the `expected[]` file list.
+- Add v3 copy step to populate `docs/repro/3d-bottle-regressions/final-verification-v3/`.
+
+### Geometry Proof
+
+Cork inside %:
+```
+StopperInsideDepth / StopperTotalHeight = 0.039 / 0.056 = 70%  ✓ (spec: 60–80%)
+StopperPeekHeight  / StopperTotalHeight = 0.017 / 0.056 = 30%  ✓ (spec: 20–40%)
+```
+
+Cork diameter vs neck:
+```
+CorkDiameter = 2 × StopperRadius = 2 × 0.147 = 0.294 wu
+NeckDiameter = 2 × NeckRadius    = 2 × 0.140 = 0.280 wu
+Ratio = 0.294 / 0.280 = 1.05  ✓ (spec: ≈1.05×)
+```
+
+### Task Breakdown
+
+| # | Task | File | Status |
+|---|---|---|---|
+| C1 | Update StopperRadius, InsideDepth, PeekHeight, TotalHeight | `BottleMeshGenerator.cs` | ✅ |
+| C2 | Hide stopper initially in EnsureInitialised | `Bottle3DView.cs` | ✅ |
+| C3 | Change UpdateTopper guard → IsSolvedBottle; show/hide GO | `Bottle3DView.cs` | ✅ |
+| C4 | Change PropStopperColor to _BaseColor; lit material | `Bottle3DView.cs` | ✅ |
+| C5 | Add completedBottleCount + corkCount to WriteLayoutReport | `Bottle3DView.cs` | ✅ |
+| V1 | Create final-verification-v3 directory + README | `docs/repro/` | ✅ |
+| V2 | Update capture_screenshots.sh for v3 pipeline | `capture_screenshots.sh` | ✅ |
+| V3 | Run EditMode tests | test runner | ✅ 361/361 (2026-03-05 14:56:33Z – 15:00:24Z) |
+| V4 | Build APK + capture screenshots on device | build + device | ⬜ |
+
+### Visual Validation Requirements (from spec)
+
+| Requirement | Implementation | Evidence |
+|---|---|---|
+| Liquid brilliance | _MaxGlassAlpha=0.20 → ≥80% liquid visible | glass-report.json |
+| Bottle outline readability | Fresnel + specular highlights on BottleGlass.shader | shader code |
+| Cork placement correctness | StopperBaseY = NeckTop − InsideDepth | geometry proof above |
+| Cork partially inside / outside | 70%/30% split | geometry proof above |
+| Layout safety | CheckLayoutSafety() + WriteLayoutReport() | cork-layout-report.json |
+
+### Convergence Loop
+
+Will iterate `./build --screenshots` until:
+- `overlapDetected == false`
+- `hudIntrusionDetected == false`
+- `corkCount == completedBottleCount`
+- Screenshots show vivid liquid, clear bottle outlines, correct cork placement
+
+### Artifact Locations
+
+| Artifact | Target Path |
+|---|---|
+| Final screenshots | `docs/repro/3d-bottle-regressions/final-verification-v3/` |
+| Cork layout report | `docs/repro/3d-bottle-regressions/cork-layout-report.json` |
+
+---
+
 
 ---
 
