@@ -1,8 +1,10 @@
 {
   "overlapDetected": false,
   "hudIntrusionDetected": false,
+  "completedBottleCount": 7,
+  "corkCount": 7,
   "topperCount": 7,
   "sinkBottleCount": 0,
   "activeBottleCount": 9,
-  "generatedAt": "2026-03-05T11:47:05Z"
+  "generatedAt": "2026-03-05T15:30:30Z"
 }

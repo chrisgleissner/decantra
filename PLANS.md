@@ -7,7 +7,7 @@ Execution engineer: GitHub Copilot (Claude Sonnet 4.6)
 
 ## 21) Cork Stoppers, Floating-Indicator Removal, and Geometry Validation (2026-03-05)
 
-### Status: IMPLEMENTED — TESTS PASS (361/361)
+### Status: IMPLEMENTED — RUNTIME VERIFIED (corkCount=7 == completedBottleCount=7)
 
 Last updated: 2026-03-05
 
@@ -116,7 +116,57 @@ Ratio = 0.294 / 0.280 = 1.05  ✓ (spec: ≈1.05×)
 | V1 | Create final-verification-v3 directory + README | `docs/repro/` | ✅ |
 | V2 | Update capture_screenshots.sh for v3 pipeline | `capture_screenshots.sh` | ✅ |
 | V3 | Run EditMode tests | test runner | ✅ 361/361 (2026-03-05 14:56:33Z – 15:00:24Z) |
-| V4 | Build APK + capture screenshots on device | build + device | ⬜ |
+| V4 | Build APK + capture screenshots on device | build + device | ✅ corkCount=7 (2026-03-05 15:30Z) |
+
+### Additional Implementation: Screenshot Capture Timing Fix
+
+`CaptureAutoSolveEvidence` originally waited `WaitForSeconds(0.15f)` before capturing
+`auto_solve_complete.png`. Investigation showed:
+- `HandleLevelComplete()` starts `LevelCompleteBanner.Show()` synchronously when `_isAutoSolving` becomes
+  false. `AnimatePanel` immediately sets `canvasGroup.alpha = 0f` and starts a SmoothStep fade-in
+  over `enterDuration ≥ 0.45s`.
+- After 1 frame (16ms) the banner alpha = `SmoothStep(0.016/0.45) ≈ 0.004` — essentially invisible.
+- After 0.15s the banner alpha = `SmoothStep(0.15/0.45) ≈ 0.5` — dark overlay clearly visible.
+**Fix**: removed `yield return new WaitForSeconds(0.15f)` before both screenshot captures, letting
+`WaitForEndOfFrame` catch the FIRST frame after `_isAutoSolving = false`. The banner is transparent
+at this point and the fully-corked bottle grid is visible.
+
+### Exit Criteria Verification (2026-03-05 15:30Z)
+
+| Criterion | Observed | ✅/❌ |
+|---|---|---|
+| overlapDetected | false | ✅ |
+| hudIntrusionDetected | false | ✅ |
+| corkCount | 7 | ✅ |
+| completedBottleCount | 7 | ✅ |
+| corkCount == completedBottleCount | true | ✅ |
+| capture.complete written | yes | ✅ |
+| completed_bottle_topper.png captured | yes | ✅ |
+
+```json
+// docs/repro/3d-bottle-regressions/cork-layout-report.json
+{
+  "overlapDetected": false,
+  "hudIntrusionDetected": false,
+  "completedBottleCount": 7,
+  "corkCount": 7,
+  "topperCount": 7,
+  "sinkBottleCount": 0,
+  "activeBottleCount": 9,
+  "generatedAt": "2026-03-05T15:30:30Z"
+}
+```
+— `corkCount == completedBottleCount` ✓  
+— `capture.complete` written — full sequence ran without crash ✓
+
+### Cork Visual Peek Size
+
+At the emulator camera configuration, `StopperPeekHeight = 0.017 wu ≈ 1–2 pixels` on screen.
+The peek is detectable at pixel level (pixel comparison of step-01 vs step-06 shows orange pixels
+appearing 1px above the bottle rim on completed bottles), but too small for casual inspection.
+The cork DIAMETER is `2 × 0.147 = 0.294 wu ≈ 40px` and renders as a colored disc, while the
+height is the limiting factor. A follow-up task could increase peek height if more visible
+corking cues are desired.
 
 ### Visual Validation Requirements (from spec)
 
