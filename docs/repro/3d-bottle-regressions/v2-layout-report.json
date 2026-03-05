@@ -1,10 +1,13 @@
 {
-  "overlapDetected": false,
+  "bottleCount": 9,
+  "bottleOverlapDetected": false,
+  "shadowOverlapDetected": true,
   "hudIntrusionDetected": false,
   "completedBottleCount": 7,
   "corkCount": 7,
   "topperCount": 7,
   "sinkBottleCount": 0,
   "activeBottleCount": 9,
-  "generatedAt": "2026-03-05T15:30:30Z"
+  "overlapDetected": false,
+  "generatedAt": "2026-03-05T18:26:57Z"
 }

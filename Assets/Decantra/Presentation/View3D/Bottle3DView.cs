@@ -544,9 +544,9 @@ namespace Decantra.Presentation.View3D
         {
             try
             {
-                string overlapStr       = overlapDetected       ? "true" : "false";
+                string overlapStr = overlapDetected ? "true" : "false";
                 string shadowOverlapStr = shadowOverlapDetected ? "true" : "false";
-                string hudStr           = hudIntrusionDetected  ? "true" : "false";
+                string hudStr = hudIntrusionDetected ? "true" : "false";
                 // corkCount == completedBottleCount is the key invariant checked by
                 // the automated convergence loop.  topperCount kept for back-compat.
                 string json = "{\n" +
@@ -566,9 +566,9 @@ namespace Decantra.Presentation.View3D
                 Directory.CreateDirectory(screenshotsDir);
 
                 // Write as both the v2 name (back-compat) and the new cork-layout-report name.
-                string pathV2   = Path.Combine(screenshotsDir, "v2-layout-report.json");
+                string pathV2 = Path.Combine(screenshotsDir, "v2-layout-report.json");
                 string pathCork = Path.Combine(screenshotsDir, "cork-layout-report.json");
-                File.WriteAllText(pathV2,   json);
+                File.WriteAllText(pathV2, json);
                 File.WriteAllText(pathCork, json);
 
                 Debug.Log($"[Bottle3DView] cork-layout-report written to {pathCork}: " +
@@ -1206,8 +1206,8 @@ namespace Decantra.Presentation.View3D
             {
                 // Ensure alpha blending for non-Unlit shaders
                 material.SetFloat("_Surface", 1f);
-                material.SetFloat("_Blend",   0f);
-                material.SetFloat("_ZWrite",  0f);
+                material.SetFloat("_Blend", 0f);
+                material.SetFloat("_ZWrite", 0f);
             }
             return material;
         }
