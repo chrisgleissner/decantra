@@ -5,6 +5,127 @@ Execution engineer: GitHub Copilot (Claude Sonnet 4.6)
 
 ---
 
+## 22) Visual & Gameplay Clarity: Cork Realism, Shadow Constraints, Empty Bottle Readability, Neck Capacity Marker (2026-03-05)
+
+### Status: IMPLEMENTED — PENDING BUILD VERIFICATION
+
+Last updated: 2026-03-05
+
+### Objective
+
+Four linked improvements to the 3D bottle visual system:
+
+1. **Realistic cork stoppers** — previous cork was too flat (aspect ratio 0.38, spec mandates 1.2–2.0). New taller cork with proper lit shader (procedural pore/grain noise, Lambertian diffuse, matte Blinn-Phong).
+2. **Shadow constraints** — contact shadow scale reduced (0.38→0.20) with opacity 12%→8%, positioned closer to dome (−0.10 wu vs −0.19 wu) so shadow stays within the bottle's own footprint and cannot project into the Y range of bottles below.
+3. **Empty bottle readability** — `_FresnelPower` 4.5→3.0 (wider edge glow coverage), `_FresnelColor.a` 0.36→0.55, `_GlassTint.a` 0.09→0.14 (more internal haze), `_MaxGlassAlpha` 0.20→0.28.
+4. **Neck capacity marker** — subtle darkening band on the glass at the body-shoulder junction, showing exactly where the fillable chamber ends. Position computed analytically from `_CapacityRatio` uniform.
+
+Additionally, fixed the circular specular highlight on the bottom dark area of sink bottles (the Blinn-Phong hotspot on the hemispherical dome was being incorrectly composed into the sink-only band).
+
+### Root Cause Analysis
+
+**Cork aspect ratio failure**
+
+Old constants used `StopperTotalHeight = neck_diameter × 0.20 = 0.056 wu`. This gives:
+```
+aspect ratio = height / radius = 0.056 / 0.147 = 0.38
+spec requires: 1.2 ≤ aspect ratio ≤ 2.0  → FAILED
+```
+
+Fix: `StopperTotalHeight = NeckRadius × 1.6 = 0.224 wu` → aspect ratio `0.224 / 0.147 = 1.52` ✓
+
+**Cork appearance flat/unlit**
+
+`CreateStopperMaterial` used `Sprites/Default` (unlit flat color). No shading gradient, no texture detail.
+
+Fix: new `Decantra/CorkStopper` shader — Lambertian diffuse, matte Blinn-Phong (shininess=14), 2-octave value-noise pore pattern and grain lines.
+
+**Shadow overlap risk**
+
+Contact shadow was positioned `−0.19 wu` below `InteriorBottomY` at scale `(0.38, 0.38, 1)`. In tighter grids (row spacing < `1.9 wu * VisualScale`) the shadow Y could fall within another bottle's bounds.
+
+Fix: position `−0.10 wu` below `InteriorBottomY`, scale `(0.20, 0.20, 1)`, opacity `0.08`. The new shadow can never protrude more than `0.10 wu` below the bottle dome — well within the gap between any rows tested.
+
+**Empty bottle glass invisible**
+
+`_GlassTint.a = 0.09` plus `_FresnelPower = 4.5` (very narrow grazing coverage) resulted in near-invisible glass for empty bottles against the background.
+
+**Neck capacity communication absent**
+
+No visual cue marked where the liquid fill region ends. Players had to infer from the liquid level itself.
+
+### Implementation Summary
+
+| Area | File | Change |
+|---|---|---|
+| Cork height | `BottleMeshGenerator.cs` | `StopperTotalHeight = NeckRadius × 1.6f = 0.224 wu` |
+| Cork inside | `BottleMeshGenerator.cs` | `StopperInsideDepth = Total × 0.75 = 0.168 wu` (75%) |
+| Cork peek | `BottleMeshGenerator.cs` | `StopperPeekHeight = Total × 0.25 = 0.056 wu` (25%) |
+| Cork shader | New `Shaders/CorkStopper.shader` | Lit matte + value-noise pores/grain + AO rim |
+| Cork material | `Bottle3DView.cs` | Prefer `Decantra/CorkStopper` over `Sprites/Default` |
+| Shadow scale | `Bottle3DView.cs` | 0.38 → 0.20; Y offset −0.19 → −0.10 |
+| Shadow opacity | `Bottle3DView.cs` | 0.12 → 0.08 |
+| Shadow detection | `Bottle3DView.cs` | `shadowOverlapDetected` added to both CheckLayoutSafety and WriteReport |
+| Glass Fresnel | `BottleGlass.shader` | Power 4.5→3.0, alpha 0.36→0.55, tint alpha 0.09→0.14, MaxAlpha 0.20→0.28 |
+| Neck marker | `BottleGlass.shader` | UV band at `(0.57+1.6c)/(0.935+1.6c)` in GLASS_FRONT pass |
+| Report fields | `Bottle3DView.cs` | Added `bottleCount`, `bottleOverlapDetected`, `shadowOverlapDetected` |
+| Report target | `docs/repro/visual-verification/layout-report.json` | Seed file + runtime pull target |
+| Sink dome fix | `BottleGlass.shader` | Removed Blinn-Phong gloss from `domeMask` → no circular highlight |
+
+### Cork Geometry Proof
+
+```
+StopperRadius     = NeckRadius × 1.05 = 0.14 × 1.05 = 0.147 wu
+StopperTotalHeight = NeckRadius × 1.6  = 0.14 × 1.6  = 0.224 wu
+Aspect ratio      = 0.224 / 0.147     = 1.52  ✓  (spec: 1.2–2.0)
+InsideDepth       = 0.224 × 0.75      = 0.168 wu  (75% inside ✓, spec: 70–80%)
+PeekHeight        = 0.224 × 0.25      = 0.056 wu  (25% above rim ✓, spec: 20–30%)
+```
+
+### Shadow Geometry Proof
+
+Shadow Y in world space = worldRootY + (InteriorBottomY − 0.10) × VisualScale
+                        = worldRootY + (−0.61 − 0.10) × 0.92
+                        = worldRootY − 0.653 wu
+
+For row spacing S (observed ≈ 2.4 wu):
+  Shadow from row 1 at worldY = worldRoot1 − 0.653
+  Top of row 2 bottle         = worldRoot2 + 1.165 = worldRoot1 − 2.4 + 1.165 = worldRoot1 − 1.235
+  
+  shadow Y (−0.653) > row2 top (−1.235) → shadow is ABOVE row2 tops → no overlap ✓
+
+### Runtime Report Fields (updated)
+
+```json
+{
+  "bottleCount": N,
+  "bottleOverlapDetected": false,
+  "shadowOverlapDetected": false,
+  "hudIntrusionDetected": false,
+  "completedBottleCount": N,
+  "corkCount": N,
+  "sinkBottleCount": N,
+  "activeBottleCount": N,
+  "overlapDetected": false
+}
+```
+
+### Acceptance Criteria
+
+| # | Criterion | How proven |
+|---|---|---|
+| 1 | Corks cylindrical & realistic | `CorkStopper.shader` | 
+| 2 | Corks protrude from neck | `StopperPeekHeight = 0.056 wu` | 
+| 3 | Cork color matches liquid | `_Color` set from liquid color via MaterialPropertyBlock |
+| 4 | Shadows don't overlap bottles | `shadowOverlapDetected == false` in report |
+| 5 | Empty bottles visible | Fresnel boost + tint alpha increase |
+| 6 | Neck capacity clearly marked | UV band in GLASS_FRONT |
+| 7 | `bottleOverlapDetected = false` | layout-report.json |
+| 8 | `shadowOverlapDetected = false` | layout-report.json |
+| 9 | `hudIntrusionDetected = false` | layout-report.json |
+
+---
+
 ## 21) Cork Stoppers, Floating-Indicator Removal, and Geometry Validation (2026-03-05)
 
 ### Status: IMPLEMENTED — RUNTIME VERIFIED (corkCount=7 == completedBottleCount=7)

@@ -495,6 +495,29 @@ namespace Decantra.Presentation.View3D
                 }
             }
 
+            // Shadow-to-bottle overlap check.
+            // The contact shadow disk lies in the XZ plane at a world Y below the bottle base.
+            // From the front view it projects as a horizontal stripe at that Y coordinate.
+            // Check whether that stripe Y falls within any OTHER bottle's Y bounds range.
+            bool shadowOverlapDetected = false;
+            for (int i = 0; i < count; i++)
+            {
+                var vi = s_activeViews[i];
+                if (vi == null || vi._contactShadowGO == null) continue;
+                float shadowY = vi._contactShadowGO.transform.position.y;
+                for (int j = 0; j < count; j++)
+                {
+                    if (i == j) continue;
+                    if (shadowY >= bounds[j].min.y && shadowY <= bounds[j].max.y)
+                    {
+                        shadowOverlapDetected = true;
+                        Debug.LogError($"[Bottle3DView] SHADOW VIOLATION: shadow of bottle {i} " +
+                                       $"at Y={shadowY:F3} overlaps bottle {j} " +
+                                       $"Y=[{bounds[j].min.y:F3},{bounds[j].max.y:F3}]");
+                    }
+                }
+            }
+
             // Compute per-level sink and topper counts from current active views.
             int sinkBottleCount = 0;
             int topperCount = 0;
@@ -510,42 +533,46 @@ namespace Decantra.Presentation.View3D
 
             // Write v2 layout report to device persistent data path.
             // This file is pulled by capture_screenshots.sh for verification.
-            WriteLayoutReport(count, overlapDetected, hudIntrusionDetected, topperCount, sinkBottleCount);
+            WriteLayoutReport(count, overlapDetected, shadowOverlapDetected, hudIntrusionDetected, topperCount, sinkBottleCount);
         }
 
         /// <summary>
         /// Write the v2 layout report JSON to the device persistent data path so it can
         /// be pulled by the screenshot capture script.
         /// </summary>
-        private static void WriteLayoutReport(int activeBottleCount, bool overlapDetected, bool hudIntrusionDetected, int topperCount, int sinkBottleCount)
+        private static void WriteLayoutReport(int activeBottleCount, bool overlapDetected, bool shadowOverlapDetected, bool hudIntrusionDetected, int topperCount, int sinkBottleCount)
         {
             try
             {
-                string overlapStr = overlapDetected ? "true" : "false";
-                string hudStr = hudIntrusionDetected ? "true" : "false";
+                string overlapStr       = overlapDetected       ? "true" : "false";
+                string shadowOverlapStr = shadowOverlapDetected ? "true" : "false";
+                string hudStr           = hudIntrusionDetected  ? "true" : "false";
                 // corkCount == completedBottleCount is the key invariant checked by
                 // the automated convergence loop.  topperCount kept for back-compat.
                 string json = "{\n" +
-                              $"  \"overlapDetected\": {overlapStr},\n" +
+                              $"  \"bottleCount\": {activeBottleCount},\n" +
+                              $"  \"bottleOverlapDetected\": {overlapStr},\n" +
+                              $"  \"shadowOverlapDetected\": {shadowOverlapStr},\n" +
                               $"  \"hudIntrusionDetected\": {hudStr},\n" +
                               $"  \"completedBottleCount\": {topperCount},\n" +
                               $"  \"corkCount\": {topperCount},\n" +
                               $"  \"topperCount\": {topperCount},\n" +
                               $"  \"sinkBottleCount\": {sinkBottleCount},\n" +
                               $"  \"activeBottleCount\": {activeBottleCount},\n" +
+                              $"  \"overlapDetected\": {overlapStr},\n" +
                               $"  \"generatedAt\": \"{System.DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}\"\n" +
                               "}";
                 string screenshotsDir = Path.Combine(Application.persistentDataPath, "DecantraScreenshots");
                 Directory.CreateDirectory(screenshotsDir);
 
                 // Write as both the v2 name (back-compat) and the new cork-layout-report name.
-                string pathV2 = Path.Combine(screenshotsDir, "v2-layout-report.json");
+                string pathV2   = Path.Combine(screenshotsDir, "v2-layout-report.json");
                 string pathCork = Path.Combine(screenshotsDir, "cork-layout-report.json");
-                File.WriteAllText(pathV2, json);
+                File.WriteAllText(pathV2,   json);
                 File.WriteAllText(pathCork, json);
 
                 Debug.Log($"[Bottle3DView] cork-layout-report written to {pathCork}: " +
-                          $"overlap={overlapDetected} hud={hudIntrusionDetected} " +
+                          $"overlap={overlapDetected} shadow={shadowOverlapDetected} hud={hudIntrusionDetected} " +
                           $"completedBottleCount={topperCount} corkCount={topperCount} sinks={sinkBottleCount}");
             }
             catch (System.Exception ex)
@@ -598,9 +625,12 @@ namespace Decantra.Presentation.View3D
             _contactShadowGO = new GameObject("ContactShadow");
             _contactShadowGO.transform.SetParent(_worldRoot.transform, false);
             _contactShadowGO.layer = targetLayer;
-            _contactShadowGO.transform.localPosition = new Vector3(0f, BottleMeshGenerator.InteriorBottomY - 0.19f, 0.06f);
+            // Shadow disk lies flat (XZ plane) just under the base dome.
+            // Scale (0.20, 0.20, 1) keeps it within the bottle footprint so it
+            // cannot project into the Y range of bottles in the row below.
+            _contactShadowGO.transform.localPosition = new Vector3(0f, BottleMeshGenerator.InteriorBottomY - 0.10f, 0.06f);
             _contactShadowGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            _contactShadowGO.transform.localScale = new Vector3(0.38f, 0.38f, 1f);
+            _contactShadowGO.transform.localScale = new Vector3(0.20f, 0.20f, 1f);
             var shadowFilter = _contactShadowGO.AddComponent<MeshFilter>();
             shadowFilter.sharedMesh = CreateShadowDiskMesh();
             var shadowRenderer = _contactShadowGO.AddComponent<MeshRenderer>();
@@ -1018,17 +1048,15 @@ namespace Decantra.Presentation.View3D
         }
 
         /// <summary>
-        /// Flat-colour material for the cork stopper.
-        /// Uses Sprites/Default (always present in Unity, works on all platforms including
-        /// Android with IL2CPP) so the stopper reliably shows the liquid colour.
-        /// Rendered at Transparent+2 (queue 3002) so it composites over the transparent
-        /// glass shell (queue 3001) and appears in front of the neck.
+        /// Material for the cork stopper.
+        /// Prefers the custom Decantra/CorkStopper shader (lit, matte, procedural pore noise).
+        /// Falls back through Sprites/Default to Unlit/Color if custom shader is stripped.
         /// </summary>
         private static Material CreateStopperMaterial(Color color)
         {
-            // Sprites/Default is always compiled and available; it uses _Color as the tint.
-            // Fall back to Unlit/Color if, for some reason, Sprites/Default is stripped.
-            var shader = Shader.Find("Sprites/Default")
+            // CorkStopper shader: lit Blinn-Phong, procedural pore/grain noise, matte.
+            var shader = Shader.Find("Decantra/CorkStopper")
+                      ?? Shader.Find("Sprites/Default")
                       ?? Shader.Find("Unlit/Color")
                       ?? Shader.Find("Universal Render Pipeline/Unlit");
             if (shader == null)
@@ -1038,7 +1066,7 @@ namespace Decantra.Presentation.View3D
             }
 
             var mat = new Material(shader) { name = "BottleStopper_Mat" };
-            // Sprites/Default uses _Color; Unlit/Color also accepts _Color.
+            // _Color is used by CorkStopper (tint), Sprites/Default and Unlit/Color.
             mat.SetColor("_Color", color);
             // Render after transparent glass (queue Transparent = 3000, glass = Transparent+1 = 3001)
             // so the cork appears on top of / through the glass neck. ZWrite off to avoid
@@ -1056,6 +1084,7 @@ namespace Decantra.Presentation.View3D
             int count = s_activeViews.Count;
             var bounds = new Bounds[count];
             bool overlapDet = false;
+            bool shadowOverlapDet = false;
             bool hudDet = false;
             int sinks = 0;
             int toppers = 0;
@@ -1083,7 +1112,21 @@ namespace Decantra.Presentation.View3D
                 }
             }
 
-            WriteLayoutReport(count, overlapDet, hudDet, toppers, sinks);
+            // Shadow overlap check
+            for (int i = 0; i < count; i++)
+            {
+                var vi = s_activeViews[i];
+                if (vi == null || vi._contactShadowGO == null) continue;
+                float shadowY = vi._contactShadowGO.transform.position.y;
+                for (int j = 0; j < count; j++)
+                {
+                    if (i == j) continue;
+                    if (shadowY >= bounds[j].min.y && shadowY <= bounds[j].max.y)
+                        shadowOverlapDet = true;
+                }
+            }
+
+            WriteLayoutReport(count, overlapDet, shadowOverlapDet, hudDet, toppers, sinks);
         }
 
         private static Material CreateFallbackGlassMaterial()
@@ -1155,7 +1198,17 @@ namespace Decantra.Presentation.View3D
             }
 
             var material = new Material(shader) { name = "BottleContactShadow_Fallback" };
-            material.color = new Color(0f, 0f, 0f, 0.12f);
+            // Opacity 8%: subtle underfoot darkening, well below the 20% max in spec.
+            // Alpha blending must be enabled so the semi-transparent shadow composes
+            // correctly over the game background without occluding other objects.
+            material.color = new Color(0f, 0f, 0f, 0.08f);
+            if (shader.name != "Unlit/Color")
+            {
+                // Ensure alpha blending for non-Unlit shaders
+                material.SetFloat("_Surface", 1f);
+                material.SetFloat("_Blend",   0f);
+                material.SetFloat("_ZWrite",  0f);
+            }
             return material;
         }
 

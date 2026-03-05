@@ -29,9 +29,9 @@ Shader "Decantra/BottleGlass"
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
-        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.09)
-        _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.36)
+        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.94, 1.0, 0.14)
+        _FresnelPower   ("Fresnel Power",  Range(1,8)) = 3.0
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.55)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
@@ -47,8 +47,9 @@ Shader "Decantra/BottleGlass"
         _ReflectionWidth2("Shadow Strip Width", Range(0.01,0.5)) = 0.13
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
-        // liquid_visible >= 1 - _MaxGlassAlpha. 0.20 → ≥80% liquid shows through.
-        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.20
+        // liquid_visible >= 1 - _MaxGlassAlpha. 0.28 → ≥72% liquid shows through;
+        // raised from 0.20 so empty bottles have a more visible glass silhouette.
+        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.28
 
         // Block A: cap on additive specular luminance contribution (0..1). Prevents
         // bright specular highlight from bleaching the liquid colour underneath.
@@ -171,6 +172,7 @@ Shader "Decantra/BottleGlass"
             float  _MaxGlassAlpha;
             float  _SpecMaxContrib;
             float  _SinkOnly;
+            float  _CapacityRatio;
 
             // URP main directional light.  Built-in pipeline fills _WorldSpaceLightPos0;
             // URP fills _MainLightPosition.  We declare both and use whichever is non-zero.
@@ -264,6 +266,24 @@ Shader "Decantra/BottleGlass"
                 // always show through clearly.
                 float alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5;
                 alpha = min(alpha, _MaxGlassAlpha);
+
+                // ── Neck capacity marker ─────────────────────────────────────
+                // Subtle darkening band at the body-shoulder junction, showing players
+                // exactly where the fillable chamber ends (non-sink bottles only).
+                // Junction UV: vFrac = (y + BodyHalfHeight + DomeRadius) / totalHeight
+                // At bodyTop: vFrac ≈ (0.57 + 1.6·cap) / (0.935 + 1.6·cap)
+                if (_SinkOnly < 0.5)
+                {
+                    float c = clamp(_CapacityRatio, 0.1, 1.0);
+                    float junctionUV = (0.57 + 1.6 * c) / max(0.935 + 1.6 * c, 0.001);
+                    float uvY = IN.uv.y;
+                    // 3-pixel-wide softened band centred on junctionUV
+                    float band = smoothstep(junctionUV - 0.020, junctionUV, uvY)
+                               * (1.0 - smoothstep(junctionUV, junctionUV + 0.030, uvY));
+                    // 50% darkening + slight alpha boost so the thin ring is perceptible
+                    color = lerp(color, color * 0.40, band * 0.55);
+                    alpha = lerp(alpha, min(alpha + 0.14, _MaxGlassAlpha), band * 0.55);
+                }
 
                 // ── Block E: sink-only visual markings ──────────────────────
                 // Two dark bands identify sink bottles at a glance:

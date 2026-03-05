@@ -75,40 +75,41 @@ namespace Decantra.Presentation.View3D
         public const float RimLipHeight = 0.035f;
 
         // ── Stopper / cork geometry ───────────────────────────────────────────
-        // Spec:
-        //   cork diameter  ≈ neck_diameter × 1.05  →  StopperRadius = NeckRadius × 1.05
-        //   cork thickness ≈ neck_diameter × 0.20  →  2 × NeckRadius × 0.20 = 0.056 wu
-        //   60–80% inside neck, 20–40% protrudes above rim  →  70% / 30% split
+        // Realistic cork proportions (updated from flat-disc spec to proper cylinder):
+        //   Cork height  = NeckRadius × 1.6  = 0.224 wu
+        //   Cork radius  = NeckRadius × 1.05 = 0.147 wu
+        //   Aspect ratio = height / radius   = 0.224 / 0.147 = 1.52  ✓ (spec: 1.2–2.0)
+        //   75% inside neck, 25% protrudes above rim
         //
         // NeckDiameter = 2 × NeckRadius = 0.280 wu
-        // CorkDiameter = 0.280 × 1.05   = 0.294 wu  (slightly wider than neck — creates seal)
-        // CorkThickness = 0.280 × 0.20  = 0.056 wu
-        //   InsideDepth = 0.056 × 0.70  = 0.039 wu   (70% inside)
-        //   PeekHeight  = 0.056 × 0.30  = 0.017 wu   (30% above rim)
+        // CorkDiameter = 2 × StopperRadius = 0.294 wu  (1.05× neck — creates seal)
+        // CorkHeight   = NeckRadius × 1.6 = 0.224 wu
+        //   InsideDepth = 0.224 × 0.75 = 0.168 wu  (75% inside, spec: 70–80%)
+        //   PeekHeight  = 0.224 × 0.25 = 0.056 wu  (25% outside, spec: 20–30%)
 
         /// <summary>
         /// Radius of the cylindrical cork stopper.
-        /// Spec: cork diameter ≈ neck diameter × 1.05 so the cork is visible slightly
-        /// wider than the outer neck, creating a physical seal impression.
+        /// Cork diameter ≈ neck diameter × 1.05 so the cork is visibly slightly wider
+        /// than the outer neck, creating a physical seal impression.
         /// </summary>
-        public const float StopperRadius = NeckRadius * 1.05f;               // ≈ 0.147 wu
+        public const float StopperRadius = NeckRadius * 1.05f;               // 0.147 wu
 
         /// <summary>
-        /// Depth the stopper is inserted into the neck (70% of total thickness).
+        /// Total height of the cork cylinder.
+        /// NeckRadius × 1.6 gives aspect ratio = 0.224 / 0.147 = 1.52, within 1.2–2.0.
+        /// </summary>
+        public const float StopperTotalHeight = NeckRadius * 1.6f;           // 0.224 wu
+
+        /// <summary>
+        /// Depth the stopper is inserted into the neck (75% of total height).
         /// The stopper mesh bottom sits at StopperBaseY; the glass neck walls surround it.
         /// </summary>
-        public const float StopperInsideDepth = 2f * NeckRadius * 0.2f * 0.70f;  // ≈ 0.039 wu
+        public const float StopperInsideDepth = StopperTotalHeight * 0.75f;  // 0.168 wu
 
         /// <summary>
-        /// Height the stopper protrudes above the outer rim top (30% of total thickness).
+        /// Height the stopper protrudes above the outer rim top (25% of total height).
         /// </summary>
-        public const float StopperPeekHeight = 2f * NeckRadius * 0.2f * 0.30f;   // ≈ 0.017 wu
-
-        /// <summary>
-        /// Total height of the stopper cylinder mesh = InsideDepth + PeekHeight.
-        /// Equals neck_diameter × 0.20 = 0.056 wu.
-        /// </summary>
-        public const float StopperTotalHeight = StopperInsideDepth + StopperPeekHeight;
+        public const float StopperPeekHeight = StopperTotalHeight * 0.25f;   // 0.056 wu
 
         // Computed Y position of the neck top (bottom of rim lip), referenced by Bottle3DView.
         // Formula: bodyBottom + BodyHeight + ShoulderHeight + NeckHeight - StopperInsideDepth
