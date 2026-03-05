@@ -290,10 +290,10 @@ Shader "Decantra/BottleGlass"
                     color = lerp(color, float3(0.04, 0.04, 0.06), domeMask * 0.88);
                     alpha = lerp(alpha, 0.78, domeMask);
 
-                    // Neutral-white specular gloss on both dark bands so the bottle
-                    // profile is readable on dark backgrounds without adding colour.
-                    float glossMask = saturate(rimBand + domeMask);
-                    color += float3(0.90, 0.92, 1.0) * (spec * 0.65 * glossMask);
+                    // Neutral-white specular gloss on the rim band only (neck/shoulder).
+                    // Excluded from domeMask: the hemispherical bottom dome has surface normals
+                    // that produce a circular Blinn-Phong hotspot, which looks fake and distracting.
+                    color += float3(0.90, 0.92, 1.0) * (spec * 0.65 * rimBand);
                 }
 
                 return float4(color, alpha);
