@@ -19,8 +19,8 @@ Shader "Decantra/BottleGlass"
     //   • SinkOnly mode: dark rim band + base-line band for sink-only bottles.
     //
     // Liquid-clarity guarantee:
-    //   Total glass alpha is capped at _MaxGlassAlpha (default 0.26) so that at
-    //   least 74% of liquid color always shows through the glass face.
+    //   Total glass alpha is capped at _MaxGlassAlpha (0.20) so that at least 80%
+    //   of liquid color always shows through the glass face.
     //   Specular contribution is restricted to ≤ _SpecMaxContrib (default 0.12)
     //   additive luminance so bright highlights cannot bleach liquid colors.
     //
@@ -29,9 +29,9 @@ Shader "Decantra/BottleGlass"
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
-        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.15)
+        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.09)
         _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.38)
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.22)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
@@ -43,8 +43,8 @@ Shader "Decantra/BottleGlass"
         _ReflectionWidth("Reflection Strip Width", Range(0.01,0.5)) = 0.08
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
-        // liquid_visible >= 1 - _MaxGlassAlpha. Default 0.35 → ≥65% liquid shows through.
-        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.35
+        // liquid_visible >= 1 - _MaxGlassAlpha. 0.20 → ≥80% liquid shows through.
+        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.20
 
         // Block A: cap on additive specular luminance contribution (0..1). Prevents
         // bright specular highlight from bleaching the liquid colour underneath.

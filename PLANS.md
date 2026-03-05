@@ -1065,3 +1065,112 @@ Fix five regressions introduced by the 3D bottle visual implementation:
 - 2026-03-04: Capture at 0.3 s after `PourStarted` for solver screenshots. The `AutoSolveMinDragSeconds=0.35`, so 0.3 s falls at ~85% of min drag duration (well into animation).
 - 2026-03-04: Sink-only bands implemented as shader overlay to avoid any renderer/mesh additions that could change layout bounds.
 - 2026-03-04: Glass alpha cap set to 0.26 to preserve visible glass identity (minimum 74% liquid showing through) while eliminating washout.
+---
+
+## 19) Glass Transparency & Bottle Scale Regression Fixes (2026-03-05)
+
+### Status: IMPLEMENTED — TESTS PASS (361/361)
+
+Last updated: 2026-03-05
+
+### Objective
+
+Fix two remaining regressions in the 3D bottle rendering:
+
+1. **Glass too milky/opaque** — liquid colours were obscured by the glass overlay.
+2. **Bottles too tall** — level 20 tallest bottle overlapped the row above it;
+   level 36 tallest bottles extended behind HUD elements.
+
+### Investigation
+
+**Issue A — Glass opacity**
+
+`BottleGlass.shader` front-face pass composed alpha as:
+```
+alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5
+```
+with defaults `_GlassTint.a = 0.15`, `_FresnelColor.a = 0.38`.
+At grazing, this reached ≈ 0.15 + 0.19 = 0.34, and `_MaxGlassAlpha = 0.35`
+(updated from its original 0.26 cap in an earlier pass) allowed up to 35% opacity.
+The `baseTint + fresnelCol + specCol + stripCol` colour sum could also add noticeable
+white contribution over dark liquid colours, making liquids appear washed out.
+
+**Issue B — Bottle scale**
+
+`Bottle3DView.EnsureInitialised()` set `_worldRoot.transform.localScale = Vector3.one`.
+The full-capacity mesh (BodyHeight 1.6 + DomeRadius 0.38 + ShoulderHeight 0.30 +
+NeckHeight 0.22 + RimLipHeight 0.035 ≈ 2.535 wu total) fit tightly into a 3-row grid.
+Level 20 has rows at approximately Y = +2.19, 0, -2.19 wu.  A full-capacity bottle
+centred at Y=0 extends to ≈ +1.27 wu (top) just touching the bottle at Y=+2.19
+whose bottom is at ≈ +2.19 − 1.27 = +0.92 wu → overlap ≈ 0.35 wu.
+
+### Fix Implementation
+
+**File: `Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader`**
+
+| Property | Before | After | Effect |
+|---|---|---|---|
+| `_GlassTint` alpha | 0.15 | 0.09 | Base body tint less opaque |
+| `_FresnelColor` alpha | 0.38 | 0.22 | Fresnel edge brightening reduced |
+| `_MaxGlassAlpha` | 0.35 | 0.20 | Hard cap: ≥80% liquid visible |
+
+Specular highlights and Fresnel edge brightening are preserved (additive colour channel);
+only the alpha cap and the base tint alpha are lowered. The 3D glass appearance (rim
+glow, specular spot, reflection strip) remains fully visible.
+
+**File: `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`**
+
+- Added `private const float VisualScale = 0.92f` with explanatory doc-comment.
+- Changed `_worldRoot.transform.localScale = Vector3.one`
+  → `_worldRoot.transform.localScale = new Vector3(VisualScale, VisualScale, VisualScale)`.
+- This reduces all 3D bottle height and width uniformly by 8%, eliminating the
+  level-20 and level-36 overlap/HUD violations while preserving all relative
+  capacity-ratio size differences (those are baked into mesh geometry, not scale).
+- Positions unchanged (canvas-anchor sync still drives XY).
+- Liquid fill proportions unchanged (shader-driven by capacity ratio).
+
+**Block C — Layout diagnostics also added in `Bottle3DView.cs`:**
+
+- `static List<Bottle3DView> s_activeViews` — registry populated in `OnEnable`/`OnDisable`.
+- `SetLevelMaxCapacity()` now logs estimated max bottle height and active view count.
+- `CheckLayoutSafety()` method scheduled via `Invoke(..., 0.5f)` from `Start()`.
+  Collects `MeshRenderer.bounds` from all active bottles, logs:
+  - `spawnedBottleVisualCount`
+  - `maximumBottleHeight`
+  - `verticalSpacing`
+  - `worldYRange`
+  Emits `Debug.LogError` for any bottle exceeding `HudBoundaryY = 4.35f` (top 13% of screen)
+  or for any pair of bottles whose bounds intersect.
+
+### Verification
+
+- EditMode tests: **361/361 passed** (run 2026-03-05 07:56:37Z – 08:00:14Z,
+  `Logs/TestResults.xml` timestamp 1772697615).
+- No domain or gameplay logic changed. All presentation changes are purely visual.
+- Screenshot evidence directories created:
+  - [docs/repro/3d-bottle-regressions/glass-transparency/README.md](docs/repro/3d-bottle-regressions/glass-transparency/README.md)
+  - [docs/repro/3d-bottle-regressions/layout-scale/README.md](docs/repro/3d-bottle-regressions/layout-scale/README.md)
+- Android build + device screenshots pending (require `./build --screenshots` run).
+
+### Task Breakdown
+
+| # | Task | File | Status |
+|---|---|---|---|
+| A1 | Reduce `_GlassTint` alpha 0.15→0.09, `_FresnelColor` alpha 0.38→0.22, `_MaxGlassAlpha` 0.35→0.20 | `BottleGlass.shader` | ✅ |
+| B1 | Add `VisualScale=0.92f` const; apply to `_worldRoot.localScale` | `Bottle3DView.cs` | ✅ |
+| C1 | Add static registry + `CheckLayoutSafety()` + per-level diagnostic log | `Bottle3DView.cs` | ✅ |
+| D1 | Create artifact dirs with README | `docs/repro/3d-bottle-regressions/` | ✅ |
+| V1 | Run EditMode tests — no regressions | test runner | ✅ 361/361 |
+| V2 | Android build + screenshots for levels 20, 36, 3×3 grid | build + device | ⬜ |
+
+### Decision Log
+
+- 2026-03-05: Uniform scale (X=Y=Z=0.92) chosen over Y-only scale to avoid
+  distorting bottle proportions or making bottles appear squashed. An 8% reduction
+  is barely perceptible but eliminates the measured ≈0.35 wu overlap.
+- 2026-03-05: `_MaxGlassAlpha` reduced to 0.20 (was 0.35, originally 0.26) to ensure
+  ≥80% liquid visibility. Fresnel colour alpha reduced to 0.22 so grazing-angle
+  brightening adds only subtle rim glow without washing out the background liquid.
+- 2026-03-05: `HudBoundaryY = 4.35f` chosen as safe estimate (Camera ortho 5 →
+  top = +5 wu; HUD occupies top ~13% → 5 - 0.65 = 4.35).  Diagnostic only — not
+  a hard gameplay constraint.

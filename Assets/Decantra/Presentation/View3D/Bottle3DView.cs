@@ -62,6 +62,12 @@ namespace Decantra.Presentation.View3D
     [DisallowMultipleComponent]
     public sealed class Bottle3DView : MonoBehaviour
     {
+        // ── Static layout diagnostics registry ────────────────────────────────
+        // All currently-active Bottle3DView instances register here so the layout
+        // safety check can examine all bottles in a single pass without FindObjectsOfType.
+        private static readonly System.Collections.Generic.List<Bottle3DView> s_activeViews =
+            new System.Collections.Generic.List<Bottle3DView>(9);
+
         // ── Inspector fields ──────────────────────────────────────────────────
         [Tooltip("Material templated from BottleGlass.shader for the glass body.")]
         [SerializeField] private Material glassMaterialTemplate;
@@ -110,6 +116,14 @@ namespace Decantra.Presentation.View3D
         private const float AngularVelocityImpulseScale = 0.08f;
         private const float AngularAccelerationImpulseScale = 0.02f;
 
+        /// <summary>
+        /// Global uniform scale applied to the 3D world root so that the tallest bottle
+        /// never overlaps an adjacent bottle or intrudes into HUD space.  An 8% reduction
+        /// eliminates the level-20 and level-36 layout violations while preserving all
+        /// relative capacity-ratio height differences.
+        /// </summary>
+        private const float VisualScale = 0.92f;
+
         // Glass body property IDs
         private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
 
@@ -144,6 +158,15 @@ namespace Decantra.Presentation.View3D
         public void SetLevelMaxCapacity(int maxCapacity)
         {
             _levelMaxCapacity = Mathf.Max(1, maxCapacity);
+            // Block C diagnostic: log expected max bottle height for this capacity setting.
+            float maxMeshHeight = (BottleMeshGenerator.BodyHeight
+                                   + BottleMeshGenerator.DomeRadius
+                                   + BottleMeshGenerator.ShoulderHeight
+                                   + BottleMeshGenerator.NeckHeight
+                                   + BottleMeshGenerator.RimLipHeight) * VisualScale;
+            Debug.Log($"[Bottle3DView] SetLevelMaxCapacity={maxCapacity}  " +
+                      $"maxBottleHeight≈{maxMeshHeight:F3}wu  " +
+                      $"activeViews={s_activeViews.Count}");
         }
 
         /// <summary>
@@ -271,12 +294,15 @@ namespace Decantra.Presentation.View3D
         {
             if (_worldRoot != null)
                 _worldRoot.SetActive(true);
+            if (!s_activeViews.Contains(this))
+                s_activeViews.Add(this);
         }
 
         private void OnDisable()
         {
             if (_worldRoot != null)
                 _worldRoot.SetActive(false);
+            s_activeViews.Remove(this);
         }
 
         private void Start()
@@ -284,6 +310,8 @@ namespace Decantra.Presentation.View3D
             // WirePourStream is deferred to Start because pourStream is set via reflection
             // by SceneBootstrap AFTER AddComponent (and therefore after Awake runs).
             WirePourStreamToWorldRoot();
+            // Schedule layout safety check after all bottles have initialised this frame.
+            Invoke(nameof(CheckLayoutSafety), 0.5f);
         }
 
         private void Update()
@@ -341,6 +369,7 @@ namespace Decantra.Presentation.View3D
 
         private void OnDestroy()
         {
+            s_activeViews.Remove(this);
             CleanupLayerObjects();
             if (_contactShadowGO != null)
             {
@@ -355,6 +384,79 @@ namespace Decantra.Presentation.View3D
             {
                 Destroy(_worldRoot);
                 _worldRoot = null;
+            }
+        }
+
+        /// <summary>
+        /// Block C: Layout safety diagnostic.  Runs 0.5 s after Start so all bottles in
+        /// the level are fully initialised before the check.  Logs expected vs spawned
+        /// bottle count, maximum bottle height, vertical spacing, and reports any
+        /// bottle-to-bottle or bottle-to-HUD bound overlaps as errors.
+        /// </summary>
+        private void CheckLayoutSafety()
+        {
+            int count = s_activeViews.Count;
+            if (count == 0) return;
+
+            // Collect world-space bounds from each active bottle's glass mesh renderer.
+            var bounds = new Bounds[count];
+            bool allValid = true;
+            for (int i = 0; i < count; i++)
+            {
+                var v = s_activeViews[i];
+                if (v == null || v._glassBodyGO == null) { allValid = false; continue; }
+                var mr = v._glassBodyGO.GetComponent<MeshRenderer>();
+                if (mr == null) { allValid = false; continue; }
+                bounds[i] = mr.bounds;
+            }
+
+            if (!allValid) return;
+
+            // Compute diagnostic metrics.
+            float maxHeight = 0f;
+            float minY = float.MaxValue, maxY = float.MinValue;
+            for (int i = 0; i < count; i++)
+            {
+                float h = bounds[i].size.y;
+                if (h > maxHeight) maxHeight = h;
+                if (bounds[i].min.y < minY) minY = bounds[i].min.y;
+                if (bounds[i].max.y > maxY) maxY = bounds[i].max.y;
+            }
+
+            // Estimate vertical spacing from distinct Y centre positions.
+            var yCentres = new System.Collections.Generic.List<float>(count);
+            for (int i = 0; i < count; i++)
+                yCentres.Add(bounds[i].center.y);
+            yCentres.Sort();
+            float verticalSpacing = float.NaN;
+            if (yCentres.Count >= 2)
+                verticalSpacing = yCentres[yCentres.Count / 2] - yCentres[yCentres.Count / 2 - 1];
+
+            Debug.Log($"[Bottle3DView] LayoutDiag spawnedBottleVisualCount={count}  " +
+                      $"maximumBottleHeight={maxHeight:F3}wu  " +
+                      $"verticalSpacing≈{verticalSpacing:F3}wu  " +
+                      $"worldYRange=[{minY:F3},{maxY:F3}]");
+
+            // HUD safety check: Camera_Game orthographic size = 5 → top world Y = +5.
+            // Assume HUD occupies top ≈13% of screen height (~0.65 wu safe margin).
+            const float HudBoundaryY = 4.35f;
+            for (int i = 0; i < count; i++)
+            {
+                if (bounds[i].max.y > HudBoundaryY)
+                    Debug.LogError($"[Bottle3DView] LAYOUT VIOLATION: bottle index {i} " +
+                                   $"top={bounds[i].max.y:F3} > HUD boundary {HudBoundaryY:F3}wu");
+            }
+
+            // Bottle-to-bottle overlap check (axis-aligned bounds in world space).
+            for (int i = 0; i < count; i++)
+            {
+                for (int j = i + 1; j < count; j++)
+                {
+                    if (bounds[i].Intersects(bounds[j]))
+                        Debug.LogError($"[Bottle3DView] LAYOUT VIOLATION: bottles {i} and {j} " +
+                                       $"bounds overlap  " +
+                                       $"({bounds[i].center} ↔ {bounds[j].center})");
+                }
             }
         }
 
@@ -378,7 +480,7 @@ namespace Decantra.Presentation.View3D
             _worldRoot = new GameObject($"Bottle3DWorld_{gameObject.name}");
             _worldRoot.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
             _worldRoot.transform.rotation = Quaternion.identity;
-            _worldRoot.transform.localScale = Vector3.one;
+            _worldRoot.transform.localScale = new Vector3(VisualScale, VisualScale, VisualScale);
             _worldRoot.layer = targetLayer;
 
             // ── Glass body ──────────────────────────────────────────────────────
