@@ -1174,3 +1174,42 @@ glow, specular spot, reflection strip) remains fully visible.
 - 2026-03-05: `HudBoundaryY = 4.35f` chosen as safe estimate (Camera ortho 5 →
   top = +5 wu; HUD occupies top ~13% → 5 - 0.65 = 4.35).  Diagnostic only — not
   a hard gameplay constraint.
+
+### Analytical Verification Reports (2026-03-05)
+
+Generated from mesh geometry constants + shader parameters (no live device needed).
+Reports at `docs/repro/3d-bottle-regressions/`.
+
+**[layout-report.json](docs/repro/3d-bottle-regressions/layout-report.json)**
+| Metric | Old (scale=1.0) | New (scale=0.92) |
+|--------|-----------------|------------------|
+| Full-cap mesh height | 2.535 wu | 2.332 wu |
+| Vertical gap (full-cap adjacent) | −0.348 wu ❌ | −0.145 wu ⚠️ |
+| Top-row bottle top Y | 3.455 wu | 3.354 wu |
+| HUD intrusion (>4.35 wu) | ✅ No | ✅ No |
+
+Note: gap remains analytically negative for `capacity_ratio=1.0` (worst case).
+Runtime `CheckLayoutSafety()` will emit `LogError` if actual bounds overlap on device.
+
+**[glass-report.json](docs/repro/3d-bottle-regressions/glass-report.json)**
+| Property | Before | After |
+|----------|--------|-------|
+| `_GlassTint` alpha | 0.15 | 0.09 (−40%) |
+| `_FresnelColor` alpha | 0.38 | 0.22 (−42%) |
+| `_MaxGlassAlpha` | 0.35 | 0.20 (−43%) |
+| LiquidVisibilityRatio (min) | 0.65 | **0.80** ✅ |
+
+Pixel analysis of `_baseline/screenshot-07-level-36.png`: 181,784 vivid liquid pixels vs 127,786 glass-tint pixels.
+
+**[diff-report.json](docs/repro/3d-bottle-regressions/diff-report.json)**
+- Commit `883f714` — 2 files changed in presentation layer (shader + view)
+- EditMode 361/361 ✅ — no domain/gameplay regressions
+- Post-fix screenshots: **pending arm64 device** (emulator SIGILL; SM-N9005 wrong ABI)
+- Visual screenshots for comparison: `docs/repro/3d-bottle-regressions/final-verification/`
+
+**Task status update:**
+
+| # | Task | Status |
+|---|---|---|
+| V2 | Android build + screenshots for levels 20, 36, 3×3 grid | ⏳ Pending device |
+| V3 | Analytical JSON reports generated | ✅ |

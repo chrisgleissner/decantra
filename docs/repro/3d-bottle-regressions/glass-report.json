@@ -1,0 +1,66 @@
+{
+  "reportVersion": "1.0",
+  "generatedBy": "analytical-shader-params",
+  "shaderPath": "Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader",
+  "alphaFormula": "alpha = min(_GlassTint.a + fresnel * _FresnelColor.a * 0.5, _MaxGlassAlpha)",
+  "notes": [
+    "LiquidVisibilityRatio = 1.0 - MaxGlassAlpha (worst-case at peak Fresnel).",
+    "Fresnel at near-normal incidence is ~0 so typical visibility is higher.",
+    "Baseline pixel analysis of _baseline/screenshot-07-level-36.png confirms glass tint."
+  ],
+  "before": {
+    "GlassTint_alpha": 0.15,
+    "FresnelColor_alpha": 0.38,
+    "MaxGlassAlpha": 0.35,
+    "worstCaseGlassAlpha": 0.35,
+    "liquidVisibilityRatio_min": 0.65
+  },
+  "after": {
+    "GlassTint_alpha": 0.09,
+    "FresnelColor_alpha": 0.22,
+    "MaxGlassAlpha": 0.2,
+    "worstCaseGlassAlpha": 0.2,
+    "liquidVisibilityRatio_min": 0.8,
+    "meetsTarget": true
+  },
+  "improvement": {
+    "GlassTint_alpha_reduction_pct": 40.0,
+    "FresnelColor_alpha_reduction_pct": 42.1,
+    "MaxGlassAlpha_reduction_pct": 42.9,
+    "liquidVisibilityGain_pct": 15.0
+  },
+  "pixelAnalysis": {
+    "source": "doc/play-store-assets/screenshots/phone/_baseline/screenshot-07-level-36.png",
+    "imageSize_px": [
+      1080,
+      2400
+    ],
+    "note": "3D bottle screenshot captured pre-fix on R5CRC3ZY9XH device (Mar 4 23:49)",
+    "blueTintedGlassPixels": 127786,
+    "vividLiquidPixels": 181784,
+    "estimatedLiquidVisibilityRatio": 0.587,
+    "sampleLiquidColors": {
+      "green": [
+        42,
+        174,
+        83
+      ],
+      "purple": [
+        147,
+        79,
+        199
+      ],
+      "cyan": [
+        36,
+        165,
+        176
+      ],
+      "yellow_est": [
+        220,
+        200,
+        60
+      ]
+    }
+  },
+  "runtimeVerificationStatus": "PENDING \u2014 requires arm64 device with BuildConfig=Release"
+}
