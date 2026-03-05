@@ -237,6 +237,8 @@ expected=(
   "sink_count_5.png"
   "auto_solve_start.png"
   "auto_solve_complete.png"
+  "completed_bottle_topper.png"
+  "v2-layout-report.json"
   "screenshot-01-launch.png"
   "screenshot-02-intro.png"
   "screenshot-03-level-01.png"
@@ -411,6 +413,18 @@ fi
 adb -s "${DEVICE_ID}" shell am force-stop uk.gleissner.decantra >/dev/null 2>&1 || true
 
 printf "\nScreenshots captured to %s\n" "${OUTPUT_DIR}"
+
+# ── Copy v2 verification artifacts to docs repo path ──────────────────────────
+echo "==> Copying v2 verification artifacts..."
+v2_dir="${PROJECT_ROOT}/docs/repro/3d-bottle-regressions/final-verification-v2"
+mkdir -p "${v2_dir}"
+cp -f "${OUTPUT_DIR}/screenshot-09-level-20.png"   "${v2_dir}/level-20.png"       2>/dev/null || true
+cp -f "${OUTPUT_DIR}/screenshot-07-level-36.png"   "${v2_dir}/level-36.png"       2>/dev/null || true
+cp -f "${OUTPUT_DIR}/screenshot-08-level-10.png"   "${v2_dir}/level-10-3x3.png"   2>/dev/null || true
+cp -f "${OUTPUT_DIR}/sink_count_1.png"             "${v2_dir}/sink-bottle.png"    2>/dev/null || true
+cp -f "${OUTPUT_DIR}/completed_bottle_topper.png"  "${v2_dir}/completed-bottle-topper.png" 2>/dev/null || true
+cp -f "${OUTPUT_DIR}/v2-layout-report.json"        "${PROJECT_ROOT}/docs/repro/3d-bottle-regressions/v2-layout-report.json" 2>/dev/null || true
+echo "   v2 verification artifacts at ${v2_dir}"
 
 if [[ "${CAPTURE_MOTION}" == "true" ]]; then
   echo "\n==> Capturing starfield motion frames"

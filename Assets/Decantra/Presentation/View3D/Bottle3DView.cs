@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 using System.Collections.Generic;
+using System.IO;
 using Decantra.Domain.Model;
 using Decantra.Presentation.Visual.Simulation;
 using UnityEngine;
@@ -107,6 +108,14 @@ namespace Decantra.Presentation.View3D
         private bool _initialised;
         private bool _isSinkOnly;
 
+        // ── Completed bottle topper ──────────────────────────────────────
+        // A coloured flat disk placed above the bottle neck once IsSolvedBottle()
+        // becomes true.  Does NOT affect glass body MeshRenderer.bounds used by
+        // CheckLayoutSafety, so it cannot trigger overlap or HUD intrusion alerts.
+        private GameObject _topperGO;
+        private MeshRenderer _topperRenderer;
+        private bool _wasCompleted;   // last-known completion state
+
         // 3D drag rotation — applied to _worldRoot; does not affect canvas layout/gameplay
         private float _targetDragYaw;
         private float _currentDragYaw;
@@ -125,7 +134,8 @@ namespace Decantra.Presentation.View3D
         private const float VisualScale = 0.92f;
 
         // Glass body property IDs
-        private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
+        private static readonly int PropSinkOnly   = Shader.PropertyToID("_SinkOnly");
+        private static readonly int PropTopperColor = Shader.PropertyToID("_Color");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -208,6 +218,9 @@ namespace Decantra.Presentation.View3D
 
             // Apply per-layer shader properties
             ApplyLayerProperties(_layers, bottle);
+
+            // Obj-3: show / hide the coloured topper cap on completed bottles.
+            UpdateTopper(bottle, _layers);
         }
 
         /// <summary>
@@ -378,8 +391,20 @@ namespace Decantra.Presentation.View3D
                     Destroy(mf.sharedMesh);
             }
 
+            // Topper cleanup: the disk mesh is a unique instance; destroy it explicitly.
+            if (_topperGO != null)
+            {
+                var mf = _topperGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+                // _topperGO is a child of _worldRoot, so Destroy(_worldRoot) below
+                // handles the GO itself; but the material instance needs explicit disposal.
+                if (_topperRenderer != null && _topperRenderer.sharedMaterial != null)
+                    Destroy(_topperRenderer.sharedMaterial);
+            }
+
             // Destroy the scene-root world object; this also destroys GlassBody,
-            // LiquidLayers, ContactShadow, and PourStream children.
+            // LiquidLayers, ContactShadow, PourStream, and Topper children.
             if (_worldRoot != null)
             {
                 Destroy(_worldRoot);
@@ -440,23 +465,78 @@ namespace Decantra.Presentation.View3D
             // HUD safety check: Camera_Game orthographic size = 5 → top world Y = +5.
             // Assume HUD occupies top ≈13% of screen height (~0.65 wu safe margin).
             const float HudBoundaryY = 4.35f;
+            bool hudIntrusionDetected = false;
             for (int i = 0; i < count; i++)
             {
                 if (bounds[i].max.y > HudBoundaryY)
+                {
+                    hudIntrusionDetected = true;
                     Debug.LogError($"[Bottle3DView] LAYOUT VIOLATION: bottle index {i} " +
                                    $"top={bounds[i].max.y:F3} > HUD boundary {HudBoundaryY:F3}wu");
+                }
             }
 
             // Bottle-to-bottle overlap check (axis-aligned bounds in world space).
+            bool overlapDetected = false;
             for (int i = 0; i < count; i++)
             {
                 for (int j = i + 1; j < count; j++)
                 {
                     if (bounds[i].Intersects(bounds[j]))
+                    {
+                        overlapDetected = true;
                         Debug.LogError($"[Bottle3DView] LAYOUT VIOLATION: bottles {i} and {j} " +
                                        $"bounds overlap  " +
                                        $"({bounds[i].center} ↔ {bounds[j].center})");
+                    }
                 }
+            }
+
+            // Compute per-level sink and topper counts from current active views.
+            int sinkBottleCount = 0;
+            int topperCount = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var v = s_activeViews[i];
+                if (v != null)
+                {
+                    if (v._isSinkOnly) sinkBottleCount++;
+                    if (v._wasCompleted) topperCount++;
+                }
+            }
+
+            // Write v2 layout report to device persistent data path.
+            // This file is pulled by capture_screenshots.sh for verification.
+            WriteLayoutReport(count, overlapDetected, hudIntrusionDetected, topperCount, sinkBottleCount);
+        }
+
+        /// <summary>
+        /// Write the v2 layout report JSON to the device persistent data path so it can
+        /// be pulled by the screenshot capture script.
+        /// </summary>
+        private static void WriteLayoutReport(int activeBottleCount, bool overlapDetected, bool hudIntrusionDetected, int topperCount, int sinkBottleCount)
+        {
+            try
+            {
+                string overlapStr  = overlapDetected       ? "true" : "false";
+                string hudStr      = hudIntrusionDetected  ? "true" : "false";
+                string json = "{\n" +
+                              $"  \"overlapDetected\": {overlapStr},\n" +
+                              $"  \"hudIntrusionDetected\": {hudStr},\n" +
+                              $"  \"topperCount\": {topperCount},\n" +
+                              $"  \"sinkBottleCount\": {sinkBottleCount},\n" +
+                              $"  \"activeBottleCount\": {activeBottleCount},\n" +
+                              $"  \"generatedAt\": \"{System.DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}\"\n" +
+                              "}";
+                string path = Path.Combine(Application.persistentDataPath, "v2-layout-report.json");
+                File.WriteAllText(path, json);
+                Debug.Log($"[Bottle3DView] v2 layout report written to {path}: " +
+                          $"overlap={overlapDetected} hud={hudIntrusionDetected} " +
+                          $"toppers={topperCount} sinks={sinkBottleCount}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[Bottle3DView] Failed to write v2 layout report: {ex.Message}");
             }
         }
 
@@ -791,6 +871,176 @@ namespace Decantra.Presentation.View3D
                     mr.SetPropertyBlock(block);
                 }
             }
+        }
+
+        // ── Obj-3: Completed bottle topper ─────────────────────────────────────
+
+        /// <summary>
+        /// Show or hide the coloured topper cap based on whether <paramref name="bottle"/>
+        /// is solved (full + all slots same colour + not a sink).
+        /// </summary>
+        private void UpdateTopper(Bottle bottle, List<LiquidLayerData> layers)
+        {
+            bool isCompleted = !bottle.IsSink && bottle.IsSolvedBottle();
+            if (isCompleted == _wasCompleted && (!isCompleted || _topperGO != null))
+                return; // no change; avoid re-creating material each frame
+
+            _wasCompleted = isCompleted;
+
+            if (!isCompleted)
+            {
+                if (_topperGO != null) _topperGO.SetActive(false);
+                return;
+            }
+
+            // Derive the single liquid colour from the completed bottle's layer list.
+            Color liquidColor = layers.Count > 0
+                ? new Color(layers[0].R, layers[0].G, layers[0].B, 1f)
+                : Color.white;
+
+            EnsureTopperObject(liquidColor);
+        }
+
+        /// <summary>
+        /// Create the topper GO on first call; update its colour on subsequent calls.
+        /// The topper is a flat disk placed just above the bottle rim, facing the camera.
+        /// </summary>
+        private void EnsureTopperObject(Color liquidColor)
+        {
+            if (_topperGO == null)
+            {
+                int targetLayer = _worldRoot != null ? _worldRoot.layer : gameObject.layer;
+                _topperGO = new GameObject("BottleTopper");
+                _topperGO.transform.SetParent(_worldRoot.transform, false);
+                _topperGO.layer = targetLayer;
+
+                // Position: at the top of the rim lip, slightly in front of the glass mesh.
+                float topperLocalY = BottleMeshGenerator.BodyHeight * 0.5f
+                    + BottleMeshGenerator.ShoulderHeight
+                    + BottleMeshGenerator.NeckHeight
+                    + BottleMeshGenerator.RimLipHeight;
+                _topperGO.transform.localPosition = new Vector3(0f, topperLocalY, -0.005f);
+
+                var mf = _topperGO.AddComponent<MeshFilter>();
+                mf.sharedMesh = CreateTopperMesh();
+                _topperRenderer = _topperGO.AddComponent<MeshRenderer>();
+                _topperRenderer.sharedMaterial = CreateTopperMaterial(liquidColor);
+            }
+            else
+            {
+                // Bottle was already completed and topper exists: just refresh colour.
+                var block = new MaterialPropertyBlock();
+                _topperRenderer.GetPropertyBlock(block);
+                block.SetColor(PropTopperColor, liquidColor);
+                _topperRenderer.SetPropertyBlock(block);
+            }
+
+            _topperGO.SetActive(true);
+        }
+
+        /// <summary>
+        /// Flat disk mesh for the topper: 55 % wider than the bottle neck,
+        /// normals toward -Z (facing the orthographic camera).
+        /// </summary>
+        private static Mesh CreateTopperMesh()
+        {
+            const int segments = 32;
+            float radius = BottleMeshGenerator.NeckRadius * 1.55f;
+
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var uvs  = new List<Vector2>();
+            var tris  = new List<int>();
+
+            // Centre vertex
+            verts.Add(Vector3.zero);
+            norms.Add(Vector3.back);
+            uvs.Add(new Vector2(0.5f, 0.5f));
+
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = (float)i / segments * Mathf.PI * 2f;
+                float x = Mathf.Cos(angle) * radius;
+                float y = Mathf.Sin(angle) * radius;
+                verts.Add(new Vector3(x, y, 0f));
+                norms.Add(Vector3.back);
+                uvs.Add(new Vector2(x / radius * 0.5f + 0.5f, y / radius * 0.5f + 0.5f));
+            }
+
+            for (int i = 0; i < segments; i++)
+            {
+                int c = 0;
+                int a = i + 1;
+                int b = i + 2 > segments ? 1 : i + 2;
+                tris.Add(c); tris.Add(b); tris.Add(a); // CCW = front-face toward -Z
+            }
+
+            var mesh = new Mesh { name = "BottleTopperDisk" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            mesh.UploadMeshData(markNoLongerReadable: true);
+            return mesh;
+        }
+
+        /// <summary>Unlit solid-colour material for the topper cap.</summary>
+        private static Material CreateTopperMaterial(Color color)
+        {
+            var shader = Shader.Find("Unlit/Color")
+                      ?? Shader.Find("Sprites/Default")
+                      ?? Shader.Find("Standard")
+                      ?? Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                Debug.LogWarning("Bottle3DView: cannot resolve topper shader.");
+                return null;
+            }
+
+            var mat = new Material(shader) { name = "BottleTopper_Mat" };
+            mat.color = color;
+            mat.renderQueue = 3002; // render on top of glass (Transparent+2)
+            return mat;
+        }
+
+        /// <summary>
+        /// Write the v2 layout report by sampling the current active view states.
+        /// Call this after a solve sequence to capture topperCount &gt; 0.
+        /// </summary>
+        public static void WriteReport()
+        {
+            int count = s_activeViews.Count;
+            var bounds = new Bounds[count];
+            bool overlapDet = false;
+            bool hudDet = false;
+            int sinks = 0;
+            int toppers = 0;
+            const float HudBoundaryY = 4.35f;
+
+            for (int i = 0; i < count; i++)
+            {
+                var v = s_activeViews[i];
+                if (v == null) continue;
+                if (v._isSinkOnly) sinks++;
+                if (v._wasCompleted) toppers++;
+                if (v._glassBodyGO != null)
+                {
+                    var mr = v._glassBodyGO.GetComponent<MeshRenderer>();
+                    if (mr != null) bounds[i] = mr.bounds;
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                if (bounds[i].max.y > HudBoundaryY) hudDet = true;
+                for (int j = i + 1; j < count; j++)
+                {
+                    if (bounds[i].Intersects(bounds[j])) overlapDet = true;
+                }
+            }
+
+            WriteLayoutReport(count, overlapDet, hudDet, toppers, sinks);
         }
 
         private static Material CreateFallbackGlassMaterial()

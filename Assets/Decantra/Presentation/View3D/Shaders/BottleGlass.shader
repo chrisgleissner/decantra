@@ -108,15 +108,25 @@ Shader "Decantra/BottleGlass"
                 // Inner surface is slightly darker / more saturated
                 float4 col = float4(_GlassTint.rgb * 0.75, _GlassTint.a * 0.5);
 
-                // Block E: dark bands for sink-only bottles
+                // Obj-1 fix (ALL bottles): suppress inner glass alpha in the dome area.
+                // AppendDome UV formula gives UV.y ≈ 1.0 for all dome verts; the inner
+                // glass tint at those UVs created a visible dark/light ring just above the
+                // rounded base — the "bottom overlay stripe".  Fading col.a to near-zero
+                // for UV.y > 0.94 removes it without affecting any other surface region.
+                float domeArea = smoothstep(0.94, 1.0, IN.uv.y);
+                col.a *= (1.0 - domeArea * 0.85);
+
+                // Block E: dark neck-rim band for sink-only bottles.
+                // baseBand removed — UV.y < 0.07 never matches real geometry
+                // (cylinder body starts at UV.y ≈ 0.225) so it was dead code, and
+                // accidentally darkened the dome (UV.y = 1.0) for sink bottles.
+                // rimBand now clamped to uvY ≤ 0.97 to target neck/shoulder only.
                 if (_SinkOnly > 0.5)
                 {
                     float uvY = IN.uv.y;
-                    float rimBand = saturate((uvY - 0.82) / 0.04);         // 0→1 as y goes 0.82→0.86
-                    float baseBand = saturate((0.07 - uvY) / 0.04);        // 0→1 as y goes 0.07→0.03
-                    float band = saturate(rimBand + baseBand);
-                    col.rgb = lerp(col.rgb, float3(0.05, 0.05, 0.07), band * 0.9);
-                    col.a = lerp(col.a, 0.88, band);
+                    float rimBand = saturate((uvY - 0.82) / 0.04) * step(uvY, 0.97);
+                    col.rgb = lerp(col.rgb, float3(0.05, 0.05, 0.07), rimBand * 0.9);
+                    col.a = lerp(col.a, 0.85, rimBand);
                 }
 
                 return col;
@@ -243,22 +253,41 @@ Shader "Decantra/BottleGlass"
                 float alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5;
                 alpha = min(alpha, _MaxGlassAlpha);
 
-                // ── Block E: sink-only dark bands ──────────────────────────
-                // When _SinkOnly=1, override rim + base regions with near-black.
-                // The bands are pinned in UV space so they cannot change layout bounds.
-                // Specular/Fresnel contributions are zeroed in band regions so the
-                // marking remains visible under strong lighting.
+                // ── Block E: sink-only visual markings ──────────────────────
+                // Obj-1 fix: baseBand completely removed — UV.y < 0.07 never matches
+                // real glass geometry (cylinder body starts at UV.y ≈ 0.225).  The code
+                // was dead but its removal also fixes the bottom-of-bottle stripe on
+                // sink bottles where the dark rim colour was bleeding onto dome verts.
+                //
+                // rimBand restricted to neck/shoulder only (uvY ≤ 0.97).  Dome verts
+                // have UV.y = 1.0 (AppendDome formula) so step(uvY, 0.97) excludes them,
+                // letting the dome reflective highlight below take effect instead.
+                //
+                // Obj-2 fix: dome reflective highlight added.  Fresnel + specular glow
+                // on the base dome (UV.y ≈ 1.0) makes the dark glass profile readable
+                // against the dark game background — subtle but clearly visible.
                 if (_SinkOnly > 0.5)
                 {
                     float uvY = IN.uv.y;
-                    float rimBand  = saturate((uvY - 0.82) / 0.04);   // neck top band
-                    float baseBand = saturate((0.07 - uvY) / 0.04);   // base bottom band
-                    float band = saturate(rimBand + baseBand);
+                    // Neck/shoulder dark marking (excludes dome).
+                    float rimBand = saturate((uvY - 0.82) / 0.04) * step(uvY, 0.97);
+                    // Dome mask: UV.y = 1.0 for AppendDome vertices.
+                    float domeMask = smoothstep(0.97, 1.0, uvY);
 
-                    // Replace glass colour with near-black in bands; blend edges softly.
-                    color = lerp(color, float3(0.04, 0.04, 0.06), band * 0.95);
-                    // Boost alpha in bands so black is clearly visible.
-                    alpha = lerp(alpha, 0.92, band);
+                    // Dark neck glass.
+                    color = lerp(color, float3(0.04, 0.04, 0.06), rimBand * 0.92);
+                    alpha = lerp(alpha, 0.85, rimBand);
+
+                    // Cool-blue Fresnel edge glow at neck rim — readability against dark bg.
+                    float3 neckGlow = float3(0.35, 0.45, 0.75) * (rimBand * fresnel * 1.8);
+                    color += neckGlow;
+
+                    // Dome reflective highlight: Fresnel + specular on base dome.
+                    // Gives the dark glass bottle a visible glossy base against the bg.
+                    float domeHighlight = domeMask * (fresnel * 1.4 + spec * 0.5);
+                    float3 domeGlow = float3(0.42, 0.52, 0.85) * domeHighlight;
+                    color += domeGlow;
+                    alpha = max(alpha, domeMask * (fresnel * 0.50 + spec * 0.15));
                 }
 
                 return float4(color, alpha);

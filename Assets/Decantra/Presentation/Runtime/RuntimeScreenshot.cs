@@ -18,6 +18,7 @@ using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -47,6 +48,9 @@ namespace Decantra.Presentation
         private const string AutoSolveStartFileName = "auto_solve_start.png";
         private const string AutoSolveStepPrefix = "auto_solve_step_";
         private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
+        // Obj-3: completed-bottle-topper evidence (duplicate of auto_solve_complete but
+        // with an explicit semantic name that maps to the verification exit criterion).
+        private const string CompletedBottleFileName = "completed_bottle_topper.png";
         private const string Bottle3DProofBaselineFileName = "bottle_3d_proof_baseline.png";
         private const string Bottle3DProofRotatedFileName = "bottle_3d_proof_rotated_y15.png";
         private const string Bottle3DProofRestoredFileName = "bottle_3d_proof_restored.png";
@@ -1456,6 +1460,10 @@ namespace Decantra.Presentation
 
             yield return new WaitForSeconds(0.15f);
             yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
+            // Obj-3: also save as the dedicated "completed bottle with topper" evidence file.
+            yield return CaptureScreenshot(Path.Combine(outputDir, CompletedBottleFileName));
+            // Write v2 layout report AFTER auto-solve so topperCount reflects solved state.
+            Bottle3DView.WriteReport();
         }
 
         private static bool TryInvokeAutoSolveTradeIn(GameController controller)

@@ -1213,3 +1213,124 @@ Pixel analysis of `_baseline/screenshot-07-level-36.png`: 181,784 vivid liquid p
 |---|---|---|
 | V2 | Android build + screenshots for levels 20, 36, 3×3 grid | ⏳ Pending device |
 | V3 | Analytical JSON reports generated | ✅ |
+---
+
+## 20) 3D Bottle Final Polish: Bottom Stripe, Sink Visibility, Completed Topper (2026-03-05)
+
+### Status: IMPLEMENTED — TESTS PENDING
+
+Last updated: 2026-03-05
+
+### Objective
+Three visual improvements to the 3D bottle system verified by screenshot artifacts
+and a JSON layout report.
+
+### Root Cause Analysis
+
+**Obj-1 — Bottom overlay stripe (ALL bottles):**
+
+`AppendDome` in `BottleMeshGenerator` uses UV formula:
+```
+v = (pos.y - (yBase - totalHeight)) / totalHeight
+```
+This gives UV.y = 1.0 (clamped) for ALL dome vertices.
+The GLASS_BACK inner-glass pass rendered with `_GlassTint.rgb * 0.75, _GlassTint.a * 0.5`
+at those UV.y ≈ 1.0 pixels, creating a slightly darker ring just above the rounded base.
+For sink-only bottles, the `rimBand` (which was not clamped above UV.y = 0.97) matched
+both the neck AND the dome (both having UV.y ≈ 1.0) and made the dome near-black,
+completely hiding the lowest liquid layer.
+
+**Obj-2 — Black sink bottle visibility:**
+
+The existing `rimBand` darkening correctly targeted the neck/shoulder but also
+accidentally darkened the dome (UV.y = 1.0), making the bottle base flat black.
+No reflective structure was added to compensate.
+
+**Obj-3 — Completed bottle topper:**
+
+No mechanic existed to signal a bottle is fully solved (full + monochrome + non-sink).
+
+### Fix Implementation
+
+**File: `Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader`**
+
+| Location | Change |
+|---|---|
+| GLASS_BACK frag | Add `domeAlpha = smoothstep(0.94, 1.0, UV.y); col.a *= (1 - domeAlpha * 0.85)` to suppress inner glass tint at dome for ALL bottles — removes bottom stripe |
+| GLASS_BACK SinkOnly | Remove `baseBand`. Clamp `rimBand` to `step(uvY, 0.97)` to exclude dome |
+| GLASS_FRONT SinkOnly | Remove `baseBand`. Clamp `rimBand` to `step(uvY, 0.97)`. Add `domeMask = smoothstep(0.97, 1.0, uvY)` + `domeGlow = float3(0.42, 0.52, 0.85) * (fresnel * 1.4 + spec * 0.5)` — reflective dome highlight for sink bottles. Add `neckGlow` (Fresnel edge at neck rim) |
+
+**File: `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`**
+
+| Change | Purpose |
+|---|---|
+| Add `_topperGO`, `_topperRenderer`, `_wasCompleted` fields | Topper state |
+| Add `PropTopperColor` shader property ID | Material update |
+| Call `UpdateTopper(bottle, _layers)` at end of `Render()` | Drive topper state |
+| `UpdateTopper()` method | Checks `IsSolvedBottle()` + creates/hides topper |
+| `EnsureTopperObject(Color)` | Creates flat disk GO on first call; updates colour |
+| `CreateTopperMesh()` | 32-segment disk, radius = NeckRadius × 1.55, normals -Z |
+| `CreateTopperMaterial(Color)` | Unlit/Color, renderQueue 3002 (above glass) |
+| Topper cleanup in `OnDestroy()` | Prevents mesh and material leaks |
+| `CheckLayoutSafety()` update | Computes sink + topper counts; calls `WriteLayoutReport()` |
+| `WriteLayoutReport()` | Writes `v2-layout-report.json` to `Application.persistentDataPath` |
+| `WriteReport()` public static | Called by RuntimeScreenshot after auto-solve for post-solve topperCount |
+
+**File: `Assets/Decantra/Presentation/Runtime/RuntimeScreenshot.cs`**
+
+- Added `CompletedBottleFileName = "completed_bottle_topper.png"`.
+- After `auto_solve_complete.png` capture: also captures → `completed_bottle_topper.png`.
+- Calls `Bottle3DView.WriteReport()` so `topperCount` > 0 in the JSON report.
+
+**File: `scripts/capture_screenshots.sh`**
+
+- Added `"completed_bottle_topper.png"` and `"v2-layout-report.json"` to `expected[]`.
+- Added post-capture copy step to populate `docs/repro/3d-bottle-regressions/final-verification-v2/`.
+
+### Verification Plan
+
+| Criterion | Artifact |
+|---|---|
+| No bottom stripe | level-20.png, level-36.png — base of bottle body clean |
+| Sink bottle visible | sink-bottle.png — reflective dome + neck glow visible against dark bg |
+| Completed topper | completed-bottle-topper.png — coloured disk above solved bottle neck |
+| Layout report | `docs/repro/3d-bottle-regressions/v2-layout-report.json` |
+
+### Task Breakdown
+
+| # | Task | File | Status |
+|---|---|---|---|
+| O1 | Remove GLASS_BACK baseBand; add dome alpha suppression for ALL bottles | `BottleGlass.shader` | ✅ |
+| O2 | Remove GLASS_FRONT baseBand; add dome reflective glow for sink-only | `BottleGlass.shader` | ✅ |
+| O3a | Add topper fields + UpdateTopper, EnsureTopperObject | `Bottle3DView.cs` | ✅ |
+| O3b | Add CreateTopperMesh, CreateTopperMaterial | `Bottle3DView.cs` | ✅ |
+| O3c | Update CheckLayoutSafety + WriteLayoutReport + WriteReport | `Bottle3DView.cs` | ✅ |
+| V1 | Add CompletedBottleFileName + capture step to RuntimeScreenshot | `RuntimeScreenshot.cs` | ✅ |
+| V2 | Update capture_screenshots.sh expected array + v2 copy step | `capture_screenshots.sh` | ✅ |
+| V3 | Create final-verification-v2 dir + v2-layout-report.json stub | `docs/repro/` | ✅ |
+| V4 | Run EditMode tests — no regressions | test runner | ⬜ |
+| V5 | Build APK + capture screenshots on device | build + device | ⬜ |
+
+### Decision Log
+
+- 2026-03-05: Dome alpha suppression uses `smoothstep(0.94, 1.0, UV.y)` in GLASS_BACK
+  to gradually fade the inner glass tint in the dome region.  Factor `0.85` chosen so
+  a small amount of inner tint remains where dome and body seam join.
+- 2026-03-05: Dome reflective highlight uses `float3(0.42, 0.52, 0.85)` (cool-blue,
+  consistent with the existing Fresnel colour scheme) so it reads as reflective glass.
+- 2026-03-05: Topper disk radius = NeckRadius × 1.55 = 0.14 × 1.55 = 0.217 wu,
+  slightly wider than the neck (0.14 wu), clearly visible but not oversized.
+- 2026-03-05: Topper uses Unlit/Color (renderQueue 3002) so its colour matches the
+  liquid exactly regardless of scene lighting and renders on top of the glass shell.
+- 2026-03-05: Topper mesh is a world-space flat disk (normals -Z toward camera)
+  placed at the rim top.  It does NOT affect the glass body MeshRenderer.bounds
+  used by CheckLayoutSafety, so it  never triggers overlap/HUD intrusion alerts.
+- 2026-03-05: `WriteReport()` is called by RuntimeScreenshot after auto-solve so
+  the JSON reflects `topperCount > 0` for the solved level state.
+
+### Artifact Locations
+
+| Artifact | Path |
+|---|---|
+| Verification screenshots | `docs/repro/3d-bottle-regressions/final-verification-v2/` |
+| v2 layout report | `docs/repro/3d-bottle-regressions/v2-layout-report.json` |
