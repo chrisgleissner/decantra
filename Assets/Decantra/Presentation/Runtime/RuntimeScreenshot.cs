@@ -1458,7 +1458,11 @@ namespace Decantra.Presentation
                 controller.PourCompleted -= OnPourCompleted;
             }
 
-            yield return new WaitForSeconds(0.15f);
+            // Capture immediately (no WaitForSeconds) so the level-complete banner overlay
+            // is still transparent: LevelCompleteBanner.AnimatePanel() sets canvasGroup.alpha=0
+            // synchronously at the start of its coroutine, so at WaitForEndOfFrame the banner
+            // is at ~0.4% opacity (SmoothStep at t=16ms/0.45s), effectively invisible.
+            // Bottles are fully rendered with corks active at this point.
             yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
             // Write the v2 layout report synchronously right after auto_solve_complete, while
             // s_activeViews still holds the solved-level bottle views (before the next frame's

@@ -137,9 +137,8 @@ namespace Decantra.Presentation.View3D
 
         // Glass body property IDs
         private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
-        // URP Lit uses _BaseColor for the albedo; Unlit/Color uses _Color.
-        // Since CreateStopperMaterial prefers URP Lit, _BaseColor is the primary property.
-        private static readonly int PropStopperColor = Shader.PropertyToID("_BaseColor");
+        // Sprites/Default (stopper shader) uses _Color for the tint.
+        private static readonly int PropStopperColor = Shader.PropertyToID("_Color");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -616,7 +615,7 @@ namespace Decantra.Presentation.View3D
             _stopperGO.layer = targetLayer;
             _stopperGO.transform.localPosition = new Vector3(
                 0f,
-                BottleMeshGenerator.StopperBaseY,
+                BottleMeshGenerator.GetStopperBaseY(_capacityRatio),
                 -0.006f);  // in front of glass so cork renders over glass at rim
             var stopperMf = _stopperGO.AddComponent<MeshFilter>();
             stopperMf.sharedMesh = CreateStopperMesh();
@@ -890,6 +889,13 @@ namespace Decantra.Presentation.View3D
                 // Invalidate all liquid layer meshes so they rebuild with the new ratio
                 for (int i = 0; i < _cachedFillBounds.Count; i++)
                     _cachedFillBounds[i] = (-1f, -1f);
+
+                // Reposition stopper to match the new neck-top Y for this capacity.
+                if (_stopperGO != null)
+                    _stopperGO.transform.localPosition = new Vector3(
+                        0f,
+                        BottleMeshGenerator.GetStopperBaseY(_capacityRatio),
+                        -0.006f);
             }
 
             // Sync sink-only flag on the glass renderer
@@ -1012,19 +1018,19 @@ namespace Decantra.Presentation.View3D
         }
 
         /// <summary>
-        /// Lit opaque material for the cork stopper.
-        /// Prefers URP Lit so the cork responds to scene directional lights (Plan 18
-        /// adds a key + rim light).  Falls back to Standard, then Unlit/Color.
-        /// The initial colour is the neutral cork beige; UpdateTopper tints it to the
-        /// liquid colour when the bottle becomes completed.
+        /// Flat-colour material for the cork stopper.
+        /// Uses Sprites/Default (always present in Unity, works on all platforms including
+        /// Android with IL2CPP) so the stopper reliably shows the liquid colour.
+        /// Rendered at Transparent+2 (queue 3002) so it composites over the transparent
+        /// glass shell (queue 3001) and appears in front of the neck.
         /// </summary>
         private static Material CreateStopperMaterial(Color color)
         {
-            // Prefer URP Lit for physically-based lighting response.
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                      ?? Shader.Find("Standard")
+            // Sprites/Default is always compiled and available; it uses _Color as the tint.
+            // Fall back to Unlit/Color if, for some reason, Sprites/Default is stripped.
+            var shader = Shader.Find("Sprites/Default")
                       ?? Shader.Find("Unlit/Color")
-                      ?? Shader.Find("Sprites/Default");
+                      ?? Shader.Find("Universal Render Pipeline/Unlit");
             if (shader == null)
             {
                 Debug.LogWarning("Bottle3DView: cannot resolve stopper shader.");
@@ -1032,33 +1038,12 @@ namespace Decantra.Presentation.View3D
             }
 
             var mat = new Material(shader) { name = "BottleStopper_Mat" };
-
-            if (shader.name == "Universal Render Pipeline/Lit")
-            {
-                // Opaque matte cork — no gloss, no metallic.
-                mat.SetFloat("_Surface", 0f);       // 0 = Opaque
-                mat.SetFloat("_Blend", 0f);         // Alpha mode (ignored for opaque)
-                mat.SetFloat("_Cull", 2f);          // Back-face cull
-                mat.SetFloat("_ZWrite", 1f);        // Opaque writes depth
-                mat.SetFloat("_Metallic", 0f);
-                mat.SetFloat("_Smoothness", 0.10f); // Cork is matte
-                mat.SetColor("_BaseColor", color);
-                mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF"); // subtle highlights
-                mat.renderQueue = 2002;             // Opaque + 2, before transparent glass
-            }
-            else if (shader.name == "Standard")
-            {
-                mat.SetFloat("_Metallic", 0f);
-                mat.SetFloat("_Glossiness", 0.05f); // very matte
-                mat.color = color;
-                mat.renderQueue = 2002;
-            }
-            else // Unlit/Color fallback
-            {
-                mat.color = color;
-                mat.renderQueue = 3002; // Transparent+2 so it renders over glass
-            }
-
+            // Sprites/Default uses _Color; Unlit/Color also accepts _Color.
+            mat.SetColor("_Color", color);
+            // Render after transparent glass (queue Transparent = 3000, glass = Transparent+1 = 3001)
+            // so the cork appears on top of / through the glass neck. ZWrite off to avoid
+            // breaking transparent compositing order for other bottles.
+            mat.renderQueue = 3002;
             return mat;
         }
 

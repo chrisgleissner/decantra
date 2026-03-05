@@ -111,10 +111,27 @@ namespace Decantra.Presentation.View3D
         public const float StopperTotalHeight = StopperInsideDepth + StopperPeekHeight;
 
         // Computed Y position of the neck top (bottom of rim lip), referenced by Bottle3DView.
-        // Formula: BodyHalfHeight + ShoulderHeight + NeckHeight  (same as in GenerateBottleMesh).
-        // Exposed as a field so Bottle3DView can position the stopper GO without re-deriving.
+        // Formula: bodyBottom + BodyHeight + ShoulderHeight + NeckHeight - StopperInsideDepth
+        // where bodyBottom = -BodyHalfHeight + DomeRadius * 0.5.  The DomeRadius*0.5 offset is
+        // critical: the body cylinder does NOT start at -BodyHalfHeight but at
+        // (-BodyHalfHeight + DomeRadius*0.5) because the base dome is embedded in the body.
+        // Without this offset the stopper is positioned 0.19 wu too low (inside the bottle).
         public static readonly float StopperBaseY =
-            BodyHeight * 0.5f + ShoulderHeight + NeckHeight - StopperInsideDepth;
+            BodyHeight * 0.5f + DomeRadius * 0.5f + ShoulderHeight + NeckHeight - StopperInsideDepth;
+
+        /// <summary>
+        /// Capacity-aware version of <see cref="StopperBaseY"/>.
+        /// Only the cylindrical body height scales with <paramref name="capacityRatio"/>;
+        /// shoulder, neck, and rim stay at their reference sizes, so the neck-top Y
+        /// depends on the body height baked into the current mesh.
+        /// </summary>
+        public static float GetStopperBaseY(float capacityRatio)
+        {
+            float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            float bodyBottom = -BodyHalfHeight + DomeRadius * 0.5f;
+            float neckTop = bodyBottom + BodyHeight * capped + ShoulderHeight + NeckHeight;
+            return neckTop - StopperInsideDepth;
+        }
 
         private const float BodyHalfHeight = BodyHeight * 0.5f;
 
