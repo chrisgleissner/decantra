@@ -22,6 +22,7 @@ using Decantra.Domain.Solver;
 using Decantra.App.Services;
 using Decantra.Presentation;
 using Decantra.Presentation.View;
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -31,6 +32,8 @@ namespace Decantra.Presentation.Controller
     {
         [Header("Refs")]
         [SerializeField] private List<BottleView> bottleViews = new List<BottleView>();
+        [SerializeField] private List<Bottle3DView> _bottle3DViews = new List<Bottle3DView>();
+        [SerializeField] private ColorPalette _colorPalette;
         [SerializeField] private HudView hudView;
         [SerializeField] private LevelCompleteBanner levelBanner;
         [SerializeField] private IntroBanner introBanner;
@@ -456,6 +459,9 @@ namespace Decantra.Presentation.Controller
             PersistCurrentProgress(_currentLevel, _currentSeed);
             InitializeLevelAudio(_currentLevel, _currentSeed);
             Render();
+            if (_bottle3DViews != null)
+                foreach (var v3D in _bottle3DViews)
+                    v3D?.ResetWobble();
             _inputLocked = false;
             TrackLevelLoadPrecomputeExpectations(_currentLevel);
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -689,6 +695,11 @@ namespace Decantra.Presentation.Controller
             CiProbeAppendIfEnabled($"POUR_STARTED moveId={moveId} source={sourceIndex} target={targetIndex} amount={poured}");
 #endif
 
+            var src3D = GetBottle3DView(sourceIndex);
+            if (src3D != null)
+                src3D.BeginPour(GetBottle3DView(targetIndex),
+                    poured / (float)Mathf.Max(1, _state.Bottles[sourceIndex].Capacity));
+
             StartCoroutine(AnimateMove(moveId, sourceIndex, targetIndex, poured, color, duration, sourceView, targetView));
             return true;
         }
@@ -729,6 +740,7 @@ namespace Decantra.Presentation.Controller
             }
             Render();
             sourceView?.ClearOutgoing();
+            GetBottle3DView(sourceIndex)?.EndPour();
             targetView?.ClearIncoming();
             var completedEvent = new PourLifecycleEvent(moveId, sourceIndex, targetIndex, applied);
             PourCompleted?.Invoke(completedEvent);
@@ -877,6 +889,13 @@ namespace Decantra.Presentation.Controller
             return bottleViews[index];
         }
 
+        private Bottle3DView GetBottle3DView(int index)
+        {
+            if (_bottle3DViews == null) return null;
+            if (index < 0 || index >= _bottle3DViews.Count) return null;
+            return _bottle3DViews[index];
+        }
+
         private void Render()
         {
             if (_state == null) return;
@@ -904,6 +923,24 @@ namespace Decantra.Presentation.Controller
                     {
                         view.SetLevelMaxCapacity(maxCap);
                         view.Render(_state.Bottles[i]);
+                    }
+                }
+
+                // 3D overlay views (Visual layer)
+                if (_bottle3DViews != null && _colorPalette != null)
+                {
+                    Func<int, (float r, float g, float b)> colorResolver =
+                        id => { var c = _colorPalette.GetColor((ColorId)id); return (c.r, c.g, c.b); };
+                    for (int i = 0; i < _bottle3DViews.Count; i++)
+                    {
+                        var view3D = _bottle3DViews[i];
+                        if (view3D == null) continue;
+                        bool active3D = i < _state.Bottles.Count;
+                        if (active3D)
+                        {
+                            view3D.SetLevelMaxCapacity(maxCap);
+                            view3D.Render(_state.Bottles[i], colorResolver);
+                        }
                     }
                 }
             }

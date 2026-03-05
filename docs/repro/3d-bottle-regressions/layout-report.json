@@ -1,0 +1,67 @@
+{
+  "reportVersion": "1.0",
+  "generatedBy": "analytical-geometry",
+  "notes": [
+    "Generated analytically from BottleMeshGenerator.cs constants + canvas config.",
+    "CELL_H_WU = 420px / (1920px / 10wu) = 2.1875 wu (confirmed from SceneBootstrap.cs:1592).",
+    "All 'fullCap' rows assume capacity_ratio=1.0 (worst case).",
+    "Runtime bounds from CheckLayoutSafety() will supersede these when device is available.",
+    "Negative verticalGapWu means mesh bounds overlap for full-capacity adjacent bottles.",
+    "Levels 20/36 typically have smaller-capacity bottles so runtime gap may be positive."
+  ],
+  "cameraAndCanvas": {
+    "orthoHalfHeight_wu": 5.0,
+    "worldHeight_wu": 10.0,
+    "refResolutionHeight_px": 1920.0,
+    "px_per_wu": 192.0,
+    "cellSize_px": {
+      "w": 220.0,
+      "h": 420.0
+    },
+    "cellSize_wu": {
+      "w": 1.14583,
+      "h": 2.1875
+    }
+  },
+  "meshGeometry": {
+    "source": "Assets/Decantra/Presentation/View3D/BottleMeshGenerator.cs",
+    "constants": {
+      "BodyHeight": 1.6,
+      "BodyRadius": 0.38,
+      "ShoulderHeight": 0.3,
+      "NeckHeight": 0.22,
+      "NeckRadius": 0.14,
+      "RimLipHeight": 0.035,
+      "DomeRadius": 0.38
+    },
+    "fullCapMeshHeightUnscaled_wu": 2.535
+  },
+  "scaleAnalysis": {
+    "old": {
+      "visualScale": 1.0,
+      "fullCapMeshHeight_wu": 2.535,
+      "verticalGapBetweenAdjacentBottles_wu": -0.3475,
+      "overlapDetected": true,
+      "topRowBottleTopY_wu": 3.455,
+      "hudBoundaryY_wu": 4.35,
+      "hudIntrusionDetected": false
+    },
+    "new": {
+      "visualScale": 0.92,
+      "fullCapMeshHeight_wu": 2.3322,
+      "verticalGapBetweenAdjacentBottles_wu": -0.1447,
+      "overlapDetected": true,
+      "topRowBottleTopY_wu": 3.3536,
+      "hudBoundaryY_wu": 4.35,
+      "hudIntrusionDetected": false,
+      "note": "Full-cap gap still negative; runtime check on actual per-level capacity ratios will confirm correctness."
+    }
+  },
+  "reductionAchieved": {
+    "scaleReduction_pct": 8.0,
+    "heightReduction_wu": 0.2028,
+    "overlapReduction_wu": 0.2028,
+    "hudIntrusion_old": false,
+    "hudIntrusion_new": false
+  }
+}

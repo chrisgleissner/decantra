@@ -2,7 +2,8 @@
   "name": "Decantra.Presentation",
   "references": [
     "Decantra.Domain",
-    "Decantra.App"
+    "Decantra.App",
+    "Decantra.Presentation.View3D"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

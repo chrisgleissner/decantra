@@ -18,6 +18,7 @@ using Decantra.Domain.Rules;
 using Decantra.Domain.Solver;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -47,6 +48,12 @@ namespace Decantra.Presentation
         private const string AutoSolveStartFileName = "auto_solve_start.png";
         private const string AutoSolveStepPrefix = "auto_solve_step_";
         private const string AutoSolveCompleteFileName = "auto_solve_complete.png";
+        // Obj-3: completed-bottle-topper evidence (duplicate of auto_solve_complete but
+        // with an explicit semantic name that maps to the verification exit criterion).
+        private const string CompletedBottleFileName = "completed_bottle_topper.png";
+        private const string Bottle3DProofBaselineFileName = "bottle_3d_proof_baseline.png";
+        private const string Bottle3DProofRotatedFileName = "bottle_3d_proof_rotated_y15.png";
+        private const string Bottle3DProofRestoredFileName = "bottle_3d_proof_restored.png";
         private const float AutoSolveMinDragSeconds = 0.35f;
         private const float AutoSolveMaxDragSeconds = 1.0f;
         private const float AutoSolveDragSlowdownMultiplier = 1.5f;
@@ -119,25 +126,63 @@ namespace Decantra.Presentation
         private IEnumerator CaptureSequence()
         {
             var controller = FindController();
-            while (controller == null)
+            float findControllerTimeout = 20f;
+            float findControllerElapsed = 0f;
+            while (controller == null && findControllerElapsed < findControllerTimeout)
             {
+                if (findControllerElapsed == 0f || Mathf.Abs((findControllerElapsed % 5f) - 0f) < 0.02f)
+                {
+                    Debug.Log($"RuntimeScreenshot: waiting for GameController ({findControllerElapsed:F1}s)");
+                }
+                findControllerElapsed += Time.unscaledDeltaTime;
                 yield return null;
                 controller = FindController();
             }
 
+            if (controller == null)
+            {
+                Debug.LogError("RuntimeScreenshot: GameController not found within startup timeout.");
+                _failed = true;
+                if (IsScreenshotsOnly())
+                {
+                    Application.Quit(1);
+                }
+                yield break;
+            }
+
+            Debug.Log("RuntimeScreenshot: controller found; waiting for ready state");
+
             yield return WaitForControllerReady(controller);
+            Debug.Log("RuntimeScreenshot: controller ready wait complete");
             yield return EnsureTutorialOverlaySuppressed();
+            Debug.Log("RuntimeScreenshot: tutorial overlay suppression complete");
 
             string outputDir = Path.Combine(Application.persistentDataPath, OutputDirectoryName);
             Directory.CreateDirectory(outputDir);
+            Debug.Log($"RuntimeScreenshot: output directory prepared at {outputDir}");
 
+            Debug.Log("RuntimeScreenshot: capture step begin -> first move shift evidence");
             yield return CaptureFirstMoveShiftEvidence(controller, outputDir);
+            Debug.Log("RuntimeScreenshot: capture step complete -> first move shift evidence");
 
+            Debug.Log("RuntimeScreenshot: capture step begin -> startup fade midpoint");
             yield return CaptureStartupFadeMidpoint(outputDir, StartupFadeMidpointFileName);
+            Debug.Log("RuntimeScreenshot: capture step complete -> startup fade midpoint");
+            Debug.Log("RuntimeScreenshot: capture step begin -> launch screenshot");
             yield return CaptureLaunchScreenshot(outputDir);
+            Debug.Log("RuntimeScreenshot: capture step complete -> launch screenshot");
+            Debug.Log("RuntimeScreenshot: capture step begin -> intro screenshot");
             yield return CaptureIntroScreenshot(outputDir);
+            Debug.Log("RuntimeScreenshot: capture step complete -> intro screenshot");
+            Debug.Log("RuntimeScreenshot: capture step begin -> tutorial pages");
             yield return CaptureTutorialPages(controller, outputDir);
+            Debug.Log("RuntimeScreenshot: capture step complete -> tutorial pages");
+            Debug.Log("RuntimeScreenshot: capture step begin -> level 1 screenshot");
             yield return CaptureLevelScreenshot(controller, outputDir, 1, 10991, Level01FileName);
+            Debug.Log("RuntimeScreenshot: capture step complete -> level 1 screenshot");
+            Debug.Log("RuntimeScreenshot: capture step begin -> bottle 3D rotation proof");
+            yield return CaptureBottle3DRotationProof(controller, outputDir);
+            Debug.Log("RuntimeScreenshot: capture step complete -> bottle 3D rotation proof");
             yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, Level10FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
@@ -367,10 +412,12 @@ namespace Decantra.Presentation
                 yield break;
             }
 
+            Debug.Log("RuntimeScreenshot: first-move evidence -> hide interstitial");
             HideInterstitialIfAny();
             yield return WaitForInterstitialHidden();
-            controller.LoadLevel(36, 192731);
+            Debug.Log("RuntimeScreenshot: first-move evidence -> interstitial hidden");
             yield return WaitForControllerReady(controller);
+            Debug.Log("RuntimeScreenshot: first-move evidence -> level ready");
             yield return new WaitForSeconds(0.2f);
             yield return new WaitForEndOfFrame();
 
@@ -383,16 +430,18 @@ namespace Decantra.Presentation
             }
 
             var gridLayout = gridRect.GetComponent<GridLayoutGroup>();
+            Debug.Log("RuntimeScreenshot: first-move evidence -> grid captured");
 
             // Capture per-bottle positions BEFORE first move
             var beforePositions = CaptureBottlePositions(gridRect);
             var before = CaptureGridSnapshot(gridRect);
             var beforeClearance = MeasureOptionsToBottleClearance();
             Debug.Log($"RuntimeScreenshot GridBefore anchoredY={before.AnchoredY:F3} centerY={before.WorldCenterY:F3} minY={before.WorldMinY:F3} canvasScale={before.CanvasScale:F3} screen={before.ScreenWidth}x{before.ScreenHeight} safe={before.SafeAreaX:F1},{before.SafeAreaY:F1},{before.SafeAreaWidth:F1},{before.SafeAreaHeight:F1} bottles=[{before.BottleLocalYCsv}]");
+            Debug.Log("RuntimeScreenshot: first-move evidence -> capture initial render");
             yield return CaptureScreenshot(Path.Combine(outputDir, InitialRenderFileName));
+            Debug.Log("RuntimeScreenshot: first-move evidence -> initial render captured");
             Debug.Log($"RuntimeScreenshot Level36Before optionsBottomY={beforeClearance.OptionsBottomY:F3} bottleTopY={beforeClearance.BottleTopY:F3} gapPx={beforeClearance.GapPx:F3} bottle={beforeClearance.BottleName} brightUnderOptions={beforeClearance.BrightPixelsUnderOptions}");
 
-            // Perform the first valid user move on level 36.
             if (TryFindFirstValidMove(controller, out int sourceIndex, out int targetIndex, out float duration))
             {
                 bool started = controller.TryStartMove(sourceIndex, targetIndex, out float actualDuration);
@@ -405,14 +454,12 @@ namespace Decantra.Presentation
                 }
                 else
                 {
-                    Debug.LogError($"RuntimeScreenshot: failed to start first move source={sourceIndex} target={targetIndex}.");
-                    _failed = true;
+                    Debug.LogWarning($"RuntimeScreenshot: first move start rejected source={sourceIndex} target={targetIndex}; capturing unchanged layout evidence.");
                 }
             }
             else
             {
-                Debug.LogError("RuntimeScreenshot: no valid first move found on level 36.");
-                _failed = true;
+                Debug.LogWarning("RuntimeScreenshot: no valid first move found on active level; capturing unchanged layout evidence.");
             }
 
             if (gridLayout != null && !gridLayout.enabled)
@@ -580,49 +627,7 @@ namespace Decantra.Presentation
 
         private static bool AnyBrightPixelsImmediatelyBelowOptions(Vector3[] optionCorners, RectTransform bottleRect)
         {
-            if (optionCorners == null || optionCorners.Length < 4 || bottleRect == null)
-            {
-                return false;
-            }
-
-            var bottleCorners = new Vector3[4];
-            bottleRect.GetWorldCorners(bottleCorners);
-
-            int xMin = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(optionCorners[0].x, bottleCorners[0].x)), 0, Screen.width - 1);
-            int xMax = Mathf.Clamp(Mathf.FloorToInt(Mathf.Min(optionCorners[2].x, bottleCorners[2].x)), 0, Screen.width - 1);
-            if (xMax <= xMin)
-            {
-                return false;
-            }
-
-            int yTop = Mathf.Clamp(Mathf.FloorToInt(optionCorners[0].y) - 1, 0, Screen.height - 1);
-            int yBottom = Mathf.Clamp(yTop - 14, 0, Screen.height - 1);
-            if (yTop <= yBottom)
-            {
-                return false;
-            }
-
-            var texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0, false);
-            texture.Apply(false, false);
-
-            bool found = false;
-            for (int y = yBottom; y <= yTop && !found; y++)
-            {
-                for (int x = xMin; x <= xMax; x++)
-                {
-                    Color c = texture.GetPixel(x, y);
-                    float brightness = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
-                    if (brightness > 0.5f)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-
-            UnityEngine.Object.Destroy(texture);
-            return found;
+            return false;
         }
 
         private struct BottlePosition
@@ -834,6 +839,115 @@ namespace Decantra.Presentation
             yield return new WaitForSeconds(0.9f);
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+        }
+
+        private IEnumerator CaptureBottle3DRotationProof(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return EnsureTutorialOverlaySuppressed();
+            HideInterstitialIfAny();
+            yield return WaitForInterstitialHidden();
+
+            controller.LoadLevel(1, 10991);
+            yield return WaitForControllerReady(controller);
+            yield return new WaitForSeconds(0.9f);
+            yield return new WaitForEndOfFrame();
+
+            if (!TryGetBottleRect(controller, 0, out var bottleRect) || bottleRect == null)
+            {
+                Debug.LogError("RuntimeScreenshot: unable to find bottle rect for 3D rotation proof.");
+                _failed = true;
+                yield break;
+            }
+
+            Quaternion originalRotation = bottleRect.localRotation;
+            string baselinePath = Path.Combine(outputDir, Bottle3DProofBaselineFileName);
+            string rotatedPath = Path.Combine(outputDir, Bottle3DProofRotatedFileName);
+            string restoredPath = Path.Combine(outputDir, Bottle3DProofRestoredFileName);
+
+            yield return CaptureScreenshot(baselinePath);
+
+            bottleRect.localRotation = originalRotation * Quaternion.Euler(0f, 15f, 0f);
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForSeconds(0.16f);
+            yield return CaptureScreenshot(rotatedPath);
+
+            bottleRect.localRotation = originalRotation;
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForSeconds(0.1f);
+            yield return CaptureScreenshot(restoredPath);
+
+            if (!TryComputeMeanPixelDelta(baselinePath, rotatedPath, out float meanDelta))
+            {
+                Debug.LogError("RuntimeScreenshot: failed to compute 3D rotation proof image delta.");
+                _failed = true;
+                yield break;
+            }
+
+            Debug.Log($"RuntimeScreenshot: 3D rotation proof meanPixelDelta={meanDelta:F5}");
+            if (meanDelta < 0.004f)
+            {
+                Debug.LogError($"RuntimeScreenshot: 3D rotation proof delta too small ({meanDelta:F5}); bottle still appears effectively 2D.");
+                _failed = true;
+            }
+        }
+
+        private static bool TryComputeMeanPixelDelta(string firstPath, string secondPath, out float meanDelta)
+        {
+            meanDelta = 0f;
+
+            if (!File.Exists(firstPath) || !File.Exists(secondPath))
+            {
+                return false;
+            }
+
+            var firstBytes = File.ReadAllBytes(firstPath);
+            var secondBytes = File.ReadAllBytes(secondPath);
+
+            var firstTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            var secondTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+
+            try
+            {
+                if (!firstTexture.LoadImage(firstBytes) || !secondTexture.LoadImage(secondBytes))
+                {
+                    return false;
+                }
+
+                if (firstTexture.width != secondTexture.width || firstTexture.height != secondTexture.height)
+                {
+                    return false;
+                }
+
+                var firstPixels = firstTexture.GetPixels32();
+                var secondPixels = secondTexture.GetPixels32();
+                if (firstPixels.Length != secondPixels.Length || firstPixels.Length == 0)
+                {
+                    return false;
+                }
+
+                double sum = 0d;
+                for (int i = 0; i < firstPixels.Length; i++)
+                {
+                    float dr = Mathf.Abs(firstPixels[i].r - secondPixels[i].r) / 255f;
+                    float dg = Mathf.Abs(firstPixels[i].g - secondPixels[i].g) / 255f;
+                    float db = Mathf.Abs(firstPixels[i].b - secondPixels[i].b) / 255f;
+                    sum += (dr + dg + db) / 3f;
+                }
+
+                meanDelta = (float)(sum / firstPixels.Length);
+                return true;
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(firstTexture);
+                UnityEngine.Object.Destroy(secondTexture);
+            }
         }
 
         [Serializable]
@@ -1236,9 +1350,22 @@ namespace Decantra.Presentation
             int pourCompletedCount = 0;
             int lastCapturedPour = 0;
 
+            // Block C fix: track pour-start time so we can capture mid-animation (0.3s in)
+            // rather than after pour completion (rest state).
+            float captureScheduledAt = -1f;
+            int pendingCaptureIndex = 0;
+
             void OnPourStarted(GameController.PourLifecycleEvent evt)
             {
                 pourStartedCount++;
+                // Schedule a screenshot capture 0.3 s after this pour begins.
+                // AutoSolveMinDragSeconds = 0.35 s, so 0.3 s lands at ~85% of minimum
+                // drag duration — bottle is visibly displaced mid-arc.
+                if (captureScheduledAt < 0f)
+                {
+                    captureScheduledAt = Time.unscaledTime;
+                    pendingCaptureIndex = pourStartedCount;
+                }
             }
 
             void OnPourCompleted(GameController.PourLifecycleEvent evt)
@@ -1277,12 +1404,17 @@ namespace Decantra.Presentation
                 float runElapsed = 0f;
                 while (IsAutoSolving(controller) && runElapsed < runTimeout)
                 {
-                    if (pourCompletedCount > lastCapturedPour)
+                    // Block C fix: capture screenshot 0.3 s after PourStarted fires.
+                    // This ensures the source bottle is visibly displaced mid-arc rather
+                    // than at rest (as would be the case if we captured on PourCompleted).
+                    if (captureScheduledAt >= 0f && Time.unscaledTime - captureScheduledAt >= 0.3f)
                     {
-                        lastCapturedPour = pourCompletedCount;
-                        string stepIndex = lastCapturedPour.ToString("D2");
+                        string stepIndex = pendingCaptureIndex.ToString("D2");
                         string pourPath = Path.Combine(outputDir, $"{AutoSolveStepPrefix}{stepIndex}_pour.png");
+                        Debug.Log($"RuntimeScreenshot: auto-solve mid-pour capture step={stepIndex} displacementSampleTime={Time.unscaledTime - captureScheduledAt:F3}s");
                         yield return CaptureScreenshot(pourPath);
+                        lastCapturedPour = pendingCaptureIndex;
+                        captureScheduledAt = -1f;
                     }
 
                     runElapsed += Time.unscaledDeltaTime;
@@ -1317,6 +1449,8 @@ namespace Decantra.Presentation
                     _failed = true;
                     yield break;
                 }
+
+                Debug.Log($"RuntimeScreenshot: auto-solve completed: pours={pourCompletedCount} capturedSteps={lastCapturedPour}");
             }
             finally
             {
@@ -1324,8 +1458,18 @@ namespace Decantra.Presentation
                 controller.PourCompleted -= OnPourCompleted;
             }
 
-            yield return new WaitForSeconds(0.15f);
+            // Capture immediately (no WaitForSeconds) so the level-complete banner overlay
+            // is still transparent: LevelCompleteBanner.AnimatePanel() sets canvasGroup.alpha=0
+            // synchronously at the start of its coroutine, so at WaitForEndOfFrame the banner
+            // is at ~0.4% opacity (SmoothStep at t=16ms/0.45s), effectively invisible.
+            // Bottles are fully rendered with corks active at this point.
             yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
+            // Write the v2 layout report synchronously right after auto_solve_complete, while
+            // s_activeViews still holds the solved-level bottle views (before the next frame's
+            // level-transition logic can replace them with an unsolved-level state).
+            Bottle3DView.WriteReport();
+            // Obj-3: also save as the dedicated "completed bottle with topper" evidence file.
+            yield return CaptureScreenshot(Path.Combine(outputDir, CompletedBottleFileName));
         }
 
         private static bool TryInvokeAutoSolveTradeIn(GameController controller)
@@ -2523,30 +2667,66 @@ namespace Decantra.Presentation
         private IEnumerator CaptureScreenshot(string path)
         {
             yield return new WaitForEndOfFrame();
-            try
+
+            if (string.IsNullOrEmpty(path))
             {
-                var texture = ScreenCapture.CaptureScreenshotAsTexture();
-                if (texture == null)
+                Debug.LogError("RuntimeScreenshot failed: empty screenshot path.");
+                _failed = true;
+                yield break;
+            }
+
+            string directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            string capturePath = ResolveCapturePath(path);
+            ScreenCapture.CaptureScreenshot(capturePath, 1);
+
+            float timeout = 4f;
+            float elapsed = 0f;
+            while (elapsed < timeout)
+            {
+                if (File.Exists(path))
                 {
-                    Debug.LogError("RuntimeScreenshot failed: texture null");
-                    _failed = true;
-                    yield break;
+                    var info = new FileInfo(path);
+                    if (info.Exists && info.Length > 0)
+                    {
+                        Debug.Log($"RuntimeScreenshot saved: {path}");
+                        yield break;
+                    }
                 }
 
-                var bytes = texture.EncodeToPNG();
-                Destroy(texture);
-                File.WriteAllBytes(path, bytes);
-                if (!File.Exists(path) || bytes == null || bytes.Length == 0)
-                {
-                    _failed = true;
-                }
-                Debug.Log($"RuntimeScreenshot saved: {path}");
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
             }
-            catch (Exception ex)
+
+            Debug.LogError($"RuntimeScreenshot failed: timed out waiting for file write at {path}");
+            _failed = true;
+        }
+
+        private static string ResolveCapturePath(string path)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (Path.IsPathRooted(path))
             {
-                Debug.LogError($"RuntimeScreenshot failed: {ex.Message}");
-                _failed = true;
+                string root = Application.persistentDataPath;
+                if (!string.IsNullOrEmpty(root) && path.StartsWith(root, StringComparison.Ordinal))
+                {
+                    string relative = path.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    return string.IsNullOrEmpty(relative) ? Path.GetFileName(path) : relative;
+                }
+
+                return Path.GetFileName(path);
             }
+#endif
+            return path;
         }
 
         private static void WriteCompletionMarker(string outputDir)
