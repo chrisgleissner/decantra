@@ -108,13 +108,15 @@ namespace Decantra.Presentation.View3D
         private bool _initialised;
         private bool _isSinkOnly;
 
-        // ── Completed bottle topper ──────────────────────────────────────
-        // A coloured flat disk placed above the bottle neck once IsSolvedBottle()
-        // becomes true.  Does NOT affect glass body MeshRenderer.bounds used by
-        // CheckLayoutSafety, so it cannot trigger overlap or HUD intrusion alerts.
-        private GameObject _topperGO;
-        private MeshRenderer _topperRenderer;
-        private bool _wasCompleted;   // last-known completion state
+        // ── Bottle stopper / cork ────────────────────────────────────────
+        // A short cylinder that sits in the neck and peeks above the rim, like a
+        // wine-bottle cork.  Always visible.  Coloured with the single liquid colour
+        // when the bottle is monochrome-complete; neutral beige when empty or mixed.
+        // Does NOT affect glass body MeshRenderer.bounds used by CheckLayoutSafety.
+        private static readonly Color StopperNeutralColor = new Color(0.80f, 0.76f, 0.70f, 1f);
+        private GameObject _stopperGO;
+        private MeshRenderer _stopperRenderer;
+        private bool _wasCompleted;   // last-known completion state (used by WriteReport)
 
         // 3D drag rotation — applied to _worldRoot; does not affect canvas layout/gameplay
         private float _targetDragYaw;
@@ -134,8 +136,8 @@ namespace Decantra.Presentation.View3D
         private const float VisualScale = 0.92f;
 
         // Glass body property IDs
-        private static readonly int PropSinkOnly   = Shader.PropertyToID("_SinkOnly");
-        private static readonly int PropTopperColor = Shader.PropertyToID("_Color");
+        private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
+        private static readonly int PropStopperColor = Shader.PropertyToID("_Color");
 
         // Shader property ID cache (populated once)
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
@@ -391,20 +393,20 @@ namespace Decantra.Presentation.View3D
                     Destroy(mf.sharedMesh);
             }
 
-            // Topper cleanup: the disk mesh is a unique instance; destroy it explicitly.
-            if (_topperGO != null)
+            // Stopper cleanup: mesh and material are unique instances; destroy explicitly.
+            if (_stopperGO != null)
             {
-                var mf = _topperGO.GetComponent<MeshFilter>();
+                var mf = _stopperGO.GetComponent<MeshFilter>();
                 if (mf != null && mf.sharedMesh != null)
                     Destroy(mf.sharedMesh);
-                // _topperGO is a child of _worldRoot, so Destroy(_worldRoot) below
-                // handles the GO itself; but the material instance needs explicit disposal.
-                if (_topperRenderer != null && _topperRenderer.sharedMaterial != null)
-                    Destroy(_topperRenderer.sharedMaterial);
+                // _stopperGO is a child of _worldRoot so the GO is destroyed below;
+                // material instance needs explicit disposal.
+                if (_stopperRenderer != null && _stopperRenderer.sharedMaterial != null)
+                    Destroy(_stopperRenderer.sharedMaterial);
             }
 
             // Destroy the scene-root world object; this also destroys GlassBody,
-            // LiquidLayers, ContactShadow, PourStream, and Topper children.
+            // LiquidLayers, ContactShadow, PourStream, and Stopper children.
             if (_worldRoot != null)
             {
                 Destroy(_worldRoot);
@@ -518,8 +520,8 @@ namespace Decantra.Presentation.View3D
         {
             try
             {
-                string overlapStr  = overlapDetected       ? "true" : "false";
-                string hudStr      = hudIntrusionDetected  ? "true" : "false";
+                string overlapStr = overlapDetected ? "true" : "false";
+                string hudStr = hudIntrusionDetected ? "true" : "false";
                 string json = "{\n" +
                               $"  \"overlapDetected\": {overlapStr},\n" +
                               $"  \"hudIntrusionDetected\": {hudStr},\n" +
@@ -593,6 +595,21 @@ namespace Decantra.Presentation.View3D
             shadowFilter.sharedMesh = CreateShadowDiskMesh();
             var shadowRenderer = _contactShadowGO.AddComponent<MeshRenderer>();
             shadowRenderer.sharedMaterial = CreateFallbackShadowMaterial();
+
+            // ── Bottle stopper / cork ────────────────────────────────────────────
+            // Created once here with a neutral colour; UpdateStopper updates the colour
+            // each render cycle based on the bottle's current liquid state.
+            _stopperGO = new GameObject("BottleStopper");
+            _stopperGO.transform.SetParent(_worldRoot.transform, false);
+            _stopperGO.layer = targetLayer;
+            _stopperGO.transform.localPosition = new Vector3(
+                0f,
+                BottleMeshGenerator.StopperBaseY,
+                -0.004f);              // just in front of glass so it is always visible
+            var stopperMf = _stopperGO.AddComponent<MeshFilter>();
+            stopperMf.sharedMesh = CreateStopperMesh();
+            _stopperRenderer = _stopperGO.AddComponent<MeshRenderer>();
+            _stopperRenderer.sharedMaterial = CreateStopperMaterial(StopperNeutralColor);
 
             // ── Interaction collider ────────────────────────────────────────────
             // Kept on the canvas element (this.gameObject) so that existing UI
@@ -886,100 +903,87 @@ namespace Decantra.Presentation.View3D
         private void UpdateTopper(Bottle bottle, List<LiquidLayerData> layers)
         {
             bool isCompleted = !bottle.IsSink && !bottle.IsEmpty && bottle.IsMonochrome;
-            if (isCompleted == _wasCompleted && (!isCompleted || _topperGO != null))
-                return; // no change; avoid re-creating material each frame
-
+            if (isCompleted == _wasCompleted) return; // no colour change needed
             _wasCompleted = isCompleted;
 
-            if (!isCompleted)
-            {
-                if (_topperGO != null) _topperGO.SetActive(false);
-                return;
-            }
-
-            // Derive the single liquid colour from the completed bottle's layer list.
-            Color liquidColor = layers.Count > 0
+            // Pick the stopper colour: liquid colour for completed bottles, neutral
+            // beige for everything else so the stopper always looks like a real cork.
+            Color stopperColor = isCompleted && layers.Count > 0
                 ? new Color(layers[0].R, layers[0].G, layers[0].B, 1f)
-                : Color.white;
+                : StopperNeutralColor;
 
-            EnsureTopperObject(liquidColor);
-        }
-
-        /// <summary>
-        /// Create the topper GO on first call; update its colour on subsequent calls.
-        /// The topper is a flat disk placed just above the bottle rim, facing the camera.
-        /// </summary>
-        private void EnsureTopperObject(Color liquidColor)
-        {
-            if (_topperGO == null)
+            if (_stopperRenderer != null)
             {
-                int targetLayer = _worldRoot != null ? _worldRoot.layer : gameObject.layer;
-                _topperGO = new GameObject("BottleTopper");
-                _topperGO.transform.SetParent(_worldRoot.transform, false);
-                _topperGO.layer = targetLayer;
-
-                // Position: at the top of the rim lip, slightly in front of the glass mesh.
-                float topperLocalY = BottleMeshGenerator.BodyHeight * 0.5f
-                    + BottleMeshGenerator.ShoulderHeight
-                    + BottleMeshGenerator.NeckHeight
-                    + BottleMeshGenerator.RimLipHeight;
-                _topperGO.transform.localPosition = new Vector3(0f, topperLocalY, -0.005f);
-
-                var mf = _topperGO.AddComponent<MeshFilter>();
-                mf.sharedMesh = CreateTopperMesh();
-                _topperRenderer = _topperGO.AddComponent<MeshRenderer>();
-                _topperRenderer.sharedMaterial = CreateTopperMaterial(liquidColor);
-            }
-            else
-            {
-                // Bottle was already completed and topper exists: just refresh colour.
                 var block = new MaterialPropertyBlock();
-                _topperRenderer.GetPropertyBlock(block);
-                block.SetColor(PropTopperColor, liquidColor);
-                _topperRenderer.SetPropertyBlock(block);
+                _stopperRenderer.GetPropertyBlock(block);
+                block.SetColor(PropStopperColor, stopperColor);
+                _stopperRenderer.SetPropertyBlock(block);
             }
-
-            _topperGO.SetActive(true);
         }
 
         /// <summary>
-        /// Flat disk mesh for the topper: 55 % wider than the bottle neck,
-        /// normals toward -Z (facing the orthographic camera).
+        /// Short cylinder mesh for the cork stopper: fits snugly in the bottle neck
+        /// and peeks <see cref="BottleMeshGenerator.StopperPeekHeight"/> above the rim.
+        /// Geometry: cylindrical side walls + flat top disk facing the camera (-Z).
         /// </summary>
-        private static Mesh CreateTopperMesh()
+        private static Mesh CreateStopperMesh()
         {
-            const int segments = 32;
-            float radius = BottleMeshGenerator.NeckRadius * 1.55f;
+            const int segments = 28;
+            float radius = BottleMeshGenerator.StopperRadius;
+            float height = BottleMeshGenerator.StopperTotalHeight;
 
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
-            var uvs  = new List<Vector2>();
+            var uvs   = new List<Vector2>();
             var tris  = new List<int>();
 
-            // Centre vertex
-            verts.Add(Vector3.zero);
+            // ── Cylindrical side wall (two rings) ────────────────────────────
+            int stride = segments + 1;
+            for (int ring = 0; ring <= 1; ring++)
+            {
+                float y = ring == 0 ? 0f : height;
+                for (int i = 0; i <= segments; i++)
+                {
+                    float angle = (float)i / segments * Mathf.PI * 2f;
+                    float cos = Mathf.Cos(angle);
+                    float sin = Mathf.Sin(angle);
+                    verts.Add(new Vector3(cos * radius, y, sin * radius));
+                    norms.Add(new Vector3(cos, 0f, sin)); // outward radial normal
+                    uvs.Add(new Vector2((float)i / segments, (float)ring));
+                }
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                int b0 = i,          b1 = i + 1;
+                int t0 = stride + i, t1 = stride + i + 1;
+                // CCW winding = outward normals face away from camera → visible from outside
+                tris.Add(b0); tris.Add(t0); tris.Add(b1);
+                tris.Add(b1); tris.Add(t0); tris.Add(t1);
+            }
+
+            // ── Flat top cap (facing -Z so the camera-facing face is lit) ────
+            int capBase = verts.Count;
+            verts.Add(new Vector3(0f, height, 0f));
             norms.Add(Vector3.back);
             uvs.Add(new Vector2(0.5f, 0.5f));
-
             for (int i = 0; i <= segments; i++)
             {
                 float angle = (float)i / segments * Mathf.PI * 2f;
-                float x = Mathf.Cos(angle) * radius;
-                float y = Mathf.Sin(angle) * radius;
-                verts.Add(new Vector3(x, y, 0f));
+                float cos = Mathf.Cos(angle);
+                float sin = Mathf.Sin(angle);
+                verts.Add(new Vector3(cos * radius, height, sin * radius));
                 norms.Add(Vector3.back);
-                uvs.Add(new Vector2(x / radius * 0.5f + 0.5f, y / radius * 0.5f + 0.5f));
+                uvs.Add(new Vector2(cos * 0.5f + 0.5f, sin * 0.5f + 0.5f));
             }
-
             for (int i = 0; i < segments; i++)
             {
-                int c = 0;
-                int a = i + 1;
-                int b = i + 2 > segments ? 1 : i + 2;
+                int c = capBase;
+                int a = capBase + 1 + i;
+                int b = capBase + 1 + (i + 1 <= segments ? i + 1 : 0);
                 tris.Add(c); tris.Add(b); tris.Add(a); // CCW = front-face toward -Z
             }
 
-            var mesh = new Mesh { name = "BottleTopperDisk" };
+            var mesh = new Mesh { name = "BottleStopperMesh" };
             mesh.SetVertices(verts);
             mesh.SetNormals(norms);
             mesh.SetUVs(0, uvs);
@@ -989,8 +993,8 @@ namespace Decantra.Presentation.View3D
             return mesh;
         }
 
-        /// <summary>Unlit solid-colour material for the topper cap.</summary>
-        private static Material CreateTopperMaterial(Color color)
+        /// <summary>Unlit solid-colour material for the stopper cork.</summary>
+        private static Material CreateStopperMaterial(Color color)
         {
             var shader = Shader.Find("Unlit/Color")
                       ?? Shader.Find("Sprites/Default")
@@ -998,11 +1002,11 @@ namespace Decantra.Presentation.View3D
                       ?? Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
             {
-                Debug.LogWarning("Bottle3DView: cannot resolve topper shader.");
+                Debug.LogWarning("Bottle3DView: cannot resolve stopper shader.");
                 return null;
             }
 
-            var mat = new Material(shader) { name = "BottleTopper_Mat" };
+            var mat = new Material(shader) { name = "BottleStopper_Mat" };
             mat.color = color;
             mat.renderQueue = 3002; // render on top of glass (Transparent+2)
             return mat;

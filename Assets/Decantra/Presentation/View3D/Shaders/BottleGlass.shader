@@ -31,16 +31,20 @@ Shader "Decantra/BottleGlass"
     {
         _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.09)
         _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.22)
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.36)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
         _RefractionStrength("Refraction Strength", Range(0,0.08)) = 0.02
         _AbsorptionStrength("Absorption Strength", Range(0,4)) = 1.1
         _MicroNormalScale("Micro Normal Scale", Range(0,0.2)) = 0.06
-        _ReflectionStrip("Reflection Strip Strength", Range(0,1)) = 0.10
+        _ReflectionStrip("Reflection Strip Strength", Range(0,1)) = 0.18
         _ReflectionX    ("Reflection Strip X", Range(-1,1)) = 0.55
         _ReflectionWidth("Reflection Strip Width", Range(0.01,0.5)) = 0.08
+        // Second (shadow-side) reflection strip — dimmer, wider, cool tint
+        _ReflectionStrip2("Shadow Strip Strength",  Range(0,1)) = 0.07
+        _ReflectionX2   ("Shadow Strip X",     Range(-1,1)) = -0.55
+        _ReflectionWidth2("Shadow Strip Width", Range(0.01,0.5)) = 0.13
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
         // liquid_visible >= 1 - _MaxGlassAlpha. 0.20 → ≥80% liquid shows through.
@@ -161,6 +165,9 @@ Shader "Decantra/BottleGlass"
             float  _ReflectionStrip;
             float  _ReflectionX;
             float  _ReflectionWidth;
+            float  _ReflectionStrip2;
+            float  _ReflectionX2;
+            float  _ReflectionWidth2;
             float  _MaxGlassAlpha;
             float  _SpecMaxContrib;
             float  _SinkOnly;
@@ -244,10 +251,15 @@ Shader "Decantra/BottleGlass"
                     0.0,
                     abs(stripUv.x - (_ReflectionX * 0.5 + 0.5)));
                 float3 stripCol = float3(1,1,1) * stripMask * _ReflectionStrip;
-
+                // Shadow-side strip: softer, cool-tinted, wraps around opposite edge
+                float stripMask2 = smoothstep(
+                    _ReflectionWidth2,
+                    0.0,
+                    abs(stripUv.x - (_ReflectionX2 * 0.5 + 0.5)));
+                float3 stripCol2 = float3(0.82, 0.90, 1.0) * stripMask2 * _ReflectionStrip2;
                 // ── Compose ────────────────────────────────────────────────
                 float3 baseTint = _GlassTint.rgb * absorb;
-                float3 color = baseTint + fresnelCol + specCol + stripCol;
+                float3 color = baseTint + fresnelCol + specCol + stripCol + stripCol2;
                 // Block A fix: cap total alpha to _MaxGlassAlpha so liquid colours
                 // always show through clearly.
                 float alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5;

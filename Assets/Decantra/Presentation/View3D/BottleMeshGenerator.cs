@@ -74,6 +74,34 @@ namespace Decantra.Presentation.View3D
         /// <summary>Rim lip height.</summary>
         public const float RimLipHeight = 0.035f;
 
+        // ── Stopper / cork geometry ───────────────────────────────────────────
+        /// <summary>
+        /// Radius of the cylindrical cork/stopper that sits in and peeks above the neck.
+        /// Slightly smaller than the inner neck wall so the stopper fits snugly.
+        /// </summary>
+        public const float StopperRadius = NeckRadius - GlassThickness * 0.65f;  // ≈ 0.1218
+
+        /// <summary>
+        /// How far below the top of the neck lip the stopper extends (depth inside neck).
+        /// </summary>
+        public const float StopperInsideDepth = 0.030f;
+
+        /// <summary>
+        /// How far the stopper peeks above the outer rim top.
+        /// </summary>
+        public const float StopperPeekHeight = 0.028f;
+
+        /// <summary>
+        /// Total height of the stopper cylinder mesh (inside portion + peek portion).
+        /// </summary>
+        public const float StopperTotalHeight = StopperInsideDepth + StopperPeekHeight;
+
+        // Computed Y position of the neck top (bottom of rim lip), referenced by Bottle3DView.
+        // Formula: BodyHalfHeight + ShoulderHeight + NeckHeight  (same as in GenerateBottleMesh).
+        // Exposed as a field so Bottle3DView can position the stopper GO without re-deriving.
+        public static readonly float StopperBaseY =
+            BodyHeight * 0.5f + ShoulderHeight + NeckHeight - StopperInsideDepth;
+
         private const float BodyHalfHeight = BodyHeight * 0.5f;
 
         /// <summary>
