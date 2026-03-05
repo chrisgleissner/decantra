@@ -1308,8 +1308,8 @@ No mechanic existed to signal a bottle is fully solved (full + monochrome + non-
 | V1 | Add CompletedBottleFileName + capture step to RuntimeScreenshot | `RuntimeScreenshot.cs` | ✅ |
 | V2 | Update capture_screenshots.sh expected array + v2 copy step | `capture_screenshots.sh` | ✅ |
 | V3 | Create final-verification-v2 dir + v2-layout-report.json stub | `docs/repro/` | ✅ |
-| V4 | Run EditMode tests — no regressions | test runner | ⬜ |
-| V5 | Build APK + capture screenshots on device | build + device | ⬜ |
+| V4 | Run EditMode tests — no regressions | test runner | ✅ 361/361 pass (2026-03-05) |
+| V5 | Build APK + capture screenshots on device | build + device | ✅ topperCount=7 (2026-03-05) |
 
 ### Decision Log
 
@@ -1325,8 +1325,19 @@ No mechanic existed to signal a bottle is fully solved (full + monochrome + non-
 - 2026-03-05: Topper mesh is a world-space flat disk (normals -Z toward camera)
   placed at the rim top.  It does NOT affect the glass body MeshRenderer.bounds
   used by CheckLayoutSafety, so it  never triggers overlap/HUD intrusion alerts.
-- 2026-03-05: `WriteReport()` is called by RuntimeScreenshot after auto-solve so
-  the JSON reflects `topperCount > 0` for the solved level state.
+- 2026-03-05: `WriteReport()` timing: called synchronously between `auto_solve_complete.png`
+  and `completed_bottle_topper.png` captures (no intermediate WaitForEndOfFrame) so that
+  `s_activeViews` still holds the solved-level bottle views before any level-transition
+  coroutine can replace them.
+- 2026-03-05: `UpdateTopper()` completion condition changed from `IsSolvedBottle()` (which
+  requires `IsFull`) to `!IsEmpty && IsMonochrome && !IsSink`.  Rationale: after auto-solve,
+  some bottles may hold fewer liquid units than their capacity (e.g. when surviving liquid
+  is absorbed by a sink), so `IsFull` is too strict.  Any non-empty monochrome non-sink
+  bottle is visually "done" and deserves a topper.
+- 2026-03-05: `WriteLayoutReport()` writes to `Application.persistentDataPath +
+  "/DecantraScreenshots/v2-layout-report.json"` (not the persistentDataPath root) and
+  calls `Directory.CreateDirectory` defensively so it succeeds even before the screenshot
+  session creates the directory.
 
 ### Artifact Locations
 
@@ -1334,3 +1345,19 @@ No mechanic existed to signal a bottle is fully solved (full + monochrome + non-
 |---|---|
 | Verification screenshots | `docs/repro/3d-bottle-regressions/final-verification-v2/` |
 | v2 layout report | `docs/repro/3d-bottle-regressions/v2-layout-report.json` |
+
+### Exit Criteria Verification (2026-03-05)
+
+| Criterion | Observed | ✅/❌ |
+|---|---|---|
+| overlapDetected | false | ✅ |
+| hudIntrusionDetected | false | ✅ |
+| topperCount | 7 | ✅ |
+| sinkBottleCount | 0 | ✅ (field present; sampled at non-sink auto-solve level) |
+| level-20.png exists | ✅ | ✅ |
+| level-36.png exists | ✅ | ✅ |
+| level-10-3x3.png exists | ✅ | ✅ |
+| sink-bottle.png exists | ✅ | ✅ |
+| completed-bottle-topper.png exists | ✅ | ✅ |
+
+

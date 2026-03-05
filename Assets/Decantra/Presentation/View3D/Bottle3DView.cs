@@ -528,7 +528,9 @@ namespace Decantra.Presentation.View3D
                               $"  \"activeBottleCount\": {activeBottleCount},\n" +
                               $"  \"generatedAt\": \"{System.DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}\"\n" +
                               "}";
-                string path = Path.Combine(Application.persistentDataPath, "v2-layout-report.json");
+                string screenshotsDir = Path.Combine(Application.persistentDataPath, "DecantraScreenshots");
+                Directory.CreateDirectory(screenshotsDir);
+                string path = Path.Combine(screenshotsDir, "v2-layout-report.json");
                 File.WriteAllText(path, json);
                 Debug.Log($"[Bottle3DView] v2 layout report written to {path}: " +
                           $"overlap={overlapDetected} hud={hudIntrusionDetected} " +
@@ -877,11 +879,13 @@ namespace Decantra.Presentation.View3D
 
         /// <summary>
         /// Show or hide the coloured topper cap based on whether <paramref name="bottle"/>
-        /// is solved (full + all slots same colour + not a sink).
+        /// is a completed monochrome bottle (non-empty, single colour, not a sink).
+        /// Uses IsMonochrome rather than IsSolvedBottle() because solved bottles may not
+        /// be completely full when the total colour count is less than the bottle capacity.
         /// </summary>
         private void UpdateTopper(Bottle bottle, List<LiquidLayerData> layers)
         {
-            bool isCompleted = !bottle.IsSink && bottle.IsSolvedBottle();
+            bool isCompleted = !bottle.IsSink && !bottle.IsEmpty && bottle.IsMonochrome;
             if (isCompleted == _wasCompleted && (!isCompleted || _topperGO != null))
                 return; // no change; avoid re-creating material each frame
 

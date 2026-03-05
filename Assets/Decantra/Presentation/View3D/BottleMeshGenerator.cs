@@ -116,9 +116,9 @@ namespace Decantra.Presentation.View3D
 
             // Only the body cylinder scales; all other sections stay fixed.
             float scaledBodyHeight = BodyHeight * Mathf.Clamp(capacityRatio, 0.1f, 1f);
-            float yMin        = -BodyHalfHeight;
-            float bodyBottom  = yMin + DomeRadius * 0.5f;      // dome always same (-0.61)
-            float bodyTop     = bodyBottom + scaledBodyHeight;  // body end floats up/down
+            float yMin = -BodyHalfHeight;
+            float bodyBottom = yMin + DomeRadius * 0.5f;      // dome always same (-0.61)
+            float bodyTop = bodyBottom + scaledBodyHeight;  // body end floats up/down
             float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
             float shoulderTop = bodyTop + ShoulderHeight;
             float neckTop = shoulderTop + NeckHeight;
@@ -234,8 +234,8 @@ namespace Decantra.Presentation.View3D
         public static Mesh GenerateLiquidLayerMesh(float fillMin, float fillMax, float capacityRatio = 1f)
         {
             float scaledInteriorHeight = InteriorHeight * Mathf.Clamp(capacityRatio, 0.1f, 1f);
-            float yBottom = InteriorBottomY + fillMin  * scaledInteriorHeight;
-            float yTop    = InteriorBottomY + fillMax * scaledInteriorHeight;
+            float yBottom = InteriorBottomY + fillMin * scaledInteriorHeight;
+            float yTop = InteriorBottomY + fillMax * scaledInteriorHeight;
 
             // Slightly inset X so layer quad sits just inside the glass wall
             const float inset = BodyRadius * 0.92f;

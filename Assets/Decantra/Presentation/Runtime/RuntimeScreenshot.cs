@@ -1460,10 +1460,12 @@ namespace Decantra.Presentation
 
             yield return new WaitForSeconds(0.15f);
             yield return CaptureScreenshot(Path.Combine(outputDir, AutoSolveCompleteFileName));
+            // Write the v2 layout report synchronously right after auto_solve_complete, while
+            // s_activeViews still holds the solved-level bottle views (before the next frame's
+            // level-transition logic can replace them with an unsolved-level state).
+            Bottle3DView.WriteReport();
             // Obj-3: also save as the dedicated "completed bottle with topper" evidence file.
             yield return CaptureScreenshot(Path.Combine(outputDir, CompletedBottleFileName));
-            // Write v2 layout report AFTER auto-solve so topperCount reflects solved state.
-            Bottle3DView.WriteReport();
         }
 
         private static bool TryInvokeAutoSolveTradeIn(GameController controller)
