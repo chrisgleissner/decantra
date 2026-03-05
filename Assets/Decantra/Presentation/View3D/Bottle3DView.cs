@@ -504,15 +504,21 @@ namespace Decantra.Presentation.View3D
             {
                 var vi = s_activeViews[i];
                 if (vi == null || vi._contactShadowGO == null) continue;
-                float shadowY = vi._contactShadowGO.transform.position.y;
+                var shadowPos = vi._contactShadowGO.transform.position;
                 for (int j = 0; j < count; j++)
                 {
                     if (i == j) continue;
-                    if (shadowY >= bounds[j].min.y && shadowY <= bounds[j].max.y)
+                    // Only flag if the shadow is within BOTH the X and Y extents of bottle j;
+                    // otherwise shadows of top-row bottles falsely fire against
+                    // same-height but different-column bottles.
+                    bool xOverlap = shadowPos.x >= bounds[j].min.x && shadowPos.x <= bounds[j].max.x;
+                    bool yOverlap = shadowPos.y >= bounds[j].min.y && shadowPos.y <= bounds[j].max.y;
+                    if (xOverlap && yOverlap)
                     {
                         shadowOverlapDetected = true;
                         Debug.LogError($"[Bottle3DView] SHADOW VIOLATION: shadow of bottle {i} " +
-                                       $"at Y={shadowY:F3} overlaps bottle {j} " +
+                                       $"at ({shadowPos.x:F3},{shadowPos.y:F3}) overlaps bottle {j} " +
+                                       $"X=[{bounds[j].min.x:F3},{bounds[j].max.x:F3}] " +
                                        $"Y=[{bounds[j].min.y:F3},{bounds[j].max.y:F3}]");
                     }
                 }
@@ -1112,17 +1118,19 @@ namespace Decantra.Presentation.View3D
                 }
             }
 
-            // Shadow overlap check
+            // Shadow overlap check — requires both X and Y overlap to avoid
+            // false positives from top-row shadows vs. same-height off-column bottles.
             for (int i = 0; i < count; i++)
             {
                 var vi = s_activeViews[i];
                 if (vi == null || vi._contactShadowGO == null) continue;
-                float shadowY = vi._contactShadowGO.transform.position.y;
+                var shadowPos = vi._contactShadowGO.transform.position;
                 for (int j = 0; j < count; j++)
                 {
                     if (i == j) continue;
-                    if (shadowY >= bounds[j].min.y && shadowY <= bounds[j].max.y)
-                        shadowOverlapDet = true;
+                    bool xOvlp = shadowPos.x >= bounds[j].min.x && shadowPos.x <= bounds[j].max.x;
+                    bool yOvlp = shadowPos.y >= bounds[j].min.y && shadowPos.y <= bounds[j].max.y;
+                    if (xOvlp && yOvlp) shadowOverlapDet = true;
                 }
             }
 

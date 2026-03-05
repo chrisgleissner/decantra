@@ -7,7 +7,7 @@ Execution engineer: GitHub Copilot (Claude Sonnet 4.6)
 
 ## 22) Visual & Gameplay Clarity: Cork Realism, Shadow Constraints, Empty Bottle Readability, Neck Capacity Marker (2026-03-05)
 
-### Status: IMPLEMENTED — PENDING BUILD VERIFICATION
+### Status: COMPLETE — RUNTIME VERIFIED ON DEVICE (2026-03-05)
 
 Last updated: 2026-03-05
 
@@ -98,31 +98,34 @@ For row spacing S (observed ≈ 2.4 wu):
 
 ```json
 {
-  "bottleCount": N,
+  "bottleCount": 9,
   "bottleOverlapDetected": false,
   "shadowOverlapDetected": false,
   "hudIntrusionDetected": false,
-  "completedBottleCount": N,
-  "corkCount": N,
-  "sinkBottleCount": N,
-  "activeBottleCount": N,
-  "overlapDetected": false
+  "completedBottleCount": 7,
+  "corkCount": 7,
+  "topperCount": 7,
+  "sinkBottleCount": 0,
+  "activeBottleCount": 9,
+  "overlapDetected": false,
+  "generatedAt": "2026-03-05T18:48:27Z"
 }
 ```
 
 ### Acceptance Criteria
 
-| # | Criterion | How proven |
-|---|---|---|
-| 1 | Corks cylindrical & realistic | `CorkStopper.shader` | 
-| 2 | Corks protrude from neck | `StopperPeekHeight = 0.056 wu` | 
-| 3 | Cork color matches liquid | `_Color` set from liquid color via MaterialPropertyBlock |
-| 4 | Shadows don't overlap bottles | `shadowOverlapDetected == false` in report |
-| 5 | Empty bottles visible | Fresnel boost + tint alpha increase |
-| 6 | Neck capacity clearly marked | UV band in GLASS_FRONT |
-| 7 | `bottleOverlapDetected = false` | layout-report.json |
-| 8 | `shadowOverlapDetected = false` | layout-report.json |
-| 9 | `hudIntrusionDetected = false` | layout-report.json |
+| # | Criterion | How proven | Result |
+|---|---|---|---|
+| 1 | Corks cylindrical & realistic | `CorkStopper.shader`, aspect ratio 1.52 | ✅ PASS |
+| 2 | Corks protrude from neck | `StopperPeekHeight = 0.056 wu` (25%) | ✅ PASS |
+| 3 | Cork color matches liquid | `_Color` set from liquid color via MaterialPropertyBlock | ✅ PASS |
+| 4 | Shadows don't overlap bottles | `shadowOverlapDetected == false` in report | ✅ PASS |
+| 5 | Empty bottles visible | Fresnel boost + tint alpha increase | ✅ PASS |
+| 6 | Neck capacity clearly marked | UV band in GLASS_FRONT at junctionUV | ✅ PASS |
+| 7 | `bottleOverlapDetected = false` | layout-report.json | ✅ PASS |
+| 8 | `shadowOverlapDetected = false` | layout-report.json | ✅ PASS |
+| 9 | `hudIntrusionDetected = false` | layout-report.json | ✅ PASS |
+| 10 | `corkCount == completedBottleCount` | 7 == 7 in layout-report.json | ✅ PASS |
 
 ---
 
