@@ -201,6 +201,14 @@ namespace Decantra.Presentation.View
             _renderGroup.alpha = enabled ? 0f : 1f;
             _renderGroup.blocksRaycasts = true;
             _renderGroup.interactable = true;
+
+            // The legacy 2D stopper sits at a fixed canvas Y and will visibly hover above
+            // shorter bottles if it is ever left enabled in 3D mode. The 3D cork mesh is
+            // the only completed-bottle topper that should remain visible there.
+            if (enabled && stopper != null)
+            {
+                stopper.gameObject.SetActive(false);
+            }
         }
 
         public void Render(Bottle bottle)
@@ -335,7 +343,7 @@ namespace Decantra.Presentation.View
         public void SetHighlight(bool isHighlighted)
         {
             if (outline == null) return;
-            outline.color = isHighlighted ? new Color(0.4f, 0.8f, 1f, 0.9f) : outlineBaseColor;
+            outline.color = isHighlighted ? new Color(1f, 1f, 1f, 0.95f) : outlineBaseColor;
         }
 
         private void ApplyCapacityScale(int capacity)

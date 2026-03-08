@@ -29,9 +29,9 @@ Shader "Decantra/BottleGlass"
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
-        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.94, 1.0, 0.14)
-        _FresnelPower   ("Fresnel Power",  Range(1,8)) = 3.0
-        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.55)
+        _GlassTint      ("Glass Tint",     Color  ) = (0.88, 0.93, 1.0, 0.06)
+        _FresnelPower   ("Fresnel Power",  Range(1,8)) = 4.5
+        _FresnelColor   ("Fresnel Color",  Color  ) = (1,1,1,0.36)
         _SpecColor2     ("Specular Color", Color  ) = (1,1,1,1)
         _Shininess      ("Shininess",      Range(16,256)) = 128
         _Smoothness     ("Smoothness",     Range(0,1)) = 0.97
@@ -45,11 +45,14 @@ Shader "Decantra/BottleGlass"
         _ReflectionStrip2("Shadow Strip Strength",  Range(0,1)) = 0.07
         _ReflectionX2   ("Shadow Strip X",     Range(-1,1)) = -0.55
         _ReflectionWidth2("Shadow Strip Width", Range(0.01,0.5)) = 0.13
+        _RimSheenColor ("Rim Sheen Color", Color) = (0.90, 0.95, 1.0, 1.0)
+        _RimSheenIntensity ("Rim Sheen Intensity", Range(0,1.5)) = 0.10
+        _RimSheenPower ("Rim Sheen Power", Range(1,8)) = 4.5
+        _EmptyBottleBoost ("Empty Bottle Boost", Range(0,1)) = 0
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
-        // liquid_visible >= 1 - _MaxGlassAlpha. 0.28 → ≥72% liquid shows through;
-        // raised from 0.20 so empty bottles have a more visible glass silhouette.
-        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.28
+        // liquid_visible >= 1 - _MaxGlassAlpha. 0.20 → ≥80% liquid shows through.
+        _MaxGlassAlpha  ("Max Glass Alpha", Range(0,1)) = 0.20
 
         // Block A: cap on additive specular luminance contribution (0..1). Prevents
         // bright specular highlight from bleaching the liquid colour underneath.
@@ -169,6 +172,10 @@ Shader "Decantra/BottleGlass"
             float  _ReflectionStrip2;
             float  _ReflectionX2;
             float  _ReflectionWidth2;
+            float4 _RimSheenColor;
+            float  _RimSheenIntensity;
+            float  _RimSheenPower;
+            float  _EmptyBottleBoost;
             float  _MaxGlassAlpha;
             float  _SpecMaxContrib;
             float  _SinkOnly;
@@ -224,6 +231,15 @@ Shader "Decantra/BottleGlass"
                 // Block A fix: Fresnel colour contribution uses clamped amplitude so
                 // grazing-angle brightening cannot reach full white.
                 float3 fresnelCol = _FresnelColor.rgb * fresnel * _FresnelColor.a;
+                float rimSheen = pow(1.0 - NoV, _RimSheenPower) * _RimSheenIntensity;
+                float3 rimSheenCol = _RimSheenColor.rgb * rimSheen;
+
+                // Empty bottles need a stronger glass read on dark backgrounds, but they
+                // still must stay transparent rather than collapsing into a white shell.
+                float emptyBoost = saturate(_EmptyBottleBoost);
+                float emptyEdge = fresnel * emptyBoost;
+                fresnelCol += _FresnelColor.rgb * emptyEdge * 0.18;
+                rimSheenCol += _RimSheenColor.rgb * emptyEdge * 0.08;
 
                 // ── Specular from scene directional light ───────────────────
                 // URP fills _MainLightPosition; built-in fills _WorldSpaceLightPos0.
@@ -259,12 +275,15 @@ Shader "Decantra/BottleGlass"
                     0.0,
                     abs(stripUv.x - (_ReflectionX2 * 0.5 + 0.5)));
                 float3 stripCol2 = float3(0.82, 0.90, 1.0) * stripMask2 * _ReflectionStrip2;
+                stripCol += float3(0.92, 0.97, 1.0) * stripMask * emptyBoost * 0.05;
+                stripCol2 += float3(0.72, 0.82, 0.94) * stripMask2 * emptyBoost * 0.04;
                 // ── Compose ────────────────────────────────────────────────
                 float3 baseTint = _GlassTint.rgb * absorb;
-                float3 color = baseTint + fresnelCol + specCol + stripCol + stripCol2;
+                float3 color = baseTint + fresnelCol + rimSheenCol + specCol + stripCol + stripCol2;
                 // Block A fix: cap total alpha to _MaxGlassAlpha so liquid colours
                 // always show through clearly.
-                float alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.5;
+                float alpha = _GlassTint.a + fresnel * _FresnelColor.a * 0.35 + rimSheen * 0.01;
+                alpha += emptyBoost * (0.035 + fresnel * 0.05);
                 alpha = min(alpha, _MaxGlassAlpha);
 
                 // ── Neck capacity marker ─────────────────────────────────────
@@ -280,9 +299,9 @@ Shader "Decantra/BottleGlass"
                     // 3-pixel-wide softened band centred on junctionUV
                     float band = smoothstep(junctionUV - 0.020, junctionUV, uvY)
                                * (1.0 - smoothstep(junctionUV, junctionUV + 0.030, uvY));
-                    // 50% darkening + slight alpha boost so the thin ring is perceptible
-                    color = lerp(color, color * 0.40, band * 0.55);
-                    alpha = lerp(alpha, min(alpha + 0.14, _MaxGlassAlpha), band * 0.55);
+                    // Keep the fill-cap marker readable without turning it into a dark stripe.
+                    color = lerp(color, color * 0.78, band * 0.30);
+                    alpha = lerp(alpha, min(alpha + 0.04, _MaxGlassAlpha), band * 0.25);
                 }
 
                 // ── Block E: sink-only visual markings ──────────────────────

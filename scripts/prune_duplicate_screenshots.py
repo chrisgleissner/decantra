@@ -190,8 +190,18 @@ def apply_findings(base_ref: str, findings: List[DuplicateFinding]) -> None:
         run_git(["checkout", base_ref, "--", *paths])
 
     if added_duplicate:
-        paths = [entry.path for entry in added_duplicate]
-        run_git(["rm", "-f", "--", *paths])
+        tracked_output = run_git(["ls-files", "--", *(entry.path for entry in added_duplicate)], check=False)
+        tracked_paths = {line.strip() for line in tracked_output.splitlines() if line.strip()}
+
+        git_rm_paths = [entry.path for entry in added_duplicate if entry.path in tracked_paths]
+        delete_paths = [entry.path for entry in added_duplicate if entry.path not in tracked_paths]
+
+        if git_rm_paths:
+            run_git(["rm", "-f", "--", *git_rm_paths])
+
+        for path in delete_paths:
+            if os.path.exists(path):
+                os.remove(path)
 
 
 def print_findings(findings: List[DuplicateFinding]) -> None:

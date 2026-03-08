@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
@@ -41,6 +42,16 @@ namespace Decantra.App.Editor
             _api.RegisterCallbacks(new Callback());
 
             var filter = new Filter { testMode = mode };
+            string testFilterArg = GetArg("-testFilter");
+            if (!string.IsNullOrWhiteSpace(testFilterArg))
+            {
+                filter.testNames = testFilterArg
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(value => value.Trim())
+                    .Where(value => !string.IsNullOrEmpty(value))
+                    .ToArray();
+            }
+
             var settings = new ExecutionSettings(filter);
             _api.Execute(settings);
         }

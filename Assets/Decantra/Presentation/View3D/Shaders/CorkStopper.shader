@@ -138,20 +138,26 @@ Shader "Decantra/CorkStopper"
                 float  spec = pow(saturate(dot(N, H)), _SpecPower) * _SpecStr;
 
                 // ── Procedural surface detail ─────────────────────────────────
-                // Pores: scattered small dots, more prominent on end caps (top/bottom face,
-                // where world-normal points vertically ± Y) and visible on sides too.
-                float2 poreUV = lerp(
-                    IN.worldPos.xz * _PoreScale,   // end caps use XZ world plane
-                    IN.worldPos.xy * _PoreScale,   // sides use XY world plane
-                    saturate(abs(N.y) * 2.0));
+                // Pores: scattered small dots on end caps and sides.
+                // Using mesh UV avoids world-position asymmetry: the pattern is
+                // identical regardless of the bottle's screen column / world X.
+                //
+                // Side UV: uv.x = azimuth 0..1 around circumference, uv.y = height 0..1
+                // Cap UV:  set in vertex as (cos*0.5+0.5, sin*0.5+0.5), centred at 0.5
+                float2 poreUVSide = float2(IN.uv.x * _PoreScale * 2.0,
+                                           IN.uv.y * _PoreScale * 2.0);
+                float2 poreUVCap  = (IN.uv - float2(0.5, 0.5)) * _PoreScale;
+                float2 poreUV = lerp(poreUVSide, poreUVCap,
+                                     saturate(abs(N.y) * 2.0));
                 float pore   = valueNoise(poreUV);
                 float poreMask = saturate(pow(pore, 3.5));   // small dark specks
                 float poreDark = 1.0 - poreMask * _PoreDepth;
 
-                // Grain lines: thin vertical streaks along cork fibres (cylindrical sides only)
-                // Use world-Y + azimuthal X to simulate vertical grain.
-                float2 grainUV = float2(IN.worldPos.x * _GrainScale * 4.0,
-                                        IN.worldPos.y * _GrainScale);
+                // Grain lines: thin vertical streaks along cork fibres (cylindrical sides only).
+                // UV.x provides the horizontal grain coordinate, giving a symmetric,
+                // position-independent pattern that looks the same for every bottle.
+                float2 grainUV = float2(IN.uv.x * _GrainScale * 4.0,
+                                        IN.uv.y * _GrainScale);
                 float grain    = valueNoise(grainUV);
                 float grainMask = saturate((1.0 - abs(N.y)) * grain);   // fades on caps
                 float grainDark  = 1.0 - grainMask * _GrainDepth;
@@ -164,7 +170,7 @@ Shader "Decantra/CorkStopper"
 
                 // ── Compose ──────────────────────────────────────────────────
                 float3 baseColor = _Color.rgb * poreDark * grainDark * ao;
-                float3 finalColor = baseColor * diffuse + spec;
+                float3 finalColor = baseColor * (diffuse + spec);
 
                 return float4(saturate(finalColor), 1.0);
             }

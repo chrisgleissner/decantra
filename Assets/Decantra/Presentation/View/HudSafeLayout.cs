@@ -19,6 +19,21 @@ namespace Decantra.Presentation.View
         private const int GridRows = 3;
         private const int TwoRowBottleThreshold = 6;
         private const int ExternalGridPadding = 0;
+
+        // Minimum guaranteed pixel clearance between the ACTUAL bottle top and the HUD bar
+        // (and between adjacent bottles).  This is expressed in canvas/reference pixels.
+        private const float MinClearancePx = 48f;
+
+        // The 3D bottle mesh is not vertically centred in its canvas cell.  Its local
+        // origin is placed at the cell centre but the mesh top is at y = +1.735 (local),
+        // so it extends above the cell top by:
+        //   overhang = yMax * CellFitFraction / MeshFullHeight  -  0.5
+        //            = 1.735 * 0.9 / 2.535  -  0.5  =  0.1162
+        // This fraction must be subtracted from the raw gap to get the true HUD clearance.
+        // Derivation: clearance = idealGap - BottleTopOverhang * cellH >= MinClearancePx
+        //   with idealGap = (available - rows*cellH)/(rows+1):
+        //   => cellH <= (available - (rows+1)*MinClearancePx) / (rows + (rows+1)*BottleTopOverhang)
+        private const float BottleTopOverhang = 0.1162f;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float LayoutAssertTolerance = 0.5f;
 #endif
@@ -41,6 +56,7 @@ namespace Decantra.Presentation.View
         private Vector2 _baseGridSpacing;
         private RectOffset _baseGridPadding;
         private Vector2 _baseGridSize;
+        private Vector2 _baseGridCellSize;
 
         public void MarkLayoutDirty()
         {
@@ -170,25 +186,36 @@ namespace Decantra.Presentation.View
             if (bottleGridLayout != null && availableHeight > 0f)
             {
                 int rows = ResolveGridRows();
-                float maxBottleHeight = ResolveMaxBottleHeight();
-                if (rows > 0 && maxBottleHeight > 0f)
+                if (rows > 0)
                 {
-                    float idealGap = (availableHeight - (rows * maxBottleHeight)) / (rows + 1f);
-                    if (idealGap > 0f)
+                    // Maximum cell height where the ACTUAL bottle top (which overshoots the
+                    // cell top by BottleTopOverhang * cellH) stays MinClearancePx below the HUD.
+                    // See BottleTopOverhang comment above for the derivation.
+                    float maxFillCellHeight = (availableHeight - (rows + 1f) * MinClearancePx)
+                                             / (rows + (rows + 1f) * BottleTopOverhang);
+                    float baseCellH = _gridLayoutCached ? _baseGridCellSize.y : bottleGridLayout.cellSize.y;
+                    float cellHeight = Mathf.Max(baseCellH, maxFillCellHeight);
+
+                    // With the final cell height, compute equal gaps that exhaust available space.
+                    float idealGap = (availableHeight - rows * cellHeight) / (rows + 1f);
+                    if (idealGap >= MinClearancePx * 0.5f)
                     {
+                        // Expand cells to maximum fill height.
+                        bottleGridLayout.cellSize = new Vector2(bottleGridLayout.cellSize.x, cellHeight);
                         bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, idealGap);
                         bottleGridLayout.padding = new RectOffset(
                             _baseGridPadding.left,
                             _baseGridPadding.right,
-                            ExternalGridPadding,
-                            ExternalGridPadding);
+                            Mathf.RoundToInt(idealGap),
+                            Mathf.RoundToInt(idealGap));
+                        // sizeDelta spans the full available height so the grid fills the area.
                         bottleGrid.sizeDelta = new Vector2(
                             bottleGrid.sizeDelta.x,
-                            rows * maxBottleHeight + (rows - 1f) * idealGap);
+                            rows * cellHeight + (rows + 1f) * idealGap);
                         gridHeight = bottleGrid.sizeDelta.y;
                         appliedEqualGaps = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                        AssertEqualGapModel(desiredTop, desiredBottom, rows, maxBottleHeight, idealGap, topBottom);
+                        AssertEqualGapModel(desiredTop, desiredBottom, rows, cellHeight, idealGap, topBottom);
 #endif
                     }
                 }
@@ -309,6 +336,7 @@ namespace Decantra.Presentation.View
                     bottleGridLayout.padding.top,
                     bottleGridLayout.padding.bottom);
                 _baseGridSize = bottleGrid.sizeDelta;
+                _baseGridCellSize = bottleGridLayout.cellSize;
             }
         }
 
@@ -316,6 +344,7 @@ namespace Decantra.Presentation.View
         {
             if (bottleGridLayout == null || !_gridLayoutCached) return;
             bottleGridLayout.spacing = _baseGridSpacing;
+            bottleGridLayout.cellSize = _baseGridCellSize;
             bottleGridLayout.padding = new RectOffset(
                 _baseGridPadding.left,
                 _baseGridPadding.right,

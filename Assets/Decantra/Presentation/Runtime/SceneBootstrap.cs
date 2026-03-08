@@ -148,13 +148,6 @@ namespace Decantra.Presentation
 
                 // Wire 3D visual overlay on the same GameObject (native platforms only)
                 var bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
-                var pourStreamGo = new GameObject($"PourStream_{i + 1}");
-                pourStreamGo.transform.SetParent(bottleView.transform, false);
-                pourStreamGo.AddComponent<MeshFilter>();
-                pourStreamGo.AddComponent<MeshRenderer>();
-                var pourStream = pourStreamGo.AddComponent<PourStreamController>();
-                SetPrivateField(pourStream, "sourceBottleIndex", i);
-                SetPrivateField(bottle3DView, "pourStream", pourStream);
                 bottle3DViews.Add(bottle3DView);
             }
 
@@ -296,10 +289,6 @@ namespace Decantra.Presentation
                     bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
                 }
 
-                var pourStream = EnsurePourStream(bottleView.transform, i);
-                SetPrivateField(pourStream, "sourceBottleIndex", i);
-                SetPrivateField(bottle3DView, "pourStream", pourStream);
-
                 bottle3DViews[i] = bottle3DView;
             }
 
@@ -357,40 +346,6 @@ namespace Decantra.Presentation
             {
                 toolsGo.AddComponent<RuntimeScreenshot>();
             }
-        }
-
-        private static PourStreamController EnsurePourStream(Transform bottleTransform, int index)
-        {
-            var streamName = $"PourStream_{index + 1}";
-            var streamTransform = bottleTransform.Find(streamName);
-            GameObject streamGo;
-            if (streamTransform == null)
-            {
-                streamGo = new GameObject(streamName);
-                streamGo.transform.SetParent(bottleTransform, false);
-            }
-            else
-            {
-                streamGo = streamTransform.gameObject;
-            }
-
-            if (streamGo.GetComponent<MeshFilter>() == null)
-            {
-                streamGo.AddComponent<MeshFilter>();
-            }
-
-            if (streamGo.GetComponent<MeshRenderer>() == null)
-            {
-                streamGo.AddComponent<MeshRenderer>();
-            }
-
-            var pourStream = streamGo.GetComponent<PourStreamController>();
-            if (pourStream == null)
-            {
-                pourStream = streamGo.AddComponent<PourStreamController>();
-            }
-
-            return pourStream;
         }
 
         private static void EnsureHudSafeLayout()

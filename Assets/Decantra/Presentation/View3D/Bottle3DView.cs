@@ -47,8 +47,7 @@ namespace Decantra.Presentation.View3D
     ///   │   ├── LiquidLayer_0  MeshRenderer  Liquid3D.shader  (MaterialPropertyBlock)
     ///   │   ├── LiquidLayer_1  ...
     ///   │   └── ...
-    ///   ├── ContactShadow      MeshRenderer  Unlit/Color
-    ///   └── PourStream_N       PourStreamController  (reparented from Canvas in Start)
+    ///   └── ContactShadow      MeshRenderer  Unlit/Color
     ///
     /// Coordinate system
     ///   _worldRoot Y tracks the canvas element's world Y (centre of 420px bottle cell).
@@ -76,8 +75,8 @@ namespace Decantra.Presentation.View3D
         [Tooltip("Material templated from Liquid3D.shader for each liquid layer.")]
         [SerializeField] private Material liquidMaterialTemplate;
 
-        [Tooltip("Reference to the pour stream / bubble controller for this bottle.")]
-        [SerializeField] private PourStreamController pourStream;
+        [Tooltip("Material templated from BottleOutline.shader for the bottle silhouette shell.")]
+        [SerializeField] private Material outlineMaterialTemplate;
 
         // ── Internal state ────────────────────────────────────────────────────
         private readonly WobbleSolver _wobble = new WobbleSolver();
@@ -95,8 +94,31 @@ namespace Decantra.Presentation.View3D
         private GameObject _worldRoot;
 
         private GameObject _glassBodyGO;
+        private GameObject _outlineGO;
         private GameObject _liquidRoot;
         private GameObject _contactShadowGO;
+        private MeshRenderer _outlineRenderer;
+
+        private bool _isHighlighted;
+        private bool _isEmptyBottle;
+        private static readonly Color RimSheenDefaultColor = new Color(0.90f, 0.95f, 1.00f, 1f);
+        private static readonly Color RimSheenSinkColor = new Color(0.84f, 0.88f, 0.94f, 1f);
+        private static readonly Color RimSheenHighlightColor = new Color(1f, 1f, 1f, 1f);
+        private const float RimSheenDefaultIntensity = 0.10f;
+        private const float RimSheenSinkIntensity = 0.08f;
+        private const float RimSheenHighlightIntensity = 0.44f;
+        private const float RimSheenDefaultPower = 4.5f;
+        private const float RimSheenSinkPower = 4.7f;
+        private const float RimSheenHighlightPower = 3.0f;
+        private static readonly Color OutlineSinkColor = new Color(0f, 0f, 0f, 0.94f);
+        private static readonly Color OutlineHighlightColor = new Color(1f, 1f, 1f, 1f);
+        private const float OutlineSinkWidth = 0.043f;
+        private const float OutlineHighlightWidth = 0.055f;
+
+        // ── Fill-line indicators ──────────────────────────────────────────────
+        // Thin rings at InteriorBottomY and InteriorTopY showing the fillable range.
+        private GameObject _fillLineMinGO;
+        private GameObject _fillLineMaxGO;
 
         private Bottle _lastBottle;
         private int _levelMaxCapacity = 4;
@@ -107,6 +129,25 @@ namespace Decantra.Presentation.View3D
         private bool _hasPreviousRotationSample;
         private bool _initialised;
         private bool _isSinkOnly;
+
+        // ── Pour animation interpolation ──────────────────────────────────────
+        // Source drain: the top liquid layer's _TotalFill is animated from 1→fraction
+        // each frame of AnimateMove so the level visibly drops during the pour.
+        private bool _isDrainAnimating;
+        private float _drainTopLayerFillMin;   // FillMin of top layer before pour
+        private float _drainTopLayerFillMax;   // FillMax of top layer before pour
+        private float _drainTargetFill;        // total fill fraction after pour
+        private int _drainTopLayerIndex;     // index into _layerRenderers
+
+        // Target receive: a temporary mesh GO is shown animating from 0→1 fill
+        // to represent the incoming liquid arriving during the pour.
+        private bool _isReceiveAnimating;
+        private float _receiveFillFrom;
+        private float _receiveFillTo;
+        private Color _receiveColor;
+        private GameObject _receiveLayerGO;
+        private MeshRenderer _receiveLayerRenderer;
+        private MaterialPropertyBlock _receiveLayerBlock;
 
         // ── Bottle stopper / cork ────────────────────────────────────────
         // A short cylinder that sits in the neck and peeks above the rim, like a
@@ -128,15 +169,34 @@ namespace Decantra.Presentation.View3D
         private const float AngularAccelerationImpulseScale = 0.02f;
 
         /// <summary>
-        /// Global uniform scale applied to the 3D world root so that the tallest bottle
-        /// never overlaps an adjacent bottle or intrudes into HUD space.  An 8% reduction
-        /// eliminates the level-20 and level-36 layout violations while preserving all
-        /// relative capacity-ratio height differences.
+        /// Global uniform scale applied to the 3D world root so the tallest bottles remain
+        /// fully below the HUD button row while preserving the established board framing.
         /// </summary>
-        private const float VisualScale = 0.92f;
+        // VisualScale is kept for the SetLevelMaxCapacity diagnostic log.
+        // The worldRoot localScale is set dynamically in SyncWorldRootPosition based on
+        // the actual canvas cell world height so the bottle fits any runtime resolution.
+        public const float VisualScale = 0.88f;
+
+        // Fraction of the canvas cell height the bottle should occupy.
+        // Keep a small safety margin so taller bottles can grow without intersecting
+        // adjacent rows or the HUD on full-board scenes.
+        private const float CellFitFraction = 0.90f;
+
+        // Full mesh height (cap ratio 1.0) in local world units before any worldRoot scale.
+        private const float MeshFullHeight = BottleMeshGenerator.DomeRadius
+                                             + BottleMeshGenerator.BodyHeight
+                                             + BottleMeshGenerator.ShoulderHeight
+                                             + BottleMeshGenerator.NeckHeight
+                                             + BottleMeshGenerator.RimLipHeight;
 
         // Glass body property IDs
         private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
+        private static readonly int PropRimSheenColor = Shader.PropertyToID("_RimSheenColor");
+        private static readonly int PropRimSheenIntensity = Shader.PropertyToID("_RimSheenIntensity");
+        private static readonly int PropRimSheenPower = Shader.PropertyToID("_RimSheenPower");
+        private static readonly int PropEmptyBottleBoost = Shader.PropertyToID("_EmptyBottleBoost");
+        private static readonly int PropOutlineGlowColor = Shader.PropertyToID("_GlowColor");
+        private static readonly int PropOutlineWidth = Shader.PropertyToID("_OutlineWidth");
         // Sprites/Default (stopper shader) uses _Color for the tint.
         private static readonly int PropStopperColor = Shader.PropertyToID("_Color");
 
@@ -146,6 +206,11 @@ namespace Decantra.Presentation.View3D
         private static readonly int PropSurfaceTilt = Shader.PropertyToID("_SurfaceTiltDegrees");
         private static readonly int PropWobbleOffset = Shader.PropertyToID("_WobbleOffset");
         private static readonly int PropAgitation = Shader.PropertyToID("_Agitation");
+        private static readonly int PropSurfaceRimStrength = Shader.PropertyToID("_SurfaceRimStrength");
+
+        // Default surface rim strength matching Liquid3D shader default; boosted during pour.
+        private const float DefaultSurfaceRimStrength = 0.22f;
+        private const float PourSurfaceRimBoost = 0.85f;
 
         // Per-layer color/fill property IDs (indexed 0–8)
         private static readonly int[] PropLayerColor = new int[9];
@@ -190,6 +255,7 @@ namespace Decantra.Presentation.View3D
         {
             if (bottle == null) return;
             _lastBottle = bottle;
+            _isEmptyBottle = bottle.IsEmpty;
 
             EnsureInitialised();
 
@@ -241,16 +307,12 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         public void BeginPour(Bottle3DView target, float normalizedPourRate)
         {
-            if (pourStream != null)
-                pourStream.BeginPour(target != null ? target.WorldRootTransform : null, normalizedPourRate);
-
             _wobble.ApplyImpulse(normalizedPourRate * 2f);
         }
 
         /// <summary>End the pour animation.</summary>
         public void EndPour()
         {
-            pourStream?.EndPour();
             _wobble.ApplyImpulse(-0.3f); // gentle counter-slosh when liquid settles
         }
 
@@ -258,6 +320,131 @@ namespace Decantra.Presentation.View3D
         public void ResetWobble()
         {
             _wobble.Reset();
+        }
+
+        /// <summary>
+        /// Returns the current combined surface tilt in degrees (base tilt + wobble).
+        /// Used by GameController to sample tilt for the pour report.
+        /// </summary>
+        public float CurrentSurfaceTiltDegrees =>
+            Mathf.Clamp(
+                _currentSurfaceTiltDeg + _wobble.TiltAngleDegrees,
+                -WobbleSolver.MaxTiltDegrees,
+                WobbleSolver.MaxTiltDegrees);
+
+        // ── Pour interpolation API ────────────────────────────────────────────
+        // Called by GameController.AnimateMove each frame to keep 3D liquid levels
+        // in sync with the 2D canvas animation rather than jumping at the end.
+
+        /// <summary>
+        /// Prepare the source-bottle drain animation.
+        /// Must be called BEFORE the AnimateMove loop starts, while _layers still
+        /// reflects the pre-pour bottle state.
+        /// <paramref name="totalFillTo"/> is the fill fraction after the pour completes
+        /// (i.e. (bottle.Count - poured) / bottle.Capacity).
+        /// </summary>
+        public void BeginSourceDrain(float totalFillTo)
+        {
+            if (_layers.Count == 0 || _layerRenderers.Count == 0) return;
+            int topIdx = _layers.Count - 1;
+            var topLayer = _layers[topIdx];
+            _isDrainAnimating = true;
+            _drainTopLayerFillMin = topLayer.FillMin;
+            _drainTopLayerFillMax = topLayer.FillMax;
+            _drainTargetFill = Mathf.Clamp01(totalFillTo);
+            _drainTopLayerIndex = topIdx;
+        }
+
+        /// <summary>
+        /// Prepare the target-bottle receive animation.
+        /// Creates a temporary liquid-layer mesh spanning [<paramref name="fillFrom"/>,
+        /// <paramref name="fillTo"/>] that fades in as t goes 0→1.
+        /// </summary>
+        public void BeginTargetReceive(float fillFrom, float fillTo, float r, float g, float b)
+        {
+            _isReceiveAnimating = true;
+            _receiveFillFrom = Mathf.Clamp01(fillFrom);
+            _receiveFillTo = Mathf.Clamp01(fillTo);
+            _receiveColor = new Color(r, g, b, 1f);
+            EnsureReceiveLayerGO();
+        }
+
+        /// <summary>
+        /// Drive both drain and receive animations for normalised pour progress
+        /// <paramref name="t"/> ∈ [0..1].  Call once per frame inside AnimateMove.
+        /// </summary>
+        public void SetPourT(float t)
+        {
+            if (_isDrainAnimating)
+            {
+                UpdateDrainAtT(t);
+
+                // Boost surface rim and agitation on the draining layer so the
+                // receding liquid looks turbulent and physically liquid-like.
+                // Runs after Update() so these values override the wobble-solver agitation.
+                if (_drainTopLayerIndex < _layerBlocks.Count
+                    && _drainTopLayerIndex < _layerRenderers.Count
+                    && _layerRenderers[_drainTopLayerIndex] != null)
+                {
+                    float pourPeak = Mathf.Sin(t * Mathf.PI); // bell: 0 → 1 → 0
+                    var block = _layerBlocks[_drainTopLayerIndex];
+                    block.SetFloat(PropAgitation, Mathf.Max(0.35f, pourPeak));
+                    block.SetFloat(PropSurfaceRimStrength,
+                        Mathf.Lerp(DefaultSurfaceRimStrength, PourSurfaceRimBoost, pourPeak));
+                    _layerRenderers[_drainTopLayerIndex].SetPropertyBlock(block);
+                }
+            }
+
+            if (_isReceiveAnimating)
+            {
+                // Small phase offset: the receiving liquid visibly arrives a beat
+                // after the source pour begins, simulating liquid travel time.
+                float receiveT = Mathf.Clamp01((t - 0.05f) / 0.95f);
+                if (_receiveLayerRenderer != null && _receiveLayerBlock != null)
+                {
+                    _receiveLayerBlock.SetFloat(PropTotalFill, receiveT);
+                    // Agitation starts high (arriving liquid splashes) and settles.
+                    _receiveLayerBlock.SetFloat(PropAgitation, Mathf.Max(0.4f, 1f - receiveT));
+                    _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Tear down pour animation state.  Call after the AnimateMove loop ends,
+        /// BEFORE TryApplyMoveAndScore + Render() so the 3D views are clean for
+        /// the authoritative state update.
+        /// </summary>
+        public void ClearPourAnimation()
+        {
+            // Restore the drain layer to full visibility (Render() will re-set it
+            // correctly from the new game state, but be explicit for safety).
+            if (_isDrainAnimating
+                && _drainTopLayerIndex < _layerBlocks.Count
+                && _drainTopLayerIndex < _layerRenderers.Count
+                && _layerRenderers[_drainTopLayerIndex] != null)
+            {
+                var block = _layerBlocks[_drainTopLayerIndex];
+                block.SetFloat(PropTotalFill, 1f);
+                // Reset pour-boosted properties back to shader defaults so
+                // the layer renders normally after the animation concludes.
+                block.SetFloat(PropSurfaceRimStrength, DefaultSurfaceRimStrength);
+                _layerRenderers[_drainTopLayerIndex].SetPropertyBlock(block);
+            }
+            _isDrainAnimating = false;
+
+            // Destroy the temporary receive layer GO.
+            if (_receiveLayerGO != null)
+            {
+                var mf = _receiveLayerGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+                Destroy(_receiveLayerGO);
+                _receiveLayerGO = null;
+                _receiveLayerRenderer = null;
+                _receiveLayerBlock = null;
+            }
+            _isReceiveAnimating = false;
         }
         /// <summary>
         /// Mark this bottle as a sink-only bottle so the glass shader renders dark rim
@@ -267,6 +454,18 @@ namespace Decantra.Presentation.View3D
         {
             if (_isSinkOnly == isSink) return;
             _isSinkOnly = isSink;
+            ApplySinkOnlyToGlass();
+        }
+
+        /// <summary>
+        /// Highlight this bottle as the active pour target.
+        /// The highlight is rendered as a stronger white rim response on the glass shader,
+        /// so it follows the true curved silhouette rather than drawing a separate flat shell.
+        /// </summary>
+        public void SetHighlight(bool highlighted)
+        {
+            if (_isHighlighted == highlighted) return;
+            _isHighlighted = highlighted;
             ApplySinkOnlyToGlass();
         }
         /// <summary>
@@ -323,9 +522,6 @@ namespace Decantra.Presentation.View3D
 
         private void Start()
         {
-            // WirePourStream is deferred to Start because pourStream is set via reflection
-            // by SceneBootstrap AFTER AddComponent (and therefore after Awake runs).
-            WirePourStreamToWorldRoot();
             // Schedule layout safety check after all bottles have initialised this frame.
             Invoke(nameof(CheckLayoutSafety), 0.5f);
         }
@@ -394,6 +590,18 @@ namespace Decantra.Presentation.View3D
                     Destroy(mf.sharedMesh);
             }
 
+            // Fill-line cleanup: destroy generated ring meshes.
+            foreach (var fillLineGO in new[] { _fillLineMinGO, _fillLineMaxGO })
+            {
+                if (fillLineGO == null) continue;
+                var mf = fillLineGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+                var mr = fillLineGO.GetComponent<MeshRenderer>();
+                if (mr != null && mr.sharedMaterial != null)
+                    Destroy(mr.sharedMaterial);
+            }
+
             // Stopper cleanup: mesh and material are unique instances; destroy explicitly.
             if (_stopperGO != null)
             {
@@ -406,10 +614,20 @@ namespace Decantra.Presentation.View3D
                     Destroy(_stopperRenderer.sharedMaterial);
             }
 
+            if (_outlineGO != null)
+            {
+                var mf = _outlineGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+            }
+
             // Destroy the scene-root world object; this also destroys GlassBody,
-            // LiquidLayers, ContactShadow, PourStream, and Stopper children.
+            // BottleOutline, LiquidLayers, ContactShadow, and Stopper children.
             if (_worldRoot != null)
             {
+                if (_outlineRenderer != null && _outlineRenderer.sharedMaterial != null)
+                    Destroy(_outlineRenderer.sharedMaterial);
+
                 Destroy(_worldRoot);
                 _worldRoot = null;
             }
@@ -496,30 +714,36 @@ namespace Decantra.Presentation.View3D
             }
 
             // Shadow-to-bottle overlap check.
-            // The contact shadow disk lies in the XZ plane at a world Y below the bottle base.
-            // From the front view it projects as a horizontal stripe at that Y coordinate.
-            // Check whether that stripe Y falls within any OTHER bottle's Y bounds range.
+            // Use full shadow renderer bounds intersection against all OTHER bottle bounds
+            // (stronger than prior center-point heuristic and aligned with spec).
             bool shadowOverlapDetected = false;
+            float shadowLengthRatioMax = 0f;
             for (int i = 0; i < count; i++)
             {
                 var vi = s_activeViews[i];
                 if (vi == null || vi._contactShadowGO == null) continue;
-                var shadowPos = vi._contactShadowGO.transform.position;
+                var shadowMr = vi._contactShadowGO.GetComponent<MeshRenderer>();
+                if (shadowMr == null) continue;
+                var shadowBounds = shadowMr.bounds;
+
+                // Constraint metric: shadow length <= 0.35 * bottle height.
+                // Use max(X,Z) world span as effective shadow length.
+                float bottleHeight = bounds[i].size.y;
+                if (bottleHeight > 1e-5f)
+                {
+                    float shadowLength = Mathf.Max(shadowBounds.size.x, shadowBounds.size.z);
+                    float ratio = shadowLength / bottleHeight;
+                    if (ratio > shadowLengthRatioMax) shadowLengthRatioMax = ratio;
+                }
+
                 for (int j = 0; j < count; j++)
                 {
                     if (i == j) continue;
-                    // Only flag if the shadow is within BOTH the X and Y extents of bottle j;
-                    // otherwise shadows of top-row bottles falsely fire against
-                    // same-height but different-column bottles.
-                    bool xOverlap = shadowPos.x >= bounds[j].min.x && shadowPos.x <= bounds[j].max.x;
-                    bool yOverlap = shadowPos.y >= bounds[j].min.y && shadowPos.y <= bounds[j].max.y;
-                    if (xOverlap && yOverlap)
+                    if (shadowBounds.Intersects(bounds[j]))
                     {
                         shadowOverlapDetected = true;
                         Debug.LogError($"[Bottle3DView] SHADOW VIOLATION: shadow of bottle {i} " +
-                                       $"at ({shadowPos.x:F3},{shadowPos.y:F3}) overlaps bottle {j} " +
-                                       $"X=[{bounds[j].min.x:F3},{bounds[j].max.x:F3}] " +
-                                       $"Y=[{bounds[j].min.y:F3},{bounds[j].max.y:F3}]");
+                                       $"bounds {shadowBounds} intersects bottle {j} bounds {bounds[j]}");
                     }
                 }
             }
@@ -527,32 +751,94 @@ namespace Decantra.Presentation.View3D
             // Compute per-level sink and topper counts from current active views.
             int sinkBottleCount = 0;
             int topperCount = 0;
+            float corkAspectRatioMin = float.MaxValue;
+            float corkAspectRatioMax = 0f;
+            float corkCenterOffsetRatioMax = 0f;
+            float corkInsertionDepthRatioMin = float.MaxValue;
+            float corkInsertionDepthRatioMax = 0f;
             for (int i = 0; i < count; i++)
             {
                 var v = s_activeViews[i];
                 if (v != null)
                 {
                     if (v._isSinkOnly) sinkBottleCount++;
-                    if (v._wasCompleted) topperCount++;
+                    if (v._wasCompleted)
+                    {
+                        topperCount++;
+                        float aspect = BottleMeshGenerator.StopperTotalHeight / Mathf.Max(BottleMeshGenerator.StopperRadius, 1e-5f);
+                        if (aspect < corkAspectRatioMin) corkAspectRatioMin = aspect;
+                        if (aspect > corkAspectRatioMax) corkAspectRatioMax = aspect;
+
+                        if (v._stopperGO != null)
+                        {
+                            float rimTopY = BottleMeshGenerator.GetRimTopY(v._capacityRatio);
+                            float insertionDepth = rimTopY - v._stopperGO.transform.localPosition.y;
+                            float insertionDepthRatio = insertionDepth / Mathf.Max(BottleMeshGenerator.StopperTotalHeight, 1e-5f);
+                            if (insertionDepthRatio < corkInsertionDepthRatioMin) corkInsertionDepthRatioMin = insertionDepthRatio;
+                            if (insertionDepthRatio > corkInsertionDepthRatioMax) corkInsertionDepthRatioMax = insertionDepthRatio;
+
+                            float centerOffset = Mathf.Sqrt(
+                                v._stopperGO.transform.localPosition.x * v._stopperGO.transform.localPosition.x +
+                                v._stopperGO.transform.localPosition.z * v._stopperGO.transform.localPosition.z);
+                            float centerOffsetRatio = centerOffset / Mathf.Max(BottleMeshGenerator.NeckRadius, 1e-5f);
+                            if (centerOffsetRatio > corkCenterOffsetRatioMax) corkCenterOffsetRatioMax = centerOffsetRatio;
+                        }
+                    }
                 }
             }
 
+            if (corkAspectRatioMin == float.MaxValue)
+                corkAspectRatioMin = 0f;
+            if (corkInsertionDepthRatioMin == float.MaxValue)
+                corkInsertionDepthRatioMin = 0f;
+
             // Write v2 layout report to device persistent data path.
             // This file is pulled by capture_screenshots.sh for verification.
-            WriteLayoutReport(count, overlapDetected, shadowOverlapDetected, hudIntrusionDetected, topperCount, sinkBottleCount);
+            WriteLayoutReport(
+                count,
+                overlapDetected,
+                shadowOverlapDetected,
+                hudIntrusionDetected,
+                topperCount,
+                sinkBottleCount,
+                corkAspectRatioMin,
+                corkAspectRatioMax,
+                corkCenterOffsetRatioMax,
+                corkInsertionDepthRatioMin,
+                corkInsertionDepthRatioMax,
+                shadowLengthRatioMax);
         }
 
         /// <summary>
         /// Write the v2 layout report JSON to the device persistent data path so it can
         /// be pulled by the screenshot capture script.
         /// </summary>
-        private static void WriteLayoutReport(int activeBottleCount, bool overlapDetected, bool shadowOverlapDetected, bool hudIntrusionDetected, int topperCount, int sinkBottleCount)
+        private static void WriteLayoutReport(
+            int activeBottleCount,
+            bool overlapDetected,
+            bool shadowOverlapDetected,
+            bool hudIntrusionDetected,
+            int topperCount,
+            int sinkBottleCount,
+            float corkAspectRatioMin,
+            float corkAspectRatioMax,
+            float corkCenterOffsetRatioMax,
+            float corkInsertionDepthRatioMin,
+            float corkInsertionDepthRatioMax,
+            float shadowLengthRatioMax)
         {
             try
             {
                 string overlapStr = overlapDetected ? "true" : "false";
                 string shadowOverlapStr = shadowOverlapDetected ? "true" : "false";
                 string hudStr = hudIntrusionDetected ? "true" : "false";
+                string corkValidStr = (corkAspectRatioMin >= 1.2f && corkAspectRatioMax <= 2.0f && corkCenterOffsetRatioMax <= 0.02f)
+                    ? "true"
+                    : "false";
+                string insertionDepthValidStr = (corkInsertionDepthRatioMin >= 0.7f && corkInsertionDepthRatioMax <= 0.8f)
+                    ? "true"
+                    : "false";
+                string shadowLengthValidStr = shadowLengthRatioMax <= 0.35f ? "true" : "false";
                 // corkCount == completedBottleCount is the key invariant checked by
                 // the automated convergence loop.  topperCount kept for back-compat.
                 string json = "{\n" +
@@ -562,6 +848,15 @@ namespace Decantra.Presentation.View3D
                               $"  \"hudIntrusionDetected\": {hudStr},\n" +
                               $"  \"completedBottleCount\": {topperCount},\n" +
                               $"  \"corkCount\": {topperCount},\n" +
+                              $"  \"corkAspectRatioMin\": {corkAspectRatioMin:F4},\n" +
+                              $"  \"corkAspectRatioMax\": {corkAspectRatioMax:F4},\n" +
+                              $"  \"corkCenterOffsetRatioMax\": {corkCenterOffsetRatioMax:F6},\n" +
+                              $"  \"corkInsertionDepthRatioMin\": {corkInsertionDepthRatioMin:F4},\n" +
+                              $"  \"corkInsertionDepthRatioMax\": {corkInsertionDepthRatioMax:F4},\n" +
+                              $"  \"corkInsertionDepthValid\": {insertionDepthValidStr},\n" +
+                              $"  \"corkValidationPassed\": {corkValidStr},\n" +
+                              $"  \"shadowLengthRatioMax\": {shadowLengthRatioMax:F4},\n" +
+                              $"  \"shadowLengthConstraintPassed\": {shadowLengthValidStr},\n" +
                               $"  \"topperCount\": {topperCount},\n" +
                               $"  \"sinkBottleCount\": {sinkBottleCount},\n" +
                               $"  \"activeBottleCount\": {activeBottleCount},\n" +
@@ -579,7 +874,11 @@ namespace Decantra.Presentation.View3D
 
                 Debug.Log($"[Bottle3DView] cork-layout-report written to {pathCork}: " +
                           $"overlap={overlapDetected} shadow={shadowOverlapDetected} hud={hudIntrusionDetected} " +
-                          $"completedBottleCount={topperCount} corkCount={topperCount} sinks={sinkBottleCount}");
+                          $"completedBottleCount={topperCount} corkCount={topperCount} sinks={sinkBottleCount} " +
+                          $"corkAspect=[{corkAspectRatioMin:F3},{corkAspectRatioMax:F3}] " +
+                          $"corkInsertionDepth=[{corkInsertionDepthRatioMin:F3},{corkInsertionDepthRatioMax:F3}] " +
+                          $"corkCenterOffsetRatioMax={corkCenterOffsetRatioMax:F5} " +
+                          $"shadowLengthRatioMax={shadowLengthRatioMax:F3}");
             }
             catch (System.Exception ex)
             {
@@ -588,6 +887,81 @@ namespace Decantra.Presentation.View3D
         }
 
         // ── Internals ─────────────────────────────────────────────────────────
+
+        // ── Pour animation helpers ────────────────────────────────────────────
+
+        private void UpdateDrainAtT(float t)
+        {
+            if (_drainTopLayerIndex >= _layerBlocks.Count
+                || _drainTopLayerIndex >= _layerRenderers.Count
+                || _layerRenderers[_drainTopLayerIndex] == null)
+                return;
+
+            float range = _drainTopLayerFillMax - _drainTopLayerFillMin;
+            float prop;
+            if (range > 1e-5f)
+            {
+                // Lerp the visible top of the mesh: starts at FillMax, ends at drainTargetFill.
+                float animFill = Mathf.Lerp(_drainTopLayerFillMax, _drainTargetFill, t);
+                prop = Mathf.Clamp01((animFill - _drainTopLayerFillMin) / range);
+            }
+            else
+            {
+                prop = 0f;
+            }
+
+            var block = _layerBlocks[_drainTopLayerIndex];
+            block.SetFloat(PropTotalFill, prop);
+            _layerRenderers[_drainTopLayerIndex].SetPropertyBlock(block);
+        }
+
+        private void EnsureReceiveLayerGO()
+        {
+            // Destroy any stale receive layer first.
+            if (_receiveLayerGO != null)
+            {
+                var old = _receiveLayerGO.GetComponent<MeshFilter>();
+                if (old != null && old.sharedMesh != null)
+                    Destroy(old.sharedMesh);
+                Destroy(_receiveLayerGO);
+                _receiveLayerGO = null;
+            }
+
+            if (_liquidRoot == null) return;
+
+            _receiveLayerGO = new GameObject("LiquidLayer_Receive");
+            _receiveLayerGO.transform.SetParent(_liquidRoot.transform, false);
+            _receiveLayerGO.layer = _liquidRoot.layer;
+
+            var mf = _receiveLayerGO.AddComponent<MeshFilter>();
+            mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(
+                _receiveFillFrom, _receiveFillTo, _capacityRatio);
+
+            _receiveLayerRenderer = _receiveLayerGO.AddComponent<MeshRenderer>();
+            _receiveLayerRenderer.sharedMaterial = liquidMaterialTemplate != null
+                ? liquidMaterialTemplate
+                : CreateFallbackLiquidMaterial();
+
+            _receiveLayerBlock = new MaterialPropertyBlock();
+            _receiveLayerBlock.SetColor(PropLayerColor[0], _receiveColor);
+            _receiveLayerBlock.SetFloat(PropLayerMin[0], 0f);
+            _receiveLayerBlock.SetFloat(PropLayerMax[0], 1f);
+            for (int k = 1; k < 9; k++)
+            {
+                _receiveLayerBlock.SetFloat(PropLayerMin[k], 0f);
+                _receiveLayerBlock.SetFloat(PropLayerMax[k], 0f);
+            }
+            _receiveLayerBlock.SetInt(PropLayerCount, 1);
+            _receiveLayerBlock.SetFloat(PropTotalFill, 0f); // start invisible
+            _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
+        }
+
+        private void SetReceiveLayerTotalFill(float t)
+        {
+            if (_receiveLayerRenderer == null || _receiveLayerBlock == null) return;
+            _receiveLayerBlock.SetFloat(PropTotalFill, Mathf.Clamp01(t));
+            _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
+        }
 
         private void EnsureInitialised()
         {
@@ -607,6 +981,8 @@ namespace Decantra.Presentation.View3D
             _worldRoot = new GameObject($"Bottle3DWorld_{gameObject.name}");
             _worldRoot.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
             _worldRoot.transform.rotation = Quaternion.identity;
+            // Initial scale — immediately overridden by SyncWorldRootPosition once the
+            // canvas has been laid out, which gives us the actual cell world height.
             _worldRoot.transform.localScale = new Vector3(VisualScale, VisualScale, VisualScale);
             _worldRoot.layer = targetLayer;
 
@@ -621,6 +997,16 @@ namespace Decantra.Presentation.View3D
                 ? glassMaterialTemplate
                 : CreateFallbackGlassMaterial();
 
+            _outlineGO = new GameObject("BottleOutline");
+            _outlineGO.transform.SetParent(_worldRoot.transform, false);
+            _outlineGO.layer = targetLayer;
+            var outlineFilter = _outlineGO.AddComponent<MeshFilter>();
+            outlineFilter.sharedMesh = BottleMeshGenerator.GenerateBottleMesh(_capacityRatio);
+            _outlineRenderer = _outlineGO.AddComponent<MeshRenderer>();
+            _outlineRenderer.sharedMaterial = outlineMaterialTemplate != null
+                ? outlineMaterialTemplate
+                : CreateFallbackOutlineMaterial();
+
             // ── Liquid layer parent ─────────────────────────────────────────────
             _liquidRoot = new GameObject("LiquidLayers");
             _liquidRoot.transform.SetParent(_worldRoot.transform, false);
@@ -631,21 +1017,31 @@ namespace Decantra.Presentation.View3D
             _contactShadowGO = new GameObject("ContactShadow");
             _contactShadowGO.transform.SetParent(_worldRoot.transform, false);
             _contactShadowGO.layer = targetLayer;
-            // Shadow disk lies flat (XZ plane) just under the base dome.
-            // Scale (0.20, 0.20, 1) keeps it within the bottle footprint so it
-            // cannot project into the Y range of bottles in the row below.
-            _contactShadowGO.transform.localPosition = new Vector3(0f, BottleMeshGenerator.InteriorBottomY - 0.10f, 0.06f);
+            // Keep the contact shadow compact and close to the bottle base so it does not
+            // visually read as part of the bottle on the row below.
+            _contactShadowGO.transform.localPosition = new Vector3(0f, BottleMeshGenerator.InteriorBottomY - 0.035f, 0.06f);
+            // Euler(90,0,0) rotates the XZ-plane disk to lie flat in XY as a ground shadow.
             _contactShadowGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            _contactShadowGO.transform.localScale = new Vector3(0.20f, 0.20f, 1f);
+            _contactShadowGO.transform.localScale = new Vector3(0.07f, 0.07f, 0.025f);
             var shadowFilter = _contactShadowGO.AddComponent<MeshFilter>();
             shadowFilter.sharedMesh = CreateShadowDiskMesh();
             var shadowRenderer = _contactShadowGO.AddComponent<MeshRenderer>();
             shadowRenderer.sharedMaterial = CreateFallbackShadowMaterial();
 
+            // ── Fill-line indicators ─────────────────────────────────────────────
+            // Two thin ring meshes at InteriorBottomY and InteriorTopY mark the
+            // fillable range so players can see the min/max fill boundaries.
+            const float fillLineInner = BottleMeshGenerator.BodyRadius * 0.86f;
+            const float fillLineOuter = BottleMeshGenerator.BodyRadius * 0.96f;
+            _fillLineMinGO = CreateFillLineGO("FillLineMin",
+                BottleMeshGenerator.InteriorBottomY, fillLineInner, fillLineOuter, targetLayer);
+            _fillLineMaxGO = CreateFillLineGO("FillLineMax",
+                BottleMeshGenerator.InteriorTopY, fillLineInner, fillLineOuter, targetLayer);
+
             // ── Bottle stopper / cork ────────────────────────────────────────────
-            // Created hidden — shown only when the bottle becomes completed (IsSolvedBottle).
-            // This removes the "floating indicator" that appeared on every bottle.
-            // UpdateTopper shows/hides and tints the cork to match the liquid colour.
+            // Keep the cork visible for the closed-bottle silhouette. Its tint changes
+            // with bottle state, but the geometry remains present so each bottle still
+            // reads as physically closed from gameplay distance.
             _stopperGO = new GameObject("BottleStopper");
             _stopperGO.transform.SetParent(_worldRoot.transform, false);
             _stopperGO.layer = targetLayer;
@@ -657,7 +1053,6 @@ namespace Decantra.Presentation.View3D
             stopperMf.sharedMesh = CreateStopperMesh();
             _stopperRenderer = _stopperGO.AddComponent<MeshRenderer>();
             _stopperRenderer.sharedMaterial = CreateStopperMaterial(StopperNeutralColor);
-            // Hidden by default — only completed bottles get a visible cork.
             _stopperGO.SetActive(false);
 
             // ── Interaction collider ────────────────────────────────────────────
@@ -665,53 +1060,36 @@ namespace Decantra.Presentation.View3D
             // raycasting (blocksRaycasts = true) continues to work for drag/drop input.
             EnsureInteractionCollider();
 
-            // ── Pour stream ─────────────────────────────────────────────────────
-            // If already set (unusual — normally null at Awake time because SceneBootstrap
-            // wires it after AddComponent), move it now; otherwise deferred to Start().
-            if (pourStream != null)
-            {
-                WirePourStreamToWorldRoot();
-            }
+            ApplySinkOnlyToGlass();
 
             _initialised = true;
         }
 
-        /// <summary>
-        /// Move the pour stream controller to (or confirm it is already under) _worldRoot
-        /// and position it at the bottle neck in world space.
-        /// Safe to call multiple times — idempotent.
+        /// <summary>Sync the scene-root world node to this transform's world XY each frame.
+        /// Also recomputes the worldRoot scale based on the actual canvas cell world height so
+        /// the bottle fits its cell correctly regardless of runtime screen resolution or rotation.
         /// </summary>
-        private void WirePourStreamToWorldRoot()
-        {
-            if (pourStream == null || _worldRoot == null) return;
-
-            // Reparent only if currently under a canvas (RectTransform) parent.
-            var currentParent = pourStream.transform.parent;
-            bool underCanvas = currentParent != null
-                               && currentParent.GetComponent<UnityEngine.RectTransform>() != null;
-            if (underCanvas || currentParent == null)
-            {
-                pourStream.transform.SetParent(_worldRoot.transform, false);
-            }
-
-            // Set neck position in world space (local to _worldRoot = world units).
-            pourStream.transform.localPosition = new Vector3(
-                0f,
-                BottleMeshGenerator.BodyHeight * 0.5f
-                    + BottleMeshGenerator.ShoulderHeight
-                    + BottleMeshGenerator.NeckHeight * 0.88f,
-                0f);
-
-            // Ensure it renders on the same layer as the rest of the 3D bottle.
-            SetLayerRecursively(pourStream.gameObject, _worldRoot.layer);
-        }
-
-        /// <summary>Sync the scene-root world node to this transform's world XY each frame.</summary>
         private void SyncWorldRootPosition()
         {
             if (_worldRoot == null) return;
             var p = transform.position;
             _worldRoot.transform.position = new Vector3(p.x, p.y, 0f);
+
+            // Dynamic scale: derive the world-unit height of this bottle's canvas cell
+            // from the RectTransform.  TransformVector applies lossyScale, converting the
+            // reference-pixel cell height to world units for whatever runtime resolution.
+            var rt = GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                float cellWorldH = rt.TransformVector(new Vector3(0f, rt.rect.height, 0f)).magnitude;
+                if (cellWorldH > 0.01f)
+                {
+                    float newScale = cellWorldH * CellFitFraction / MeshFullHeight;
+                    var cur = _worldRoot.transform.localScale;
+                    if (Mathf.Abs(newScale - cur.x) > 1e-4f)
+                        _worldRoot.transform.localScale = new Vector3(newScale, newScale, newScale);
+                }
+            }
         }
 
         private static void SetLayerRecursively(GameObject root, int layer)
@@ -880,9 +1258,8 @@ namespace Decantra.Presentation.View3D
         }
 
         /// <summary>
-        /// Block E fix: push the <c>_SinkOnly</c> flag to the glass body MaterialPropertyBlock
-        /// so that the BottleGlass shader renders dark rim + base-line bands for sink bottles.
-        /// Uses a MaterialPropertyBlock (not material instance) to avoid material draw-call break.
+        /// Push the sink/highlight state into the glass rim response and outline shell.
+        /// Uses MaterialPropertyBlock updates so the shared materials remain instanced only once.
         /// </summary>
         private void ApplySinkOnlyToGlass()
         {
@@ -894,6 +1271,47 @@ namespace Decantra.Presentation.View3D
             mr.GetPropertyBlock(block);
             block.SetFloat(PropSinkOnly, _isSinkOnly ? 1f : 0f);
             mr.SetPropertyBlock(block);
+
+            Color rimColor = _isHighlighted
+                ? RimSheenHighlightColor
+                : (_isSinkOnly ? RimSheenSinkColor : RimSheenDefaultColor);
+            float rimIntensity = _isHighlighted
+                ? RimSheenHighlightIntensity
+                : (_isSinkOnly ? RimSheenSinkIntensity : RimSheenDefaultIntensity);
+            float rimPower = _isHighlighted
+                ? RimSheenHighlightPower
+                : (_isSinkOnly ? RimSheenSinkPower : RimSheenDefaultPower);
+            float emptyBottleBoost = (!_isHighlighted && (_isEmptyBottle || _isSinkOnly)) ? 1f : 0f;
+
+            block.SetColor(PropRimSheenColor, rimColor);
+            block.SetFloat(PropRimSheenIntensity, rimIntensity);
+            block.SetFloat(PropRimSheenPower, rimPower);
+            block.SetFloat(PropEmptyBottleBoost, emptyBottleBoost);
+            mr.SetPropertyBlock(block);
+
+            ApplyOutlineState();
+        }
+
+        private void ApplyOutlineState()
+        {
+            if (_outlineRenderer == null) return;
+
+            bool outlineEnabled = _isHighlighted;
+            _outlineRenderer.enabled = outlineEnabled;
+            if (!outlineEnabled) return;
+
+            Color outlineColor = _isHighlighted
+                ? OutlineHighlightColor
+                : OutlineSinkColor;
+            float outlineWidth = _isHighlighted
+                ? OutlineHighlightWidth
+                : OutlineSinkWidth;
+
+            var block = new MaterialPropertyBlock();
+            _outlineRenderer.GetPropertyBlock(block);
+            block.SetColor(PropOutlineGlowColor, outlineColor);
+            block.SetFloat(PropOutlineWidth, outlineWidth);
+            _outlineRenderer.SetPropertyBlock(block);
         }
 
         /// <summary>
@@ -922,6 +1340,17 @@ namespace Decantra.Presentation.View3D
                     mf.sharedMesh = BottleMeshGenerator.GenerateBottleMesh(_capacityRatio);
                 }
 
+                if (_outlineGO != null)
+                {
+                    var outlineMf = _outlineGO.GetComponent<MeshFilter>();
+                    if (outlineMf != null)
+                    {
+                        if (outlineMf.sharedMesh != null)
+                            Destroy(outlineMf.sharedMesh);
+                        outlineMf.sharedMesh = BottleMeshGenerator.GenerateBottleMesh(_capacityRatio);
+                    }
+                }
+
                 // Invalidate all liquid layer meshes so they rebuild with the new ratio
                 for (int i = 0; i < _cachedFillBounds.Count; i++)
                     _cachedFillBounds[i] = (-1f, -1f);
@@ -932,107 +1361,142 @@ namespace Decantra.Presentation.View3D
                         0f,
                         BottleMeshGenerator.GetStopperBaseY(_capacityRatio),
                         -0.006f);
-            }
 
-            // Sync sink-only flag on the glass renderer
-            if (_glassBodyGO != null)
-            {
-                var mr = _glassBodyGO.GetComponent<MeshRenderer>();
-                if (mr != null)
+                // Reposition fill-line max indicator to match the new body-top Y.
+                // bodyBottom + BodyHeight * capacityRatio = InteriorBottomY + BodyHeight * capped.
+                float capped = Mathf.Clamp(_capacityRatio, 0.1f, 1f);
+                float newBodyTopY = BottleMeshGenerator.InteriorBottomY + BottleMeshGenerator.BodyHeight * capped;
+                if (_fillLineMaxGO != null)
                 {
-                    var block = new MaterialPropertyBlock();
-                    mr.GetPropertyBlock(block);
-                    block.SetFloat(PropSinkOnly, _isSinkOnly ? 1f : 0f);
-                    mr.SetPropertyBlock(block);
+                    var fillLineMf = _fillLineMaxGO.GetComponent<MeshFilter>();
+                    if (fillLineMf != null)
+                    {
+                        const float fillLineInner = BottleMeshGenerator.BodyRadius * 0.86f;
+                        const float fillLineOuter = BottleMeshGenerator.BodyRadius * 0.96f;
+                        if (fillLineMf.sharedMesh != null)
+                            Destroy(fillLineMf.sharedMesh);
+                        fillLineMf.sharedMesh = BottleMeshGenerator.GenerateFillLineRingMesh(
+                            newBodyTopY, fillLineInner, fillLineOuter);
+                    }
                 }
             }
+
+            ApplySinkOnlyToGlass();
         }
 
         // ── Obj-3: Completed bottle cork stopper ───────────────────────────────
 
         /// <summary>
-        /// Show the physical cork stopper only when <paramref name="bottle"/> is fully
-        /// solved: completely full + monochrome + not a sink.
-        /// Hides the stopper for all other states, eliminating the placeholder
-        /// "floating indicator" visible on every bottle in earlier builds.
-        ///
-        /// Completion condition: <see cref="Bottle.IsSolvedBottle"/> — requires IsFull
-        /// so a partially-filled monochrome bottle does NOT show a cork.
+        /// Keep the cork visible on closed bottles and tint it to match a solved bottle's
+        /// liquid colour. Mixed, empty, and sink bottles use the neutral cork tone.
         /// </summary>
         private void UpdateTopper(Bottle bottle, List<LiquidLayerData> layers)
         {
-            // IsSolvedBottle() requires IsEmpty==false, IsFull, and single-colour slots.
-            bool isCompleted = !bottle.IsSink && bottle.IsSolvedBottle();
-            if (isCompleted == _wasCompleted) return; // state unchanged — nothing to do
-            _wasCompleted = isCompleted;
+            _wasCompleted = bottle.IsSolvedBottle();
 
-            // Show or hide the cork GameObject.
             if (_stopperGO != null)
-                _stopperGO.SetActive(isCompleted);
-
-            // When showing: tint the cork to match the liquid colour exactly (spec requirement).
-            if (isCompleted && _stopperRenderer != null && layers.Count > 0)
             {
-                var liquidColor = new Color(layers[0].R, layers[0].G, layers[0].B, 1f);
-                var block = new MaterialPropertyBlock();
-                _stopperRenderer.GetPropertyBlock(block);
-                block.SetColor(PropStopperColor, liquidColor);
-                _stopperRenderer.SetPropertyBlock(block);
+                _stopperGO.SetActive(_wasCompleted);
             }
+
+            if (_stopperRenderer == null || !_wasCompleted)
+                return;
+
+            Color stopperColor = StopperNeutralColor;
+            if (_wasCompleted && layers.Count > 0)
+            {
+                stopperColor = new Color(layers[0].R, layers[0].G, layers[0].B, 1f);
+            }
+
+            var block = new MaterialPropertyBlock();
+            _stopperRenderer.GetPropertyBlock(block);
+            block.SetColor(PropStopperColor, stopperColor);
+            _stopperRenderer.SetPropertyBlock(block);
         }
 
         /// <summary>
-        /// Short cylinder mesh for the cork stopper: fits snugly in the bottle neck
-        /// and peeks <see cref="BottleMeshGenerator.StopperPeekHeight"/> above the rim.
-        /// Geometry: cylindrical side walls + flat top disk facing the camera (-Z).
+        /// Rounded cork mesh for completed bottles: fits snugly in the bottle neck,
+        /// peeks above the rim, and uses a light bevel so the silhouette reads as a cork
+        /// rather than a flat white rectangle in front-view captures.
         /// </summary>
         private static Mesh CreateStopperMesh()
         {
             const int segments = 28;
             float radius = BottleMeshGenerator.StopperRadius;
             float height = BottleMeshGenerator.StopperTotalHeight;
+            float bevelHeight = Mathf.Min(height * 0.22f, radius * 0.55f);
+            float bevelRadius = radius * 0.90f;
 
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
             var uvs = new List<Vector2>();
             var tris = new List<int>();
 
-            // ── Cylindrical side wall (two rings) ────────────────────────────
-            int stride = segments + 1;
-            for (int ring = 0; ring <= 1; ring++)
+            // ── Bevelled cork side wall (four rings) ─────────────────────────
+            var ringHeights = new[]
             {
-                float y = ring == 0 ? 0f : height;
+                0f,
+                bevelHeight,
+                height - bevelHeight,
+                height
+            };
+            var ringRadii = new[]
+            {
+                bevelRadius,
+                radius,
+                radius,
+                bevelRadius
+            };
+
+            int stride = segments + 1;
+            for (int ring = 0; ring < ringHeights.Length; ring++)
+            {
+                float y = ringHeights[ring];
+                float ringRadius = ringRadii[ring];
                 for (int i = 0; i <= segments; i++)
                 {
                     float angle = (float)i / segments * Mathf.PI * 2f;
                     float cos = Mathf.Cos(angle);
                     float sin = Mathf.Sin(angle);
-                    verts.Add(new Vector3(cos * radius, y, sin * radius));
-                    norms.Add(new Vector3(cos, 0f, sin)); // outward radial normal
-                    uvs.Add(new Vector2((float)i / segments, (float)ring));
+                    verts.Add(new Vector3(cos * ringRadius, y, sin * ringRadius));
+
+                    float ny = 0f;
+                    if (ring == 0)
+                        ny = -0.45f;
+                    else if (ring == ringHeights.Length - 1)
+                        ny = 0.45f;
+
+                    norms.Add(new Vector3(cos, ny, sin).normalized);
+                    uvs.Add(new Vector2((float)i / segments, y / Mathf.Max(height, 1e-5f)));
                 }
             }
-            for (int i = 0; i < segments; i++)
+            for (int ring = 0; ring < ringHeights.Length - 1; ring++)
             {
-                int b0 = i, b1 = i + 1;
-                int t0 = stride + i, t1 = stride + i + 1;
-                // CCW winding = outward normals face away from camera → visible from outside
-                tris.Add(b0); tris.Add(t0); tris.Add(b1);
-                tris.Add(b1); tris.Add(t0); tris.Add(t1);
+                int baseIndex = ring * stride;
+                int nextIndex = (ring + 1) * stride;
+                for (int i = 0; i < segments; i++)
+                {
+                    int b0 = baseIndex + i;
+                    int b1 = baseIndex + i + 1;
+                    int t0 = nextIndex + i;
+                    int t1 = nextIndex + i + 1;
+                    tris.Add(b0); tris.Add(t0); tris.Add(b1);
+                    tris.Add(b1); tris.Add(t0); tris.Add(t1);
+                }
             }
 
-            // ── Flat top cap (facing -Z so the camera-facing face is lit) ────
+            // ── Flat top cap ──────────────────────────────────────────────────
             int capBase = verts.Count;
             verts.Add(new Vector3(0f, height, 0f));
-            norms.Add(Vector3.back);
+            norms.Add(Vector3.up);
             uvs.Add(new Vector2(0.5f, 0.5f));
             for (int i = 0; i <= segments; i++)
             {
                 float angle = (float)i / segments * Mathf.PI * 2f;
                 float cos = Mathf.Cos(angle);
                 float sin = Mathf.Sin(angle);
-                verts.Add(new Vector3(cos * radius, height, sin * radius));
-                norms.Add(Vector3.back);
+                verts.Add(new Vector3(cos * bevelRadius, height, sin * bevelRadius));
+                norms.Add(Vector3.up);
                 uvs.Add(new Vector2(cos * 0.5f + 0.5f, sin * 0.5f + 0.5f));
             }
             for (int i = 0; i < segments; i++)
@@ -1040,7 +1504,7 @@ namespace Decantra.Presentation.View3D
                 int c = capBase;
                 int a = capBase + 1 + i;
                 int b = capBase + 1 + (i + 1 <= segments ? i + 1 : 0);
-                tris.Add(c); tris.Add(b); tris.Add(a); // CCW = front-face toward -Z
+                tris.Add(c); tris.Add(a); tris.Add(b);
             }
 
             var mesh = new Mesh { name = "BottleStopperMesh" };
@@ -1074,6 +1538,11 @@ namespace Decantra.Presentation.View3D
             var mat = new Material(shader) { name = "BottleStopper_Mat" };
             // _Color is used by CorkStopper (tint), Sprites/Default and Unlit/Color.
             mat.SetColor("_Color", color);
+            if (shader.name == "Decantra/CorkStopper")
+            {
+                mat.SetFloat("_Ambient", 0.18f);
+                mat.SetFloat("_SpecStr", 0f);
+            }
             // Render after transparent glass (queue Transparent = 3000, glass = Transparent+1 = 3001)
             // so the cork appears on top of / through the glass neck. ZWrite off to avoid
             // breaking transparent compositing order for other bottles.
@@ -1094,6 +1563,12 @@ namespace Decantra.Presentation.View3D
             bool hudDet = false;
             int sinks = 0;
             int toppers = 0;
+            float corkAspectRatioMin = float.MaxValue;
+            float corkAspectRatioMax = 0f;
+            float corkCenterOffsetRatioMax = 0f;
+            float corkInsertionDepthRatioMin = float.MaxValue;
+            float corkInsertionDepthRatioMax = 0f;
+            float shadowLengthRatioMax = 0f;
             const float HudBoundaryY = 4.35f;
 
             for (int i = 0; i < count; i++)
@@ -1101,7 +1576,28 @@ namespace Decantra.Presentation.View3D
                 var v = s_activeViews[i];
                 if (v == null) continue;
                 if (v._isSinkOnly) sinks++;
-                if (v._wasCompleted) toppers++;
+                if (v._wasCompleted)
+                {
+                    toppers++;
+                    float aspect = BottleMeshGenerator.StopperTotalHeight / Mathf.Max(BottleMeshGenerator.StopperRadius, 1e-5f);
+                    if (aspect < corkAspectRatioMin) corkAspectRatioMin = aspect;
+                    if (aspect > corkAspectRatioMax) corkAspectRatioMax = aspect;
+
+                    if (v._stopperGO != null)
+                    {
+                        float rimTopY = BottleMeshGenerator.GetRimTopY(v._capacityRatio);
+                        float insertionDepth = rimTopY - v._stopperGO.transform.localPosition.y;
+                        float insertionDepthRatio = insertionDepth / Mathf.Max(BottleMeshGenerator.StopperTotalHeight, 1e-5f);
+                        if (insertionDepthRatio < corkInsertionDepthRatioMin) corkInsertionDepthRatioMin = insertionDepthRatio;
+                        if (insertionDepthRatio > corkInsertionDepthRatioMax) corkInsertionDepthRatioMax = insertionDepthRatio;
+
+                        float centerOffset = Mathf.Sqrt(
+                            v._stopperGO.transform.localPosition.x * v._stopperGO.transform.localPosition.x +
+                            v._stopperGO.transform.localPosition.z * v._stopperGO.transform.localPosition.z);
+                        float centerOffsetRatio = centerOffset / Mathf.Max(BottleMeshGenerator.NeckRadius, 1e-5f);
+                        if (centerOffsetRatio > corkCenterOffsetRatioMax) corkCenterOffsetRatioMax = centerOffsetRatio;
+                    }
+                }
                 if (v._glassBodyGO != null)
                 {
                     var mr = v._glassBodyGO.GetComponent<MeshRenderer>();
@@ -1118,23 +1614,93 @@ namespace Decantra.Presentation.View3D
                 }
             }
 
-            // Shadow overlap check — requires both X and Y overlap to avoid
-            // false positives from top-row shadows vs. same-height off-column bottles.
+            // Shadow overlap check via renderer bounds intersection (spec-compliant).
             for (int i = 0; i < count; i++)
             {
                 var vi = s_activeViews[i];
                 if (vi == null || vi._contactShadowGO == null) continue;
-                var shadowPos = vi._contactShadowGO.transform.position;
+                var shadowMr = vi._contactShadowGO.GetComponent<MeshRenderer>();
+                if (shadowMr == null) continue;
+                var shadowBounds = shadowMr.bounds;
+
+                float bottleHeight = bounds[i].size.y;
+                if (bottleHeight > 1e-5f)
+                {
+                    float shadowLength = Mathf.Max(shadowBounds.size.x, shadowBounds.size.z);
+                    float ratio = shadowLength / bottleHeight;
+                    if (ratio > shadowLengthRatioMax) shadowLengthRatioMax = ratio;
+                }
+
                 for (int j = 0; j < count; j++)
                 {
                     if (i == j) continue;
-                    bool xOvlp = shadowPos.x >= bounds[j].min.x && shadowPos.x <= bounds[j].max.x;
-                    bool yOvlp = shadowPos.y >= bounds[j].min.y && shadowPos.y <= bounds[j].max.y;
-                    if (xOvlp && yOvlp) shadowOverlapDet = true;
+                    if (shadowBounds.Intersects(bounds[j])) shadowOverlapDet = true;
                 }
             }
 
-            WriteLayoutReport(count, overlapDet, shadowOverlapDet, hudDet, toppers, sinks);
+            if (corkAspectRatioMin == float.MaxValue)
+                corkAspectRatioMin = 0f;
+            if (corkInsertionDepthRatioMin == float.MaxValue)
+                corkInsertionDepthRatioMin = 0f;
+
+            WriteLayoutReport(
+                count,
+                overlapDet,
+                shadowOverlapDet,
+                hudDet,
+                toppers,
+                sinks,
+                corkAspectRatioMin,
+                corkAspectRatioMax,
+                corkCenterOffsetRatioMax,
+                corkInsertionDepthRatioMin,
+                corkInsertionDepthRatioMax,
+                shadowLengthRatioMax);
+        }
+
+        /// <summary>
+        /// Create and return a fill-line indicator GO: a thin ring at the given Y position.
+        /// Parented under _worldRoot at local origin; position comes from the mesh geometry.
+        /// </summary>
+        private GameObject CreateFillLineGO(string name, float yPos, float innerRadius, float outerRadius, int layer)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(_worldRoot.transform, false);
+            go.layer = layer;
+            // localPosition.z = -0.007: render slightly in front of liquid layers (-0.008)
+            // but behind the glass body (z = 0).
+            go.transform.localPosition = new Vector3(0f, 0f, -0.007f);
+
+            var mf = go.AddComponent<MeshFilter>();
+            mf.sharedMesh = BottleMeshGenerator.GenerateFillLineRingMesh(yPos, innerRadius, outerRadius);
+
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = CreateFillLineMaterial();
+            return go;
+        }
+
+        /// <summary>Material for fill-line indicators: thin semi-transparent white rings.</summary>
+        private static Material CreateFillLineMaterial()
+        {
+            // Prefer Sprites/Default which natively supports alpha blending.
+            // Fall back to Unlit/Color and enable alpha blend manually.
+            var shader = Shader.Find("Sprites/Default")
+                      ?? Shader.Find("Unlit/Color")
+                      ?? Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null)
+            {
+                Debug.LogWarning("Bottle3DView: cannot resolve fill-line shader.");
+                return null;
+            }
+            var mat = new Material(shader) { name = "BottleFillLine_Mat" };
+            // Opaque white — ring is fully visible as a bright marker.
+            mat.color = new Color(1f, 1f, 1f, 1f);
+            // Enable alpha blending regardless of shader used.
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.renderQueue = 3000; // Transparent — renders before glass (Transparent+1)
+            return mat;
         }
 
         private static Material CreateFallbackGlassMaterial()
@@ -1175,6 +1741,20 @@ namespace Decantra.Presentation.View3D
             return material;
         }
 
+        private static Material CreateFallbackOutlineMaterial()
+        {
+            var shader = Shader.Find("Decantra/BottleOutline");
+            if (shader == null)
+            {
+                Debug.LogError("Bottle3DView: unable to resolve outline shader.");
+                return null;
+            }
+
+            var material = new Material(shader) { name = "BottleOutline_Fallback" };
+            material.renderQueue = 3003;
+            return material;
+        }
+
         private static Material CreateFallbackLiquidMaterial()
         {
             var shader = Shader.Find("Decantra/Liquid3D")
@@ -1206,10 +1786,11 @@ namespace Decantra.Presentation.View3D
             }
 
             var material = new Material(shader) { name = "BottleContactShadow_Fallback" };
-            // Opacity 8%: subtle underfoot darkening, well below the 20% max in spec.
+            // Keep the shadow understated so it grounds the bottle without competing with
+            // the row below.
             // Alpha blending must be enabled so the semi-transparent shadow composes
             // correctly over the game background without occluding other objects.
-            material.color = new Color(0f, 0f, 0f, 0.08f);
+            material.color = new Color(0f, 0f, 0f, 0.015f);
             if (shader.name != "Unlit/Color")
             {
                 // Ensure alpha blending for non-Unlit shaders

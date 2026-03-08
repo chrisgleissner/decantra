@@ -111,14 +111,24 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         public const float StopperPeekHeight = StopperTotalHeight * 0.25f;   // 0.056 wu
 
-        // Computed Y position of the neck top (bottom of rim lip), referenced by Bottle3DView.
-        // Formula: bodyBottom + BodyHeight + ShoulderHeight + NeckHeight - StopperInsideDepth
-        // where bodyBottom = -BodyHalfHeight + DomeRadius * 0.5.  The DomeRadius*0.5 offset is
+        // Computed Y position of the rim/flange top referenced by Bottle3DView.
+        // Formula: bodyBottom + BodyHeight + ShoulderHeight + NeckHeight + RimLipHeight
+        // where bodyBottom = -BodyHalfHeight + DomeRadius * 0.5. The DomeRadius*0.5 offset is
         // critical: the body cylinder does NOT start at -BodyHalfHeight but at
         // (-BodyHalfHeight + DomeRadius*0.5) because the base dome is embedded in the body.
-        // Without this offset the stopper is positioned 0.19 wu too low (inside the bottle).
-        public static readonly float StopperBaseY =
-            BodyHeight * 0.5f + DomeRadius * 0.5f + ShoulderHeight + NeckHeight - StopperInsideDepth;
+        public static readonly float RimTopY =
+            BodyHeight * 0.5f + DomeRadius * 0.5f + ShoulderHeight + NeckHeight + RimLipHeight;
+
+        // The cork bottom is measured relative to the visible rim/flange top, not the neck top.
+        // This keeps the cork visually flush with the bottle top instead of hovering above short bottles.
+        public static readonly float StopperBaseY = RimTopY - StopperInsideDepth;
+
+        public static float GetRimTopY(float capacityRatio)
+        {
+            float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            float bodyBottom = -BodyHalfHeight + DomeRadius * 0.5f;
+            return bodyBottom + BodyHeight * capped + ShoulderHeight + NeckHeight + RimLipHeight;
+        }
 
         /// <summary>
         /// Capacity-aware version of <see cref="StopperBaseY"/>.
@@ -128,10 +138,7 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         public static float GetStopperBaseY(float capacityRatio)
         {
-            float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
-            float bodyBottom = -BodyHalfHeight + DomeRadius * 0.5f;
-            float neckTop = bodyBottom + BodyHeight * capped + ShoulderHeight + NeckHeight;
-            return neckTop - StopperInsideDepth;
+            return GetRimTopY(capacityRatio) - StopperInsideDepth;
         }
 
         private const float BodyHalfHeight = BodyHeight * 0.5f;
@@ -144,8 +151,9 @@ namespace Decantra.Presentation.View3D
 
         /// <summary>
         /// Y position of the interior top of the liquid region (top of body cylinder).
+        /// bodyBottom = -BodyHalfHeight + DomeRadius * 0.5, bodyTop = bodyBottom + BodyHeight.
         /// </summary>
-        public static readonly float InteriorTopY = BodyHalfHeight;
+        public static readonly float InteriorTopY = -BodyHalfHeight + DomeRadius * 0.5f + BodyHeight;
 
         /// <summary>Total interior liquid height in world units.</summary>
         public static float InteriorHeight => InteriorTopY - InteriorBottomY;
@@ -324,6 +332,64 @@ namespace Decantra.Presentation.View3D
             mesh.SetVertices(verts);
             mesh.SetNormals(norms);
             mesh.SetUVs(0, uv);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            mesh.UploadMeshData(markNoLongerReadable: true);
+            return mesh;
+        }
+
+        /// <summary>
+        /// Generate a thin flat ring (annulus) mesh at the given Y position in local
+        /// bottle space.  Used for the min/max fill-line indicators.
+        ///
+        /// The ring spans from <paramref name="innerRadius"/> to <paramref name="outerRadius"/>
+        /// and faces the camera (normal = -Z).
+        /// </summary>
+        public static Mesh GenerateFillLineRingMesh(float yPos, float innerRadius, float outerRadius)
+        {
+            const int ringSegments = 40;
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var uvs   = new List<Vector2>();
+            var tris  = new List<int>();
+
+            for (int i = 0; i <= ringSegments; i++)
+            {
+                float theta = (float)i / ringSegments * Mathf.PI * 2f;
+                float cos   = Mathf.Cos(theta);
+                float sin   = Mathf.Sin(theta);
+                // Outer vertex
+                verts.Add(new Vector3(outerRadius * cos, yPos, outerRadius * sin));
+                norms.Add(Vector3.back);
+                uvs.Add(new Vector2(cos * 0.5f + 0.5f, sin * 0.5f + 0.5f));
+                // Inner vertex
+                verts.Add(new Vector3(innerRadius * cos, yPos, innerRadius * sin));
+                norms.Add(Vector3.back);
+                uvs.Add(new Vector2(cos * 0.5f * (innerRadius / outerRadius) + 0.5f,
+                                    sin * 0.5f * (innerRadius / outerRadius) + 0.5f));
+            }
+
+            // Each step: quad from [outer_i, inner_i, outer_i+1, inner_i+1]
+            int stride = 2;
+            for (int i = 0; i < ringSegments; i++)
+            {
+                int o0 = i * stride;       // outer i
+                int n0 = o0 + 1;           // inner i
+                int o1 = (i + 1) * stride; // outer i+1
+                int n1 = o1 + 1;           // inner i+1
+
+                // Front face (facing -Z = toward camera in bottle local space)
+                tris.Add(o0); tris.Add(o1); tris.Add(n0);
+                tris.Add(n0); tris.Add(o1); tris.Add(n1);
+                // Back face (so visible from both sides)
+                tris.Add(o0); tris.Add(n0); tris.Add(o1);
+                tris.Add(n0); tris.Add(n1); tris.Add(o1);
+            }
+
+            var mesh = new Mesh { name = $"FillLineRing_y{yPos:F2}" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetUVs(0, uvs);
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds();
             mesh.UploadMeshData(markNoLongerReadable: true);

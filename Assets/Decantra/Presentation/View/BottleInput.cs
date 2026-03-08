@@ -37,6 +37,12 @@ namespace Decantra.Presentation.View
 
         public bool IsDragging => _isDragging;
 
+        /// <summary>
+        /// The 3D view component on this bottle input, if any.
+        /// Used by drag logic to call SetHighlight on the 3D target bottle.
+        /// </summary>
+        public Bottle3DView Bottle3DView => _bottle3DView;
+
         private void EnsureComponents()
         {
             rectTransform ??= GetComponent<RectTransform>();
@@ -139,12 +145,14 @@ namespace Decantra.Presentation.View
                     bottleView.PreviewPour(amount);
                     bottleView.transform.rotation = Quaternion.Euler(0, 0, -PourTiltDegrees);
                     currentTarget.bottleView.SetHighlight(true);
+                    currentTarget.Bottle3DView?.SetHighlight(true);
                 }
                 else
                 {
                     bottleView.ClearPreview();
                     bottleView.transform.rotation = originalRotation;
                     currentTarget.bottleView.SetHighlight(false);
+                    currentTarget.Bottle3DView?.SetHighlight(false);
                 }
             }
         }
@@ -238,6 +246,7 @@ namespace Decantra.Presentation.View
             if (currentTarget != null)
             {
                 currentTarget.bottleView.SetHighlight(false);
+                currentTarget.Bottle3DView?.SetHighlight(false);
                 currentTarget.bottleView.ClearIncoming();
             }
             currentTarget = null;
