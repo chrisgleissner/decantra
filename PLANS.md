@@ -501,7 +501,7 @@ Unblock action:
 
 ## 15) Remove mandatory Google Play runtime dependency (2026-03-11)
 
-### Status: IN PROGRESS
+### Status: IMPLEMENTATION COMPLETE / UNITY DEVICE VERIFICATION BLOCKED BY ENVIRONMENT
 
 ### Detected Google-related dependencies / config
 - `Assets/Resources/BillingMode.json` hard-coded `{"androidStore":"GooglePlay"}` despite `UnityPurchasingSettings.m_Enabled: 0` in `ProjectSettings/UnityConnectSettings.asset`.
@@ -520,8 +520,11 @@ Unblock action:
 - [x] Add focused edit-mode tests to lock in Android package id, manifest removals, empty resolver dependencies, and disabled purchasing metadata.
 - [x] Run targeted non-Unity verification of changed files in this sandbox.
 - [ ] Run Unity-backed tests/build verification when a Unity editor is available.
-- [ ] Run automated code review and security scan, then mark completed.
+- [x] Run automated code review and security scan.
 
 ### Verification notes
 - Local Unity execution is blocked in this sandbox because no Unity editor binary is installed (`unity`, `/usr/local/bin/unity`, and `/usr/bin/unity` absent).
+- `./scripts/test.sh` was attempted twice and exits immediately with `Unity not found. Set UNITY_PATH to the Unity editor executable.`
 - Targeted file-level verification passed for package id preservation, manifest permission removals, empty resolver dependencies, removed billing metadata, and disabled Unity Purchasing.
+- `code_review` feedback on XML assertion brittleness was incorporated into `Assets/Decantra/Tests/EditMode/AndroidGoogleDependencyConfigurationTests.cs`.
+- `codeql_checker` reported `0 alerts` for C# after the final change set.

@@ -112,7 +112,7 @@ namespace Decantra.Tests.EditMode
             string billingModePath = Path.Combine(ProjectRoot, "Assets", "Resources", "BillingMode.json");
             string unityConnectSettingsPath = Path.Combine(ProjectRoot, "ProjectSettings", "UnityConnectSettings.asset");
 
-            Assert.False(File.Exists(billingModePath), $"Unexpected stale billing metadata: {billingModePath}");
+            Assert.That(File.Exists(billingModePath), Is.False, $"Unexpected stale billing metadata: {billingModePath}");
             Assert.That(File.Exists(unityConnectSettingsPath), $"Missing file: {unityConnectSettingsPath}");
 
             string unityConnectSettings = File.ReadAllText(unityConnectSettingsPath);
