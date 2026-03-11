@@ -498,3 +498,33 @@ Unblock action:
 - Connect an arm64-compatible Android device/emulator, then run:
   - `./build --screenshots` (preferred full pipeline)
   - or `./build --screenshots-only` (after a fresh APK already exists)
+
+## 15) Remove mandatory Google Play runtime dependency (2026-03-11)
+
+### Status: IMPLEMENTATION COMPLETE / UNITY DEVICE VERIFICATION BLOCKED BY ENVIRONMENT
+
+### Detected Google-related dependencies / config
+- `Assets/Resources/BillingMode.json` hard-coded `{"androidStore":"GooglePlay"}` despite `UnityPurchasingSettings.m_Enabled: 0` in `ProjectSettings/UnityConnectSettings.asset`.
+- `Assets/Plugins/Android/AndroidManifest.xml` already strips `com.google.android.gms.permission.AD_ID`, `com.android.vending.BILLING`, and `<queries>`.
+- `ProjectSettings/AndroidResolverDependencies.xml` contains empty `<packages />` and `<files />`, so no Google/Firebase/Billing AARs are currently resolved.
+- `ProjectSettings/GvhProjectSettings.xml` and `Assets/MobileDependencyResolver/**` are editor/build-time EDM4U tooling only.
+- Play publishing invariants already present and must be preserved: package name `uk.gleissner.decantra` in `ProjectSettings/ProjectSettings.asset` and `Assets/Decantra/App/Editor/AndroidBuild.cs`.
+
+### Likely startup failure points
+1. Stale `BillingMode.json` metadata could steer Unity IAP toward Google Play billing if purchasing is ever initialized, which is undesirable on de-Googled devices.
+2. Future regressions could reintroduce Google runtime dependencies through Gradle or resolver config even though none are currently resolved.
+
+### Implementation steps
+- [x] Audit repository config, Android manifest/Gradle inputs, and CI workflow evidence for Google-related dependencies.
+- [x] Remove stale Google Play billing metadata from `Assets/Resources/BillingMode.json`.
+- [x] Add focused edit-mode tests to lock in Android package id, manifest removals, empty resolver dependencies, and disabled purchasing metadata.
+- [x] Run targeted non-Unity verification of changed files in this sandbox.
+- [ ] Run Unity-backed tests/build verification when a Unity editor is available.
+- [x] Run automated code review and security scan.
+
+### Verification notes
+- Local Unity execution is blocked in this sandbox because no Unity editor binary is installed (`unity`, `/usr/local/bin/unity`, and `/usr/bin/unity` absent).
+- `./scripts/test.sh` was attempted twice and exits immediately with `Unity not found. Set UNITY_PATH to the Unity editor executable.`
+- Targeted file-level verification passed for package id preservation, manifest permission removals, empty resolver dependencies, removed billing metadata, and disabled Unity Purchasing.
+- `code_review` feedback on XML assertion brittleness was incorporated into `Assets/Decantra/Tests/EditMode/AndroidGoogleDependencyConfigurationTests.cs`.
+- `codeql_checker` reported `0 alerts` for C# after the final change set.
