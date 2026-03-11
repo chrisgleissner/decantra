@@ -116,8 +116,43 @@ namespace Decantra.Tests.EditMode
             Assert.That(File.Exists(unityConnectSettingsPath), $"Missing file: {unityConnectSettingsPath}");
 
             string unityConnectSettings = File.ReadAllText(unityConnectSettingsPath);
-            StringAssert.Contains("UnityPurchasingSettings:", unityConnectSettings);
-            StringAssert.Contains("m_Enabled: 0", unityConnectSettings);
+
+            int purchasingIndex = unityConnectSettings.IndexOf("UnityPurchasingSettings:", StringComparison.Ordinal);
+            Assert.That(purchasingIndex, Is.GreaterThanOrEqualTo(0), "UnityPurchasingSettings block not found.");
+
+            int blockStart = unityConnectSettings.IndexOf('\n', purchasingIndex);
+            if (blockStart == -1)
+                Assert.Fail("UnityPurchasingSettings block is empty.");
+
+            blockStart += 1;
+            int currentPos = blockStart;
+            int endPos = unityConnectSettings.Length;
+
+            while (currentPos < unityConnectSettings.Length)
+            {
+                int lineEnd = unityConnectSettings.IndexOf('\n', currentPos);
+                if (lineEnd == -1)
+                    lineEnd = unityConnectSettings.Length;
+
+                string line = unityConnectSettings.Substring(currentPos, lineEnd - currentPos).TrimEnd('\r');
+
+                if (line.Length > 0 && !line.StartsWith(" ") && !line.StartsWith("\t"))
+                {
+                    endPos = currentPos;
+                    break;
+                }
+
+                if (lineEnd == unityConnectSettings.Length)
+                {
+                    endPos = unityConnectSettings.Length;
+                    break;
+                }
+
+                currentPos = lineEnd + 1;
+            }
+
+            string purchasingBlock = unityConnectSettings.Substring(purchasingIndex, endPos - purchasingIndex);
+            StringAssert.Contains("m_Enabled: 0", purchasingBlock, "UnityPurchasingSettings.m_Enabled is not disabled.");
         }
 
         private static string FindProjectRoot()
