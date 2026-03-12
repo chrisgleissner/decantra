@@ -34,10 +34,12 @@ namespace Decantra.Presentation.View
         //   with idealGap = (available - rows*cellH)/(rows+1):
         //   => cellH <= (available - (rows+1)*MinClearancePx) / (rows + (rows+1)*BottleTopOverhang)
         private const float BottleTopOverhang = 0.1162f;
-        private const float ThreeRowInnerGapReductionPx = 24f;
-        private const float ThreeRowTopGapBiasPx = 12f;
-        private const float ThreeRowBottomGapReductionPx = 12f;
+        private const float ThreeRowInnerGapReductionPx = 56f;
+        private const float ThreeRowTopGapBiasPx = 6f;
+        private const float ThreeRowBottomGapReductionPx = 28f;
         private const float MinimumEdgeGapPx = MinClearancePx * 0.5f;
+        private const float MinimumThreeRowInnerGapPx = 10f;
+        private const float MinimumThreeRowBottomGapPx = 18f;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float LayoutAssertTolerance = 0.5f;
 #endif
@@ -210,14 +212,17 @@ namespace Decantra.Presentation.View
 
                         if (rows == GridRows)
                         {
-                            // Three-row boards look under-packed with a strict equal-gap model.
-                            // Tighten only the internal gaps and keep a little more space above
-                            // than below so the grid grows slightly and sits a touch lower.
-                            spacingY = Mathf.Max(MinimumEdgeGapPx, idealGap - ThreeRowInnerGapReductionPx);
-                            topPaddingY = Mathf.Max(spacingY, idealGap + ThreeRowTopGapBiasPx);
-                            bottomPaddingY = Mathf.Max(MinimumEdgeGapPx, idealGap - ThreeRowBottomGapReductionPx);
+                            // Three-row boards need denser internal packing than the edge
+                            // clearances used for the HUD and footer. Compress the inter-row
+                            // gaps much more aggressively than the outer gaps so the bottles
+                            // grow and the grid occupies the available space.
+                            spacingY = Mathf.Max(MinimumThreeRowInnerGapPx, idealGap - ThreeRowInnerGapReductionPx);
+                            bottomPaddingY = Mathf.Max(MinimumThreeRowBottomGapPx, idealGap - ThreeRowBottomGapReductionPx);
+                            topPaddingY = Mathf.Max(MinimumEdgeGapPx + ThreeRowTopGapBiasPx, idealGap + ThreeRowTopGapBiasPx);
 
                             float compactedCellHeight = (availableHeight - topPaddingY - bottomPaddingY - (rows - 1f) * spacingY) / rows;
+                            float maxCellHeightForHudClearance = (topPaddingY - MinClearancePx) / BottleTopOverhang;
+                            compactedCellHeight = Mathf.Min(compactedCellHeight, maxCellHeightForHudClearance);
                             cellHeight = Mathf.Max(cellHeight, compactedCellHeight);
                         }
 

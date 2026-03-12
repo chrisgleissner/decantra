@@ -150,20 +150,21 @@ namespace Decantra.Tests.PlayMode
             var baseGridSpacing = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridSpacing");
             var baseGridPadding = GetPrivateField<RectOffset>(hudSafeLayout, "_baseGridPadding");
             var baseCellSize = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridCellSize");
-            const float minimumEdgeGapPx = 24f;
+            const float minimumInnerGapPx = 10f;
 
-            Assert.GreaterOrEqual(bottleGridLayout.cellSize.y, baseCellSize.y - 1f,
-                $"3-row cell height shrank below the baseline cell size. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
-            Assert.GreaterOrEqual(bottleGridLayout.spacing.y, minimumEdgeGapPx - 1f,
-                $"3-row spacing fell below the minimum edge gap. actual={bottleGridLayout.spacing.y:F2}");
-            Assert.LessOrEqual(bottleGridLayout.spacing.y, baseGridSpacing.y + 1f,
-                $"3-row spacing exceeded the baseline grid spacing. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}");
+            Assert.GreaterOrEqual(bottleGridLayout.cellSize.y, baseCellSize.y + 4f,
+                $"3-row cell height did not grow enough. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
+            Assert.GreaterOrEqual(bottleGridLayout.spacing.y, minimumInnerGapPx - 1f,
+                $"3-row spacing fell below the minimum inner gap. actual={bottleGridLayout.spacing.y:F2}");
+            float requiredSpacingReduction = baseGridSpacing.y > minimumInnerGapPx + 8f ? 8f : 0f;
+            Assert.LessOrEqual(bottleGridLayout.spacing.y, baseGridSpacing.y - requiredSpacingReduction + 1f,
+                $"3-row spacing did not compact enough. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}, requiredReduction={requiredSpacingReduction:F2}");
             Assert.GreaterOrEqual(bottleGridLayout.padding.top, bottleGridLayout.padding.bottom,
                 $"3-row top padding should be at least as large as bottom padding. top={bottleGridLayout.padding.top}, bottom={bottleGridLayout.padding.bottom}");
             Assert.GreaterOrEqual(bottleGridLayout.padding.top, baseGridPadding.top,
                 $"3-row top padding should preserve or increase HUD clearance. baseline={baseGridPadding.top}, actual={bottleGridLayout.padding.top}");
-            Assert.LessOrEqual(bottleGridLayout.padding.bottom, baseGridPadding.bottom,
-                $"3-row bottom padding should not expand past the baseline gap. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}");
+            Assert.LessOrEqual(bottleGridLayout.padding.bottom, baseGridPadding.bottom - 4,
+                $"3-row bottom padding should shrink to reclaim vertical space. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}");
             Assert.AreEqual(Vector2.zero, bottleGrid.anchoredPosition,
                 "3-row bottle grid anchor shifted unexpectedly.");
 
