@@ -114,8 +114,8 @@ namespace Decantra.Tests.PlayMode
                     Assert.That(hudClearance, Is.GreaterThan(-2f), "Top-row bottle clearance beneath HUD buttons must be nearly positive (tolerance: 2 screen-pixels for projection noise).");
                 }
                 Assert.That(outlineMetrics.DefaultShellHidden, Is.True, "Normal bottles still render the outline shell in their default state.");
-                Assert.That(outlineMetrics.HighlightIsWhite, Is.True, "Valid-pour highlight was not driven to a white outline.");
                 Assert.That(outlineMetrics.HighlightVisible, Is.True, "Valid-pour highlight did not enable the temporary target outline.");
+                Assert.That(outlineMetrics.HighlightLooksFaint, Is.True, "Valid-pour highlight should use a faint glow so the liquid remains visible.");
                 Assert.That(outlineMetrics.SinkOutlineHidden, Is.True, "Sink-only state should not activate the inverted-hull outline shell.");
                 Assert.That(File.Exists(verificationPath), Is.True, "Verification report was not written.");
             }
@@ -423,7 +423,7 @@ namespace Decantra.Tests.PlayMode
                 SinkColor = sinkColor,
                 DefaultShellHidden = !defaultVisible,
                 HighlightVisible = highlightVisible,
-                HighlightIsWhite = ApproximatelyWhite(highlightColor),
+                HighlightLooksFaint = IsFaintGlow(highlightColor),
                 SinkOutlineHidden = !sinkVisible
             };
         }
@@ -452,14 +452,14 @@ namespace Decantra.Tests.PlayMode
                 "## Evidence\n\n" +
                 $"- [{NormalFileName}]({relativeRoot}/{NormalFileName}) shows the normal gameplay state on the production background. This screenshot is also the visually complex background proof.\n" +
                 $"- [{DarkFileName}]({relativeRoot}/{DarkFileName}) shows the bottles against a forced black background.\n" +
-                $"- [{HighlightActiveFileName}]({relativeRoot}/{HighlightActiveFileName}) shows a valid pour target with the white curved highlight active.\n" +
+                $"- [{HighlightActiveFileName}]({relativeRoot}/{HighlightActiveFileName}) shows a valid pour target with the faint edge glow active.\n" +
                 $"- [{HighlightRemovedFileName}]({relativeRoot}/{HighlightRemovedFileName}) shows the same scene after the target highlight is removed.\n" +
                 $"- [{FullBoardFileName}]({relativeRoot}/{FullBoardFileName}) shows a full board with the top row below Reset, Options, and Stars.\n\n" +
                 "## Findings\n\n" +
                 $"- Persistent bottle presence restored without a permanent overlay: all {threeDBottleCount} bottle visuals include a `GlassBody` child and an active `BottleStopper`, so each bottle remains a closed 3D object while normal-state visibility comes from the glass shader rather than an always-on outline shell.\n" +
                 "- Bottles remain translucent: the renderer still uses `Decantra/BottleGlass` with capped glass alpha and an empty-bottle edge boost, preserving visible liquid through the glass body while making empty bottles readable on dark backgrounds.\n" +
                 $"- Outline state mapping is correct: the default outline shell is hidden={outlineMetrics.DefaultShellHidden}; the valid-pour highlight switches to width {outlineMetrics.HighlightWidth:F3} and color ({outlineMetrics.HighlightColor.r:F2}, {outlineMetrics.HighlightColor.g:F2}, {outlineMetrics.HighlightColor.b:F2}, {outlineMetrics.HighlightColor.a:F2}); the sink-only state hides the outline shell (sink body looks like a regular bottle, only neck+dome bands are dark).\n" +
-                $"- Valid-pour white outline only appears during valid pours: the active capture used source bottle {highlightContext.SourceIndex} -> target bottle {highlightContext.TargetIndex} with `GetPourAmount(...) = {highlightContext.PourAmount}`.\n" +
+                $"- Valid-pour glow only appears during valid pours: the active capture used source bottle {highlightContext.SourceIndex} -> target bottle {highlightContext.TargetIndex} with `GetPourAmount(...) = {highlightContext.PourAmount}`.\n" +
                 $"- Top row is fully visible: on the full-board capture the minimum measured vertical clearance between the top-row bottles and the HUD buttons is {hudClearance:F1} screen pixels. Overlap detected = {hudOverlapDetected}. Fully on-screen = {topRowFullyOnScreen}.\n" +
                 $"- HUD overlap status: {(hudOverlapDetected ? "fail" : "pass")} for Reset, Options, and Stars under the measured full-board scene.\n\n" +
                 "## Requirement Check\n\n" +
@@ -467,7 +467,7 @@ namespace Decantra.Tests.PlayMode
                 "- Cork peeks out of each closed bottle: pass\n" +
                 "- Empty bottles remain visible on dark backgrounds without a permanent white overlay: pass\n" +
                 "- Sink bottles: neck and dome dark, body looks like a regular empty bottle (no inverted-hull outline): pass\n" +
-                "- Valid-pour target uses white curved outline only when valid: pass\n" +
+                "- Valid-pour target uses a faint glow only when valid: pass\n" +
                 "- Highlight reverts when removed: pass\n" +
                 $"- Top row visible beneath HUD buttons: {(hudOverlapDetected || !topRowFullyOnScreen || hudClearance <= -2f ? "fail" : "pass")}\n";
         }
@@ -546,9 +546,9 @@ namespace Decantra.Tests.PlayMode
             return maxA >= minB && maxB >= minA;
         }
 
-        private static bool ApproximatelyWhite(Color color)
+        private static bool IsFaintGlow(Color color)
         {
-            return color.r >= 0.98f && color.g >= 0.98f && color.b >= 0.98f;
+            return color.a >= 0.2f && color.a <= 0.5f;
         }
 
         private static IEnumerator CaptureScreenshot(string path)
@@ -689,7 +689,7 @@ namespace Decantra.Tests.PlayMode
             public Color SinkColor;
             public bool DefaultShellHidden;
             public bool HighlightVisible;
-            public bool HighlightIsWhite;
+            public bool HighlightLooksFaint;
             public bool SinkOutlineHidden;
         }
 

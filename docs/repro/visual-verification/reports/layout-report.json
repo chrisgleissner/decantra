@@ -6,8 +6,8 @@
     "shadowOverlapDetected": false,
     "hudIntrusionDetected": false,
     "minimumLayerThicknessPixels": 59.53520584106445,
-    "silhouetteContrastRatio": 1.332892656326294,
-    "visibilityRatio": 0.10568305104970932,
+    "silhouetteContrastRatio": 1.3436906337738038,
+    "visibilityRatio": 0.10640053451061249,
     "corkAspectRatioMin": 1.523800015449524,
     "corkAspectRatioMax": 1.523800015449524,
     "corkCenterOffsetRatioMax": 0.04285699874162674,
@@ -15,5 +15,5 @@
     "corkInsertionDepthRatioMax": 0.75,
     "corkInsertionDepthValid": true,
     "shadowLengthRatioMax": 0.0551999993622303,
-    "generatedAt": "2026-03-12T09:50:20.1398350Z"
+    "generatedAt": "2026-03-12T13:01:27.4145890Z"
 }

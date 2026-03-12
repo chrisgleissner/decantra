@@ -103,17 +103,17 @@ namespace Decantra.Presentation.View3D
         private bool _isEmptyBottle;
         private static readonly Color RimSheenDefaultColor = new Color(0.90f, 0.95f, 1.00f, 1f);
         private static readonly Color RimSheenSinkColor = new Color(0.84f, 0.88f, 0.94f, 1f);
-        private static readonly Color RimSheenHighlightColor = new Color(1f, 1f, 1f, 1f);
+        private static readonly Color RimSheenHighlightColor = new Color(0.96f, 0.98f, 1f, 1f);
         private const float RimSheenDefaultIntensity = 0.10f;
         private const float RimSheenSinkIntensity = 0.08f;
-        private const float RimSheenHighlightIntensity = 0.44f;
+        private const float RimSheenHighlightIntensity = 0.26f;
         private const float RimSheenDefaultPower = 4.5f;
         private const float RimSheenSinkPower = 4.7f;
-        private const float RimSheenHighlightPower = 3.0f;
+        private const float RimSheenHighlightPower = 3.8f;
         private static readonly Color OutlineSinkColor = new Color(0f, 0f, 0f, 0.94f);
-        private static readonly Color OutlineHighlightColor = new Color(1f, 1f, 1f, 1f);
+        private static readonly Color OutlineHighlightColor = new Color(0.94f, 0.98f, 1f, 0.38f);
         private const float OutlineSinkWidth = 0.043f;
-        private const float OutlineHighlightWidth = 0.055f;
+        private const float OutlineHighlightWidth = 0.05f;
 
         // ── Fill-line indicators ──────────────────────────────────────────────
         // Thin rings at InteriorBottomY and InteriorTopY showing the fillable range.

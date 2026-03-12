@@ -16,14 +16,14 @@ Shader "Decantra/BottleOutline"
     // queue Transparent+1) has already painted the bottle interior.
     //
     // ZTest Always so the extruded rim draws even when no depth is written
-    // (glass has ZWrite Off).  ZTest Always at queue 3003 is safe: the glass
-    // color pass already ran, so the interior pixels are correctly coloured;
-    // the extruded strip at the edge adds a visible white halo.
+    // (glass has ZWrite Off). The fragment shader fades the shell to nearly
+    // transparent when the surface faces the camera, leaving only a soft edge
+    // halo so the liquid colours remain readable.
     //
     // Bottle3DView controls _GlowColor via MaterialPropertyBlock:
     //   - Normal bottles:  bright cool white for readability on dark backgrounds
     //   - Sink bottles:    near-black outline to distinguish sink-only state
-    //   - Pour-ready:      pure white, slightly wider than default
+    //   - Pour-ready:      faint edge glow, slightly wider than default
     // ──────────────────────────────────────────────────────────────────────────
     Properties
     {
@@ -56,6 +56,9 @@ Shader "Decantra/BottleOutline"
             float4 _GlowColor;
             float  _OutlineWidth;
 
+            static const float EdgeGlowPower = 3.2;
+            static const float EdgeGlowFloor = 0.02;
+
             struct Attributes
             {
                 float4 posOS    : POSITION;
@@ -65,6 +68,8 @@ Shader "Decantra/BottleOutline"
             struct Varyings
             {
                 float4 posCS : SV_POSITION;
+                float3 normalWS : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
             };
 
             Varyings vert(Attributes IN)
@@ -74,12 +79,17 @@ Shader "Decantra/BottleOutline"
                 float3 worldNormal = normalize(UnityObjectToWorldNormal(IN.normalOS));
                 worldPos += worldNormal * _OutlineWidth;
                 OUT.posCS = mul(UNITY_MATRIX_VP, float4(worldPos, 1.0));
+                OUT.normalWS = worldNormal;
+                OUT.worldPos = worldPos;
                 return OUT;
             }
 
             float4 frag(Varyings IN) : SV_Target
             {
-                return _GlowColor;
+                float3 viewDirWS = normalize(_WorldSpaceCameraPos.xyz - IN.worldPos);
+                float edge = pow(saturate(1.0 - abs(dot(normalize(IN.normalWS), viewDirWS))), EdgeGlowPower);
+                float alpha = _GlowColor.a * max(edge, EdgeGlowFloor);
+                return float4(_GlowColor.rgb, alpha);
             }
             ENDHLSL
         }
