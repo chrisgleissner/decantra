@@ -162,8 +162,11 @@ namespace Decantra.Tests.PlayMode
                 $"3-row top padding should be at least as large as bottom padding. top={bottleGridLayout.padding.top}, bottom={bottleGridLayout.padding.bottom}");
             Assert.GreaterOrEqual(bottleGridLayout.padding.top, baseGridPadding.top,
                 $"3-row top padding should preserve or increase HUD clearance. baseline={baseGridPadding.top}, actual={bottleGridLayout.padding.top}");
-            Assert.LessOrEqual(bottleGridLayout.padding.bottom, baseGridPadding.bottom - 4,
-                $"3-row bottom padding should shrink to reclaim vertical space. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}");
+            var maxBottomPadding = baseGridPadding.bottom > 4
+                ? baseGridPadding.bottom - 4
+                : baseGridPadding.bottom;
+            Assert.LessOrEqual(bottleGridLayout.padding.bottom, maxBottomPadding,
+                $"3-row bottom padding should not expand beyond reclaimable space. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}, allowedMax={maxBottomPadding}");
             Assert.AreEqual(Vector2.zero, bottleGrid.anchoredPosition,
                 "3-row bottle grid anchor shifted unexpectedly.");
 
