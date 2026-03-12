@@ -1,3 +1,59 @@
+# Three-Row Gameplay Bottle Layout Correction Plan
+
+Last updated: 2026-03-12 UTC
+Execution engineer: GitHub Copilot (GPT-5.4)
+
+## Objective
+
+Improve only the gameplay bottle layout when the board resolves to 3 rows.
+
+Required outcomes:
+
+- Slightly increase bottle size for 3-row layouts.
+- Reduce vertical spacing between 3-row bottle rows.
+- Optionally move the full grid slightly downward to keep the top row comfortably below the HUD.
+- Preserve 2-row layouts exactly.
+- Build and deploy the APK to a device, regenerate screenshots, and confirm the PR CI state is green before considering the task complete.
+
+## Located Layout Code
+
+- Bottle grid layout controller: `Assets/Decantra/Presentation/View/HudSafeLayout.cs`
+- Row-count branch: `ResolveGridRows()` returns `2` for `<= 6` active bottles, otherwise `3`.
+- Bottle scaling path:
+  - equal-gap branch modifies `bottleGridLayout.cellSize`
+  - fallback branch modifies `bottleGrid.localScale`
+- Vertical spacing path: `bottleGridLayout.spacing` and top/bottom `padding`
+- Grid anchor position path: `bottleGrid.anchoredPosition`
+- Existing regression coverage: `Assets/Decantra/Tests/PlayMode/AndroidLayoutInvariancePlayModeTests.cs`
+
+## Root Cause Hypothesis
+
+- `HudSafeLayout.ApplyLayout()` currently applies the same equal-gap fill model to both 2-row and 3-row layouts.
+- In the 3-row case, the available height is redistributed into symmetric top/bottom/inter-row gaps, which leaves the grid visually under-packed instead of using the space to keep bottles larger and rows tighter.
+- The grid anchor is then reset to `Vector2.zero`, so there is no per-row-count composition adjustment.
+
+## Execution Checklist
+
+- [x] Locate bottle scale, spacing, and anchoring code
+- [x] Identify the 2-row vs 3-row branching point
+- [x] Patch `HudSafeLayout` with 3-row-only tuning
+- [x] Add or update regression coverage for 2-row invariance and 3-row compaction
+- [x] Run Unity test validation
+- [x] Capture before/after visual evidence for 2-row and 3-row layouts
+- [x] Rebuild/install for device verification
+- [ ] Confirm APK is built, deployed, screenshots regenerated, and PR CI is green
+- [x] Confirm layout invariants A-E remain satisfied
+
+## Constraints
+
+- No changes to 2-row layout behavior
+- No changes to HUD sizing/layout
+- No changes to bottle rendering/assets/animation
+- No changes to gameplay/input/physics/camera/scene hierarchy
+- Keep the fix minimal and localized to layout logic
+
+---
+
 # Bottle Rendering Fix Plan
 
 ## 2026-03-06 Bottle Rendering + Valid Target Highlight

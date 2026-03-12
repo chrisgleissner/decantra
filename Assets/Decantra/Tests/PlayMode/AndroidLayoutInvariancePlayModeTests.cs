@@ -110,7 +110,7 @@ namespace Decantra.Tests.PlayMode
         // ─── C: Layout metrics match baseline ─────────────────────────────────────
 
         [UnityTest]
-        public IEnumerator LayoutMetrics_MatchPreFixBaseline_NoDeltaExceedsTolerance()
+        public IEnumerator LayoutMetrics_PreserveHudAndHorizontalBaseline_WhileCompactingThreeRowBoards()
         {
             if (!File.Exists(BaselineFixturePath))
             {
@@ -132,21 +132,103 @@ namespace Decantra.Tests.PlayMode
             // --- Positional ratios ---
             AssertRatio("LogoTopY", baseline.LogoTopRatioY, current.LogoTopRatioY);
             AssertRatio("LogoBottomY", baseline.LogoBottomRatioY, current.LogoBottomRatioY);
-            AssertRatio("Row1CapTopY", baseline.Row1CapTopRatioY, current.Row1CapTopRatioY);
-            AssertRatio("Row2CapTopY", baseline.Row2CapTopRatioY, current.Row2CapTopRatioY);
-            AssertRatio("Row3CapTopY", baseline.Row3CapTopRatioY, current.Row3CapTopRatioY);
-            AssertRatio("BottomBottleBottomY", baseline.BottomBottleBottomRatioY, current.BottomBottleBottomRatioY);
             AssertRatio("LeftBottleCenterX", baseline.LeftBottleCenterRatioX, current.LeftBottleCenterRatioX);
             AssertRatio("MiddleBottleCenterX", baseline.MiddleBottleCenterRatioX, current.MiddleBottleCenterRatioX);
             AssertRatio("RightBottleCenterX", baseline.RightBottleCenterRatioX, current.RightBottleCenterRatioX);
-            AssertRatio("RowSpacing12", baseline.RowSpacing12RatioY, current.RowSpacing12RatioY);
-            AssertRatio("RowSpacing23", baseline.RowSpacing23RatioY, current.RowSpacing23RatioY);
             AssertRatio("BottleSpacingLM", baseline.BottleSpacingLMRatioX, current.BottleSpacingLMRatioX);
             AssertRatio("BottleSpacingMR", baseline.BottleSpacingMRRatioX, current.BottleSpacingMRRatioX);
+
+            Assert.Less(current.RowSpacing12RatioY, baseline.RowSpacing12RatioY - RatioTolerance,
+                $"RowSpacing12 should shrink for 3-row boards. baseline={baseline.RowSpacing12RatioY:F6}, current={current.RowSpacing12RatioY:F6}");
+            Assert.Less(current.RowSpacing23RatioY, baseline.RowSpacing23RatioY - RatioTolerance,
+                $"RowSpacing23 should shrink for 3-row boards. baseline={baseline.RowSpacing23RatioY:F6}, current={current.RowSpacing23RatioY:F6}");
+            Assert.Less(current.Row1CapTopRatioY, baseline.Row1CapTopRatioY - RatioTolerance,
+                $"Top row should sit slightly lower under the HUD. baseline={baseline.Row1CapTopRatioY:F6}, current={current.Row1CapTopRatioY:F6}");
+
+            float baselineBottleSpan = baseline.Row1CapTopRatioY - baseline.BottomBottleBottomRatioY;
+            float currentBottleSpan = current.Row1CapTopRatioY - current.BottomBottleBottomRatioY;
+            Assert.Greater(currentBottleSpan, baselineBottleSpan + RatioTolerance,
+                $"3-row bottle stack should occupy more vertical space. baselineSpan={baselineBottleSpan:F6}, currentSpan={currentBottleSpan:F6}");
 
             Debug.Log($"[AndroidLayoutInvariance] All layout metrics within tolerance. " +
                       $"Canvas={current.CanvasWidth}×{current.CanvasHeight}, " +
                       $"Row1TopY={current.Row1CapTopY:F2}, RowGap12={current.RowGap12:F2}px");
+        }
+
+        [UnityTest]
+        public IEnumerator TwoRowLayouts_KeepOriginalEqualGapModel()
+        {
+            SceneBootstrap.EnsureScene();
+            yield return null;
+            yield return null;
+
+            var controller = FindController();
+            Assert.IsNotNull(controller, "GameController not found.");
+
+            int levelIndex = -1;
+            int activeBottleCount = 0;
+            for (int candidate = 1; candidate <= 40; candidate++)
+            {
+                controller.LoadLevel(candidate, 192731);
+                yield return null;
+                yield return new WaitForSeconds(0.1f);
+                Canvas.ForceUpdateCanvases();
+
+                activeBottleCount = GetActiveBottleRects(controller).Count;
+                if (activeBottleCount > 0 && activeBottleCount <= 6)
+                {
+                    levelIndex = candidate;
+                    break;
+                }
+            }
+
+            Assert.Greater(levelIndex, 0, "Could not find a 2-row gameplay level in the first 40 deterministic levels.");
+
+            var hudSafeLayout = Object.FindFirstObjectByType<HudSafeLayout>();
+            Assert.IsNotNull(hudSafeLayout, "HudSafeLayout not found.");
+
+            var bottleGridLayout = GetPrivateField<GridLayoutGroup>(hudSafeLayout, "bottleGridLayout");
+            var bottleGrid = GetPrivateField<RectTransform>(hudSafeLayout, "bottleGrid");
+            var root = GetPrivateField<RectTransform>(hudSafeLayout, "_root");
+            var topHud = GetPrivateField<RectTransform>(hudSafeLayout, "topHud");
+            var secondaryHud = GetPrivateField<RectTransform>(hudSafeLayout, "secondaryHud");
+            var brandLockup = GetPrivateField<RectTransform>(hudSafeLayout, "brandLockup");
+            var bottomHud = GetPrivateField<RectTransform>(hudSafeLayout, "bottomHud");
+            var baseCellSize = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridCellSize");
+            float topPadding = GetPrivateField<float>(hudSafeLayout, "topPadding");
+            float bottomPadding = GetPrivateField<float>(hudSafeLayout, "bottomPadding");
+
+            Assert.IsNotNull(bottleGridLayout, "Bottle grid layout missing.");
+            Assert.IsNotNull(bottleGrid, "Bottle grid missing.");
+            Assert.IsNotNull(root, "Bottle layout root missing.");
+
+            float topBottom = Mathf.Min(GetMinY(topHud, root), GetMinY(secondaryHud, root));
+            if (brandLockup != null)
+            {
+                topBottom = Mathf.Min(topBottom, GetMinY(brandLockup, root));
+            }
+
+            float bottomTop = GetMaxY(bottomHud, root);
+            float availableHeight = (topBottom - topPadding) - (bottomTop + bottomPadding);
+            const int rows = 2;
+            const float minClearancePx = 48f;
+            const float bottleTopOverhang = 0.1162f;
+
+            float maxFillCellHeight = (availableHeight - (rows + 1f) * minClearancePx)
+                                     / (rows + (rows + 1f) * bottleTopOverhang);
+            float expectedCellHeight = Mathf.Max(baseCellSize.y, maxFillCellHeight);
+            float expectedGap = (availableHeight - rows * expectedCellHeight) / (rows + 1f);
+
+            Assert.AreEqual(expectedCellHeight, bottleGridLayout.cellSize.y, 1f,
+                $"2-row cell height changed unexpectedly on level {levelIndex}.");
+            Assert.AreEqual(expectedGap, bottleGridLayout.spacing.y, 1f,
+                $"2-row vertical spacing changed unexpectedly on level {levelIndex}.");
+            Assert.AreEqual(Mathf.RoundToInt(expectedGap), bottleGridLayout.padding.top, 1,
+                $"2-row top padding changed unexpectedly on level {levelIndex}.");
+            Assert.AreEqual(Mathf.RoundToInt(expectedGap), bottleGridLayout.padding.bottom, 1,
+                $"2-row bottom padding changed unexpectedly on level {levelIndex}.");
+            Assert.AreEqual(Vector2.zero, bottleGrid.anchoredPosition,
+                $"2-row bottle grid anchor shifted unexpectedly on level {levelIndex}.");
         }
 
         // ─── D: Bounding-box overlap detection ────────────────────────────────────
@@ -284,6 +366,39 @@ namespace Decantra.Tests.PlayMode
             Assert.LessOrEqual(delta, RatioTolerance,
                 $"{name} ratio delta {delta:F6} exceeds {RatioTolerance:F6} " +
                 $"(baseline={baseline:F6}, current={current:F6}).");
+        }
+
+        private static T GetPrivateField<T>(object instance, string fieldName)
+        {
+            var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field, $"Field not found: {fieldName}");
+            return (T)field.GetValue(instance);
+        }
+
+        private static float GetMinY(RectTransform rect, RectTransform root)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            float min = float.MaxValue;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                min = Mathf.Min(min, root.InverseTransformPoint(corners[i]).y);
+            }
+
+            return min;
+        }
+
+        private static float GetMaxY(RectTransform rect, RectTransform root)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            float max = float.MinValue;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                max = Mathf.Max(max, root.InverseTransformPoint(corners[i]).y);
+            }
+
+            return max;
         }
 
         private static List<RectTransform> GetActiveBottleRects(GameController controller)

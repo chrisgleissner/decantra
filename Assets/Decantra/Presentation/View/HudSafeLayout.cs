@@ -34,6 +34,10 @@ namespace Decantra.Presentation.View
         //   with idealGap = (available - rows*cellH)/(rows+1):
         //   => cellH <= (available - (rows+1)*MinClearancePx) / (rows + (rows+1)*BottleTopOverhang)
         private const float BottleTopOverhang = 0.1162f;
+        private const float ThreeRowInnerGapReductionPx = 24f;
+        private const float ThreeRowTopGapBiasPx = 12f;
+        private const float ThreeRowBottomGapReductionPx = 12f;
+        private const float MinimumEdgeGapPx = MinClearancePx * 0.5f;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float LayoutAssertTolerance = 0.5f;
 #endif
@@ -198,26 +202,42 @@ namespace Decantra.Presentation.View
 
                     // With the final cell height, compute equal gaps that exhaust available space.
                     float idealGap = (availableHeight - rows * cellHeight) / (rows + 1f);
-                    if (idealGap >= MinClearancePx * 0.5f)
+                    if (idealGap >= MinimumEdgeGapPx)
                     {
-                        // Expand cells to maximum fill height.
+                        float spacingY = idealGap;
+                        float topPaddingY = idealGap;
+                        float bottomPaddingY = idealGap;
+
+                        if (rows == GridRows)
+                        {
+                            // Three-row boards look under-packed with a strict equal-gap model.
+                            // Tighten only the internal gaps and keep a little more space above
+                            // than below so the grid grows slightly and sits a touch lower.
+                            spacingY = Mathf.Max(MinimumEdgeGapPx, idealGap - ThreeRowInnerGapReductionPx);
+                            topPaddingY = Mathf.Max(spacingY, idealGap + ThreeRowTopGapBiasPx);
+                            bottomPaddingY = Mathf.Max(MinimumEdgeGapPx, idealGap - ThreeRowBottomGapReductionPx);
+
+                            float compactedCellHeight = (availableHeight - topPaddingY - bottomPaddingY - (rows - 1f) * spacingY) / rows;
+                            cellHeight = Mathf.Max(cellHeight, compactedCellHeight);
+                        }
+
                         bottleGridLayout.cellSize = new Vector2(bottleGridLayout.cellSize.x, cellHeight);
-                        bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, idealGap);
+                        bottleGridLayout.spacing = new Vector2(_baseGridSpacing.x, spacingY);
                         bottleGridLayout.padding = new RectOffset(
                             _baseGridPadding.left,
                             _baseGridPadding.right,
-                            Mathf.RoundToInt(idealGap),
-                            Mathf.RoundToInt(idealGap));
+                            Mathf.RoundToInt(topPaddingY),
+                            Mathf.RoundToInt(bottomPaddingY));
                         // sizeDelta spans the full available height so the grid fills the area.
                         bottleGrid.sizeDelta = new Vector2(
                             bottleGrid.sizeDelta.x,
-                            rows * cellHeight + (rows + 1f) * idealGap);
+                            rows * cellHeight + (rows - 1f) * spacingY + topPaddingY + bottomPaddingY);
                         gridHeight = bottleGrid.sizeDelta.y;
                         appliedEqualGaps = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                         if (!IsRunningUnityTests())
                         {
-                            AssertEqualGapModel(desiredTop, desiredBottom, rows, cellHeight, idealGap, topBottom);
+                            AssertGapModel(desiredTop, desiredBottom, rows, cellHeight, spacingY, topPaddingY, bottomPaddingY, topBottom);
                         }
 #endif
                     }
@@ -282,11 +302,13 @@ namespace Decantra.Presentation.View
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private void AssertEqualGapModel(float screenTopY, float screenBottomY, int rows, float maxBottleHeight, float gapHeight, float hudBottomY)
+        private void AssertGapModel(float screenTopY, float screenBottomY, int rows, float maxBottleHeight, float gapHeight, float topGapHeight, float bottomGapHeight, float hudBottomY)
         {
             Debug.Assert(gapHeight > 0f, $"HudSafeLayout gapHeight must be positive. gap={gapHeight}");
+            Debug.Assert(topGapHeight > 0f, $"HudSafeLayout topGapHeight must be positive. gap={topGapHeight}");
+            Debug.Assert(bottomGapHeight > 0f, $"HudSafeLayout bottomGapHeight must be positive. gap={bottomGapHeight}");
 
-            float row1Top = screenTopY - gapHeight;
+            float row1Top = screenTopY - topGapHeight;
             float currentTop = row1Top;
             float rowBottom = currentTop;
             for (int i = 0; i < rows; i++)
@@ -297,8 +319,8 @@ namespace Decantra.Presentation.View
 
             float bottomGap = rowBottom - screenBottomY;
 
-            Debug.Assert(Mathf.Abs(bottomGap - gapHeight) <= LayoutAssertTolerance,
-                $"HudSafeLayout bottom gap mismatch. expected={gapHeight} actual={bottomGap}");
+            Debug.Assert(Mathf.Abs(bottomGap - bottomGapHeight) <= LayoutAssertTolerance,
+                $"HudSafeLayout bottom gap mismatch. expected={bottomGapHeight} actual={bottomGap}");
 
             Debug.Assert(row1Top < hudBottomY - LayoutAssertTolerance,
                 $"HudSafeLayout row1 touches/intersects HUD. row1Top={row1Top}, hudBottom={hudBottomY}");
