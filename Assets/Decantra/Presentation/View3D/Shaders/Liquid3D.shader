@@ -111,13 +111,13 @@ Shader "Decantra/Liquid3D"
         // _CylAmbient: minimum brightness floor at the outermost edge (0..1).
         // Together they guarantee the center stripe is always at full saturation
         // while sides are significantly darker to emphasise the round 3D shape.
-        _CylPower  ("Cyl Power",   Range(0.5, 4.0)) = 1.8
-        _CylAmbient("Cyl Ambient", Range(0.0, 0.5)) = 0.14
+        _CylPower  ("Cyl Power",   Range(0.5, 4.0)) = 1.95
+        _CylAmbient("Cyl Ambient", Range(0.0, 0.5)) = 0.10
 
         // Saturation boost applied after cylindrical shading.
         // Moves colour further from its luminance grey toward pure chroma.
         // 0 = no boost; 0.4 = saturated, vivid liquids.
-        _SatBoost  ("Sat Boost",   Range(0.0, 1.0)) = 0.40
+        _SatBoost  ("Sat Boost",   Range(0.0, 1.0)) = 0.46
 
         // Per-bottle capacity ratio (0.1..1.0). Applied in the vertex shader to
         // scale ONLY the cylindrical body; dome (bottom) and neck+rim (top) stay

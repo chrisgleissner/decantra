@@ -172,9 +172,9 @@ namespace Decantra.Presentation.Visual.Tests
             Assert.AreEqual(1f, FillHeightMapper.TotalFill(b), 1e-6f);
         }
 
-        // ── 9. TopSurfaceFill equals TotalFill ────────────────────────────────
+        // ── 9. TopSurfaceFill reports the visible surface height ──────────────
         [Test]
-        public void TopSurfaceFill_EqualsTotalFill()
+        public void TopSurfaceFill_EqualsTotalFill_ForCompactBottle()
         {
             var b = new Bottle(new ColorId?[] {
                 ColorId.Blue, ColorId.Blue, null, null

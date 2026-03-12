@@ -30,9 +30,9 @@ Shader "Decantra/CorkStopper"
         _PoreDepth  ("Pore Depth",    Range(0, 0.55)) = 0.22
         _GrainScale ("Grain Scale",   Range(2, 30))  = 10
         _GrainDepth ("Grain Depth",   Range(0, 0.4))  = 0.14
-        _Ambient    ("Ambient",       Range(0, 0.6))  = 0.40
+        _Ambient    ("Ambient",       Range(0, 0.6))  = 0.46
         _SpecPower  ("Spec Shininess", Range(4, 32))   = 14
-        _SpecStr    ("Spec Strength",  Range(0, 0.3))  = 0.10
+        _SpecStr    ("Spec Strength",  Range(0, 0.3))  = 0.06
     }
 
     SubShader
@@ -132,6 +132,12 @@ Shader "Decantra/CorkStopper"
                 // ── Lambertian diffuse ────────────────────────────────────────
                 float NdotL  = saturate(dot(N, L));
                 float diffuse = lerp(_Ambient, 1.0, NdotL);
+
+                // Blend in a mild front-center bias so cork tops read more centered
+                // from gameplay distance and better match the liquid's cylindrical shading.
+                float cylCenter = saturate(cos((IN.uv.x - 0.5) * 3.14159265));
+                float cylShade = lerp(0.88, 1.0, pow(cylCenter, 1.35));
+                diffuse = lerp(diffuse, cylShade, 0.35);
 
                 // ── Soft Blinn-Phong specular (matte cork) ───────────────────
                 float3 H    = normalize(L + V);
