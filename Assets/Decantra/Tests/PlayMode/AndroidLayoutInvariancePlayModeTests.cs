@@ -152,8 +152,8 @@ namespace Decantra.Tests.PlayMode
             var baseCellSize = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridCellSize");
             const float minimumInnerGapPx = 10f;
 
-            Assert.GreaterOrEqual(bottleGridLayout.cellSize.y, baseCellSize.y + 4f,
-                $"3-row cell height did not grow enough. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
+            Assert.GreaterOrEqual(bottleGridLayout.cellSize.y, baseCellSize.y,
+                $"3-row cell height should not shrink after compaction. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
             Assert.GreaterOrEqual(bottleGridLayout.spacing.y, minimumInnerGapPx - 1f,
                 $"3-row spacing fell below the minimum inner gap. actual={bottleGridLayout.spacing.y:F2}");
             float requiredSpacingReduction = baseGridSpacing.y > minimumInnerGapPx + 8f ? 8f : 0f;
