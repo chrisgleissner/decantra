@@ -138,17 +138,34 @@ namespace Decantra.Tests.PlayMode
             AssertRatio("BottleSpacingLM", baseline.BottleSpacingLMRatioX, current.BottleSpacingLMRatioX);
             AssertRatio("BottleSpacingMR", baseline.BottleSpacingMRRatioX, current.BottleSpacingMRRatioX);
 
-            Assert.Less(current.RowSpacing12RatioY, baseline.RowSpacing12RatioY - RatioTolerance,
-                $"RowSpacing12 should shrink for 3-row boards. baseline={baseline.RowSpacing12RatioY:F6}, current={current.RowSpacing12RatioY:F6}");
-            Assert.Less(current.RowSpacing23RatioY, baseline.RowSpacing23RatioY - RatioTolerance,
-                $"RowSpacing23 should shrink for 3-row boards. baseline={baseline.RowSpacing23RatioY:F6}, current={current.RowSpacing23RatioY:F6}");
-            Assert.Less(current.Row1CapTopRatioY, baseline.Row1CapTopRatioY - RatioTolerance,
-                $"Top row should sit slightly lower under the HUD. baseline={baseline.Row1CapTopRatioY:F6}, current={current.Row1CapTopRatioY:F6}");
+            var controller = FindController();
+            Assert.IsNotNull(controller, "GameController not found after capture.");
+            Assert.Greater(GetActiveBottleRects(controller).Count, 6, "Expected a 3-row board for the invariance capture level.");
 
-            float baselineBottleSpan = baseline.Row1CapTopRatioY - baseline.BottomBottleBottomRatioY;
-            float currentBottleSpan = current.Row1CapTopRatioY - current.BottomBottleBottomRatioY;
-            Assert.Greater(currentBottleSpan, baselineBottleSpan + RatioTolerance,
-                $"3-row bottle stack should occupy more vertical space. baselineSpan={baselineBottleSpan:F6}, currentSpan={currentBottleSpan:F6}");
+            var hudSafeLayout = Object.FindFirstObjectByType<HudSafeLayout>();
+            Assert.IsNotNull(hudSafeLayout, "HudSafeLayout not found.");
+
+            var bottleGridLayout = GetPrivateField<GridLayoutGroup>(hudSafeLayout, "bottleGridLayout");
+            var bottleGrid = GetPrivateField<RectTransform>(hudSafeLayout, "bottleGrid");
+            var baseGridSpacing = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridSpacing");
+            var baseGridPadding = GetPrivateField<RectOffset>(hudSafeLayout, "_baseGridPadding");
+            var baseCellSize = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridCellSize");
+            const float minimumEdgeGapPx = 24f;
+
+            Assert.GreaterOrEqual(bottleGridLayout.cellSize.y, baseCellSize.y - 1f,
+                $"3-row cell height shrank below the baseline cell size. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
+            Assert.GreaterOrEqual(bottleGridLayout.spacing.y, minimumEdgeGapPx - 1f,
+                $"3-row spacing fell below the minimum edge gap. actual={bottleGridLayout.spacing.y:F2}");
+            Assert.LessOrEqual(bottleGridLayout.spacing.y, baseGridSpacing.y + 1f,
+                $"3-row spacing exceeded the baseline grid spacing. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}");
+            Assert.GreaterOrEqual(bottleGridLayout.padding.top, bottleGridLayout.padding.bottom,
+                $"3-row top padding should be at least as large as bottom padding. top={bottleGridLayout.padding.top}, bottom={bottleGridLayout.padding.bottom}");
+            Assert.GreaterOrEqual(bottleGridLayout.padding.top, baseGridPadding.top,
+                $"3-row top padding should preserve or increase HUD clearance. baseline={baseGridPadding.top}, actual={bottleGridLayout.padding.top}");
+            Assert.LessOrEqual(bottleGridLayout.padding.bottom, baseGridPadding.bottom,
+                $"3-row bottom padding should not expand past the baseline gap. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}");
+            Assert.AreEqual(Vector2.zero, bottleGrid.anchoredPosition,
+                "3-row bottle grid anchor shifted unexpectedly.");
 
             Debug.Log($"[AndroidLayoutInvariance] All layout metrics within tolerance. " +
                       $"Canvas={current.CanvasWidth}×{current.CanvasHeight}, " +
@@ -173,6 +190,7 @@ namespace Decantra.Tests.PlayMode
                 yield return null;
                 yield return new WaitForSeconds(0.1f);
                 Canvas.ForceUpdateCanvases();
+                yield return null;
 
                 activeBottleCount = GetActiveBottleRects(controller).Count;
                 if (activeBottleCount > 0 && activeBottleCount <= 6)
@@ -189,44 +207,20 @@ namespace Decantra.Tests.PlayMode
 
             var bottleGridLayout = GetPrivateField<GridLayoutGroup>(hudSafeLayout, "bottleGridLayout");
             var bottleGrid = GetPrivateField<RectTransform>(hudSafeLayout, "bottleGrid");
-            var root = GetPrivateField<RectTransform>(hudSafeLayout, "_root");
-            var topHud = GetPrivateField<RectTransform>(hudSafeLayout, "topHud");
-            var secondaryHud = GetPrivateField<RectTransform>(hudSafeLayout, "secondaryHud");
-            var brandLockup = GetPrivateField<RectTransform>(hudSafeLayout, "brandLockup");
-            var bottomHud = GetPrivateField<RectTransform>(hudSafeLayout, "bottomHud");
-            var baseCellSize = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridCellSize");
-            float topPadding = GetPrivateField<float>(hudSafeLayout, "topPadding");
-            float bottomPadding = GetPrivateField<float>(hudSafeLayout, "bottomPadding");
+            var baseGridSpacing = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridSpacing");
+            var baseGridPadding = GetPrivateField<RectOffset>(hudSafeLayout, "_baseGridPadding");
 
             Assert.IsNotNull(bottleGridLayout, "Bottle grid layout missing.");
             Assert.IsNotNull(bottleGrid, "Bottle grid missing.");
-            Assert.IsNotNull(root, "Bottle layout root missing.");
 
-            float topBottom = Mathf.Min(GetMinY(topHud, root), GetMinY(secondaryHud, root));
-            if (brandLockup != null)
-            {
-                topBottom = Mathf.Min(topBottom, GetMinY(brandLockup, root));
-            }
-
-            float bottomTop = GetMaxY(bottomHud, root);
-            float availableHeight = (topBottom - topPadding) - (bottomTop + bottomPadding);
-            const int rows = 2;
-            const float minClearancePx = 48f;
-            const float bottleTopOverhang = 0.1162f;
-
-            float maxFillCellHeight = (availableHeight - (rows + 1f) * minClearancePx)
-                                     / (rows + (rows + 1f) * bottleTopOverhang);
-            float expectedCellHeight = Mathf.Max(baseCellSize.y, maxFillCellHeight);
-            float expectedGap = (availableHeight - rows * expectedCellHeight) / (rows + 1f);
-
-            Assert.AreEqual(expectedCellHeight, bottleGridLayout.cellSize.y, 1f,
-                $"2-row cell height changed unexpectedly on level {levelIndex}.");
-            Assert.AreEqual(expectedGap, bottleGridLayout.spacing.y, 1f,
-                $"2-row vertical spacing changed unexpectedly on level {levelIndex}.");
-            Assert.AreEqual(Mathf.RoundToInt(expectedGap), bottleGridLayout.padding.top, 1,
-                $"2-row top padding changed unexpectedly on level {levelIndex}.");
-            Assert.AreEqual(Mathf.RoundToInt(expectedGap), bottleGridLayout.padding.bottom, 1,
-                $"2-row bottom padding changed unexpectedly on level {levelIndex}.");
+            Assert.AreEqual(baseGridSpacing.y, bottleGridLayout.spacing.y, 1f,
+                $"2-row vertical spacing changed unexpectedly on level {levelIndex}. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}");
+            Assert.AreEqual(baseGridPadding.top, bottleGridLayout.padding.top, 1,
+                $"2-row top padding changed unexpectedly on level {levelIndex}. baseline={baseGridPadding.top}, actual={bottleGridLayout.padding.top}");
+            Assert.AreEqual(baseGridPadding.bottom, bottleGridLayout.padding.bottom, 1,
+                $"2-row bottom padding changed unexpectedly on level {levelIndex}. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}");
+            Assert.AreEqual(bottleGridLayout.padding.top, bottleGridLayout.padding.bottom, 1,
+                $"2-row layout no longer uses symmetric vertical padding on level {levelIndex}.");
             Assert.AreEqual(Vector2.zero, bottleGrid.anchoredPosition,
                 $"2-row bottle grid anchor shifted unexpectedly on level {levelIndex}.");
         }

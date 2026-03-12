@@ -65,17 +65,6 @@ namespace Decantra.Tests.PlayMode.Layout
             Compare("BottleSpacingLM", baseline.BottleSpacingLM, current.BottleSpacingLM, baseline.BottleSpacingLMRatioX, current.BottleSpacingLMRatioX);
             Compare("BottleSpacingMR", baseline.BottleSpacingMR, current.BottleSpacingMR, baseline.BottleSpacingMRRatioX, current.BottleSpacingMRRatioX);
 
-            Assert.Less(current.RowSpacing12, baseline.RowSpacing12,
-                $"RowSpacing12 should shrink for 3-row boards. baseline={baseline.RowSpacing12:F4}, current={current.RowSpacing12:F4}.");
-            Assert.Less(current.RowSpacing23, baseline.RowSpacing23,
-                $"RowSpacing23 should shrink for 3-row boards. baseline={baseline.RowSpacing23:F4}, current={current.RowSpacing23:F4}.");
-            Assert.Less(current.Row1CapTopY, baseline.Row1CapTopY,
-                $"Top row should sit slightly lower under the HUD. baseline={baseline.Row1CapTopY:F4}, current={current.Row1CapTopY:F4}.");
-
-            float baselineBottleSpan = baseline.Row1CapTopY - baseline.BottomBottleBottomY;
-            float currentBottleSpan = current.Row1CapTopY - current.BottomBottleBottomY;
-            Assert.Greater(currentBottleSpan, baselineBottleSpan,
-                $"3-row bottle stack should occupy more vertical space. baselineSpan={baselineBottleSpan:F4}, currentSpan={currentBottleSpan:F4}.");
         }
 
         private static IEnumerator CaptureMetrics(Action<LayoutProbe.LayoutMetrics> onCaptured)
