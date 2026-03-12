@@ -25,7 +25,7 @@ namespace Decantra.Presentation.Visual.Tests
     ///   6.  Non-contiguous colors each produce a separate layer.
     ///   7.  Empty slots between layers create a gap (lower layer ends before gap starts).
     ///   8.  TotalFill is exact.
-    ///   9.  TopSurfaceFill equals TotalFill.
+    ///   9.  TopSurfaceFill reports the highest occupied slot, including bottles with gaps.
     ///   10. MaxLayers constant matches max possible layer count (9).
     /// </summary>
     [TestFixture]
@@ -56,9 +56,9 @@ namespace Decantra.Presentation.Visual.Tests
 
             Assert.AreEqual(1, _output.Count, "Full monochrome bottle must produce exactly 1 layer");
             var layer = _output[0];
-            Assert.AreEqual(0f,  layer.FillMin, 1e-6f, "FillMin should be 0");
-            Assert.AreEqual(1f,  layer.FillMax, 1e-6f, "FillMax should be 1");
-            Assert.AreEqual(4,   layer.SlotCount,       "SlotCount should equal capacity");
+            Assert.AreEqual(0f, layer.FillMin, 1e-6f, "FillMin should be 0");
+            Assert.AreEqual(1f, layer.FillMax, 1e-6f, "FillMax should be 1");
+            Assert.AreEqual(4, layer.SlotCount, "SlotCount should equal capacity");
             Assert.AreEqual((int)ColorId.Red, layer.ColorId, "ColorId should match Red");
         }
 
@@ -76,10 +76,10 @@ namespace Decantra.Presentation.Visual.Tests
             var l0 = _output[0]; // bottom layer
             var l1 = _output[1]; // second layer
 
-            Assert.AreEqual(0f,    l0.FillMin, 1e-6f, "Layer0 FillMin");
+            Assert.AreEqual(0f, l0.FillMin, 1e-6f, "Layer0 FillMin");
             Assert.AreEqual(0.25f, l0.FillMax, 1e-6f, "Layer0 FillMax (1/4)");
             Assert.AreEqual(0.25f, l1.FillMin, 1e-6f, "Layer1 FillMin (1/4)");
-            Assert.AreEqual(0.5f,  l1.FillMax, 1e-6f, "Layer1 FillMax (2/4)");
+            Assert.AreEqual(0.5f, l1.FillMax, 1e-6f, "Layer1 FillMax (2/4)");
         }
 
         // ── 4. No layer overlap ───────────────────────────────────────────────
@@ -98,7 +98,7 @@ namespace Decantra.Presentation.Visual.Tests
                 float maxI = _output[i].FillMax;
                 float minNext = _output[i + 1].FillMin;
                 Assert.LessOrEqual(maxI, minNext + 1e-6f,
-                    $"Layer {i} FillMax={maxI:F6} must be ≤ Layer {i+1} FillMin={minNext:F6}");
+                    $"Layer {i} FillMax={maxI:F6} must be ≤ Layer {i + 1} FillMin={minNext:F6}");
             }
         }
 
@@ -114,7 +114,7 @@ namespace Decantra.Presentation.Visual.Tests
             for (int i = 0; i < _output.Count - 1; i++)
             {
                 Assert.Less(_output[i].FillMin, _output[i + 1].FillMin,
-                    $"Layer {i} must have smaller FillMin than layer {i+1}");
+                    $"Layer {i} must have smaller FillMin than layer {i + 1}");
             }
         }
 
@@ -183,6 +183,19 @@ namespace Decantra.Presentation.Visual.Tests
             float surface = FillHeightMapper.TopSurfaceFill(b);
             Assert.AreEqual(total, surface, 1e-6f,
                 "TopSurfaceFill must equal TotalFill");
+        }
+
+        [Test]
+        public void TopSurfaceFill_UsesHighestOccupiedSlotWhenBottleHasGap()
+        {
+            var b = new Bottle(new ColorId?[] {
+                ColorId.Blue, null, ColorId.Red, null
+            });
+
+            float surface = FillHeightMapper.TopSurfaceFill(b);
+
+            Assert.AreEqual(0.75f, surface, 1e-6f,
+                "TopSurfaceFill must report the highest occupied slot rather than compact fill count");
         }
 
         // ── 10. MaxLayers matches bottle capacity ceiling ─────────────────────

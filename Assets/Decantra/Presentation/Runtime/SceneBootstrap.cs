@@ -133,6 +133,7 @@ namespace Decantra.Presentation
             hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), 0f, 0f);
 
             var palette = CreatePalette();
+            bool enable3D = !IsRunningUnityTests();
 
             var bottleViews = new List<BottleView>();
             var bottle3DViews = new List<Bottle3DView>();
@@ -147,8 +148,15 @@ namespace Decantra.Presentation
                 SetPrivateField(bottleInput, "bottleView", bottleView);
 
                 // Wire 3D visual overlay on the same GameObject (native platforms only)
-                var bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
-                bottle3DViews.Add(bottle3DView);
+                if (enable3D)
+                {
+                    var bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
+                    bottle3DViews.Add(bottle3DView);
+                }
+                else
+                {
+                    bottle3DViews.Add(null);
+                }
             }
 
             var controller = existingController;

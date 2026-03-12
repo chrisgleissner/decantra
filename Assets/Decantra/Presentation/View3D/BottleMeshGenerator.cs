@@ -113,11 +113,10 @@ namespace Decantra.Presentation.View3D
 
         // Computed Y position of the rim/flange top referenced by Bottle3DView.
         // Formula: bodyBottom + BodyHeight + ShoulderHeight + NeckHeight + RimLipHeight
-        // where bodyBottom = -BodyHalfHeight + DomeRadius * 0.5. The DomeRadius*0.5 offset is
-        // critical: the body cylinder does NOT start at -BodyHalfHeight but at
-        // (-BodyHalfHeight + DomeRadius*0.5) because the base dome is embedded in the body.
+        // where bodyBottom = -BodyHalfHeight + DomeRadius. The body cylinder starts exactly
+        // where the base hemisphere ends so the two surfaces meet without self-overlap.
         public static readonly float RimTopY =
-            BodyHeight * 0.5f + DomeRadius * 0.5f + ShoulderHeight + NeckHeight + RimLipHeight;
+            BodyHeight * 0.5f + DomeRadius + ShoulderHeight + NeckHeight + RimLipHeight;
 
         // The cork bottom is measured relative to the visible rim/flange top, not the neck top.
         // This keeps the cork visually flush with the bottle top instead of hovering above short bottles.
@@ -126,7 +125,7 @@ namespace Decantra.Presentation.View3D
         public static float GetRimTopY(float capacityRatio)
         {
             float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
-            float bodyBottom = -BodyHalfHeight + DomeRadius * 0.5f;
+            float bodyBottom = -BodyHalfHeight + DomeRadius;
             return bodyBottom + BodyHeight * capped + ShoulderHeight + NeckHeight + RimLipHeight;
         }
 
@@ -147,13 +146,13 @@ namespace Decantra.Presentation.View3D
         /// Y position of the interior bottom of the liquid region (bottom of body cylinder).
         /// Used by Bottle3DView to anchor liquid fill heights in local space.
         /// </summary>
-        public static readonly float InteriorBottomY = -BodyHalfHeight + DomeRadius * 0.5f;
+        public static readonly float InteriorBottomY = -BodyHalfHeight + DomeRadius;
 
         /// <summary>
         /// Y position of the interior top of the liquid region (top of body cylinder).
-        /// bodyBottom = -BodyHalfHeight + DomeRadius * 0.5, bodyTop = bodyBottom + BodyHeight.
+        /// bodyBottom = -BodyHalfHeight + DomeRadius, bodyTop = bodyBottom + BodyHeight.
         /// </summary>
-        public static readonly float InteriorTopY = -BodyHalfHeight + DomeRadius * 0.5f + BodyHeight;
+        public static readonly float InteriorTopY = -BodyHalfHeight + DomeRadius + BodyHeight;
 
         /// <summary>Total interior liquid height in world units.</summary>
         public static float InteriorHeight => InteriorTopY - InteriorBottomY;
@@ -185,7 +184,7 @@ namespace Decantra.Presentation.View3D
             // Only the body cylinder scales; all other sections stay fixed.
             float scaledBodyHeight = BodyHeight * Mathf.Clamp(capacityRatio, 0.1f, 1f);
             float yMin = -BodyHalfHeight;
-            float bodyBottom = yMin + DomeRadius * 0.5f;      // dome always same (-0.61)
+            float bodyBottom = yMin + DomeRadius;
             float bodyTop = bodyBottom + scaledBodyHeight;  // body end floats up/down
             float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
             float shoulderTop = bodyTop + ShoulderHeight;
@@ -350,14 +349,14 @@ namespace Decantra.Presentation.View3D
             const int ringSegments = 40;
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
-            var uvs   = new List<Vector2>();
-            var tris  = new List<int>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
 
             for (int i = 0; i <= ringSegments; i++)
             {
                 float theta = (float)i / ringSegments * Mathf.PI * 2f;
-                float cos   = Mathf.Cos(theta);
-                float sin   = Mathf.Sin(theta);
+                float cos = Mathf.Cos(theta);
+                float sin = Mathf.Sin(theta);
                 // Outer vertex
                 verts.Add(new Vector3(outerRadius * cos, yPos, outerRadius * sin));
                 norms.Add(Vector3.back);

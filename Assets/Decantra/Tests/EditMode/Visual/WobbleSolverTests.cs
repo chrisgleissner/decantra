@@ -64,6 +64,16 @@ namespace Decantra.Presentation.Visual.Tests
                 "Displacement should be non-zero after impulse + step");
         }
 
+        [Test]
+        public void AfterImpulseAndStep_TiltIsVisiblyNonZero()
+        {
+            _solver.ApplyImpulse(2f);
+            _solver.Step(WobbleSolver.FixedDeltaTime);
+
+            Assert.Greater(Math.Abs(_solver.TiltAngleDegrees), 2f,
+                "Gameplay-scale impulses should produce visible liquid tilt.");
+        }
+
         // ── 3. Energy decays to near-zero ─────────────────────────────────────
         [Test]
         public void AfterSufficientTime_OscillatorDecays()

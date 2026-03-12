@@ -24,13 +24,15 @@ namespace Decantra.App.Editor
 "Licensed under the GNU General Public License v2.0 or later.\n" +
 "See <https://www.gnu.org/licenses/> for details.\n" +
 "*/\n\n" +
+"using UnityEngine.Scripting;\n\n" +
 "namespace Decantra.App\n" +
 "{\n" +
+"    [Preserve]\n" +
 "    public static class BuildInfo\n" +
 "    {\n" +
-"        public const string Version = \"\";\n" +
-"        public const string BuildUtc = \"\";\n" +
-"        public const string Revision = \"\";\n" +
+"        [Preserve] public const string Version = \"\";\n" +
+"        [Preserve] public const string BuildUtc = \"\";\n" +
+"        [Preserve] public const string Revision = \"\";\n" +
 "    }\n" +
 "}\n";
 
@@ -65,13 +67,15 @@ $"/*\n" +
 "Licensed under the GNU General Public License v2.0 or later.\n" +
 "See <https://www.gnu.org/licenses/> for details.\n" +
 "*/\n\n" +
+"using UnityEngine.Scripting;\n\n" +
 "namespace Decantra.App\n" +
 "{\n" +
+"    [Preserve]\n" +
 "    public static class BuildInfo\n" +
 "    {\n" +
-$"        public const string Version = \"{Escape(version)}\";\n" +
-$"        public const string BuildUtc = \"{Escape(buildUtc)}\";\n" +
-$"        public const string Revision = \"{Escape(revision)}\";\n" +
+$"        [Preserve] public const string Version = \"{Escape(version)}\";\n" +
+$"        [Preserve] public const string BuildUtc = \"{Escape(buildUtc)}\";\n" +
+$"        [Preserve] public const string Revision = \"{Escape(revision)}\";\n" +
 "    }\n" +
 "}\n";
 

@@ -7,6 +7,7 @@
   <Project Path="Decantra.Domain.Tests.csproj" />
   <Project Path="Decantra.PlayMode.Tests.csproj" />
   <Project Path="Decantra.Presentation.Visual.Tests.csproj" />
+  <Project Path="Decantra.App.Tests.csproj" />
   <Project Path="Decantra.Presentation.Editor.csproj" />
   <Project Path="Decantra.Presentation.View3D.csproj" />
 </Solution>

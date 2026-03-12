@@ -271,7 +271,7 @@ namespace Decantra.Presentation.View3D
             FillHeightMapper.Build(bottle, _layers, colorResolver);
 
             // Rebuild liquid layer GameObjects if slot count changed
-            EnsureLayerObjects(_layers.Count, bottle.Capacity);
+            EnsureLayerObjects(_layers.Count);
 
             // Block B fix: drive per-bottle capacity ratio into the glass and liquid
             // shaders so only the cylindrical body scales; the hemispherical dome (bottom)
@@ -402,7 +402,7 @@ namespace Decantra.Presentation.View3D
                 float receiveT = Mathf.Clamp01((t - 0.05f) / 0.95f);
                 if (_receiveLayerRenderer != null && _receiveLayerBlock != null)
                 {
-                    _receiveLayerBlock.SetFloat(PropTotalFill, receiveT);
+                    SetReceiveLayerTotalFill(Mathf.Lerp(_receiveFillFrom, _receiveFillTo, receiveT));
                     // Agitation starts high (arriving liquid splashes) and settles.
                     _receiveLayerBlock.SetFloat(PropAgitation, Mathf.Max(0.4f, 1f - receiveT));
                     _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
@@ -425,7 +425,7 @@ namespace Decantra.Presentation.View3D
                 && _layerRenderers[_drainTopLayerIndex] != null)
             {
                 var block = _layerBlocks[_drainTopLayerIndex];
-                block.SetFloat(PropTotalFill, 1f);
+                block.SetFloat(PropTotalFill, _drainTopLayerFillMax);
                 // Reset pour-boosted properties back to shader defaults so
                 // the layer renders normally after the animation concludes.
                 block.SetFloat(PropSurfaceRimStrength, DefaultSurfaceRimStrength);
@@ -439,6 +439,12 @@ namespace Decantra.Presentation.View3D
                 var mf = _receiveLayerGO.GetComponent<MeshFilter>();
                 if (mf != null && mf.sharedMesh != null)
                     Destroy(mf.sharedMesh);
+                if (liquidMaterialTemplate == null
+                    && _receiveLayerRenderer != null
+                    && _receiveLayerRenderer.sharedMaterial != null)
+                {
+                    Destroy(_receiveLayerRenderer.sharedMaterial);
+                }
                 Destroy(_receiveLayerGO);
                 _receiveLayerGO = null;
                 _receiveLayerRenderer = null;
@@ -515,6 +521,7 @@ namespace Decantra.Presentation.View3D
 
         private void OnDisable()
         {
+            CancelInvoke(nameof(CheckLayoutSafety));
             if (_worldRoot != null)
                 _worldRoot.SetActive(false);
             s_activeViews.Remove(this);
@@ -563,9 +570,9 @@ namespace Decantra.Presentation.View3D
                     _currentSurfaceTiltDeg + _wobble.TiltAngleDegrees,
                     -WobbleSolver.MaxTiltDegrees,
                     WobbleSolver.MaxTiltDegrees);
-                float wobble = _wobble.Displacement * 0.015f; // tiny UV offset
-                float agitation = Mathf.Clamp01(
-                    Mathf.Abs(_wobble.Displacement) / Mathf.Max(0.0001f, WobbleSolver.MaxDisplacement));
+                float normalizedWobble = _wobble.Displacement / Mathf.Max(0.0001f, WobbleSolver.MaxDisplacement);
+                float wobble = normalizedWobble * 0.015f;
+                float agitation = Mathf.Clamp01(Mathf.Abs(normalizedWobble));
 
                 for (int i = 0; i < _layerRenderers.Count; i++)
                 {
@@ -581,13 +588,34 @@ namespace Decantra.Presentation.View3D
 
         private void OnDestroy()
         {
+            CancelInvoke(nameof(CheckLayoutSafety));
             s_activeViews.Remove(this);
+            ClearPourAnimation();
             CleanupLayerObjects();
+
+            if (_glassBodyGO != null)
+            {
+                var glassFilter = _glassBodyGO.GetComponent<MeshFilter>();
+                if (glassFilter != null && glassFilter.sharedMesh != null)
+                    Destroy(glassFilter.sharedMesh);
+
+                if (glassMaterialTemplate == null)
+                {
+                    var glassRenderer = _glassBodyGO.GetComponent<MeshRenderer>();
+                    if (glassRenderer != null && glassRenderer.sharedMaterial != null)
+                        Destroy(glassRenderer.sharedMaterial);
+                }
+            }
+
             if (_contactShadowGO != null)
             {
                 var mf = _contactShadowGO.GetComponent<MeshFilter>();
                 if (mf != null && mf.sharedMesh != null)
                     Destroy(mf.sharedMesh);
+
+                var mr = _contactShadowGO.GetComponent<MeshRenderer>();
+                if (mr != null && mr.sharedMaterial != null)
+                    Destroy(mr.sharedMaterial);
             }
 
             // Fill-line cleanup: destroy generated ring meshes.
@@ -625,8 +653,12 @@ namespace Decantra.Presentation.View3D
             // BottleOutline, LiquidLayers, ContactShadow, and Stopper children.
             if (_worldRoot != null)
             {
-                if (_outlineRenderer != null && _outlineRenderer.sharedMaterial != null)
+                if (outlineMaterialTemplate == null
+                    && _outlineRenderer != null
+                    && _outlineRenderer.sharedMaterial != null)
+                {
                     Destroy(_outlineRenderer.sharedMaterial);
+                }
 
                 Destroy(_worldRoot);
                 _worldRoot = null;
@@ -641,7 +673,11 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         private void CheckLayoutSafety()
         {
-            int count = s_activeViews.Count;
+            var boardViews = CollectViewsForLayoutRoot(GetLayoutGroupRoot());
+            if (boardViews.Count == 0 || boardViews[0] != this)
+                return;
+
+            int count = boardViews.Count;
             if (count == 0) return;
 
             // Collect world-space bounds from each active bottle's glass mesh renderer.
@@ -649,7 +685,7 @@ namespace Decantra.Presentation.View3D
             bool allValid = true;
             for (int i = 0; i < count; i++)
             {
-                var v = s_activeViews[i];
+                var v = boardViews[i];
                 if (v == null || v._glassBodyGO == null) { allValid = false; continue; }
                 var mr = v._glassBodyGO.GetComponent<MeshRenderer>();
                 if (mr == null) { allValid = false; continue; }
@@ -720,7 +756,7 @@ namespace Decantra.Presentation.View3D
             float shadowLengthRatioMax = 0f;
             for (int i = 0; i < count; i++)
             {
-                var vi = s_activeViews[i];
+                var vi = boardViews[i];
                 if (vi == null || vi._contactShadowGO == null) continue;
                 var shadowMr = vi._contactShadowGO.GetComponent<MeshRenderer>();
                 if (shadowMr == null) continue;
@@ -758,7 +794,7 @@ namespace Decantra.Presentation.View3D
             float corkInsertionDepthRatioMax = 0f;
             for (int i = 0; i < count; i++)
             {
-                var v = s_activeViews[i];
+                var v = boardViews[i];
                 if (v != null)
                 {
                     if (v._isSinkOnly) sinkBottleCount++;
@@ -898,20 +934,19 @@ namespace Decantra.Presentation.View3D
                 return;
 
             float range = _drainTopLayerFillMax - _drainTopLayerFillMin;
-            float prop;
+            float animFill;
             if (range > 1e-5f)
             {
                 // Lerp the visible top of the mesh: starts at FillMax, ends at drainTargetFill.
-                float animFill = Mathf.Lerp(_drainTopLayerFillMax, _drainTargetFill, t);
-                prop = Mathf.Clamp01((animFill - _drainTopLayerFillMin) / range);
+                animFill = Mathf.Lerp(_drainTopLayerFillMax, _drainTargetFill, t);
             }
             else
             {
-                prop = 0f;
+                animFill = _drainTargetFill;
             }
 
             var block = _layerBlocks[_drainTopLayerIndex];
-            block.SetFloat(PropTotalFill, prop);
+            block.SetFloat(PropTotalFill, animFill);
             _layerRenderers[_drainTopLayerIndex].SetPropertyBlock(block);
         }
 
@@ -944,22 +979,24 @@ namespace Decantra.Presentation.View3D
 
             _receiveLayerBlock = new MaterialPropertyBlock();
             _receiveLayerBlock.SetColor(PropLayerColor[0], _receiveColor);
-            _receiveLayerBlock.SetFloat(PropLayerMin[0], 0f);
-            _receiveLayerBlock.SetFloat(PropLayerMax[0], 1f);
+            _receiveLayerBlock.SetFloat(PropLayerMin[0], _receiveFillFrom);
+            _receiveLayerBlock.SetFloat(PropLayerMax[0], _receiveFillTo);
             for (int k = 1; k < 9; k++)
             {
                 _receiveLayerBlock.SetFloat(PropLayerMin[k], 0f);
                 _receiveLayerBlock.SetFloat(PropLayerMax[k], 0f);
             }
             _receiveLayerBlock.SetInt(PropLayerCount, 1);
-            _receiveLayerBlock.SetFloat(PropTotalFill, 0f); // start invisible
+            _receiveLayerBlock.SetFloat(PropTotalFill, _receiveFillFrom);
             _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
         }
 
         private void SetReceiveLayerTotalFill(float t)
         {
             if (_receiveLayerRenderer == null || _receiveLayerBlock == null) return;
-            _receiveLayerBlock.SetFloat(PropTotalFill, Mathf.Clamp01(t));
+            _receiveLayerBlock.SetFloat(
+                PropTotalFill,
+                Mathf.Clamp(t, _receiveFillFrom, _receiveFillTo));
             _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
         }
 
@@ -1123,7 +1160,7 @@ namespace Decantra.Presentation.View3D
                 BottleMeshGenerator.BodyRadius * 1.15f);
         }
 
-        private void EnsureLayerObjects(int requiredCount, int bottleCapacity)
+        private void EnsureLayerObjects(int requiredCount)
         {
             // Deactivate excess layers
             for (int i = requiredCount; i < _layerRenderers.Count; i++)
@@ -1138,7 +1175,7 @@ namespace Decantra.Presentation.View3D
                 var go = new GameObject($"LiquidLayer_{i}");
                 go.transform.SetParent(_liquidRoot.transform, false);
                 go.layer = _worldRoot != null ? _worldRoot.layer : gameObject.layer;
-                var mf = go.AddComponent<MeshFilter>();
+                go.AddComponent<MeshFilter>();
                 var mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = liquidMaterialTemplate != null
                     ? liquidMaterialTemplate
@@ -1146,9 +1183,6 @@ namespace Decantra.Presentation.View3D
                 _layerRenderers.Add(mr);
                 _layerBlocks.Add(new MaterialPropertyBlock());
                 _cachedFillBounds.Add((-1f, -1f)); // sentinel: force mesh build on first render
-
-                // Placeholder mesh (will be replaced in ApplyLayerProperties)
-                mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(0f, 0f, _capacityRatio);
             }
 
             // Activate layers up to required count
@@ -1161,7 +1195,7 @@ namespace Decantra.Presentation.View3D
 
         private void ApplyLayerProperties(List<LiquidLayerData> layers, Bottle bottle)
         {
-            float totalFill = FillHeightMapper.TotalFill(bottle);
+            float topSurfaceFill = FillHeightMapper.TopSurfaceFill(bottle);
 
             for (int i = 0; i < layers.Count; i++)
             {
@@ -1188,8 +1222,8 @@ namespace Decantra.Presentation.View3D
                 // Set all 9 layer colors/fills on the material (shader reads all 9)
                 // We use a single shared layer per mesh so index 0 is always "this layer"
                 block.SetColor(PropLayerColor[0], new Color(layer.R, layer.G, layer.B, 1f));
-                block.SetFloat(PropLayerMin[0], 0f);        // mesh UV.y already spans [fillMin..fillMax]
-                block.SetFloat(PropLayerMax[0], 1f);        // full mesh = this layer
+                block.SetFloat(PropLayerMin[0], layer.FillMin);
+                block.SetFloat(PropLayerMax[0], layer.FillMax);
 
                 // Clear upper layers
                 for (int k = 1; k < 9; k++)
@@ -1198,7 +1232,7 @@ namespace Decantra.Presentation.View3D
                     block.SetFloat(PropLayerMax[k], 0f);
                 }
 
-                block.SetFloat(PropTotalFill, 1f);           // mesh is already bounded
+                block.SetFloat(PropTotalFill, topSurfaceFill);
                 block.SetInt(PropLayerCount, 1);            // single layer per mesh
 
                 _layerRenderers[i].SetPropertyBlock(block);
@@ -1250,6 +1284,9 @@ namespace Decantra.Presentation.View3D
                     var mf = _layerRenderers[i].GetComponent<MeshFilter>();
                     if (mf != null && mf.sharedMesh != null)
                         Destroy(mf.sharedMesh);
+
+                    if (liquidMaterialTemplate == null && _layerRenderers[i].sharedMaterial != null)
+                        Destroy(_layerRenderers[i].sharedMaterial);
                 }
             }
             _layerRenderers.Clear();
@@ -1556,7 +1593,8 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         public static void WriteReport()
         {
-            int count = s_activeViews.Count;
+            var boardViews = CollectDominantLayoutViews();
+            int count = boardViews.Count;
             var bounds = new Bounds[count];
             bool overlapDet = false;
             bool shadowOverlapDet = false;
@@ -1573,7 +1611,7 @@ namespace Decantra.Presentation.View3D
 
             for (int i = 0; i < count; i++)
             {
-                var v = s_activeViews[i];
+                var v = boardViews[i];
                 if (v == null) continue;
                 if (v._isSinkOnly) sinks++;
                 if (v._wasCompleted)
@@ -1617,7 +1655,7 @@ namespace Decantra.Presentation.View3D
             // Shadow overlap check via renderer bounds intersection (spec-compliant).
             for (int i = 0; i < count; i++)
             {
-                var vi = s_activeViews[i];
+                var vi = boardViews[i];
                 if (vi == null || vi._contactShadowGO == null) continue;
                 var shadowMr = vi._contactShadowGO.GetComponent<MeshRenderer>();
                 if (shadowMr == null) continue;
@@ -1677,6 +1715,85 @@ namespace Decantra.Presentation.View3D
             var mr = go.AddComponent<MeshRenderer>();
             mr.sharedMaterial = CreateFillLineMaterial();
             return go;
+        }
+
+        private static List<Bottle3DView> CollectDominantLayoutViews()
+        {
+            PruneInactiveViews();
+
+            Transform dominantRoot = null;
+            int dominantCount = 0;
+            var rootCounts = new Dictionary<Transform, int>();
+            for (int i = 0; i < s_activeViews.Count; i++)
+            {
+                var view = s_activeViews[i];
+                if (!IsLayoutEligible(view))
+                    continue;
+
+                Transform root = view.GetLayoutGroupRoot();
+                if (root == null)
+                    continue;
+                if (!rootCounts.TryGetValue(root, out int count))
+                    count = 0;
+
+                count++;
+                rootCounts[root] = count;
+                if (count > dominantCount)
+                {
+                    dominantCount = count;
+                    dominantRoot = root;
+                }
+            }
+
+            return CollectViewsForLayoutRoot(dominantRoot);
+        }
+
+        private static List<Bottle3DView> CollectViewsForLayoutRoot(Transform layoutRoot)
+        {
+            PruneInactiveViews();
+
+            var views = new List<Bottle3DView>(s_activeViews.Count);
+            if (layoutRoot == null)
+                return views;
+
+            for (int i = 0; i < s_activeViews.Count; i++)
+            {
+                var view = s_activeViews[i];
+                if (!IsLayoutEligible(view))
+                    continue;
+                if (view.GetLayoutGroupRoot() != layoutRoot)
+                    continue;
+
+                views.Add(view);
+            }
+
+            return views;
+        }
+
+        private static bool IsLayoutEligible(Bottle3DView view)
+        {
+            return view != null
+                && view.isActiveAndEnabled
+                && view._worldRoot != null
+                && view._worldRoot.activeInHierarchy;
+        }
+
+        private Transform GetLayoutGroupRoot()
+        {
+            Transform current = transform;
+            while (current != null)
+            {
+                if (current.GetComponent<UnityEngine.UI.GridLayoutGroup>() != null)
+                    return current;
+                current = current.parent;
+            }
+
+            return transform.parent;
+        }
+
+        private static void PruneInactiveViews()
+        {
+            s_activeViews.RemoveAll(view => !IsLayoutEligible(view));
         }
 
         /// <summary>Material for fill-line indicators: thin semi-transparent white rings.</summary>

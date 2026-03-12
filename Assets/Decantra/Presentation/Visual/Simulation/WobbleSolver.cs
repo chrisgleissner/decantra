@@ -58,8 +58,12 @@ namespace Decantra.Presentation.Visual.Simulation
         /// <summary>Fixed integration step size in seconds (60 Hz).</summary>
         public const float FixedDeltaTime = 1f / 60f;
 
-        /// <summary>Maps oscillator displacement (radians) → visual tilt (degrees).</summary>
-        public const float TiltScale = 12f;
+        /// <summary>
+        /// Maps oscillator displacement to visual tilt in the shader.
+        /// Tuned so the gameplay-scale impulses used by Bottle3DView produce a clearly
+        /// visible slosh instead of sub-degree motion that is effectively invisible.
+        /// </summary>
+        public const float TiltScale = 100f;
 
         /// <summary>Maximum tilt clamp (degrees). Prevents extreme visual distortion.</summary>
         public const float MaxTiltDegrees = 18f;

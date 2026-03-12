@@ -126,7 +126,17 @@ namespace Decantra.Presentation.Visual.Simulation
         {
             if (bottle == null) throw new ArgumentNullException(nameof(bottle));
             if (bottle.IsEmpty) return 0f;
-            return TotalFill(bottle);
+
+            var slots = bottle.Slots;
+            for (int i = slots.Count - 1; i >= 0; i--)
+            {
+                if (slots[i].HasValue)
+                {
+                    return bottle.Capacity > 0 ? (float)(i + 1) / bottle.Capacity : 0f;
+                }
+            }
+
+            return 0f;
         }
 
         // -------------------------------------------------------------------------

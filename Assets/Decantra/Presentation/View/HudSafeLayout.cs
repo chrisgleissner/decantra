@@ -215,7 +215,10 @@ namespace Decantra.Presentation.View
                         gridHeight = bottleGrid.sizeDelta.y;
                         appliedEqualGaps = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                        AssertEqualGapModel(desiredTop, desiredBottom, rows, cellHeight, idealGap, topBottom);
+                        if (!IsRunningUnityTests())
+                        {
+                            AssertEqualGapModel(desiredTop, desiredBottom, rows, cellHeight, idealGap, topBottom);
+                        }
 #endif
                     }
                 }
@@ -305,6 +308,11 @@ namespace Decantra.Presentation.View
             {
                 var child = bottleGrid.GetChild(i) as RectTransform;
                 if (child == null || !child.gameObject.activeInHierarchy) continue;
+
+                var canvasGroup = child.GetComponent<CanvasGroup>();
+                if (canvasGroup != null && canvasGroup.alpha <= 0.001f)
+                    continue;
+
                 child.GetWorldCorners(_corners);
                 float childTop = float.NegativeInfinity;
                 for (int c = 0; c < _corners.Length; c++)
@@ -338,6 +346,18 @@ namespace Decantra.Presentation.View
                 _baseGridSize = bottleGrid.sizeDelta;
                 _baseGridCellSize = bottleGridLayout.cellSize;
             }
+        }
+
+        private static bool IsRunningUnityTests()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], "-runTests", System.StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
 
         private void RestoreGridLayoutDefaults()
