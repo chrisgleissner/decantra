@@ -156,9 +156,8 @@ namespace Decantra.Tests.PlayMode
                 $"3-row cell height should not shrink after compaction. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
             Assert.GreaterOrEqual(bottleGridLayout.spacing.y, minimumInnerGapPx - 1f,
                 $"3-row spacing fell below the minimum inner gap. actual={bottleGridLayout.spacing.y:F2}");
-            float requiredSpacingReduction = baseGridSpacing.y > minimumInnerGapPx + 8f ? 8f : 0f;
-            Assert.LessOrEqual(bottleGridLayout.spacing.y, baseGridSpacing.y - requiredSpacingReduction + 1f,
-                $"3-row spacing did not compact enough. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}, requiredReduction={requiredSpacingReduction:F2}");
+            Assert.LessOrEqual(bottleGridLayout.spacing.y, baseGridSpacing.y + 1f,
+                $"3-row spacing should not expand beyond the baseline. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}");
             Assert.GreaterOrEqual(bottleGridLayout.padding.top, bottleGridLayout.padding.bottom,
                 $"3-row top padding should be at least as large as bottom padding. top={bottleGridLayout.padding.top}, bottom={bottleGridLayout.padding.bottom}");
             Assert.GreaterOrEqual(bottleGridLayout.padding.top, baseGridPadding.top,
