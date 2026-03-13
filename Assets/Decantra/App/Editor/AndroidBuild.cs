@@ -39,8 +39,10 @@ namespace Decantra.App.Editor
             EditorUserBuildSettings.allowDebugging = false;
             EditorUserBuildSettings.connectProfiler = false;
 
-            // ---- Target device: Galaxy S21+ ----
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            // ---- Target devices for local verification/screenshot capture ----
+            // Keep release APK compatible with a broader range of connected devices.
+            PlayerSettings.Android.targetArchitectures =
+                AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
             PlayerSettings.Android.buildApkPerCpuArchitecture = false;
 
             // ---- Scripting backend & stripping ----

@@ -15,6 +15,7 @@ using Decantra.Domain.Model;
 using Decantra.Domain.Rules;
 using Decantra.Presentation.Controller;
 using Decantra.Presentation.View;
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -25,6 +26,9 @@ namespace Decantra.Presentation
 {
     public static class SceneBootstrap
     {
+        private const float GameCameraPitchDegrees = 4f;
+        private const float GameCameraPitchHeight = 0.7f;
+
         private static Sprite roundedSprite;
         private static Sprite innerBottleSprite;
         private static Sprite liquidFillSprite;
@@ -89,9 +93,12 @@ namespace Decantra.Presentation
         public static void EnsureScene()
         {
             var cameras = EnsureRenderCameras();
+            EnsureSceneLighting();
+            EnsureRuntimeTools();
             var existingController = Object.FindFirstObjectByType<GameController>();
             if (existingController != null && HasRequiredWiring(existingController))
             {
+                EnsureBottle3DIntegration(existingController);
                 EnsureBackgroundRendering(existingController, cameras);
                 EnsureRestartDialog(existingController);
                 EnsureResetLevelDialog(existingController);
@@ -129,8 +136,10 @@ namespace Decantra.Presentation
             hudSafeLayout.Configure(topHudRect, secondaryHudRect, brandLockupRect, bottomHudRect, bottleAreaRect, gridRoot.GetComponent<RectTransform>(), 0f, 0f);
 
             var palette = CreatePalette();
+            bool enable3D = !IsRunningUnityTests();
 
             var bottleViews = new List<BottleView>();
+            var bottle3DViews = new List<Bottle3DView>();
             for (int i = 0; i < 9; i++)
             {
                 var bottleView = CreateBottle(gridRoot.transform, i + 1, palette);
@@ -140,6 +149,17 @@ namespace Decantra.Presentation
                 bottleViews.Add(bottleView);
 
                 SetPrivateField(bottleInput, "bottleView", bottleView);
+
+                // Wire 3D visual overlay on the same GameObject (native platforms only)
+                if (enable3D)
+                {
+                    var bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
+                    bottle3DViews.Add(bottle3DView);
+                }
+                else
+                {
+                    bottle3DViews.Add(null);
+                }
             }
 
             var controller = existingController;
@@ -149,6 +169,8 @@ namespace Decantra.Presentation
                 controller = controllerGo.AddComponent<GameController>();
             }
             SetPrivateField(controller, "bottleViews", bottleViews);
+            SetPrivateField(controller, "_bottle3DViews", bottle3DViews);
+            SetPrivateField(controller, "_colorPalette", palette);
             SetPrivateField(controller, "hudView", hudView);
             SetPrivateField(controller, "backgroundImage", backgroundLayers.Base);
             SetPrivateField(controller, "backgroundDetail", backgroundLayers.Detail);
@@ -191,19 +213,149 @@ namespace Decantra.Presentation
             SetPrivateField(controller, "_scoreDetailsMaxLevelText", scoreDetailsResult.MaxLevelText);
             WireScorePanelButton(controller);
 
+            EnsureBottle3DIntegration(controller);
+
             var restartDialog = CreateRestartDialog(uiCanvas.transform);
             SetPrivateField(controller, "restartDialog", restartDialog);
             var tutorial = CreateTutorialOverlay(uiCanvas.transform);
             SetPrivateField(controller, "tutorialManager", tutorial);
             WireLevelJumpOverlay(controller);
 
-            var toolsGo = new GameObject("RuntimeTools");
-            toolsGo.AddComponent<RuntimeScreenshot>();
+            EnsureRuntimeTools();
 
             foreach (var bottleView in bottleViews)
             {
                 var input = bottleView.GetComponent<BottleInput>();
                 SetPrivateField(input, "controller", controller);
+            }
+        }
+
+        /// <summary>
+        /// Create key + rim directional lights for 3D bottle specular/Fresnel highlighting.
+        /// Idempotent — safe to call multiple times; lights are only created once.
+        /// Lights have no shadows (mobile performance).
+        /// </summary>
+        private static void EnsureSceneLighting()
+        {
+            // Key light: warm white from upper-left front.
+            // This is what drives the moving Blinn-Phong specular on BottleGlass.shader
+            // and the URP Lit highlights on the glass material.
+            if (GameObject.Find("Light_Key3D") == null)
+            {
+                var go = new GameObject("Light_Key3D");
+                var light = go.AddComponent<Light>();
+                light.type = LightType.Directional;
+                light.color = new Color(1f, 0.97f, 0.92f);
+                light.intensity = 1.1f;
+                light.shadows = LightShadows.None;  // mobile perf
+                go.transform.rotation = Quaternion.Euler(35f, -40f, 0f);
+            }
+
+            // Rim light: cool blue from back-right.
+            // Brightens the Fresnel edge term, providing silhouette separation.
+            if (GameObject.Find("Light_Rim3D") == null)
+            {
+                var go = new GameObject("Light_Rim3D");
+                var light = go.AddComponent<Light>();
+                light.type = LightType.Directional;
+                light.color = new Color(0.55f, 0.72f, 1f);
+                light.intensity = 0.42f;
+                light.shadows = LightShadows.None;  // mobile perf
+                go.transform.rotation = Quaternion.Euler(155f, 55f, 0f);
+            }
+        }
+
+        private static void EnsureBottle3DIntegration(GameController controller)
+        {
+            if (controller == null) return;
+
+            var bottleViews = GetPrivateField<List<BottleView>>(controller, "bottleViews");
+            if (bottleViews == null || bottleViews.Count == 0) return;
+
+            var bottle3DViews = GetPrivateField<List<Bottle3DView>>(controller, "_bottle3DViews")
+                                ?? new List<Bottle3DView>(bottleViews.Count);
+            bool enable3D = !IsRunningUnityTests();
+
+            while (bottle3DViews.Count < bottleViews.Count)
+            {
+                bottle3DViews.Add(null);
+            }
+
+            for (int i = 0; i < bottleViews.Count; i++)
+            {
+                var bottleView = bottleViews[i];
+                if (bottleView == null) continue;
+
+                bottleView.SetPresentation3DEnabled(enable3D);
+
+                if (!enable3D)
+                {
+                    bottle3DViews[i] = null;
+                    continue;
+                }
+
+                var bottle3DView = bottleView.GetComponent<Bottle3DView>();
+                if (bottle3DView == null)
+                {
+                    bottle3DView = bottleView.gameObject.AddComponent<Bottle3DView>();
+                }
+
+                bottle3DViews[i] = bottle3DView;
+            }
+
+            if (bottle3DViews.Count > bottleViews.Count)
+            {
+                bottle3DViews.RemoveRange(bottleViews.Count, bottle3DViews.Count - bottleViews.Count);
+            }
+
+            SetPrivateField(controller, "_bottle3DViews", bottle3DViews);
+
+            var palette = GetPrivateField<ColorPalette>(controller, "_colorPalette");
+            if (palette == null)
+            {
+                for (int i = 0; i < bottleViews.Count; i++)
+                {
+                    if (bottleViews[i] == null) continue;
+                    palette = GetPrivateField<ColorPalette>(bottleViews[i], "palette");
+                    if (palette != null)
+                    {
+                        SetPrivateField(controller, "_colorPalette", palette);
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static bool IsRunningUnityTests()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (string.Equals(args[i], "-runTests", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void EnsureRuntimeTools()
+        {
+            if (Object.FindFirstObjectByType<RuntimeScreenshot>() != null)
+            {
+                return;
+            }
+
+            var toolsGo = GameObject.Find("RuntimeTools");
+            if (toolsGo == null)
+            {
+                toolsGo = new GameObject("RuntimeTools");
+            }
+
+            if (toolsGo.GetComponent<RuntimeScreenshot>() == null)
+            {
+                toolsGo.AddComponent<RuntimeScreenshot>();
             }
         }
 
@@ -863,8 +1015,16 @@ namespace Decantra.Presentation
             camera.cullingMask = cullingMask;
             camera.orthographic = true;
             camera.backgroundColor = background;
-            camera.transform.position = new Vector3(0f, 0f, -10f);
-            camera.transform.rotation = Quaternion.identity;
+            if (string.Equals(name, "Camera_Game", System.StringComparison.Ordinal))
+            {
+                camera.transform.position = new Vector3(0f, GameCameraPitchHeight, -10f);
+                camera.transform.rotation = Quaternion.Euler(GameCameraPitchDegrees, 0f, 0f);
+            }
+            else
+            {
+                camera.transform.position = new Vector3(0f, 0f, -10f);
+                camera.transform.rotation = Quaternion.identity;
+            }
 
             return camera;
         }
@@ -1392,6 +1552,20 @@ namespace Decantra.Presentation
             areaRect.offsetMin = Vector2.zero;
             areaRect.offsetMax = Vector2.zero;
             bottleAreaRect = areaRect;
+
+            var boardBackdrop = CreateUiChild(area.transform, "BoardContrastBackdrop");
+            var boardBackdropRect = boardBackdrop.GetComponent<RectTransform>();
+            boardBackdropRect.anchorMin = new Vector2(0.5f, 0.5f);
+            boardBackdropRect.anchorMax = new Vector2(0.5f, 0.5f);
+            boardBackdropRect.pivot = new Vector2(0.5f, 0.5f);
+            boardBackdropRect.sizeDelta = new Vector2(980f, 1560f);
+            boardBackdropRect.anchoredPosition = new Vector2(0f, -10f);
+
+            var boardBackdropImage = boardBackdrop.AddComponent<Image>();
+            boardBackdropImage.sprite = GetSoftCircleSprite();
+            boardBackdropImage.type = Image.Type.Simple;
+            boardBackdropImage.color = new Color(0.01f, 0.04f, 0.10f, 0.24f);
+            boardBackdropImage.raycastTarget = false;
 
             var gridRoot = CreateUiChild(area.transform, "BottleGrid");
             var gridRect = gridRoot.GetComponent<RectTransform>();

@@ -11,6 +11,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Decantra.Presentation.View3D;
 
 namespace Decantra.Presentation.View
 {
@@ -32,8 +33,15 @@ namespace Decantra.Presentation.View
         private BottleInput currentTarget;
         private Quaternion originalRotation;
         private bool _isDragging;
+        private Bottle3DView _bottle3DView;
 
         public bool IsDragging => _isDragging;
+
+        /// <summary>
+        /// The 3D view component on this bottle input, if any.
+        /// Used by drag logic to call SetHighlight on the 3D target bottle.
+        /// </summary>
+        public Bottle3DView Bottle3DView => _bottle3DView;
 
         private void EnsureComponents()
         {
@@ -51,6 +59,7 @@ namespace Decantra.Presentation.View
             canvasGroup ??= GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
             gridLayout ??= GetComponentInParent<GridLayoutGroup>();
             hudSafeLayout ??= Object.FindFirstObjectByType<HudSafeLayout>();
+            if (_bottle3DView == null) _bottle3DView = GetComponent<Bottle3DView>();
         }
 
         public void OnPointerClick(PointerEventData eventData)
@@ -111,6 +120,16 @@ namespace Decantra.Presentation.View
                 out var worldPoint);
             rectTransform.position = worldPoint;
 
+            // Apply 3D drag yaw on the world-root mesh for visible parallax/specular shift.
+            // rawOffsetX is in world units.  ±1.5 wu of horizontal displacement → ±12°.
+            // (1.5 wu ≈ one bottle-cell width at typical ortho scale, feels intuitive.)
+            if (_bottle3DView != null)
+            {
+                float rawOffsetX = rectTransform.position.x - originalPosition.x;
+                float yaw = Mathf.Clamp(rawOffsetX / 1.5f * 12f, -12f, 12f);
+                _bottle3DView.SetDragRotation(yaw);
+            }
+
             var target = FindDropTarget(eventData);
             if (target != currentTarget)
             {
@@ -126,12 +145,14 @@ namespace Decantra.Presentation.View
                     bottleView.PreviewPour(amount);
                     bottleView.transform.rotation = Quaternion.Euler(0, 0, -PourTiltDegrees);
                     currentTarget.bottleView.SetHighlight(true);
+                    currentTarget.Bottle3DView?.SetHighlight(true);
                 }
                 else
                 {
                     bottleView.ClearPreview();
                     bottleView.transform.rotation = originalRotation;
                     currentTarget.bottleView.SetHighlight(false);
+                    currentTarget.Bottle3DView?.SetHighlight(false);
                 }
             }
         }
@@ -169,6 +190,7 @@ namespace Decantra.Presentation.View
 
             rectTransform.position = end;
             rectTransform.rotation = originalRotation;
+            _bottle3DView?.ClearDragRotation();
             if (gridLayout != null)
             {
                 gridLayout.enabled = true;
@@ -198,6 +220,23 @@ namespace Decantra.Presentation.View
                     return candidate;
                 }
             }
+
+            // 3D fallback path for bottle meshes/colliders.
+            // Keeps existing input semantics while allowing Physics raycast targets.
+            var cam = eventData.pressEventCamera != null ? eventData.pressEventCamera : Camera.main;
+            if (cam != null)
+            {
+                var ray = cam.ScreenPointToRay(eventData.position);
+                if (Physics.Raycast(ray, out var hit, 200f))
+                {
+                    var candidate = hit.collider.GetComponentInParent<BottleInput>();
+                    if (candidate != null && candidate != this)
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
             return null;
         }
 
@@ -207,6 +246,7 @@ namespace Decantra.Presentation.View
             if (currentTarget != null)
             {
                 currentTarget.bottleView.SetHighlight(false);
+                currentTarget.Bottle3DView?.SetHighlight(false);
                 currentTarget.bottleView.ClearIncoming();
             }
             currentTarget = null;

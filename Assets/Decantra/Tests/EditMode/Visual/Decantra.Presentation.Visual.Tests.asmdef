@@ -1,0 +1,19 @@
+{
+  "name": "Decantra.Presentation.Visual.Tests",
+  "references": [
+    "Decantra.Domain",
+    "Decantra.Presentation.Visual"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "testAssemblies": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Decantra.Presentation.View3D",
+  "references": [
+    "Decantra.Domain",
+    "Decantra.App",
+    "Decantra.Presentation.Visual"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

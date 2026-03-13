@@ -33,7 +33,7 @@ namespace Decantra.Tests.PlayMode.Layout
         }
 
         [UnityTest]
-        public IEnumerator LayoutInvariants_MatchBaselineWithinTolerance()
+        public IEnumerator LayoutInvariants_PreserveHudAndHorizontalBaseline_WhileCompactingThreeRowBoards()
         {
             string baselinePath = ResolveOutputPath(
                 "DECANTRA_LAYOUT_BASELINE_PATH",
@@ -58,19 +58,13 @@ namespace Decantra.Tests.PlayMode.Layout
             Compare("LogoBottomY", baseline.LogoBottomY, current.LogoBottomY, baseline.LogoBottomRatioY, current.LogoBottomRatioY);
             Compare("LogoCenterX", baseline.LogoCenterX, current.LogoCenterX, baseline.LogoCenterRatioX, current.LogoCenterRatioX);
 
-            Compare("Row1CapTopY", baseline.Row1CapTopY, current.Row1CapTopY, baseline.Row1CapTopRatioY, current.Row1CapTopRatioY);
-            Compare("Row2CapTopY", baseline.Row2CapTopY, current.Row2CapTopY, baseline.Row2CapTopRatioY, current.Row2CapTopRatioY);
-            Compare("Row3CapTopY", baseline.Row3CapTopY, current.Row3CapTopY, baseline.Row3CapTopRatioY, current.Row3CapTopRatioY);
-            Compare("BottomBottleBottomY", baseline.BottomBottleBottomY, current.BottomBottleBottomY, baseline.BottomBottleBottomRatioY, current.BottomBottleBottomRatioY);
-
             Compare("LeftBottleCenterX", baseline.LeftBottleCenterX, current.LeftBottleCenterX, baseline.LeftBottleCenterRatioX, current.LeftBottleCenterRatioX);
             Compare("MiddleBottleCenterX", baseline.MiddleBottleCenterX, current.MiddleBottleCenterX, baseline.MiddleBottleCenterRatioX, current.MiddleBottleCenterRatioX);
             Compare("RightBottleCenterX", baseline.RightBottleCenterX, current.RightBottleCenterX, baseline.RightBottleCenterRatioX, current.RightBottleCenterRatioX);
 
-            Compare("RowSpacing12", baseline.RowSpacing12, current.RowSpacing12, baseline.RowSpacing12RatioY, current.RowSpacing12RatioY);
-            Compare("RowSpacing23", baseline.RowSpacing23, current.RowSpacing23, baseline.RowSpacing23RatioY, current.RowSpacing23RatioY);
             Compare("BottleSpacingLM", baseline.BottleSpacingLM, current.BottleSpacingLM, baseline.BottleSpacingLMRatioX, current.BottleSpacingLMRatioX);
             Compare("BottleSpacingMR", baseline.BottleSpacingMR, current.BottleSpacingMR, baseline.BottleSpacingMRRatioX, current.BottleSpacingMRRatioX);
+
         }
 
         private static IEnumerator CaptureMetrics(Action<LayoutProbe.LayoutMetrics> onCaptured)

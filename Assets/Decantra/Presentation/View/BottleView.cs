@@ -77,6 +77,7 @@ namespace Decantra.Presentation.View
         [SerializeField] private Image normalShadow;
         [SerializeField] private Image liquidSurface;
         [SerializeField] private Sprite liquidSprite;
+        [SerializeField] private bool _presentation3DEnabled;
 
         private readonly List<int> segmentUnits = new List<int>();
         private readonly List<Image> incomingSlots = new List<Image>();
@@ -94,6 +95,7 @@ namespace Decantra.Presentation.View
         private readonly List<ChildLayoutInfo> _originalChildLayouts = new List<ChildLayoutInfo>();
         private readonly Dictionary<Image, Color> _defaultContourColors = new Dictionary<Image, Color>();
         private Image _sinkHeavyBaseBand;
+        private CanvasGroup _renderGroup;
 
         /// <summary>Cached original layout of a child RectTransform for capacity-based resizing.</summary>
         private struct ChildLayoutInfo
@@ -132,6 +134,7 @@ namespace Decantra.Presentation.View
 
         private void Awake()
         {
+            EnsureRenderGroup();
             if (outline != null)
             {
                 outlineBaseColor = outline.color;
@@ -151,6 +154,7 @@ namespace Decantra.Presentation.View
 
             baseScale = transform.localScale;
             ConfigureGlassVisuals();
+            SetPresentation3DEnabled(_presentation3DEnabled);
         }
 
         private void ConfigureGlassVisuals()
@@ -190,10 +194,35 @@ namespace Decantra.Presentation.View
             Index = index;
         }
 
+        public void SetPresentation3DEnabled(bool enabled)
+        {
+            _presentation3DEnabled = enabled;
+            EnsureRenderGroup();
+            _renderGroup.alpha = enabled ? 0f : 1f;
+            _renderGroup.blocksRaycasts = true;
+            _renderGroup.interactable = true;
+
+            // The legacy 2D stopper sits at a fixed canvas Y and will visibly hover above
+            // shorter bottles if it is ever left enabled in 3D mode. The 3D cork mesh is
+            // the only completed-bottle topper that should remain visible there.
+            if (enabled && stopper != null)
+            {
+                stopper.gameObject.SetActive(false);
+            }
+        }
+
         public void Render(Bottle bottle)
         {
             if (bottle == null) return;
             lastBottle = bottle;
+            if (_presentation3DEnabled)
+            {
+                if (stopper != null)
+                {
+                    stopper.gameObject.SetActive(false);
+                }
+                return;
+            }
             if (slotRoot == null)
             {
                 var found = transform.Find("LiquidRoot");
@@ -294,6 +323,16 @@ namespace Decantra.Presentation.View
 #endif
         }
 
+        private void EnsureRenderGroup()
+        {
+            if (_renderGroup != null) return;
+            _renderGroup = GetComponent<CanvasGroup>();
+            if (_renderGroup == null)
+            {
+                _renderGroup = gameObject.AddComponent<CanvasGroup>();
+            }
+        }
+
         public void SetOutlineColor(Color color)
         {
             if (outline == null) return;
@@ -304,7 +343,7 @@ namespace Decantra.Presentation.View
         public void SetHighlight(bool isHighlighted)
         {
             if (outline == null) return;
-            outline.color = isHighlighted ? new Color(0.4f, 0.8f, 1f, 0.9f) : outlineBaseColor;
+            outline.color = isHighlighted ? new Color(1f, 1f, 1f, 0.95f) : outlineBaseColor;
         }
 
         private void ApplyCapacityScale(int capacity)

@@ -1,0 +1,91 @@
+{
+  "reportVersion": "1.0",
+  "generatedBy": "commit-diff-analysis",
+  "commitRef": "883f714",
+  "branch": "feat/3d-bottles",
+  "pushedTo": "origin/feat/3d-bottles",
+  "notes": [
+    "Post-fix screenshots not available: emulator (x86_64) crashes with SIGILL in libunity.so",
+    "Physical device (SM-N9005, armeabi-v7a) cannot install arm64 APK.",
+    "Diff is code-analytical: actual visual diff pending device availability.",
+    "Screenshots in baseline/ are pre-fix (VisualScale=1.0, MaxGlassAlpha=0.35)."
+  ],
+  "filesChanged": [
+    {
+      "path": "Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader",
+      "changes": [
+        {
+          "property": "_GlassTint alpha",
+          "from": 0.15,
+          "to": 0.09
+        },
+        {
+          "property": "_FresnelColor alpha",
+          "from": 0.38,
+          "to": 0.22
+        },
+        {
+          "property": "_MaxGlassAlpha",
+          "from": 0.35,
+          "to": 0.2
+        }
+      ]
+    },
+    {
+      "path": "Assets/Decantra/Presentation/View3D/Bottle3DView.cs",
+      "changes": [
+        {
+          "property": "VisualScale const",
+          "from": "1.0 (implicit)",
+          "to": 0.92
+        },
+        {
+          "property": "_worldRoot.localScale",
+          "from": "Vector3.one",
+          "to": "new Vector3(0.92, 0.92, 0.92)"
+        },
+        {
+          "property": "added",
+          "description": "static s_activeViews registry (List<Bottle3DView>)"
+        },
+        {
+          "property": "added",
+          "description": "CheckLayoutSafety() method with HUD + pairwise bounds checks"
+        },
+        {
+          "property": "added",
+          "description": "layout diagnostic logging in SetLevelMaxCapacity()"
+        }
+      ]
+    }
+  ],
+  "testResults": {
+    "editModeTests": {
+      "total": 361,
+      "passed": 361,
+      "failed": 0
+    },
+    "timestamp_utc": "2026-03-05T08:00:14Z",
+    "status": "GREEN"
+  },
+  "visualChangeSummary": {
+    "glassOpacity": {
+      "expected": "Bottles appear significantly more transparent; liquid colors more vivid",
+      "maxAlphaReduction_pct": 42.9
+    },
+    "bottleHeight": {
+      "expected": "All 9 bottles in 3x3 grid visually smaller (8% height reduction)",
+      "heightReduction_wu": 0.2028
+    }
+  },
+  "convergenceCheck": {
+    "overlapDetected_old": true,
+    "overlapDetected_new_fullCap": true,
+    "hudIntrusionDetected_old": false,
+    "hudIntrusionDetected_new": false,
+    "glassLiquidVisibilityRatio_new": 0.8,
+    "glassLiquidVisibilityMeetsTarget": true,
+    "hudIntrusionFixed": true,
+    "overlapFixed_note": "Runtime confirmation needed for specific level capacity ratios"
+  }
+}

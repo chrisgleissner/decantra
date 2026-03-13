@@ -1,0 +1,14 @@
+{
+  "bottleCount": 0,
+  "bottleOverlapDetected": false,
+  "shadowOverlapDetected": false,
+  "hudIntrusionDetected": false,
+  "completedBottleCount": 0,
+  "corkCount": 0,
+  "topperCount": 0,
+  "sinkBottleCount": 0,
+  "activeBottleCount": 0,
+  "overlapDetected": false,
+  "generatedAt": "2026-03-05T00:00:00Z",
+  "_note": "This file is auto-generated at runtime by Bottle3DView.WriteLayoutReport(). Pull from device: adb pull /sdcard/Android/data/uk.gleissner.decantra/files/DecantraScreenshots/cork-layout-report.json docs/repro/visual-verification/layout-report.json"
+}

@@ -377,6 +377,17 @@ namespace Decantra.Presentation
             var targetCenter = targetRect.center;
             var targetSize = targetRect.size + new Vector2(padding * 2f, padding * 2f);
 
+            // 3D bottles extend visually above their canvas RectTransform bounds
+            // (the neck and cork peek above the canvas element area).  For bottle
+            // targets, shift the spotlight centre upward so the highlight fully
+            // surrounds the rendered bottle rather than cropping its top.
+            var step = _stepIndex >= 0 && _stepIndex < _steps.Count ? _steps[_stepIndex] : null;
+            bool isBottleTarget = step != null
+                && step.TargetObjectName != null
+                && step.TargetObjectName.StartsWith("Bottle", System.StringComparison.Ordinal);
+            if (isBottleTarget)
+                targetCenter.y += targetRect.size.y * 0.20f;
+
             if (!_hasSmoothState || !animated)
             {
                 _smoothCenter = targetCenter;

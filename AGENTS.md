@@ -48,6 +48,15 @@ Concise guide for agents working on Decantra. Use these sources of truth: [PLANS
 - Coverage target: ≥80% for domain logic (Code Coverage package).
 - PR gate: tests green + coverage target met + maintainer review.
 
+## Completion checklist (NON-NEGOTIABLE for code changes)
+
+- Do not conclude any code-touching task until every planned todo is complete.
+- Retake the required screenshots after the final code change when the task affects visuals or user-facing flows.
+- Deploy the resulting APK to a connected Android device before concluding.
+- Push all intended changes to the active branch before concluding.
+- Ensure all PR review comments/threads relevant to the task are resolved and closed before concluding.
+- Ensure all PR CI/build checks are green before concluding.
+
 ## Generated files (DO NOT EDIT OR COMMIT)
 
 - [`Assets/Decantra/App/Runtime/BuildInfo.cs`](Assets/Decantra/App/Runtime/BuildInfo.cs)

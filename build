@@ -98,7 +98,13 @@ have_cmd() {
 }
 
 find_adb_device() {
-  # Prefer emulator over physical devices for reliable testing
+  if [[ -n "${DECANTRA_ANDROID_SERIAL}" ]]; then
+    echo "${DECANTRA_ANDROID_SERIAL}"
+    return
+  fi
+
+  # Prefer emulator over physical devices for reliable testing when no explicit
+  # device was requested.
   local emulator_device
   emulator_device="$(adb devices | awk 'NR>1 && $2=="device" && $1 ~ /^emulator/ {print $1; exit}')"
   if [[ -n "${emulator_device}" ]]; then
@@ -775,6 +781,9 @@ fi
 if [[ "${CAPTURE_SCREENSHOTS}" == "true" ]]; then
   ensure_command adb android-tools-adb
   ensure_adb_daemon
+  if [[ -z "${DEVICE_ID}" ]]; then
+    DEVICE_ID="${DECANTRA_ANDROID_SERIAL}"
+  fi
   if [[ -z "${DEVICE_ID}" ]]; then
     DEVICE_ID="$(find_adb_device || true)"
   fi
