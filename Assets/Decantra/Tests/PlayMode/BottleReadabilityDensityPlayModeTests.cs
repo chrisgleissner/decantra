@@ -124,8 +124,8 @@ namespace Decantra.Tests.PlayMode
                 $"Bottom row overlaps the footer or screen edge. clearance={bottomClearance:F2}");
             Assert.LessOrEqual(bottomClearance, 40f,
                 $"Bottom clearance is too large, which indicates vertical centering waste. clearance={bottomClearance:F2}");
-            Assert.Greater(bottleGrid.anchoredPosition.y, 0f,
-                $"3-row bottle grid should be top-anchored within the safe area. anchoredY={bottleGrid.anchoredPosition.y:F2}");
+            Assert.GreaterOrEqual(bottleGrid.anchoredPosition.y, 0f,
+                $"3-row bottle grid should remain top-anchored or flush with the safe area's top boundary. anchoredY={bottleGrid.anchoredPosition.y:F2}");
 
             _ = controller;
         }

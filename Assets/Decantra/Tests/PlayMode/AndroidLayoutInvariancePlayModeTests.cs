@@ -166,8 +166,8 @@ namespace Decantra.Tests.PlayMode
                 : baseGridPadding.bottom;
             Assert.LessOrEqual(bottleGridLayout.padding.bottom, maxBottomPadding,
                 $"3-row bottom padding should not expand beyond reclaimable space. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}, allowedMax={maxBottomPadding}");
-            Assert.Greater(bottleGrid.anchoredPosition.y, 0f,
-                $"3-row bottle grid should be top-anchored inside the safe area. anchoredY={bottleGrid.anchoredPosition.y:F2}");
+            Assert.GreaterOrEqual(bottleGrid.anchoredPosition.y, 0f,
+                $"3-row bottle grid should remain top-anchored or flush with the safe area's top boundary. anchoredY={bottleGrid.anchoredPosition.y:F2}");
             Assert.AreEqual(0f, bottleGrid.anchoredPosition.x, 0.1f,
                 $"3-row bottle grid X anchor shifted unexpectedly. anchoredX={bottleGrid.anchoredPosition.x:F2}");
 

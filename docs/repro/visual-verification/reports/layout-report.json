@@ -1,19 +1,16 @@
 {
     "bottleCount": 9,
-    "corkCount": 7,
-    "completedBottleCount": 7,
     "bottleOverlapDetected": false,
     "shadowOverlapDetected": false,
     "hudIntrusionDetected": false,
-    "minimumLayerThicknessPixels": 137.40109252929688,
-    "silhouetteContrastRatio": 1.5607690811157227,
-    "visibilityRatio": 0.19260364770889283,
+    "corkCount": 7,
+    "completedBottleCount": 7,
+    "silhouetteContrastRatio": 1.0147984027862549,
+    "minimumLayerThicknessPixels": 1.616028904914856,
     "corkAspectRatioMin": 1.523800015449524,
     "corkAspectRatioMax": 1.523800015449524,
-    "corkCenterOffsetRatioMax": 0.04285699874162674,
     "corkInsertionDepthRatioMin": 0.75,
     "corkInsertionDepthRatioMax": 0.75,
-    "corkInsertionDepthValid": true,
-    "shadowLengthRatioMax": 0.0551999993622303,
-    "generatedAt": "2026-03-13T09:44:35.6295320Z"
+    "generatedAt": "2026-03-13T10:12:30.6996390Z",
+    "source": "playmode-visual-verification"
 }
