@@ -46,14 +46,15 @@ Shader "Decantra/Liquid3D"
         _TotalFill ("Total Fill", Range(0,1)) = 0.75
         _LayerCount ("Layer Count", Int) = 3
         _SurfaceTiltDegrees ("Surface Tilt Degrees", Range(-18,18)) = 0
+        _SurfaceArcHeight ("Surface Arc Height", Range(0,0.03)) = 0.012
         _WobbleOffset ("Wobble Offset", Float) = 0
-        _Alpha ("Alpha", Range(0,1)) = 0.92
+        _Alpha ("Alpha", Range(0,1)) = 0.99
         _Agitation ("Agitation", Range(0,1)) = 0
 
         // Horizontal-only cylindrical shading, tuned to match the cork readability model.
-        _CylPower ("Cyl Power", Range(0.5, 4.0)) = 1.35
-        _CylAmbient ("Cyl Ambient", Range(0.0, 1.0)) = 0.52
-        _CylRightLift ("Cyl Right Lift", Range(0.0, 0.25)) = 0.10
+        _CylPower ("Cyl Power", Range(0.5, 4.0)) = 1.65
+        _CylEdgeBrightness ("Cyl Edge Brightness", Range(0.5, 1.0)) = 0.78
+        _CylCenterBrightness ("Cyl Center Brightness", Range(1.0, 1.25)) = 1.12
     }
 
     SubShader
@@ -96,12 +97,13 @@ Shader "Decantra/Liquid3D"
             float _TotalFill;
             int _LayerCount;
             float _SurfaceTiltDegrees;
+            float _SurfaceArcHeight;
             float _WobbleOffset;
             float _Alpha;
             float _Agitation;
             float _CylPower;
-            float _CylAmbient;
-            float _CylRightLift;
+            float _CylEdgeBrightness;
+            float _CylCenterBrightness;
 
             struct Attributes
             {
@@ -130,19 +132,50 @@ Shader "Decantra/Liquid3D"
                 return fillY - tiltOffset + _WobbleOffset;
             }
 
+            float ComputeBoundaryArcOffset(float uX)
+            {
+                float edgeDistance = abs(uX - 0.5) * 2.0;
+                return -_SurfaceArcHeight * edgeDistance * edgeDistance;
+            }
+
+            float3 RgbToHsv(float3 c)
+            {
+                float4 K = float4(0.0, -0.3333333, 0.6666667, -1.0);
+                float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+                float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+                float d = q.x - min(q.w, q.y);
+                float e = 1.0e-5;
+                return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+            }
+
+            float3 HsvToRgb(float3 c)
+            {
+                float4 K = float4(1.0, 0.6666667, 0.3333333, 3.0);
+                float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
+                return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
+            }
+
+            float3 ApplyBrightnessPreservingChroma(float3 rgb, float brightness)
+            {
+                float3 hsv = RgbToHsv(rgb);
+                hsv.z = saturate(hsv.z * brightness);
+                return HsvToRgb(hsv);
+            }
+
             float4 SampleLiquid(float fillY, float uX)
             {
                 float effectiveFill = ComputeEffectiveFill(fillY, uX);
-                if (effectiveFill > _TotalFill)
-                {
-                    return float4(0, 0, 0, 0);
-                }
+                float boundaryArcOffset = ComputeBoundaryArcOffset(uX);
 
 #define SAMPLE_LAYER(idx, minV, maxV, col) \
-    if (idx < _LayerCount && effectiveFill >= minV && effectiveFill < maxV) { \
+    if (idx < _LayerCount) { \
+        float layerMin = minV + boundaryArcOffset; \
+        float layerMax = min(maxV, _TotalFill) + boundaryArcOffset; \
+        if (layerMax > layerMin && effectiveFill >= layerMin && effectiveFill < layerMax) { \
         float4 c = col; \
         c.a = _Alpha; \
         return c; \
+        } \
     }
 
                 SAMPLE_LAYER(0, _Layer0Min, _Layer0Max, _Layer0Color)
@@ -161,10 +194,9 @@ Shader "Decantra/Liquid3D"
 
             float ComputeHorizontalShading(float uX)
             {
-                float centered = saturate(cos((uX - 0.5) * 3.14159265));
-                float cylindrical = lerp(_CylAmbient, 1.0, pow(centered, _CylPower));
-                float rightLift = smoothstep(0.5, 1.0, uX) * _CylRightLift;
-                return max(0.0, cylindrical + rightLift);
+                float centered = saturate(1.0 - abs(uX - 0.5) * 2.0);
+                float cylindrical = pow(centered, _CylPower);
+                return lerp(_CylEdgeBrightness, _CylCenterBrightness, cylindrical);
             }
 
             float4 frag(Varyings IN) : SV_Target
@@ -175,7 +207,7 @@ Shader "Decantra/Liquid3D"
                     discard;
                 }
 
-                col.rgb = saturate(col.rgb * ComputeHorizontalShading(IN.uv.x));
+                col.rgb = ApplyBrightnessPreservingChroma(col.rgb, ComputeHorizontalShading(IN.uv.x));
                 return col;
             }
 

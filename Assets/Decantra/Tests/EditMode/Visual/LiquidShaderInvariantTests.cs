@@ -30,6 +30,23 @@ namespace Decantra.Tests.EditMode.Visual
             Assert.That(shader, Does.Contain("ComputeHorizontalShading"));
             Assert.That(shader, Does.Contain("ComputeHorizontalShading(IN.uv.x)"));
             Assert.That(shader, Does.Not.Contain("ComputeHorizontalShading(IN.uv.y)"));
+            Assert.That(shader, Does.Contain("_CylEdgeBrightness"));
+            Assert.That(shader, Does.Contain("_CylCenterBrightness"));
+            Assert.That(shader, Does.Not.Contain("_CylRightLift"));
+            Assert.That(shader, Does.Contain("return lerp(_CylEdgeBrightness, _CylCenterBrightness, cylindrical);"));
+            Assert.That(shader, Does.Contain("ApplyBrightnessPreservingChroma(col.rgb, ComputeHorizontalShading(IN.uv.x))"));
+        }
+
+        [Test]
+        public void LiquidShader_CurvesEveryLiquidBoundary_UsingSharedArcOffset()
+        {
+            string shader = File.ReadAllText(LiquidShaderPath);
+
+            Assert.That(shader, Does.Contain("_SurfaceArcHeight"));
+            Assert.That(shader, Does.Contain("ComputeBoundaryArcOffset"));
+            Assert.That(shader, Does.Contain("float boundaryArcOffset = ComputeBoundaryArcOffset(uX);"));
+            Assert.That(shader, Does.Contain("float layerMin = minV + boundaryArcOffset;"));
+            Assert.That(shader, Does.Contain("float layerMax = min(maxV, _TotalFill) + boundaryArcOffset;"));
         }
 
         [Test]
