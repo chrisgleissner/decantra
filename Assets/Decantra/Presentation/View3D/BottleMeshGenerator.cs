@@ -337,64 +337,6 @@ namespace Decantra.Presentation.View3D
             return mesh;
         }
 
-        /// <summary>
-        /// Generate a thin flat ring (annulus) mesh at the given Y position in local
-        /// bottle space.  Used for the min/max fill-line indicators.
-        ///
-        /// The ring spans from <paramref name="innerRadius"/> to <paramref name="outerRadius"/>
-        /// and faces the camera (normal = -Z).
-        /// </summary>
-        public static Mesh GenerateFillLineRingMesh(float yPos, float innerRadius, float outerRadius)
-        {
-            const int ringSegments = 40;
-            var verts = new List<Vector3>();
-            var norms = new List<Vector3>();
-            var uvs = new List<Vector2>();
-            var tris = new List<int>();
-
-            for (int i = 0; i <= ringSegments; i++)
-            {
-                float theta = (float)i / ringSegments * Mathf.PI * 2f;
-                float cos = Mathf.Cos(theta);
-                float sin = Mathf.Sin(theta);
-                // Outer vertex
-                verts.Add(new Vector3(outerRadius * cos, yPos, outerRadius * sin));
-                norms.Add(Vector3.back);
-                uvs.Add(new Vector2(cos * 0.5f + 0.5f, sin * 0.5f + 0.5f));
-                // Inner vertex
-                verts.Add(new Vector3(innerRadius * cos, yPos, innerRadius * sin));
-                norms.Add(Vector3.back);
-                uvs.Add(new Vector2(cos * 0.5f * (innerRadius / outerRadius) + 0.5f,
-                                    sin * 0.5f * (innerRadius / outerRadius) + 0.5f));
-            }
-
-            // Each step: quad from [outer_i, inner_i, outer_i+1, inner_i+1]
-            int stride = 2;
-            for (int i = 0; i < ringSegments; i++)
-            {
-                int o0 = i * stride;       // outer i
-                int n0 = o0 + 1;           // inner i
-                int o1 = (i + 1) * stride; // outer i+1
-                int n1 = o1 + 1;           // inner i+1
-
-                // Front face (facing -Z = toward camera in bottle local space)
-                tris.Add(o0); tris.Add(o1); tris.Add(n0);
-                tris.Add(n0); tris.Add(o1); tris.Add(n1);
-                // Back face (so visible from both sides)
-                tris.Add(o0); tris.Add(n0); tris.Add(o1);
-                tris.Add(n0); tris.Add(n1); tris.Add(o1);
-            }
-
-            var mesh = new Mesh { name = $"FillLineRing_y{yPos:F2}" };
-            mesh.SetVertices(verts);
-            mesh.SetNormals(norms);
-            mesh.SetUVs(0, uvs);
-            mesh.SetTriangles(tris, 0);
-            mesh.RecalculateBounds();
-            mesh.UploadMeshData(markNoLongerReadable: true);
-            return mesh;
-        }
-
         // ── Primitive builders ────────────────────────────────────────────────
 
         /// <summary>Append a hemisphere, dome-up or dome-down depending on flipY.</summary>

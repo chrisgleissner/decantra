@@ -26,6 +26,9 @@ namespace Decantra.Presentation
 {
     public static class SceneBootstrap
     {
+        private const float GameCameraPitchDegrees = 4f;
+        private const float GameCameraPitchHeight = 0.7f;
+
         private static Sprite roundedSprite;
         private static Sprite innerBottleSprite;
         private static Sprite liquidFillSprite;
@@ -1012,8 +1015,16 @@ namespace Decantra.Presentation
             camera.cullingMask = cullingMask;
             camera.orthographic = true;
             camera.backgroundColor = background;
-            camera.transform.position = new Vector3(0f, 0f, -10f);
-            camera.transform.rotation = Quaternion.identity;
+            if (string.Equals(name, "Camera_Game", System.StringComparison.Ordinal))
+            {
+                camera.transform.position = new Vector3(0f, GameCameraPitchHeight, -10f);
+                camera.transform.rotation = Quaternion.Euler(GameCameraPitchDegrees, 0f, 0f);
+            }
+            else
+            {
+                camera.transform.position = new Vector3(0f, 0f, -10f);
+                camera.transform.rotation = Quaternion.identity;
+            }
 
             return camera;
         }
@@ -1541,6 +1552,20 @@ namespace Decantra.Presentation
             areaRect.offsetMin = Vector2.zero;
             areaRect.offsetMax = Vector2.zero;
             bottleAreaRect = areaRect;
+
+            var boardBackdrop = CreateUiChild(area.transform, "BoardContrastBackdrop");
+            var boardBackdropRect = boardBackdrop.GetComponent<RectTransform>();
+            boardBackdropRect.anchorMin = new Vector2(0.5f, 0.5f);
+            boardBackdropRect.anchorMax = new Vector2(0.5f, 0.5f);
+            boardBackdropRect.pivot = new Vector2(0.5f, 0.5f);
+            boardBackdropRect.sizeDelta = new Vector2(980f, 1560f);
+            boardBackdropRect.anchoredPosition = new Vector2(0f, -10f);
+
+            var boardBackdropImage = boardBackdrop.AddComponent<Image>();
+            boardBackdropImage.sprite = GetSoftCircleSprite();
+            boardBackdropImage.type = Image.Type.Simple;
+            boardBackdropImage.color = new Color(0.01f, 0.04f, 0.10f, 0.24f);
+            boardBackdropImage.raycastTarget = false;
 
             var gridRoot = CreateUiChild(area.transform, "BottleGrid");
             var gridRect = gridRoot.GetComponent<RectTransform>();

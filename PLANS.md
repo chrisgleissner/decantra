@@ -1,6 +1,75 @@
+# Liquid Rendering And Three-Row Layout Fix Plan
+
+Last updated: 2026-03-13 UTC
+Execution engineer: GitHub Copilot (GPT-5.4)
+
+## Objective
+
+Remove the remaining bottle liquid rendering artifacts and make three-row boards use the safe play field more aggressively without changing puzzle mechanics.
+
+Required outcomes:
+
+- Remove all visible horizontal rings at the top and bottom of the fillable bottle region.
+- Keep liquid color vertically invariant within each layer.
+- Restore strong horizontal cylindrical shading on liquids only.
+- Keep liquid layer boundaries crisp and readable.
+- Anchor three-row bottle grids from the top safe boundary instead of vertically centering them.
+- Increase three-row bottle occupancy toward roughly 80% to 90% of the playable vertical region without overlaps.
+- Preserve frosted regular bottle neck/base sections, sink bottle dark caps, rim lighting, and slight game-camera pitch.
+- Validate with automated tests, refreshed screenshots, device deployment, and green PR checks.
+
+## Located Implementation Surfaces
+
+- 3D bottle view: `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`
+- Glass shader: `Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader`
+- Liquid shader: `Assets/Decantra/Presentation/View3D/Shaders/Liquid3D.shader`
+- Runtime scene wiring, cameras, and board/background creation: `Assets/Decantra/Presentation/Runtime/SceneBootstrap.cs`
+- Layout controller: `Assets/Decantra/Presentation/View/HudSafeLayout.cs`
+- Screenshot / visual report pipeline: `Assets/Decantra/Presentation/Runtime/RuntimeScreenshot.cs`
+- Existing layout and visual regression tests: `Assets/Decantra/Tests/PlayMode/*`
+
+## Root-Cause Hypotheses
+
+- The liquid shader still warps fill evaluation with meniscus logic and no longer applies the horizontal cylindrical factor that previously provided bottle depth.
+- Explicit fill-line ring meshes at the interior min/max fill bounds are still being created in the 3D bottle view.
+- The three-row layout computes denser internal spacing, but the grid rect itself is still centered inside the safe bottle area, leaving large unused top and bottom bands.
+
+## Execution Checklist
+
+- [x] Audit active rendering, layout, background, and screenshot paths
+- [x] Remove shader-based liquid boundary highlight logic and vertical color modulation
+- [x] Remove explicit fill-line ring meshes from Bottle3DView
+- [x] Restore horizontal-only cylindrical liquid shading
+- [x] Re-anchor and enlarge the three-row grid inside the safe play field
+- [x] Update regression tests for liquid shader invariants and top-anchored three-row layout
+- [x] Run automated validation
+- [x] Build, deploy, and refresh screenshots on device
+- [ ] Confirm PR checks are green
+
+## Verification Notes
+
+- EditMode validation passed locally: `372/372` passed.
+- PlayMode validation passed locally: `134` passed, `0` failed, `2` ignored.
+- Domain coverage gate passed locally at `91.5%` line coverage.
+- Android APK rebuilt successfully and screenshot capture completed on physical device `9B081FFAZ001WX`.
+- Refreshed screenshot set landed under `doc/play-store-assets/screenshots/phone` and downstream docs verification folders.
+- PR `#56` is currently open and the latest remote status checks are green for the last pushed commit.
+- The local working tree still contains unpushed changes, so remote CI does not yet reflect the latest local rendering/layout fixes.
+
+## Constraints
+
+- No gameplay rule changes
+- No HUD repositioning redesign
+- No bottle art replacement
+- No duplicated regular/sink indicator rendering logic
+- Preserve deterministic level generation and fill mapping
+- Keep liquid colors as the primary focal element
+
+---
+
 # Three-Row Gameplay Bottle Layout Correction Plan
 
-Last updated: 2026-03-12 UTC
+Last updated: 2026-03-13 UTC
 Execution engineer: GitHub Copilot (GPT-5.4)
 
 ## Objective
@@ -41,8 +110,20 @@ Required outcomes:
 - [x] Run Unity test validation
 - [x] Capture before/after visual evidence for 2-row and 3-row layouts
 - [x] Rebuild/install for device verification
-- [ ] Confirm APK is built, deployed, screenshots regenerated, and PR CI is green
+- [x] Confirm APK is built, deployed, and screenshots regenerated
 - [x] Confirm layout invariants A-E remain satisfied
+
+## Outcome Notes
+
+- The 3-row branch in `HudSafeLayout` now uses a bottle-size-first calculation: it picks the preferred bottle height first, then distributes the remaining vertical room into inter-row spacing while keeping only the minimum bottom margin.
+- The layout remains anchored beneath the HUD instead of re-centering the grid with symmetric outer gaps.
+- Regression coverage now checks for no overlap, HUD clearance, row-to-row cap clearance, explicit top/bottom edge non-overlap, and high vertical occupancy on 3-row boards.
+- Unity validation passed on 2026-03-13 with PlayMode `passed=134`, `failed=0`, `skipped=2`.
+- The screenshot capture script is now aligned with the current runtime outputs: it tolerates the solved-state screenshot alias and expects the current 8-step tutorial capture flow instead of a stale 9-step minimum.
+- Physical-device verification artifacts were refreshed from device `9B081FFAZ001WX`, including:
+  - `docs/repro/visual-verification/screenshots/level-01-2row.png`
+  - `docs/repro/visual-verification/screenshots/level-36.png`
+  - `docs/repro/visual-verification/reports/device-layout-report.json`
 
 ## Constraints
 

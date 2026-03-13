@@ -5,9 +5,9 @@
     "bottleOverlapDetected": false,
     "shadowOverlapDetected": false,
     "hudIntrusionDetected": false,
-    "minimumLayerThicknessPixels": 65.6731948852539,
-    "silhouetteContrastRatio": 1.418738603591919,
-    "visibilityRatio": 0.07643264532089234,
+    "minimumLayerThicknessPixels": 137.40109252929688,
+    "silhouetteContrastRatio": 1.5607690811157227,
+    "visibilityRatio": 0.19260364770889283,
     "corkAspectRatioMin": 1.523800015449524,
     "corkAspectRatioMax": 1.523800015449524,
     "corkCenterOffsetRatioMax": 0.04285699874162674,
@@ -15,5 +15,5 @@
     "corkInsertionDepthRatioMax": 0.75,
     "corkInsertionDepthValid": true,
     "shadowLengthRatioMax": 0.0551999993622303,
-    "generatedAt": "2026-03-12T16:55:02.0563780Z"
+    "generatedAt": "2026-03-13T09:44:35.6295320Z"
 }

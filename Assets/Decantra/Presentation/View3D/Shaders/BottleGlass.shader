@@ -49,6 +49,9 @@ Shader "Decantra/BottleGlass"
         _RimSheenIntensity ("Rim Sheen Intensity", Range(0,1.5)) = 0.10
         _RimSheenPower ("Rim Sheen Power", Range(1,8)) = 4.5
         _EmptyBottleBoost ("Empty Bottle Boost", Range(0,1)) = 0
+        _FrostTint      ("Frost Tint", Color) = (0.93, 0.97, 1.0, 1.0)
+        _FrostScatter   ("Frost Scatter", Range(0,1)) = 0.18
+        _FrostAlpha     ("Frost Alpha", Range(0,0.35)) = 0.18
 
         // Block A: hard cap on total glass face alpha (prevents liquid-colour washout).
         // liquid_visible >= 1 - _MaxGlassAlpha. 0.20 → ≥80% liquid shows through.
@@ -99,6 +102,8 @@ Shader "Decantra/BottleGlass"
 
             float4 _GlassTint;
             float  _SinkOnly;
+            float4 _FrostTint;
+            float  _FrostAlpha;
 
             struct Attributes { float4 posOS : POSITION; float2 uv : TEXCOORD0; };
             struct Varyings   { float4 posCS : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -124,17 +129,23 @@ Shader "Decantra/BottleGlass"
                 float domeArea = smoothstep(0.94, 1.0, IN.uv.y);
                 col.a *= (1.0 - domeArea * 0.85);
 
-                // Block E: dark bands for sink-only bottles (back-face pass).
-                // rimBand: neck/shoulder (uvY 0.82..0.97).
-                // domeMask: base dome (uvY > 0.97, clamped to 1.0 by AppendDome UV formula).
+                float uvY = IN.uv.y;
+                float neckMask = saturate((uvY - 0.82) / 0.04) * (1.0 - smoothstep(0.955, 0.985, uvY));
+                float baseMask = smoothstep(0.97, 1.0, uvY);
+                float indicatorMask = saturate(max(neckMask, baseMask));
+
+                // Shared indicator path: sinks render opaque dark caps while regular
+                // bottles render frosted semi-transparent glass in the same regions.
                 if (_SinkOnly > 0.5)
                 {
-                    float uvY = IN.uv.y;
-                    float rimBand  = saturate((uvY - 0.82) / 0.04) * step(uvY, 0.97);
-                    float domeMask = smoothstep(0.97, 1.0, uvY);
-                    float darkBand = saturate(rimBand + domeMask);
+                    float darkBand = indicatorMask;
                     col.rgb = lerp(col.rgb, float3(0.05, 0.05, 0.07), darkBand * 0.9);
                     col.a   = lerp(col.a,   0.80, darkBand);
+                }
+                else
+                {
+                    col.rgb = lerp(col.rgb, _FrostTint.rgb * 0.84, indicatorMask * 0.68);
+                    col.a = lerp(col.a, max(col.a, _FrostAlpha * 0.82), indicatorMask);
                 }
 
                 return col;
@@ -176,6 +187,9 @@ Shader "Decantra/BottleGlass"
             float  _RimSheenIntensity;
             float  _RimSheenPower;
             float  _EmptyBottleBoost;
+            float4 _FrostTint;
+            float  _FrostScatter;
+            float  _FrostAlpha;
             float  _MaxGlassAlpha;
             float  _SpecMaxContrib;
             float  _SinkOnly;
@@ -304,35 +318,35 @@ Shader "Decantra/BottleGlass"
                     alpha = lerp(alpha, min(alpha + 0.04, _MaxGlassAlpha), band * 0.25);
                 }
 
-                // ── Block E: sink-only visual markings ──────────────────────
-                // Two dark bands identify sink bottles at a glance:
-                //   rimBand  – neck/shoulder top (UV.y 0.82..0.97)
-                //   domeMask – base dome bottom (UV.y > 0.97, AppendDome clamps to 1.0)
-                // Both bands are rendered as very dark glass (almost black) with a subtle
-                // neutral-white specular gloss so the bottle silhouette reads clearly on
-                // dark backgrounds — no coloured Fresnel glow that could tint the markers.
-                // Liquid is not hidden: the bands target only the neck cap and base dome,
-                // not the transparent body where liquid colour shows through.
+                float uvY = IN.uv.y;
+                float neckMask = saturate((uvY - 0.82) / 0.04) * (1.0 - smoothstep(0.955, 0.985, uvY));
+                float baseMask = smoothstep(0.97, 1.0, uvY);
+                float indicatorMask = saturate(max(neckMask, baseMask));
+
                 if (_SinkOnly > 0.5)
                 {
-                    float uvY = IN.uv.y;
-                    // Top marker: neck/shoulder only (exclude dome which shares UV.y ≈ 1.0).
-                    float rimBand  = saturate((uvY - 0.82) / 0.04) * step(uvY, 0.97);
-                    // Bottom marker: base dome (UV.y = 1.0 for AppendDome verts).
-                    float domeMask = smoothstep(0.97, 1.0, uvY);
-
                     // Dark the top band.
-                    color = lerp(color, float3(0.04, 0.04, 0.06), rimBand  * 0.92);
-                    alpha = lerp(alpha, 0.85, rimBand);
+                    color = lerp(color, float3(0.04, 0.04, 0.06), neckMask * 0.92);
+                    alpha = lerp(alpha, 0.85, neckMask);
 
                     // Dark the bottom dome band.
-                    color = lerp(color, float3(0.04, 0.04, 0.06), domeMask * 0.88);
-                    alpha = lerp(alpha, 0.78, domeMask);
+                    color = lerp(color, float3(0.04, 0.04, 0.06), baseMask * 0.88);
+                    alpha = lerp(alpha, 0.78, baseMask);
 
                     // Neutral-white specular gloss on the rim band only (neck/shoulder).
                     // Excluded from domeMask: the hemispherical bottom dome has surface normals
                     // that produce a circular Blinn-Phong hotspot, which looks fake and distracting.
-                    color += float3(0.90, 0.92, 1.0) * (spec * 0.65 * rimBand);
+                    color += float3(0.90, 0.92, 1.0) * (spec * 0.65 * neckMask);
+                }
+                else
+                {
+                    float edgeScatter = lerp(0.55, 1.0, fresnel);
+                    float3 frostColor = _FrostTint.rgb * (1.0 + _FrostScatter * edgeScatter);
+                    color = lerp(color, frostColor, indicatorMask * 0.42);
+                    color += _FrostTint.rgb * indicatorMask * _FrostScatter * 0.10 * (0.5 + stripMask + stripMask2);
+                    alpha = lerp(alpha,
+                        min(_MaxGlassAlpha, max(alpha, _FrostAlpha + rimSheen * 0.02)),
+                        indicatorMask * 0.92);
                 }
 
                 return float4(color, alpha);

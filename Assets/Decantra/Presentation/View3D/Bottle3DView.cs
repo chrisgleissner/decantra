@@ -115,11 +115,6 @@ namespace Decantra.Presentation.View3D
         private const float OutlineSinkWidth = 0.043f;
         private const float OutlineHighlightWidth = 0.05f;
 
-        // ── Fill-line indicators ──────────────────────────────────────────────
-        // Thin rings at InteriorBottomY and InteriorTopY showing the fillable range.
-        private GameObject _fillLineMinGO;
-        private GameObject _fillLineMaxGO;
-
         private Bottle _lastBottle;
         private int _levelMaxCapacity = 4;
         private float _capacityRatio = 1f;
@@ -206,12 +201,6 @@ namespace Decantra.Presentation.View3D
         private static readonly int PropSurfaceTilt = Shader.PropertyToID("_SurfaceTiltDegrees");
         private static readonly int PropWobbleOffset = Shader.PropertyToID("_WobbleOffset");
         private static readonly int PropAgitation = Shader.PropertyToID("_Agitation");
-        private static readonly int PropSurfaceRimStrength = Shader.PropertyToID("_SurfaceRimStrength");
-
-        // Default surface rim strength matching Liquid3D shader default; boosted during pour.
-        private const float DefaultSurfaceRimStrength = 0.22f;
-        private const float PourSurfaceRimBoost = 0.85f;
-
         // Per-layer color/fill property IDs (indexed 0–8)
         private static readonly int[] PropLayerColor = new int[9];
         private static readonly int[] PropLayerMin = new int[9];
@@ -379,9 +368,6 @@ namespace Decantra.Presentation.View3D
             {
                 UpdateDrainAtT(t);
 
-                // Boost surface rim and agitation on the draining layer so the
-                // receding liquid looks turbulent and physically liquid-like.
-                // Runs after Update() so these values override the wobble-solver agitation.
                 if (_drainTopLayerIndex < _layerBlocks.Count
                     && _drainTopLayerIndex < _layerRenderers.Count
                     && _layerRenderers[_drainTopLayerIndex] != null)
@@ -389,8 +375,6 @@ namespace Decantra.Presentation.View3D
                     float pourPeak = Mathf.Sin(t * Mathf.PI); // bell: 0 → 1 → 0
                     var block = _layerBlocks[_drainTopLayerIndex];
                     block.SetFloat(PropAgitation, Mathf.Max(0.35f, pourPeak));
-                    block.SetFloat(PropSurfaceRimStrength,
-                        Mathf.Lerp(DefaultSurfaceRimStrength, PourSurfaceRimBoost, pourPeak));
                     _layerRenderers[_drainTopLayerIndex].SetPropertyBlock(block);
                 }
             }
@@ -426,9 +410,6 @@ namespace Decantra.Presentation.View3D
             {
                 var block = _layerBlocks[_drainTopLayerIndex];
                 block.SetFloat(PropTotalFill, _drainTopLayerFillMax);
-                // Reset pour-boosted properties back to shader defaults so
-                // the layer renders normally after the animation concludes.
-                block.SetFloat(PropSurfaceRimStrength, DefaultSurfaceRimStrength);
                 _layerRenderers[_drainTopLayerIndex].SetPropertyBlock(block);
             }
             _isDrainAnimating = false;
@@ -614,18 +595,6 @@ namespace Decantra.Presentation.View3D
                     Destroy(mf.sharedMesh);
 
                 var mr = _contactShadowGO.GetComponent<MeshRenderer>();
-                if (mr != null && mr.sharedMaterial != null)
-                    Destroy(mr.sharedMaterial);
-            }
-
-            // Fill-line cleanup: destroy generated ring meshes.
-            foreach (var fillLineGO in new[] { _fillLineMinGO, _fillLineMaxGO })
-            {
-                if (fillLineGO == null) continue;
-                var mf = fillLineGO.GetComponent<MeshFilter>();
-                if (mf != null && mf.sharedMesh != null)
-                    Destroy(mf.sharedMesh);
-                var mr = fillLineGO.GetComponent<MeshRenderer>();
                 if (mr != null && mr.sharedMaterial != null)
                     Destroy(mr.sharedMaterial);
             }
@@ -1065,16 +1034,6 @@ namespace Decantra.Presentation.View3D
             var shadowRenderer = _contactShadowGO.AddComponent<MeshRenderer>();
             shadowRenderer.sharedMaterial = CreateFallbackShadowMaterial();
 
-            // ── Fill-line indicators ─────────────────────────────────────────────
-            // Two thin ring meshes at InteriorBottomY and InteriorTopY mark the
-            // fillable range so players can see the min/max fill boundaries.
-            const float fillLineInner = BottleMeshGenerator.BodyRadius * 0.86f;
-            const float fillLineOuter = BottleMeshGenerator.BodyRadius * 0.96f;
-            _fillLineMinGO = CreateFillLineGO("FillLineMin",
-                BottleMeshGenerator.InteriorBottomY, fillLineInner, fillLineOuter, targetLayer);
-            _fillLineMaxGO = CreateFillLineGO("FillLineMax",
-                BottleMeshGenerator.InteriorTopY, fillLineInner, fillLineOuter, targetLayer);
-
             // ── Bottle stopper / cork ────────────────────────────────────────────
             // Keep the cork visible for the closed-bottle silhouette. Its tint changes
             // with bottle state, but the geometry remains present so each bottle still
@@ -1399,23 +1358,6 @@ namespace Decantra.Presentation.View3D
                         BottleMeshGenerator.GetStopperBaseY(_capacityRatio),
                         -0.006f);
 
-                // Reposition fill-line max indicator to match the new body-top Y.
-                // bodyBottom + BodyHeight * capacityRatio = InteriorBottomY + BodyHeight * capped.
-                float capped = Mathf.Clamp(_capacityRatio, 0.1f, 1f);
-                float newBodyTopY = BottleMeshGenerator.InteriorBottomY + BottleMeshGenerator.BodyHeight * capped;
-                if (_fillLineMaxGO != null)
-                {
-                    var fillLineMf = _fillLineMaxGO.GetComponent<MeshFilter>();
-                    if (fillLineMf != null)
-                    {
-                        const float fillLineInner = BottleMeshGenerator.BodyRadius * 0.86f;
-                        const float fillLineOuter = BottleMeshGenerator.BodyRadius * 0.96f;
-                        if (fillLineMf.sharedMesh != null)
-                            Destroy(fillLineMf.sharedMesh);
-                        fillLineMf.sharedMesh = BottleMeshGenerator.GenerateFillLineRingMesh(
-                            newBodyTopY, fillLineInner, fillLineOuter);
-                    }
-                }
             }
 
             ApplySinkOnlyToGlass();
@@ -1696,27 +1638,6 @@ namespace Decantra.Presentation.View3D
                 shadowLengthRatioMax);
         }
 
-        /// <summary>
-        /// Create and return a fill-line indicator GO: a thin ring at the given Y position.
-        /// Parented under _worldRoot at local origin; position comes from the mesh geometry.
-        /// </summary>
-        private GameObject CreateFillLineGO(string name, float yPos, float innerRadius, float outerRadius, int layer)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(_worldRoot.transform, false);
-            go.layer = layer;
-            // localPosition.z = -0.007: render slightly in front of liquid layers (-0.008)
-            // but behind the glass body (z = 0).
-            go.transform.localPosition = new Vector3(0f, 0f, -0.007f);
-
-            var mf = go.AddComponent<MeshFilter>();
-            mf.sharedMesh = BottleMeshGenerator.GenerateFillLineRingMesh(yPos, innerRadius, outerRadius);
-
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = CreateFillLineMaterial();
-            return go;
-        }
-
         private static List<Bottle3DView> CollectDominantLayoutViews()
         {
             PruneInactiveViews();
@@ -1794,30 +1715,6 @@ namespace Decantra.Presentation.View3D
         private static void PruneInactiveViews()
         {
             s_activeViews.RemoveAll(view => !IsLayoutEligible(view));
-        }
-
-        /// <summary>Material for fill-line indicators: thin semi-transparent white rings.</summary>
-        private static Material CreateFillLineMaterial()
-        {
-            // Prefer Sprites/Default which natively supports alpha blending.
-            // Fall back to Unlit/Color and enable alpha blend manually.
-            var shader = Shader.Find("Sprites/Default")
-                      ?? Shader.Find("Unlit/Color")
-                      ?? Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null)
-            {
-                Debug.LogWarning("Bottle3DView: cannot resolve fill-line shader.");
-                return null;
-            }
-            var mat = new Material(shader) { name = "BottleFillLine_Mat" };
-            // Opaque white — ring is fully visible as a bright marker.
-            mat.color = new Color(1f, 1f, 1f, 1f);
-            // Enable alpha blending regardless of shader used.
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            mat.renderQueue = 3000; // Transparent — renders before glass (Transparent+1)
-            return mat;
         }
 
         private static Material CreateFallbackGlassMaterial()

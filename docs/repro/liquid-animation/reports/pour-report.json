@@ -1,6 +1,6 @@
 {
   "pourAnimationDuration": 0.4000,
-  "liquidInterpolationFrames": 539,
+  "liquidInterpolationFrames": 148,
   "corkWidth": 0.2587,
   "neckWidth": 0.2464,
   "corkWidthToNeckWidthRatio": 1.0500,
@@ -10,5 +10,5 @@
   "corkValid": true,
   "liquidTiltValid": true,
   "allConstraintsPassed": true,
-  "generatedAt": "2026-03-12T12:57:32Z"
+  "generatedAt": "2026-03-13T09:37:38Z"
 }

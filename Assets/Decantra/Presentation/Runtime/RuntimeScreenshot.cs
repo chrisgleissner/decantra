@@ -55,6 +55,13 @@ namespace Decantra.Presentation
         // Obj-3: completed-bottle-topper evidence (duplicate of auto_solve_complete but
         // with an explicit semantic name that maps to the verification exit criterion).
         private const string CompletedBottleFileName = "completed_bottle_topper.png";
+        private const string RegularBottleUxFileName = "ux_regular_bottle_level.png";
+        private const string SinkBottleUxFileName = "ux_sink_bottle_level.png";
+        private const string MixedBottleUxFileName = "ux_mixed_bottle_level.png";
+        private const string ThreeRowBeforeUxFileName = "ux_three_row_before.png";
+        private const string ThreeRowAfterUxFileName = "ux_three_row_after.png";
+        private const string ThreeRowAnnotatedUxFileName = "ux_three_row_bounding_boxes.png";
+        private const string TwoRowUxFileName = "ux_two_row_level.png";
         private const string Representative3x3FileName = "scene_3x3_bottles.png";
         private const string EmptyBottlesFileName = "empty_bottles_scene.png";
         private const string SolvedLayoutReportFileName = "solved-layout-report.json";
@@ -238,6 +245,7 @@ namespace Decantra.Presentation
             yield return CaptureLevelScreenshot(controller, outputDir, 12, 473921, Level12FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, Level20FileName);
             yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, Level24FileName);
+            yield return CaptureUxReadabilityScreenshots(controller, outputDir);
             CaptureLiquidReadabilityMetricsFromCurrentLevel(controller, Path.Combine(outputDir, Level24FileName));
             yield return CaptureSceneWithEmptyBottles(controller, outputDir);
             yield return CaptureSinkCountScreenshots(controller, outputDir);
@@ -962,6 +970,74 @@ namespace Decantra.Presentation
             yield return new WaitForSeconds(0.9f);
             yield return new WaitForEndOfFrame();
             yield return CaptureScreenshot(Path.Combine(outputDir, fileName));
+        }
+
+        private IEnumerator CaptureUxReadabilityScreenshots(GameController controller, string outputDir)
+        {
+            if (controller == null)
+            {
+                _failed = true;
+                yield break;
+            }
+
+            yield return CaptureLevelScreenshot(controller, outputDir, 10, 421907, RegularBottleUxFileName);
+            yield return CaptureLevelScreenshot(controller, outputDir, 20, 682415, SinkBottleUxFileName);
+            yield return CaptureLevelScreenshot(controller, outputDir, 24, 873193, MixedBottleUxFileName);
+            yield return CaptureThreeRowComparisonScreenshots(controller, outputDir, 36, 192731);
+            yield return CaptureTwoRowUxScreenshot(controller, outputDir);
+        }
+
+        private IEnumerator CaptureThreeRowComparisonScreenshots(GameController controller, string outputDir, int levelIndex, int seed)
+        {
+            HudSafeLayout.ForceLegacyThreeRowCaptureLayout = true;
+            yield return CaptureLevelScreenshot(controller, outputDir, levelIndex, seed, ThreeRowBeforeUxFileName);
+
+            HudSafeLayout.ForceLegacyThreeRowCaptureLayout = false;
+            var safeLayout = UnityEngine.Object.FindFirstObjectByType<HudSafeLayout>();
+            if (safeLayout != null)
+            {
+                safeLayout.MarkLayoutDirty();
+            }
+
+            yield return CaptureLevelScreenshot(controller, outputDir, levelIndex, seed, ThreeRowAfterUxFileName);
+
+            if (!TryCollectBottleScreenSamples(controller, out var samples) || samples.Count == 0)
+            {
+                Debug.LogError("RuntimeScreenshot: failed to collect bottle bounds for annotated three-row screenshot.");
+                _failed = true;
+                yield break;
+            }
+
+            string afterPath = Path.Combine(outputDir, ThreeRowAfterUxFileName);
+            string annotatedPath = Path.Combine(outputDir, ThreeRowAnnotatedUxFileName);
+            if (!TryWriteAnnotatedBottleBoundsScreenshot(afterPath, annotatedPath, samples))
+            {
+                Debug.LogError("RuntimeScreenshot: failed to write annotated three-row bounding-box screenshot.");
+                _failed = true;
+            }
+
+            HudSafeLayout.ForceLegacyThreeRowCaptureLayout = false;
+        }
+
+        private IEnumerator CaptureTwoRowUxScreenshot(GameController controller, string outputDir)
+        {
+            var candidates = new[]
+            {
+                new SinkCaptureTarget(0, 1, 10991),
+                new SinkCaptureTarget(0, 10, 421907),
+                new SinkCaptureTarget(0, 12, 473921)
+            };
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                yield return CaptureLevelScreenshot(controller, outputDir, candidates[i].Level, candidates[i].Seed, TwoRowUxFileName);
+                if (TryCollectBottleScreenSamples(controller, out var samples) && samples.Count > 0 && samples.Count <= 6)
+                {
+                    yield break;
+                }
+            }
+
+            Debug.LogWarning("RuntimeScreenshot: could not confirm a 2-row candidate from the default UX screenshot list.");
         }
 
         private IEnumerator CaptureBottle3DRotationProof(GameController controller, string outputDir)
@@ -2167,6 +2243,7 @@ namespace Decantra.Presentation
         {
             try
             {
+                HudSafeLayout.ForceLegacyThreeRowCaptureLayout = false;
                 string solvedPath = Path.Combine(outputDir, SolvedLayoutReportFileName);
                 string corkPath = Path.Combine(outputDir, "cork-layout-report.json");
                 string v2Path = Path.Combine(outputDir, "v2-layout-report.json");
@@ -3452,6 +3529,82 @@ namespace Decantra.Presentation
             {
                 UnityEngine.Object.Destroy(texture);
             }
+        }
+
+        private static bool TryWriteAnnotatedBottleBoundsScreenshot(string sourcePath, string outputPath, List<BottleScreenSample> samples)
+        {
+            if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(outputPath) || samples == null || samples.Count == 0)
+            {
+                return false;
+            }
+
+            if (!File.Exists(sourcePath))
+            {
+                return false;
+            }
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            try
+            {
+                if (!texture.LoadImage(File.ReadAllBytes(sourcePath)))
+                {
+                    return false;
+                }
+
+                Color outlineColor = new Color(1f, 0.76f, 0.22f, 1f);
+                for (int i = 0; i < samples.Count; i++)
+                {
+                    DrawRectOutline(texture, samples[i].ScreenRect, outlineColor, 4);
+                }
+
+                string directory = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.WriteAllBytes(outputPath, texture.EncodeToPNG());
+                return true;
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(texture);
+            }
+        }
+
+        private static void DrawRectOutline(Texture2D texture, Rect rect, Color color, int thickness)
+        {
+            if (texture == null)
+            {
+                return;
+            }
+
+            int xMin = Mathf.Clamp(Mathf.RoundToInt(rect.xMin), 0, texture.width - 1);
+            int xMax = Mathf.Clamp(Mathf.RoundToInt(rect.xMax), 0, texture.width - 1);
+            int yMin = Mathf.Clamp(Mathf.RoundToInt(rect.yMin), 0, texture.height - 1);
+            int yMax = Mathf.Clamp(Mathf.RoundToInt(rect.yMax), 0, texture.height - 1);
+
+            for (int t = 0; t < thickness; t++)
+            {
+                int left = Mathf.Clamp(xMin + t, 0, texture.width - 1);
+                int right = Mathf.Clamp(xMax - t, 0, texture.width - 1);
+                int bottom = Mathf.Clamp(yMin + t, 0, texture.height - 1);
+                int top = Mathf.Clamp(yMax - t, 0, texture.height - 1);
+
+                for (int x = left; x <= right; x++)
+                {
+                    texture.SetPixel(x, bottom, color);
+                    texture.SetPixel(x, top, color);
+                }
+
+                for (int y = bottom; y <= top; y++)
+                {
+                    texture.SetPixel(left, y, color);
+                    texture.SetPixel(right, y, color);
+                }
+            }
+
+            texture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
         }
 
         private static void WriteCompletionMarker(string outputDir)

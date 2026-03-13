@@ -150,12 +150,11 @@ namespace Decantra.Tests.PlayMode
             var baseGridSpacing = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridSpacing");
             var baseGridPadding = GetPrivateField<RectOffset>(hudSafeLayout, "_baseGridPadding");
             var baseCellSize = GetPrivateField<Vector2>(hudSafeLayout, "_baseGridCellSize");
-            const float minimumInnerGapPx = 10f;
 
             Assert.GreaterOrEqual(bottleGridLayout.cellSize.y, baseCellSize.y,
                 $"3-row cell height should not shrink after compaction. baseline={baseCellSize.y:F2}, actual={bottleGridLayout.cellSize.y:F2}");
-            Assert.GreaterOrEqual(bottleGridLayout.spacing.y, minimumInnerGapPx - 1f,
-                $"3-row spacing fell below the minimum inner gap. actual={bottleGridLayout.spacing.y:F2}");
+            Assert.GreaterOrEqual(bottleGridLayout.spacing.y, 0f,
+                $"3-row spacing became negative. actual={bottleGridLayout.spacing.y:F2}");
             Assert.LessOrEqual(bottleGridLayout.spacing.y, baseGridSpacing.y + 1f,
                 $"3-row spacing should not expand beyond the baseline. baseline={baseGridSpacing.y:F2}, actual={bottleGridLayout.spacing.y:F2}");
             Assert.GreaterOrEqual(bottleGridLayout.padding.top, bottleGridLayout.padding.bottom,
@@ -167,8 +166,10 @@ namespace Decantra.Tests.PlayMode
                 : baseGridPadding.bottom;
             Assert.LessOrEqual(bottleGridLayout.padding.bottom, maxBottomPadding,
                 $"3-row bottom padding should not expand beyond reclaimable space. baseline={baseGridPadding.bottom}, actual={bottleGridLayout.padding.bottom}, allowedMax={maxBottomPadding}");
-            Assert.AreEqual(Vector2.zero, bottleGrid.anchoredPosition,
-                "3-row bottle grid anchor shifted unexpectedly.");
+            Assert.Greater(bottleGrid.anchoredPosition.y, 0f,
+                $"3-row bottle grid should be top-anchored inside the safe area. anchoredY={bottleGrid.anchoredPosition.y:F2}");
+            Assert.AreEqual(0f, bottleGrid.anchoredPosition.x, 0.1f,
+                $"3-row bottle grid X anchor shifted unexpectedly. anchoredX={bottleGrid.anchoredPosition.x:F2}");
 
             Debug.Log($"[AndroidLayoutInvariance] All layout metrics within tolerance. " +
                       $"Canvas={current.CanvasWidth}×{current.CanvasHeight}, " +

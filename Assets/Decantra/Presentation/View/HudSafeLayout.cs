@@ -16,6 +16,8 @@ namespace Decantra.Presentation.View
     /// </summary>
     public sealed class HudSafeLayout : MonoBehaviour
     {
+        public static bool ForceLegacyThreeRowCaptureLayout { get; set; }
+
         private const int GridRows = 3;
         private const int TwoRowBottleThreshold = 6;
         private const int ExternalGridPadding = 0;
@@ -38,8 +40,8 @@ namespace Decantra.Presentation.View
         private const float ThreeRowTopGapBiasPx = 6f;
         private const float ThreeRowBottomGapReductionPx = 28f;
         private const float MinimumEdgeGapPx = MinClearancePx * 0.5f;
-        private const float MinimumThreeRowInnerGapPx = 10f;
         private const float MinimumThreeRowBottomGapPx = 18f;
+        private const float ThreeRowBottleFillRatio = 0.85f;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float LayoutAssertTolerance = 0.5f;
 #endif
@@ -189,6 +191,7 @@ namespace Decantra.Presentation.View
             float scale = 1f;
 
             bool appliedEqualGaps = false;
+            float gridAnchoredY = 0f;
             if (bottleGridLayout != null && availableHeight > 0f)
             {
                 int rows = ResolveGridRows();
@@ -212,18 +215,28 @@ namespace Decantra.Presentation.View
 
                         if (rows == GridRows)
                         {
-                            // Three-row boards need denser internal packing than the edge
-                            // clearances used for the HUD and footer. Compress the inter-row
-                            // gaps much more aggressively than the outer gaps so the bottles
-                            // grow and the grid occupies the available space.
-                            spacingY = Mathf.Max(MinimumThreeRowInnerGapPx, idealGap - ThreeRowInnerGapReductionPx);
-                            bottomPaddingY = Mathf.Max(MinimumThreeRowBottomGapPx, idealGap - ThreeRowBottomGapReductionPx);
-                            topPaddingY = Mathf.Max(MinimumEdgeGapPx + ThreeRowTopGapBiasPx, idealGap + ThreeRowTopGapBiasPx);
+                            if (ForceLegacyThreeRowCaptureLayout)
+                            {
+                                // Screenshot pipeline uses this branch to capture the pre-refresh
+                                // three-row layout as an explicit before image.
+                                spacingY = Mathf.Max(0f, idealGap - ThreeRowInnerGapReductionPx);
+                                bottomPaddingY = Mathf.Max(MinimumThreeRowBottomGapPx, idealGap - ThreeRowBottomGapReductionPx);
+                                topPaddingY = Mathf.Max(MinimumEdgeGapPx + ThreeRowTopGapBiasPx, idealGap + ThreeRowTopGapBiasPx);
 
-                            float compactedCellHeight = (availableHeight - topPaddingY - bottomPaddingY - (rows - 1f) * spacingY) / rows;
-                            float maxCellHeightForHudClearance = (topPaddingY - MinClearancePx) / BottleTopOverhang;
-                            compactedCellHeight = Mathf.Min(compactedCellHeight, maxCellHeightForHudClearance);
-                            cellHeight = Mathf.Max(cellHeight, compactedCellHeight);
+                                float compactedCellHeight = (availableHeight - topPaddingY - bottomPaddingY - (rows - 1f) * spacingY) / rows;
+                                float maxCellHeightForHudClearance = (topPaddingY - MinClearancePx) / BottleTopOverhang;
+                                compactedCellHeight = Mathf.Min(compactedCellHeight, maxCellHeightForHudClearance);
+                                cellHeight = Mathf.Max(cellHeight, compactedCellHeight);
+                            }
+                            else
+                            {
+                                ApplyTopAnchoredThreeRowLayout(
+                                    availableHeight,
+                                    ref cellHeight,
+                                    out spacingY,
+                                    out topPaddingY,
+                                    out bottomPaddingY);
+                            }
                         }
 
                         bottleGridLayout.cellSize = new Vector2(bottleGridLayout.cellSize.x, cellHeight);
@@ -238,6 +251,10 @@ namespace Decantra.Presentation.View
                             bottleGrid.sizeDelta.x,
                             rows * cellHeight + (rows - 1f) * spacingY + topPaddingY + bottomPaddingY);
                         gridHeight = bottleGrid.sizeDelta.y;
+                        if (rows == GridRows && !ForceLegacyThreeRowCaptureLayout)
+                        {
+                            gridAnchoredY = Mathf.Max(0f, (availableHeight - gridHeight) * 0.5f);
+                        }
                         appliedEqualGaps = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
                         if (!IsRunningUnityTests())
@@ -260,7 +277,7 @@ namespace Decantra.Presentation.View
             }
 
             bottleGrid.localScale = new Vector3(scale, scale, 1f);
-            bottleGrid.anchoredPosition = Vector2.zero;
+            bottleGrid.anchoredPosition = new Vector2(0f, gridAnchoredY);
             LayoutRebuilder.ForceRebuildLayoutImmediate(bottleGrid);
         }
 
@@ -277,6 +294,33 @@ namespace Decantra.Presentation.View
             }
 
             return 0f;
+        }
+
+        private static void ApplyTopAnchoredThreeRowLayout(
+            float availableHeight,
+            ref float cellHeight,
+            out float spacingY,
+            out float topPaddingY,
+            out float bottomPaddingY)
+        {
+            float topSafetyMargin = MinClearancePx;
+            float bottomSafetyMargin = MinimumEdgeGapPx;
+            float safePlayableHeight = Mathf.Max(0f, availableHeight - topSafetyMargin - bottomSafetyMargin);
+            float preferredCellHeight = safePlayableHeight > 0f
+                ? safePlayableHeight / GridRows * ThreeRowBottleFillRatio
+                : 0f;
+            float maxVerticalCellHeight = (availableHeight - topSafetyMargin - bottomSafetyMargin)
+                / (GridRows + BottleTopOverhang);
+
+            cellHeight = Mathf.Max(0f, Mathf.Min(preferredCellHeight, maxVerticalCellHeight));
+
+            topPaddingY = topSafetyMargin + BottleTopOverhang * cellHeight;
+            bottomPaddingY = bottomSafetyMargin;
+
+            float usableHeight = Mathf.Max(0f, availableHeight - topPaddingY - bottomPaddingY - GridRows * cellHeight);
+            spacingY = GridRows > 1
+                ? Mathf.Max(0f, usableHeight / (GridRows - 1f))
+                : 0f;
         }
 
         private int ResolveGridRows()
