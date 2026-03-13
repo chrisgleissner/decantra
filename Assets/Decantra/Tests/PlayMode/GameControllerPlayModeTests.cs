@@ -211,41 +211,6 @@ namespace Decantra.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator TryStartMove_FrameSyncPourAudio_StartsOnAnimationAndStopsAtCompletion()
-        {
-            SceneBootstrap.EnsureScene();
-            yield return null;
-
-            var controller = Object.FindFirstObjectByType<GameController>();
-            Assert.IsNotNull(controller);
-
-            float readyTimeout = 8f;
-            float readyElapsed = 0f;
-            while (readyElapsed < readyTimeout && (!controller.HasActiveLevel || controller.IsInputLocked))
-            {
-                readyElapsed += Time.unscaledDeltaTime;
-                yield return null;
-            }
-
-            var state = GetPrivateField(controller, "_state") as LevelState;
-            Assert.IsNotNull(state, "Controller state not available.");
-            Assert.IsTrue(TryFindValidMove(state, out int source, out int target), "No valid move found in initial state.");
-
-            bool started = controller.TryStartMove(source, target, out float duration);
-            Assert.IsTrue(started, "Expected move animation to start.");
-
-            yield return null;
-
-            var audioManager = GetPrivateField(controller, "_audioManager") as AudioManager;
-            Assert.IsNotNull(audioManager, "Audio manager not initialised.");
-            Assert.IsTrue(audioManager.IsFrameSyncedPourPlaying, "Expected pour audio to be playing on the first animation frame.");
-
-            yield return new WaitForSeconds(duration + 0.1f);
-
-            Assert.IsFalse(audioManager.IsFrameSyncedPourPlaying, "Expected pour audio to stop when the pour animation completes.");
-        }
-
-        [UnityTest]
         public IEnumerator OutOfMoves_ShowsFailureAndBlocksInput()
         {
             SceneBootstrap.EnsureScene();

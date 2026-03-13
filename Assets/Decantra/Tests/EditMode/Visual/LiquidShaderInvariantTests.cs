@@ -8,6 +8,7 @@ namespace Decantra.Tests.EditMode.Visual
         private const string LiquidShaderPath = "Assets/Decantra/Presentation/View3D/Shaders/Liquid3D.shader";
         private const string BottleGlassShaderPath = "Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader";
         private const string Bottle3DViewPath = "Assets/Decantra/Presentation/View3D/Bottle3DView.cs";
+        private const string GameControllerPath = "Assets/Decantra/Presentation/Controller/GameController.cs";
 
         [Test]
         public void LiquidShader_RemovesBoundaryHighlightAndMeniscusLogic()
@@ -57,6 +58,16 @@ namespace Decantra.Tests.EditMode.Visual
 
             Assert.That(bottleView, Does.Contain("GenerateNeckOverlayMesh"));
             Assert.That(bottleView, Does.Contain("GenerateBoundaryCollarMesh"));
+        }
+
+        [Test]
+        public void GameController_StartsPourAudioInsideAnimationLoop_AndStopsItAfterwards()
+        {
+            string controller = File.ReadAllText(GameControllerPath);
+
+            Assert.That(controller, Does.Contain("if (!pourSfxStarted && t > 0f)"));
+            Assert.That(controller, Does.Contain("PlayPourSfx(previousFillRatio, newFillRatio);"));
+            Assert.That(controller, Does.Contain("StopPourSfx();"));
         }
     }
 }

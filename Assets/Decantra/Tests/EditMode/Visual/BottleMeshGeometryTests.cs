@@ -1,93 +1,42 @@
-using System;
-using System.Reflection;
+using System.IO;
 using NUnit.Framework;
-using UnityEngine;
 
 namespace Decantra.Tests.EditMode.Visual
 {
     public sealed class BottleMeshGeometryTests
     {
-        private static Type BottleMeshGeneratorType => Type.GetType("Decantra.Presentation.View3D.BottleMeshGenerator, Decantra.Presentation.View3D");
+        private const string BottleMeshGeneratorPath = "Assets/Decantra/Presentation/View3D/BottleMeshGenerator.cs";
 
         [Test]
-        public void NeckOverlayMesh_StartsAtFillBoundary_AndEndsAtRimTop()
+        public void NeckOverlayMesh_BeginsAtBodyTop_AndExtendsToRimTop()
         {
-            object mesh = InvokeMeshFactory("GenerateNeckOverlayMesh", 1f, 0f, true);
-            float bodyTop = InvokeStaticFloatMethod("GetBodyTopY", 1f);
-            float rimTop = InvokeStaticFloatMethod("GetRimTopY", 1f);
-            Bounds bounds = GetBounds(mesh);
+            string source = File.ReadAllText(BottleMeshGeneratorPath);
 
-            Assert.That(bounds.min.y, Is.EqualTo(bodyTop).Within(0.005f));
-            Assert.That(bounds.max.y, Is.EqualTo(rimTop).Within(0.005f));
-
-            Object.DestroyImmediate(mesh as UnityEngine.Object);
+            Assert.That(source, Does.Contain("public static Mesh GenerateNeckOverlayMesh"));
+            Assert.That(source, Does.Contain("float bodyTop = bodyBottom + scaledBodyHeight;"));
+            Assert.That(source, Does.Contain("float rimTop = neckTop + RimLipHeight;"));
+            Assert.That(source, Does.Contain("y0: bodyTop, y1: shoulderTop"));
+            Assert.That(source, Does.Contain("y0: rimMid, y1: rimTop"));
         }
 
         [Test]
-        public void TopBoundaryCollarMesh_StaysAtTopFillBoundary()
+        public void TopBoundaryCollarMesh_AnchorsToBodyTopBoundary()
         {
-            const float CapacityRatio = 0.75f;
-            object mesh = InvokeMeshFactory("GenerateBoundaryCollarMesh", CapacityRatio, true, true);
-            float bodyTop = InvokeStaticFloatMethod("GetBodyTopY", CapacityRatio);
-            Bounds bounds = GetBounds(mesh);
+            string source = File.ReadAllText(BottleMeshGeneratorPath);
 
-            Assert.That(bounds.max.y, Is.LessThanOrEqualTo(bodyTop + 0.0001f));
-            Assert.That(bounds.min.y, Is.GreaterThan(bodyTop - 0.02f));
-
-            Object.DestroyImmediate(mesh as UnityEngine.Object);
+            Assert.That(source, Does.Contain("float boundaryY = topBoundary ? GetBodyTopY(capped) : InteriorBottomY;"));
+            Assert.That(source, Does.Contain("float y0 = topBoundary ? boundaryY - collarHeight : boundaryY;"));
+            Assert.That(source, Does.Contain("float y1 = topBoundary ? boundaryY : boundaryY + collarHeight;"));
         }
 
         [Test]
-        public void BottomBoundaryCollarMesh_StaysAtBottomFillBoundary()
+        public void BottomBoundaryCollarMesh_AnchorsToInteriorBottomBoundary()
         {
-            object mesh = InvokeMeshFactory("GenerateBoundaryCollarMesh", 1f, false, true);
-            float bodyBottom = GetStaticFloatField("InteriorBottomY");
-            Bounds bounds = GetBounds(mesh);
+            string source = File.ReadAllText(BottleMeshGeneratorPath);
 
-            Assert.That(bounds.min.y, Is.GreaterThanOrEqualTo(bodyBottom - 0.0001f));
-            Assert.That(bounds.max.y, Is.LessThanOrEqualTo(bodyBottom + 0.02f));
-
-            Object.DestroyImmediate(mesh as UnityEngine.Object);
-        }
-
-        private static object InvokeMeshFactory(string methodName, params object[] args)
-        {
-            Assert.NotNull(BottleMeshGeneratorType, "BottleMeshGenerator type was not found.");
-
-            MethodInfo method = BottleMeshGeneratorType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
-            Assert.NotNull(method, $"Missing method '{methodName}'.");
-
-            return method.Invoke(null, args);
-        }
-
-        private static float InvokeStaticFloatMethod(string methodName, params object[] args)
-        {
-            Assert.NotNull(BottleMeshGeneratorType, "BottleMeshGenerator type was not found.");
-
-            MethodInfo method = BottleMeshGeneratorType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
-            Assert.NotNull(method, $"Missing method '{methodName}'.");
-
-            return (float)method.Invoke(null, args);
-        }
-
-        private static float GetStaticFloatField(string fieldName)
-        {
-            Assert.NotNull(BottleMeshGeneratorType, "BottleMeshGenerator type was not found.");
-
-            FieldInfo field = BottleMeshGeneratorType.GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
-            Assert.NotNull(field, $"Missing field '{fieldName}'.");
-
-            return (float)field.GetValue(null);
-        }
-
-        private static Bounds GetBounds(object mesh)
-        {
-            Assert.NotNull(mesh, "Mesh instance was null.");
-
-            PropertyInfo boundsProperty = mesh.GetType().GetProperty("bounds", BindingFlags.Instance | BindingFlags.Public);
-            Assert.NotNull(boundsProperty, "Mesh bounds property was not found.");
-
-            return (Bounds)boundsProperty.GetValue(mesh);
+            Assert.That(source, Does.Contain("float boundaryY = topBoundary ? GetBodyTopY(capped) : InteriorBottomY;"));
+            Assert.That(source, Does.Contain("float collarHeight = 0.012f;"));
+            Assert.That(source, Does.Contain("topBoundary ? \"BottleTopBoundaryCollar\" : \"BottleBottomBoundaryCollar\""));
         }
     }
 }

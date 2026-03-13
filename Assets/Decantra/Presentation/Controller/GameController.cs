@@ -734,9 +734,9 @@ namespace Decantra.Presentation.Controller
                 int srcCap = Mathf.Max(1, srcBottle.Capacity);
                 int tgtCap = Mathf.Max(1, tgtBottle.Capacity);
 
-                float srcFillTo    = Mathf.Clamp01((float)(srcBottle.Count - poured) / srcCap);
-                float tgtFillFrom  = Mathf.Clamp01((float)tgtBottle.Count / tgtCap);
-                float tgtFillTo    = Mathf.Clamp01((float)(tgtBottle.Count + poured) / tgtCap);
+                float srcFillTo = Mathf.Clamp01((float)(srcBottle.Count - poured) / srcCap);
+                float tgtFillFrom = Mathf.Clamp01((float)tgtBottle.Count / tgtCap);
+                float tgtFillTo = Mathf.Clamp01((float)(tgtBottle.Count + poured) / tgtCap);
 
                 src3D?.BeginSourceDrain(srcFillTo);
 
@@ -3547,9 +3547,9 @@ namespace Decantra.Presentation.Controller
             {
                 // Cork geometry constants — VisualScale converts from mesh-local units to
                 // world units (same value as Bottle3DView.VisualScale = 0.20f).
-                float corkWidth  = BottleMeshGenerator.StopperRadius * 2f * Bottle3DView.VisualScale;
-                float neckWidth  = BottleMeshGenerator.NeckRadius    * 2f * Bottle3DView.VisualScale;
-                float corkRatio  = neckWidth > 1e-6f ? corkWidth / neckWidth : 0f;
+                float corkWidth = BottleMeshGenerator.StopperRadius * 2f * Bottle3DView.VisualScale;
+                float neckWidth = BottleMeshGenerator.NeckRadius * 2f * Bottle3DView.VisualScale;
+                float corkRatio = neckWidth > 1e-6f ? corkWidth / neckWidth : 0f;
 
                 bool animValid = pourDuration >= 0.3f && interpolationFrames >= 10;
                 bool corkValid = corkRatio >= 0.95f && corkRatio <= 1.1f;
@@ -3570,10 +3570,10 @@ namespace Decantra.Presentation.Controller
                 // is verified correct by code audit; mark tilt valid unconditionally.
                 bool liquidTiltValid = true;
 
-                string animValidStr  = animValid.ToString().ToLower();
-                string corkValidStr  = corkValid.ToString().ToLower();
-                string tiltValidStr  = liquidTiltValid.ToString().ToLower();
-                string allPassedStr  = (animValid && corkValid && liquidTiltValid).ToString().ToLower();
+                string animValidStr = animValid.ToString().ToLower();
+                string corkValidStr = corkValid.ToString().ToLower();
+                string tiltValidStr = liquidTiltValid.ToString().ToLower();
+                string allPassedStr = (animValid && corkValid && liquidTiltValid).ToString().ToLower();
 
                 string json =
                     "{\n" +
