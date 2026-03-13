@@ -532,9 +532,6 @@ mkdir -p "${vv_shots}" "${vv_reports}"
 cp -f "${OUTPUT_DIR}/screenshot-09-level-20.png"       "${vv_shots}/level-20.png" 2>/dev/null || true
 cp -f "${OUTPUT_DIR}/screenshot-05-level-24.png"       "${vv_shots}/level-24.png" 2>/dev/null || true
 cp -f "${OUTPUT_DIR}/screenshot-07-level-36.png"       "${vv_shots}/level-36.png" 2>/dev/null || true
-cp -f "${OUTPUT_DIR}/scene_3x3_bottles.png"            "${vv_shots}/level-3x3.png" 2>/dev/null || true
-cp -f "${OUTPUT_DIR}/completed_bottle_topper.png"      "${vv_shots}/completed-bottles-corks.png" 2>/dev/null || true
-cp -f "${OUTPUT_DIR}/empty_bottles_scene.png"          "${vv_shots}/empty-bottles.png" 2>/dev/null || true
 cp -f "${OUTPUT_DIR}/layout-report.json"               "${vv_reports}/layout-report.json" 2>/dev/null || true
 
 if [[ ! -s "${vv_reports}/layout-report.json" ]]; then
