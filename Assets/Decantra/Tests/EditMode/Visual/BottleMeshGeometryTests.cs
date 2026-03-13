@@ -12,49 +12,52 @@ namespace Decantra.Tests.EditMode.Visual
         [Test]
         public void NeckOverlayMesh_StartsAtFillBoundary_AndEndsAtRimTop()
         {
-            Mesh mesh = InvokeMeshFactory("GenerateNeckOverlayMesh", 1f, 0f, true);
+            object mesh = InvokeMeshFactory("GenerateNeckOverlayMesh", 1f, 0f, true);
             float bodyTop = InvokeStaticFloatMethod("GetBodyTopY", 1f);
             float rimTop = InvokeStaticFloatMethod("GetRimTopY", 1f);
+            Bounds bounds = GetBounds(mesh);
 
-            Assert.That(mesh.bounds.min.y, Is.EqualTo(bodyTop).Within(0.005f));
-            Assert.That(mesh.bounds.max.y, Is.EqualTo(rimTop).Within(0.005f));
+            Assert.That(bounds.min.y, Is.EqualTo(bodyTop).Within(0.005f));
+            Assert.That(bounds.max.y, Is.EqualTo(rimTop).Within(0.005f));
 
-            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(mesh as UnityEngine.Object);
         }
 
         [Test]
         public void TopBoundaryCollarMesh_StaysAtTopFillBoundary()
         {
             const float CapacityRatio = 0.75f;
-            Mesh mesh = InvokeMeshFactory("GenerateBoundaryCollarMesh", CapacityRatio, true, true);
+            object mesh = InvokeMeshFactory("GenerateBoundaryCollarMesh", CapacityRatio, true, true);
             float bodyTop = InvokeStaticFloatMethod("GetBodyTopY", CapacityRatio);
+            Bounds bounds = GetBounds(mesh);
 
-            Assert.That(mesh.bounds.max.y, Is.LessThanOrEqualTo(bodyTop + 0.0001f));
-            Assert.That(mesh.bounds.min.y, Is.GreaterThan(bodyTop - 0.02f));
+            Assert.That(bounds.max.y, Is.LessThanOrEqualTo(bodyTop + 0.0001f));
+            Assert.That(bounds.min.y, Is.GreaterThan(bodyTop - 0.02f));
 
-            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(mesh as UnityEngine.Object);
         }
 
         [Test]
         public void BottomBoundaryCollarMesh_StaysAtBottomFillBoundary()
         {
-            Mesh mesh = InvokeMeshFactory("GenerateBoundaryCollarMesh", 1f, false, true);
+            object mesh = InvokeMeshFactory("GenerateBoundaryCollarMesh", 1f, false, true);
             float bodyBottom = GetStaticFloatField("InteriorBottomY");
+            Bounds bounds = GetBounds(mesh);
 
-            Assert.That(mesh.bounds.min.y, Is.GreaterThanOrEqualTo(bodyBottom - 0.0001f));
-            Assert.That(mesh.bounds.max.y, Is.LessThanOrEqualTo(bodyBottom + 0.02f));
+            Assert.That(bounds.min.y, Is.GreaterThanOrEqualTo(bodyBottom - 0.0001f));
+            Assert.That(bounds.max.y, Is.LessThanOrEqualTo(bodyBottom + 0.02f));
 
-            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(mesh as UnityEngine.Object);
         }
 
-        private static Mesh InvokeMeshFactory(string methodName, params object[] args)
+        private static object InvokeMeshFactory(string methodName, params object[] args)
         {
             Assert.NotNull(BottleMeshGeneratorType, "BottleMeshGenerator type was not found.");
 
             MethodInfo method = BottleMeshGeneratorType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
             Assert.NotNull(method, $"Missing method '{methodName}'.");
 
-            return method.Invoke(null, args) as Mesh;
+            return method.Invoke(null, args);
         }
 
         private static float InvokeStaticFloatMethod(string methodName, params object[] args)
@@ -75,6 +78,16 @@ namespace Decantra.Tests.EditMode.Visual
             Assert.NotNull(field, $"Missing field '{fieldName}'.");
 
             return (float)field.GetValue(null);
+        }
+
+        private static Bounds GetBounds(object mesh)
+        {
+            Assert.NotNull(mesh, "Mesh instance was null.");
+
+            PropertyInfo boundsProperty = mesh.GetType().GetProperty("bounds", BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(boundsProperty, "Mesh bounds property was not found.");
+
+            return (Bounds)boundsProperty.GetValue(mesh);
         }
     }
 }
