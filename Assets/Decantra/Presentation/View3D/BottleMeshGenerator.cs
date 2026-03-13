@@ -140,6 +140,12 @@ namespace Decantra.Presentation.View3D
             return GetRimTopY(capacityRatio) - StopperInsideDepth;
         }
 
+        public static float GetBodyTopY(float capacityRatio)
+        {
+            float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            return InteriorBottomY + BodyHeight * capped;
+        }
+
         private const float BodyHalfHeight = BodyHeight * 0.5f;
 
         /// <summary>
@@ -334,6 +340,124 @@ namespace Decantra.Presentation.View3D
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds();
             mesh.UploadMeshData(markNoLongerReadable: true);
+            return mesh;
+        }
+
+        public static Mesh GenerateNeckOverlayMesh(float capacityRatio = 1f, float radialOutset = 0f, bool keepReadable = false)
+        {
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+
+            float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            float scaledBodyHeight = BodyHeight * capped;
+            float yMin = -BodyHalfHeight;
+            float bodyBottom = yMin + DomeRadius;
+            float bodyTop = bodyBottom + scaledBodyHeight;
+            float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+            float shoulderTop = bodyTop + ShoulderHeight;
+            float neckTop = shoulderTop + NeckHeight;
+            float rimTop = neckTop + RimLipHeight;
+            float bodyRadius = BodyRadius + radialOutset;
+            float neckRadius = NeckRadius + radialOutset;
+            float lipRadius = NeckRadius + RimLipOverhang + radialOutset;
+
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: bodyTop, y1: shoulderTop,
+                           r0: bodyRadius, r1: neckRadius,
+                           totalHeight: totalHeight,
+                           steps: ShoulderSteps,
+                           invertWinding: false,
+                           invertNormal: false);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: shoulderTop, y1: neckTop,
+                           r0: neckRadius, r1: neckRadius,
+                           totalHeight: totalHeight,
+                           invertWinding: false,
+                           invertNormal: false);
+
+            float rimMid = neckTop + RimLipHeight * 0.45f;
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: neckTop, y1: rimMid,
+                           r0: neckRadius, r1: lipRadius,
+                           totalHeight: totalHeight,
+                           steps: 2,
+                           invertWinding: false,
+                           invertNormal: false);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: rimMid, y1: rimTop,
+                           r0: lipRadius, r1: NeckRadius + RimLipOverhang * 0.75f + radialOutset,
+                           totalHeight: totalHeight,
+                           steps: 2,
+                           invertWinding: false,
+                           invertNormal: false);
+
+            var mesh = new Mesh { name = "BottleNeckOverlayMesh" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+
+            if (!keepReadable)
+                mesh.UploadMeshData(markNoLongerReadable: true);
+
+            return mesh;
+        }
+
+        public static Mesh GenerateBoundaryCollarMesh(float capacityRatio = 1f, bool topBoundary = true, bool keepReadable = false)
+        {
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+
+            float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
+            float scaledBodyHeight = BodyHeight * capped;
+            float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+            float boundaryY = topBoundary ? GetBodyTopY(capped) : InteriorBottomY;
+            float collarHeight = 0.012f;
+            float y0 = topBoundary ? boundaryY - collarHeight : boundaryY;
+            float y1 = topBoundary ? boundaryY : boundaryY + collarHeight;
+            float outerRadius = Mathf.Max(BodyRadius - GlassThickness * 1.15f, 0.01f);
+            float innerRadius = Mathf.Max(outerRadius - 0.016f, 0.005f);
+
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: y0, y1: y1,
+                           r0: outerRadius, r1: outerRadius,
+                           totalHeight: totalHeight,
+                           invertWinding: false,
+                           invertNormal: false);
+            AppendCylinder(verts, norms, uvs, tris,
+                           y0: y0, y1: y1,
+                           r0: innerRadius, r1: innerRadius,
+                           totalHeight: totalHeight,
+                           invertWinding: true,
+                           invertNormal: true);
+            AppendRingBridge(verts, norms, uvs, tris,
+                             y: y0,
+                             outerRadius: outerRadius,
+                             innerRadius: innerRadius,
+                             totalHeight: totalHeight,
+                             faceUp: false);
+            AppendRingBridge(verts, norms, uvs, tris,
+                             y: y1,
+                             outerRadius: outerRadius,
+                             innerRadius: innerRadius,
+                             totalHeight: totalHeight,
+                             faceUp: true);
+
+            var mesh = new Mesh { name = topBoundary ? "BottleTopBoundaryCollar" : "BottleBottomBoundaryCollar" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+
+            if (!keepReadable)
+                mesh.UploadMeshData(markNoLongerReadable: true);
+
             return mesh;
         }
 

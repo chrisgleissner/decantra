@@ -29,6 +29,7 @@ namespace Decantra.Presentation
         private AudioClip[] _pourClips;
         private AudioClip _selectedPourClip;
         private int _selectedPourClipIndex = -1;
+        private AudioSource _activePourSource;
         private AudioClip _levelCompleteClip;
         private AudioClip _buttonClickClip;
         private AudioClip _bottleFullClip;
@@ -58,6 +59,7 @@ namespace Decantra.Presentation
 
         public bool IsEnabled => _isEnabled;
         public float Volume01 => _volume01;
+        public bool IsFrameSyncedPourPlaying => _activePourSource != null && _activePourSource.isPlaying;
 
         private void Awake()
         {
@@ -126,6 +128,8 @@ namespace Decantra.Presentation
 
         private void OnDestroy()
         {
+            StopFrameSyncedPour();
+
             foreach (var pair in _safeClipCache)
             {
                 if (pair.Value != null)
@@ -140,6 +144,10 @@ namespace Decantra.Presentation
         public void SetEnabled(bool enabled)
         {
             _isEnabled = enabled;
+            if (!_isEnabled)
+            {
+                StopFrameSyncedPour();
+            }
             ApplyAudioState();
         }
 
@@ -170,6 +178,51 @@ namespace Decantra.Presentation
         public void PlayPour(float fillRatio)
         {
             PlayPourSegment(0f, Mathf.Clamp01(fillRatio));
+        }
+
+        public void StartFrameSyncedPour(float previousFillRatio, float newFillRatio)
+        {
+            if (!_isEnabled || !HasAnySource()) return;
+
+            var clip = _selectedPourClip != null ? _selectedPourClip : (_pourClips != null && _pourClips.Length > 0 ? _pourClips[0] : null);
+            if (clip == null) return;
+
+            float start = Mathf.Clamp01(previousFillRatio);
+            float end = Mathf.Clamp01(newFillRatio);
+            if (end <= start)
+            {
+                StopFrameSyncedPour();
+                return;
+            }
+
+            var safeClip = EnsureSafeClip(clip);
+            if (safeClip == null || safeClip.length <= 0f) return;
+
+            ComputeSegmentBounds(safeClip.length, start, end, out float segmentStart, out _);
+
+            var source = _activePourSource != null ? _activePourSource : GetNextSource();
+            if (source == null) return;
+
+            _activePourSource = source;
+            source.Stop();
+            source.clip = safeClip;
+            source.pitch = 1f;
+            source.volume = 0.55f * _volume01;
+            source.mute = !_isEnabled || _volume01 <= 0.0001f;
+            source.time = Mathf.Clamp(segmentStart, 0f, Mathf.Max(0f, safeClip.length - 0.0001f));
+            source.Play();
+        }
+
+        public void StopFrameSyncedPour()
+        {
+            if (_activePourSource == null)
+            {
+                return;
+            }
+
+            _activePourSource.Stop();
+            _activePourSource.clip = null;
+            _activePourSource = null;
         }
 
         public float GetSelectedPourClipLengthSeconds()
@@ -276,6 +329,8 @@ namespace Decantra.Presentation
                 source.Stop();
                 source.clip = null;
             }
+
+            _activePourSource = null;
         }
 
         private void PlayTransientSegment(AudioClip clip, float startRatio, float endRatio, float gain)

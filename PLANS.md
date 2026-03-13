@@ -1,3 +1,59 @@
+# Final Bottle Rendering And Pour Sync Plan
+
+Last updated: 2026-03-13 UTC
+Execution engineer: GitHub Copilot (GPT-5.4)
+
+## Objective
+
+Resolve the remaining 3D bottle rendering and pour-audio defects without regressing the corrected three-row layout or prior bottle readability work.
+
+Required outcomes:
+
+- Remove neck opacity and frost overlap from the fillable liquid region entirely.
+- Eliminate the visible dark seam inside the neck.
+- Preserve strictly vertical-invariant liquid color while keeping horizontal cylindrical shading.
+- Replace shader-banded fill-boundary accents with geometry-backed perimeter detail.
+- Keep previous white-ring artifacts absent.
+- Start pour audio on the exact frame visible liquid motion begins and stop it on the exact frame motion ends.
+- Rebuild, deploy to a physical Android device, refresh screenshots, and confirm remote PR checks are green.
+
+## Located Implementation Surfaces
+
+- Bottle view assembly: `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`
+- Procedural bottle geometry: `Assets/Decantra/Presentation/View3D/BottleMeshGenerator.cs`
+- Glass shader: `Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader`
+- Liquid shader: `Assets/Decantra/Presentation/View3D/Shaders/Liquid3D.shader`
+- Move animation orchestration: `Assets/Decantra/Presentation/Controller/GameController.cs`
+- Audio playback: `Assets/Decantra/Presentation/Runtime/AudioManager.cs`
+- Relevant regression coverage: `Assets/Decantra/Tests/EditMode/Visual/*`, `Assets/Decantra/Tests/PlayMode/*`
+
+## Root-Cause Hypotheses
+
+- Neck visuals are still driven by UV-based shader masks on the full-bottle glass mesh, so the neck treatment bleeds into the fillable body and creates brightness distortion.
+- The top fill boundary is still communicated by a shader band instead of geometry, which risks both overlap artifacts and prior white-ring regressions.
+- Pour SFX is started outside the animation loop, while visible liquid motion starts inside the coroutine frame loop, leaving room for perceptible desynchronization.
+
+## Execution Checklist
+
+- [x] Audit the active render, geometry, and pour-audio pipeline
+- [ ] Replace shader-banded neck treatment with geometry-bounded neck detail
+- [ ] Add geometry-backed top and bottom fill-boundary perimeter detail
+- [ ] Remove remaining shader logic that brightens or bands the liquid boundary
+- [ ] Start and stop pour audio from the animation progression itself
+- [ ] Add or update regression tests for geometry and audio synchronization
+- [ ] Run EditMode and PlayMode validation plus coverage gate
+- [ ] Rebuild APK, deploy to device, and refresh screenshots
+- [ ] Push the final change set and confirm PR checks are green
+
+## Constraints
+
+- No gameplay rule changes
+- No layout regressions for the corrected three-row board composition
+- No timer-based audio offsets or delayed coroutines for pour sync
+- No shader-band implementation for the new top perimeter line
+
+---
+
 # Liquid Rendering And Three-Row Layout Fix Plan
 
 Last updated: 2026-03-13 UTC

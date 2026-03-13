@@ -97,7 +97,13 @@ namespace Decantra.Presentation.View3D
         private GameObject _outlineGO;
         private GameObject _liquidRoot;
         private GameObject _contactShadowGO;
+        private GameObject _neckOverlayGO;
+        private GameObject _topBoundaryCollarGO;
+        private GameObject _bottomBoundaryCollarGO;
         private MeshRenderer _outlineRenderer;
+        private MeshRenderer _neckOverlayRenderer;
+        private MeshRenderer _topBoundaryCollarRenderer;
+        private MeshRenderer _bottomBoundaryCollarRenderer;
 
         private bool _isHighlighted;
         private bool _isEmptyBottle;
@@ -112,8 +118,12 @@ namespace Decantra.Presentation.View3D
         private const float RimSheenHighlightPower = 3.8f;
         private static readonly Color OutlineSinkColor = new Color(0f, 0f, 0f, 0.94f);
         private static readonly Color OutlineHighlightColor = new Color(0.94f, 0.98f, 1f, 0.38f);
+        private static readonly Color RegularNeckOverlayColor = new Color(0.92f, 0.96f, 1.00f, 0.18f);
+        private static readonly Color SinkNeckOverlayColor = new Color(0.04f, 0.04f, 0.06f, 0.84f);
+        private static readonly Color BoundaryCollarColor = new Color(0.14f, 0.15f, 0.17f, 0.26f);
         private const float OutlineSinkWidth = 0.043f;
         private const float OutlineHighlightWidth = 0.05f;
+        private const float NeckOverlayOutset = 0.0025f;
 
         private Bottle _lastBottle;
         private int _levelMaxCapacity = 4;
@@ -611,6 +621,33 @@ namespace Decantra.Presentation.View3D
                     Destroy(_stopperRenderer.sharedMaterial);
             }
 
+            if (_neckOverlayGO != null)
+            {
+                var mf = _neckOverlayGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+                if (_neckOverlayRenderer != null && _neckOverlayRenderer.sharedMaterial != null)
+                    Destroy(_neckOverlayRenderer.sharedMaterial);
+            }
+
+            if (_topBoundaryCollarGO != null)
+            {
+                var mf = _topBoundaryCollarGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+                if (_topBoundaryCollarRenderer != null && _topBoundaryCollarRenderer.sharedMaterial != null)
+                    Destroy(_topBoundaryCollarRenderer.sharedMaterial);
+            }
+
+            if (_bottomBoundaryCollarGO != null)
+            {
+                var mf = _bottomBoundaryCollarGO.GetComponent<MeshFilter>();
+                if (mf != null && mf.sharedMesh != null)
+                    Destroy(mf.sharedMesh);
+                if (_bottomBoundaryCollarRenderer != null && _bottomBoundaryCollarRenderer.sharedMaterial != null)
+                    Destroy(_bottomBoundaryCollarRenderer.sharedMaterial);
+            }
+
             if (_outlineGO != null)
             {
                 var mf = _outlineGO.GetComponent<MeshFilter>();
@@ -1034,6 +1071,30 @@ namespace Decantra.Presentation.View3D
             var shadowRenderer = _contactShadowGO.AddComponent<MeshRenderer>();
             shadowRenderer.sharedMaterial = CreateFallbackShadowMaterial();
 
+            _neckOverlayGO = new GameObject("BottleNeckOverlay");
+            _neckOverlayGO.transform.SetParent(_worldRoot.transform, false);
+            _neckOverlayGO.layer = targetLayer;
+            var neckOverlayFilter = _neckOverlayGO.AddComponent<MeshFilter>();
+            neckOverlayFilter.sharedMesh = BottleMeshGenerator.GenerateNeckOverlayMesh(_capacityRatio, NeckOverlayOutset);
+            _neckOverlayRenderer = _neckOverlayGO.AddComponent<MeshRenderer>();
+            _neckOverlayRenderer.sharedMaterial = CreateDetailMaterial("BottleNeckOverlay_Mat", RegularNeckOverlayColor, 3002);
+
+            _topBoundaryCollarGO = new GameObject("BottleTopBoundaryCollar");
+            _topBoundaryCollarGO.transform.SetParent(_worldRoot.transform, false);
+            _topBoundaryCollarGO.layer = targetLayer;
+            var topCollarFilter = _topBoundaryCollarGO.AddComponent<MeshFilter>();
+            topCollarFilter.sharedMesh = BottleMeshGenerator.GenerateBoundaryCollarMesh(_capacityRatio, topBoundary: true);
+            _topBoundaryCollarRenderer = _topBoundaryCollarGO.AddComponent<MeshRenderer>();
+            _topBoundaryCollarRenderer.sharedMaterial = CreateDetailMaterial("BottleTopBoundaryCollar_Mat", BoundaryCollarColor, 3002);
+
+            _bottomBoundaryCollarGO = new GameObject("BottleBottomBoundaryCollar");
+            _bottomBoundaryCollarGO.transform.SetParent(_worldRoot.transform, false);
+            _bottomBoundaryCollarGO.layer = targetLayer;
+            var bottomCollarFilter = _bottomBoundaryCollarGO.AddComponent<MeshFilter>();
+            bottomCollarFilter.sharedMesh = BottleMeshGenerator.GenerateBoundaryCollarMesh(_capacityRatio, topBoundary: false);
+            _bottomBoundaryCollarRenderer = _bottomBoundaryCollarGO.AddComponent<MeshRenderer>();
+            _bottomBoundaryCollarRenderer.sharedMaterial = CreateDetailMaterial("BottleBottomBoundaryCollar_Mat", BoundaryCollarColor, 3002);
+
             // ── Bottle stopper / cork ────────────────────────────────────────────
             // Keep the cork visible for the closed-bottle silhouette. Its tint changes
             // with bottle state, but the geometry remains present so each bottle still
@@ -1286,6 +1347,34 @@ namespace Decantra.Presentation.View3D
             mr.SetPropertyBlock(block);
 
             ApplyOutlineState();
+            ApplyNeckOverlayState();
+            ApplyBoundaryCollarState();
+        }
+
+        private void ApplyNeckOverlayState()
+        {
+            if (_neckOverlayRenderer == null) return;
+
+            var block = new MaterialPropertyBlock();
+            _neckOverlayRenderer.GetPropertyBlock(block);
+            block.SetColor(PropStopperColor, _isSinkOnly ? SinkNeckOverlayColor : RegularNeckOverlayColor);
+            _neckOverlayRenderer.SetPropertyBlock(block);
+        }
+
+        private void ApplyBoundaryCollarState()
+        {
+            ApplyBoundaryCollarColor(_topBoundaryCollarRenderer);
+            ApplyBoundaryCollarColor(_bottomBoundaryCollarRenderer);
+        }
+
+        private static void ApplyBoundaryCollarColor(MeshRenderer renderer)
+        {
+            if (renderer == null) return;
+
+            var block = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(block);
+            block.SetColor(PropStopperColor, BoundaryCollarColor);
+            renderer.SetPropertyBlock(block);
         }
 
         private void ApplyOutlineState()
@@ -1344,6 +1433,39 @@ namespace Decantra.Presentation.View3D
                         if (outlineMf.sharedMesh != null)
                             Destroy(outlineMf.sharedMesh);
                         outlineMf.sharedMesh = BottleMeshGenerator.GenerateBottleMesh(_capacityRatio);
+                    }
+                }
+
+                if (_neckOverlayGO != null)
+                {
+                    var neckMf = _neckOverlayGO.GetComponent<MeshFilter>();
+                    if (neckMf != null)
+                    {
+                        if (neckMf.sharedMesh != null)
+                            Destroy(neckMf.sharedMesh);
+                        neckMf.sharedMesh = BottleMeshGenerator.GenerateNeckOverlayMesh(_capacityRatio, NeckOverlayOutset);
+                    }
+                }
+
+                if (_topBoundaryCollarGO != null)
+                {
+                    var topCollarMf = _topBoundaryCollarGO.GetComponent<MeshFilter>();
+                    if (topCollarMf != null)
+                    {
+                        if (topCollarMf.sharedMesh != null)
+                            Destroy(topCollarMf.sharedMesh);
+                        topCollarMf.sharedMesh = BottleMeshGenerator.GenerateBoundaryCollarMesh(_capacityRatio, topBoundary: true);
+                    }
+                }
+
+                if (_bottomBoundaryCollarGO != null)
+                {
+                    var bottomCollarMf = _bottomBoundaryCollarGO.GetComponent<MeshFilter>();
+                    if (bottomCollarMf != null)
+                    {
+                        if (bottomCollarMf.sharedMesh != null)
+                            Destroy(bottomCollarMf.sharedMesh);
+                        bottomCollarMf.sharedMesh = BottleMeshGenerator.GenerateBoundaryCollarMesh(_capacityRatio, topBoundary: false);
                     }
                 }
 
@@ -1784,6 +1906,25 @@ namespace Decantra.Presentation.View3D
             }
 
             return new Material(shader) { name = "Liquid3D_Fallback" };
+        }
+
+        private static Material CreateDetailMaterial(string name, Color color, int renderQueue)
+        {
+            var shader = Shader.Find("Unlit/Color")
+                      ?? Shader.Find("Sprites/Default")
+                      ?? Shader.Find("Standard")
+                      ?? Shader.Find("Universal Render Pipeline/Unlit");
+
+            if (shader == null)
+            {
+                Debug.LogError($"Bottle3DView: unable to resolve detail shader for {name}.");
+                return null;
+            }
+
+            var material = new Material(shader) { name = name };
+            material.SetColor("_Color", color);
+            material.renderQueue = renderQueue;
+            return material;
         }
 
         private static Material CreateFallbackShadowMaterial()

@@ -124,6 +124,27 @@ namespace Decantra.PlayMode.Tests
             Object.Destroy(host);
         }
 
+        [UnityTest]
+        public IEnumerator StartAndStopFrameSyncedPour_TracksPlaybackState()
+        {
+            var host = new GameObject("AudioManagerFrameSyncHost");
+            var manager = host.AddComponent<AudioManager>();
+            yield return null;
+
+            manager.SelectPourClipForLevel(4, 2222);
+            manager.StartFrameSyncedPour(0.2f, 0.7f);
+            yield return null;
+
+            Assert.IsTrue(manager.IsFrameSyncedPourPlaying, "Expected frame-synced pour playback to start.");
+
+            manager.StopFrameSyncedPour();
+            yield return null;
+
+            Assert.IsFalse(manager.IsFrameSyncedPourPlaying, "Expected frame-synced pour playback to stop.");
+
+            Object.Destroy(host);
+        }
+
         private static object GetPrivateField(object instance, string fieldName)
         {
             Assert.NotNull(instance);

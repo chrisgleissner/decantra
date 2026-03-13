@@ -130,22 +130,19 @@ Shader "Decantra/BottleGlass"
                 col.a *= (1.0 - domeArea * 0.85);
 
                 float uvY = IN.uv.y;
-                float neckMask = saturate((uvY - 0.82) / 0.04) * (1.0 - smoothstep(0.955, 0.985, uvY));
                 float baseMask = smoothstep(0.97, 1.0, uvY);
-                float indicatorMask = saturate(max(neckMask, baseMask));
 
                 // Shared indicator path: sinks render opaque dark caps while regular
-                // bottles render frosted semi-transparent glass in the same regions.
+                // bottles render frosted semi-transparent glass in the base region only.
                 if (_SinkOnly > 0.5)
                 {
-                    float darkBand = indicatorMask;
-                    col.rgb = lerp(col.rgb, float3(0.05, 0.05, 0.07), darkBand * 0.9);
-                    col.a   = lerp(col.a,   0.80, darkBand);
+                    col.rgb = lerp(col.rgb, float3(0.05, 0.05, 0.07), baseMask * 0.9);
+                    col.a   = lerp(col.a,   0.80, baseMask);
                 }
                 else
                 {
-                    col.rgb = lerp(col.rgb, _FrostTint.rgb * 0.84, indicatorMask * 0.68);
-                    col.a = lerp(col.a, max(col.a, _FrostAlpha * 0.82), indicatorMask);
+                    col.rgb = lerp(col.rgb, _FrostTint.rgb * 0.84, baseMask * 0.68);
+                    col.a = lerp(col.a, max(col.a, _FrostAlpha * 0.82), baseMask);
                 }
 
                 return col;
@@ -300,53 +297,24 @@ Shader "Decantra/BottleGlass"
                 alpha += emptyBoost * (0.035 + fresnel * 0.05);
                 alpha = min(alpha, _MaxGlassAlpha);
 
-                // ── Neck capacity marker ─────────────────────────────────────
-                // Subtle darkening band at the body-shoulder junction, showing players
-                // exactly where the fillable chamber ends (non-sink bottles only).
-                // Junction UV: vFrac = (y + BodyHalfHeight + DomeRadius) / totalHeight
-                // At bodyTop: vFrac ≈ (0.57 + 1.6·cap) / (0.935 + 1.6·cap)
-                if (_SinkOnly < 0.5)
-                {
-                    float c = clamp(_CapacityRatio, 0.1, 1.0);
-                    float junctionUV = (0.57 + 1.6 * c) / max(0.935 + 1.6 * c, 0.001);
-                    float uvY = IN.uv.y;
-                    // 3-pixel-wide softened band centred on junctionUV
-                    float band = smoothstep(junctionUV - 0.020, junctionUV, uvY)
-                               * (1.0 - smoothstep(junctionUV, junctionUV + 0.030, uvY));
-                    // Keep the fill-cap marker readable without turning it into a dark stripe.
-                    color = lerp(color, color * 0.78, band * 0.30);
-                    alpha = lerp(alpha, min(alpha + 0.04, _MaxGlassAlpha), band * 0.25);
-                }
-
                 float uvY = IN.uv.y;
-                float neckMask = saturate((uvY - 0.82) / 0.04) * (1.0 - smoothstep(0.955, 0.985, uvY));
                 float baseMask = smoothstep(0.97, 1.0, uvY);
-                float indicatorMask = saturate(max(neckMask, baseMask));
 
                 if (_SinkOnly > 0.5)
                 {
-                    // Dark the top band.
-                    color = lerp(color, float3(0.04, 0.04, 0.06), neckMask * 0.92);
-                    alpha = lerp(alpha, 0.85, neckMask);
-
                     // Dark the bottom dome band.
                     color = lerp(color, float3(0.04, 0.04, 0.06), baseMask * 0.88);
                     alpha = lerp(alpha, 0.78, baseMask);
-
-                    // Neutral-white specular gloss on the rim band only (neck/shoulder).
-                    // Excluded from domeMask: the hemispherical bottom dome has surface normals
-                    // that produce a circular Blinn-Phong hotspot, which looks fake and distracting.
-                    color += float3(0.90, 0.92, 1.0) * (spec * 0.65 * neckMask);
                 }
                 else
                 {
                     float edgeScatter = lerp(0.55, 1.0, fresnel);
                     float3 frostColor = _FrostTint.rgb * (1.0 + _FrostScatter * edgeScatter);
-                    color = lerp(color, frostColor, indicatorMask * 0.42);
-                    color += _FrostTint.rgb * indicatorMask * _FrostScatter * 0.10 * (0.5 + stripMask + stripMask2);
+                    color = lerp(color, frostColor, baseMask * 0.42);
+                    color += _FrostTint.rgb * baseMask * _FrostScatter * 0.10 * (0.5 + stripMask + stripMask2);
                     alpha = lerp(alpha,
                         min(_MaxGlassAlpha, max(alpha, _FrostAlpha + rimSheen * 0.02)),
-                        indicatorMask * 0.92);
+                        baseMask * 0.92);
                 }
 
                 return float4(color, alpha);

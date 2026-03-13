@@ -675,8 +675,6 @@ namespace Decantra.Presentation.Controller
             var targetView = GetBottleView(targetIndex);
             var color = _state.Bottles[sourceIndex].TopColor;
 
-            PlayPourSfx(previousFillRatio, newFillRatio);
-
             if (EnablePourDiagnostics)
             {
                 string mode = _autoSolvePlaybackActive ? "auto-solve" : "manual";
@@ -700,7 +698,7 @@ namespace Decantra.Presentation.Controller
                 src3D.BeginPour(GetBottle3DView(targetIndex),
                     poured / (float)Mathf.Max(1, _state.Bottles[sourceIndex].Capacity));
 
-            StartCoroutine(AnimateMove(moveId, sourceIndex, targetIndex, poured, color, duration, sourceView, targetView));
+            StartCoroutine(AnimateMove(moveId, sourceIndex, targetIndex, poured, color, duration, previousFillRatio, newFillRatio, sourceView, targetView));
             return true;
         }
 
@@ -717,7 +715,7 @@ namespace Decantra.Presentation.Controller
             _inputLocked = _state != null && (_state.IsWin() || _state.IsFail());
         }
 
-        private IEnumerator AnimateMove(int moveId, int sourceIndex, int targetIndex, int poured, ColorId? color, float duration, BottleView sourceView, BottleView targetView)
+        private IEnumerator AnimateMove(int moveId, int sourceIndex, int targetIndex, int poured, ColorId? color, float duration, float previousFillRatio, float newFillRatio, BottleView sourceView, BottleView targetView)
         {
             // ── 3D pour interpolation setup ──────────────────────────────────────
             // Compute fill fractions from pre-pour game state (state is mutated only
@@ -725,6 +723,7 @@ namespace Decantra.Presentation.Controller
             var src3D = GetBottle3DView(sourceIndex);
             var tgt3D = GetBottle3DView(targetIndex);
             int interpolationFrames = 0;
+            bool pourSfxStarted = false;
 
             if (_state != null
                 && sourceIndex >= 0 && sourceIndex < _state.Bottles.Count
@@ -749,11 +748,17 @@ namespace Decantra.Presentation.Controller
             }
 
             float time = 0f;
-            while (time < duration)
+            while (true)
             {
                 time += Time.deltaTime;
                 float tRaw = Mathf.Clamp01(time / duration);
                 float t = Mathf.SmoothStep(0f, 1f, tRaw);  // ease-in/out: gentle start, gentle end
+                if (!pourSfxStarted && t > 0f)
+                {
+                    PlayPourSfx(previousFillRatio, newFillRatio);
+                    pourSfxStarted = true;
+                }
+
                 sourceView?.AnimateOutgoing(poured, t);
                 if (color.HasValue)
                 {
@@ -762,8 +767,16 @@ namespace Decantra.Presentation.Controller
                 src3D?.SetPourT(t);
                 tgt3D?.SetPourT(t);
                 interpolationFrames++;
+
+                if (time >= duration)
+                {
+                    break;
+                }
+
                 yield return null;
             }
+
+            StopPourSfx();
 
             // Clear 3D animation state BEFORE applying game-state mutation so that
             // the subsequent Render() call finds the views in a clean state.
@@ -2472,7 +2485,13 @@ namespace Decantra.Presentation.Controller
         private void PlayPourSfx(float previousFillRatio, float newFillRatio)
         {
             if (!_sfxEnabled || _audioManager == null || _state == null) return;
-            _audioManager.PlayPourSegment(previousFillRatio, newFillRatio);
+            _audioManager.StartFrameSyncedPour(previousFillRatio, newFillRatio);
+        }
+
+        private void StopPourSfx()
+        {
+            if (_audioManager == null) return;
+            _audioManager.StopFrameSyncedPour();
         }
 
         private float ResolvePourWindowDuration(float previousFillRatio, float newFillRatio, int poured)
