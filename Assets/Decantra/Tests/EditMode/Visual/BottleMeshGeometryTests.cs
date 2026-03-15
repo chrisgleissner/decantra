@@ -144,5 +144,14 @@ namespace Decantra.Tests.EditMode.Visual
                 Object.DestroyImmediate(mesh);
             }
         }
+
+        [Test]
+        public void FlatBase_ProfileRowsUseInclusiveSeamVertexMatchingStride()
+        {
+            string source = File.ReadAllText(BottleMeshGeneratorPath);
+
+            Assert.That(source, Does.Contain("int stride = Segments + 1;"));
+            Assert.That(source, Does.Contain("for (int lon = 0; lon <= Segments; lon++)"));
+        }
     }
 }

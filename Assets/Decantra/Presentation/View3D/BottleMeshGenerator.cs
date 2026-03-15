@@ -555,7 +555,7 @@ namespace Decantra.Presentation.View3D
                 float t = Mathf.InverseLerp(topY, bottomY, rowY);
                 float vFrac = Mathf.Lerp(BaseUvMin, BaseUvMax, t);
 
-                for (int lon = 0; lon < Segments; lon++)
+                for (int lon = 0; lon <= Segments; lon++)
                 {
                     float theta = (float)lon / Segments * Mathf.PI * 2f;
                     float cosTheta = Mathf.Cos(theta);

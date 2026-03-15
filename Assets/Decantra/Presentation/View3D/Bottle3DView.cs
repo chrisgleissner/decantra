@@ -190,6 +190,16 @@ namespace Decantra.Presentation.View3D
         // changing the shader, interaction logic, or bottle internals.
         public const float WidthFitMultiplier = 1.065f;
 
+        // The canvas-side interaction collider remains on the unscaled UI object, so
+        // its local height still needs to preserve the pre-flat-base hit target.
+        private const float LegacyColliderFitFraction = 0.90f;
+
+        private static readonly float LegacyColliderHeight =
+            BottleMeshGenerator.BodyHeight
+            + BottleMeshGenerator.ShoulderHeight
+            + BottleMeshGenerator.NeckHeight
+            + BottleMeshGenerator.DomeRadius;
+
         // Full mesh height (cap ratio 1.0) in local world units before any worldRoot scale.
         private static readonly float MeshFullHeight = BottleMeshGenerator.ReferenceMeshHeight;
 
@@ -1172,7 +1182,7 @@ namespace Decantra.Presentation.View3D
                 0f);
             box.size = new Vector3(
                 BottleMeshGenerator.BodyRadius * 2.15f * WidthFitMultiplier,
-                BottleMeshGenerator.ReferenceMeshHeight * (HeightFitFraction / 0.90f),
+                LegacyColliderHeight * (HeightFitFraction / LegacyColliderFitFraction),
                 BottleMeshGenerator.BodyRadius * 1.15f * WidthFitMultiplier);
         }
 
