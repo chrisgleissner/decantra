@@ -1,3 +1,280 @@
+# 2026-03-14 Flat-Base Bottle Geometry Plan
+
+Last updated: 2026-03-14 UTC
+Execution engineer: GitHub Copilot (GPT-5.4)
+Status: Completed
+
+## Reopened validation note
+
+- User-reported verification on 2026-03-14 showed the prior build still looked rounded at the bottle bottom and still rendered liquids too dull in gameplay.
+- This reopened pass extends the fix to the active runtime presentation surfaces: a more aggressive 3D flat-base profile for Android/device builds, a visible 2D base plate for fallback/UI bottle silhouettes, and a shared full-saturation liquid tuning path used by both BottleView and Bottle3DView.
+
+## Completion evidence
+
+- EditMode test baseline remains green: `Logs/TestResults.xml` reports `384/384` passing.
+- Android APK rebuilt successfully at `2026-03-14 21:45:29 UTC`: `Builds/Android/Decantra.apk`.
+- The rebuilt app is installed on the attached device `9B081FFAZ001WX` (`pm path uk.gleissner.decantra` returned a live package path over ADB port `5039`).
+- Screenshot capture completed on-device and refreshed the tracked outputs at `2026-03-14 21:47 UTC`, including `doc/play-store-assets/screenshots/phone/initial_render.png`, `scene_3x3_bottles.png`, `layout-report.json`, and `docs/repro/visual-verification/reports/layout-report.json`.
+
+## Objective
+
+Replace the gameplay bottle's semicircular bottom with a flat-bottom base that still has softly rounded lower corners, preserve the existing liquid region and sink/regular base color behavior, and slightly increase bottle usage of the gameplay area by widening bottles by about 10% and increasing fitted height by about 6-8% without creating bottle, cork, HUD, or screen-edge overlap.
+
+## Confirmed implementation surfaces
+
+- `Assets/Decantra/Presentation/View3D/BottleMeshGenerator.cs`
+  Controls the procedural bottle shell geometry, including the current hemispherical base, interior bounds, UVs used by the glass shader, and neck/stopper anchor positions.
+- `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`
+  Controls live gameplay bottle mesh instantiation, cell-fit scaling, collider sizing, contact shadow placement, and sink/regular visual state application.
+- `Assets/Decantra/Presentation/View3D/Shaders/BottleGlass.shader`
+  Reuses UV-space base masking for opaque/frosted regular bases and black sink bases; the new mesh must preserve this contract.
+- `Assets/Decantra/Tests/EditMode/Visual/BottleMeshGeometryTests.cs`
+  Existing regression surface for mesh-structure invariants; extend for the flat base.
+- `Assets/Decantra/Tests/PlayMode/BottleReadabilityDensityPlayModeTests.cs`
+  Existing gameplay-level validation for overlap, HUD clearance, and sink indicator correctness.
+- `Assets/Decantra/Tests/PlayMode/AndroidLayoutInvariancePlayModeTests.cs`
+  Existing gameplay layout safety guard for overlap and spacing on 3-row boards.
+
+## Constraints
+
+- Change only the bottle base geometry below the fillable liquid region and the overall gameplay bottle sizing envelope.
+- Do not change neck geometry, shoulder profile, liquid behavior, shader logic for liquid rendering, cork placement logic, camera settings, HUD layout, or gameplay rules.
+- Keep the liquid region anchored to the existing interior bottom/top contract so liquid never enters the new glass base.
+- Preserve the existing base/neck sink-vs-regular rendering behavior by keeping the glass shader's base UV band semantics intact.
+
+## Execution checklist
+
+- [x] Locate the active gameplay bottle geometry, sizing, and sink/base rendering path
+- [x] Replace the hemispherical base mesh with a flat-bottom rounded base while keeping the same fillable interior region
+- [x] Increase bottle width slightly through the live 3D presentation path while preserving spacing guards
+- [x] Increase fitted bottle height to reclaim the removed base space without causing layout collisions in automated coverage
+- [x] Add/update geometry and layout regressions for the new base and enlarged bottle envelope
+- [x] Run automated tests relevant to bottle geometry and gameplay layout
+- [x] Build the Android APK
+- [x] Install the APK onto the attached Android device
+- [x] Capture fresh gameplay screenshots
+- [ ] Verify the screenshots show the flatter base implementation, maximally saturated liquids, preserved liquid bounds, preserved sink behavior, and no layout overlap
+
+## Verification targets
+
+- Flat horizontal bottle resting edge is visible in gameplay captures
+- Lower sidewalls transition into the base with soft rounding, not sharp corners
+- Base height is materially shorter than the previous semicircular bottom and roughly half its prior height
+- Base reads visually thicker than the rim
+- Regular bottles keep the opaque/frosted base/neck look
+- Sink bottles keep the black base/neck look
+- Bottles are visibly larger, especially in width, while preserving row/column padding
+- No bottle overlap, cork overlap, HUD intrusion, or screen-edge clipping appears in tests or screenshots
+
+## Current implementation status
+
+- `BottleMeshGenerator` now uses a short rounded flat base section (`BaseHeight = DomeRadius * 0.5f`) with a dedicated thicker base glass depth while keeping `InteriorBottomY` unchanged so the liquid floor anchor remains fixed.
+- `Bottle3DView` now fits bottles to `HeightFitFraction = 0.96f` and applies an additional `WidthFitMultiplier = 1.025f`, producing a slightly taller and wider in-cell presentation without changing neck geometry, shoulder shape, liquid behaviour, or shader logic.
+- The sink/regular base behaviour remains on the existing shader contract because the flat base keeps the previous base UV band (`BaseUvMin..BaseUvMax`) rather than introducing new masking rules.
+
+## Automated validation status
+
+- EditMode test results: `384/384` passed (`Logs/TestResults.xml`, run completed 2026-03-14 18:41:56 UTC).
+- PlayMode test results: `135` passed, `0` failed, `2` ignored (`Logs/PlayModeTestResults.xml`, run completed 2026-03-14 18:47:21 UTC).
+- File diagnostics for the modified mesh/view/test files are clean in the editor.
+
+## Android build and screenshot confirmation
+
+- Android APK rebuilt successfully at `2026-03-14 18:49:47 UTC`: `Builds/Android/Decantra.apk`.
+- The APK is installed on the attached Pixel 4 device `9B081FFAZ001WX` (`package:uk.gleissner.decantra` confirmed over ADB).
+- Fresh representative gameplay screenshots were captured at `2026-03-14 18:51 UTC`, including `doc/play-store-assets/screenshots/phone/scene_3x3_bottles.png`, `doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png`, and `doc/play-store-assets/screenshots/phone/screenshot-09-level-20.png`.
+- Runtime capture files were also produced on-device under `/sdcard/Android/data/uk.gleissner.decantra/files/DecantraScreenshots`.
+
+## Screenshot verification summary
+
+- `doc/play-store-assets/screenshots/phone/layout-report.json` was regenerated at `2026-03-14T18:50:58Z` and reports `bottleCount = 9`, `bottleOverlapDetected = false`, `shadowOverlapDetected = false`, and `hudIntrusionDetected = false`.
+- `doc/play-store-assets/screenshots/phone/cork-layout-report.json` was regenerated at `2026-03-14T18:51:09Z` and reports `overlapDetected = false`, `corkInsertionDepthValid = true`, and `shadowLengthConstraintPassed = true`.
+- The legacy `corkValidationPassed` flag in that report remains `false` because it still enforces a stricter cork-center offset heuristic (`<= 0.02`) that is outside this flat-base task's allowed scope; the task-relevant cork requirement (`corks must not overlap`) remains satisfied.
+
+---
+
+## 2026-03-14 Liquid Vibrancy Upgrade Plan
+
+Last updated: 2026-03-14 UTC
+Execution engineer: GitHub Copilot (GPT-5.4)
+
+### Vibrancy Objective
+
+Increase only the bottle liquid color vibrancy during gameplay so liquids move materially closer to the saturation and brightness of the official Decantra logo while preserving the current 3D bottle geometry, glass rendering, surface curvature, lighting falloff, shading gradients, translucency, and specular response.
+
+### Vibrancy Implementation Surfaces
+
+- `Assets/Decantra/Presentation/View3D/LiquidColorTuning.cs`
+- `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`
+- `Assets/Decantra/Presentation/View/BottleView.cs`
+- `Assets/Decantra/Tests/EditMode/Visual/LiquidShaderInvariantTests.cs`
+- `Assets/Decantra/Tests/PlayMode/GameControllerPlayModeTests.cs`
+
+### Vibrancy Strategy
+
+- Keep the existing liquid shading model, glass rendering, geometry, and transparency behavior untouched.
+- Apply a liquid-only hue-preserving HSV boost with `s * 1.35` and `v * 1.12` before the existing bottle shading is displayed.
+- Route both static bottle layers and animated receive/pour layers through the same tuning path so gameplay stays visually consistent in both the 3D and UI bottle views.
+- Keep regression coverage aligned with the new tuning math so EditMode and PlayMode validation assert the same expected colors.
+- Rebuild the Android APK, deploy it to the attached Pixel 4, and regenerate gameplay screenshots after validation.
+
+### Vibrancy Execution Checklist
+
+- [x] Locate the active liquid color rendering path
+- [x] Update the liquid color pipeline with a hue-preserving vibrancy boost
+- [x] Verify all gameplay liquid colors remain distinct and non-neon
+- [x] Run automated validation for the changed rendering code
+- [x] Build the Android APK and deploy it
+- [x] Regenerate gameplay screenshots with the updated liquids
+- [x] Update this plan with final file list, comparison notes, and build/screenshot confirmation
+
+### Final Rendering Summary
+
+- Added a shared `LiquidColorTuning` helper for the 3D bottle path so liquid colors get a stronger saturation/value lift without changing hue or alpha.
+- Updated `Bottle3DView` to run both static bottle layers and animated receive/pour colors through that helper.
+- Updated `BottleView` so the visible 2D/UI liquid stack, incoming overlay, and surface sheen use the same vibrancy math as the 3D path.
+- Left the bottle mesh, glass, shader lighting, curvature, and transparency model unchanged.
+
+### Modified Files
+
+- `Assets/Decantra/Presentation/View3D/LiquidColorTuning.cs`
+- `Assets/Decantra/Presentation/View3D/Bottle3DView.cs`
+- `Assets/Decantra/Presentation/View/BottleView.cs`
+- `Assets/Decantra/Tests/EditMode/Visual/LiquidShaderInvariantTests.cs`
+- `Assets/Decantra/Tests/PlayMode/GameControllerPlayModeTests.cs`
+
+### Before / After Notes
+
+- Before: the gameplay bottles still presented relatively muted liquids, especially in the UI bottle path that dominates the Play Store and regression screenshots.
+- After: liquids keep the same hue ordering and translucency, but appear noticeably brighter and more saturated, landing closer to the logo palette without flattening the existing shading.
+- Before: PlayMode accessibility expectations still encoded the older boost math.
+- After: runtime expectations now match the shared hue-preserving boost used by the bottle renderers.
+
+### Validation
+
+- EditMode validation passed: `384/384` tests green.
+- The PlayMode regression `AccessibleColorsToggle_UpdatesRenderedBottleLiquid` was updated to the new tuning formula and then passed.
+- Full `./build --screenshots` completed successfully after the PlayMode expectation fix.
+
+### Build And Screenshot Confirmation
+
+- Android APK rebuilt at `2026-03-14 18:04:05 UTC`: `Builds/Android/Decantra.apk`.
+- Refreshed gameplay screenshots captured at `2026-03-14 18:05:38 UTC`, including `doc/play-store-assets/screenshots/phone/screenshot-01-launch.png` and `doc/play-store-assets/screenshots/phone/screenshot-09-level-20.png`.
+- Screenshot capture also refreshed the tracked baseline/repro launch assets produced by the existing build pipeline.
+
+---
+
+# Logo Replacement Plan
+
+Last updated: 2026-03-14 UTC
+Execution engineer: GitHub Copilot (GPT-5.4)
+
+## Objective
+
+Replace the old Decantra logo everywhere it exists as a repository asset with content derived from `doc/img/logo2.png`, while preserving file names, file paths, PNG format, and the original pixel dimensions of every replaced file.
+
+## Asset Inventory
+
+| Path | Filename | Dimensions | Usage |
+| --- | --- | --- | --- |
+| `doc/img/logo.png` | `logo.png` | `512x512` | Canonical documentation logo used by README |
+| `docs/img/logo.png` | `logo.png` | `512x512` | Static docs site logo |
+| `Assets/Decantra/Presentation/Resources/DecantraLogo.png` | `DecantraLogo.png` | `512x512` | Runtime splash / intro banner sprite loaded from `Resources` |
+| `Assets/Icons/logo.png` | `logo.png` | `512x512` | Android adaptive icon foreground source |
+| `doc/play-store-assets/icons/app-icon-512x512.png` | `app-icon-512x512.png` | `512x512` | Play Store app icon asset and splash validation source image |
+| `Assets/Decantra/Branding/AdaptiveIconPreview.png` | `AdaptiveIconPreview.png` | `512x512` | Branding preview copy of the app icon |
+| `Assets/Decantra/Branding/DecantraAppIcon.png` | `DecantraAppIcon.png` | `512x512` | Branding copy of the app icon |
+| `Assets/Decantra/Branding/AppIcon512.png` | `AppIcon512.png` | `512x512` | Branding copy of the app icon |
+| `doc/img/intro.png` | `intro.png` | `1024x1024` | Intro / startup artwork source in docs |
+| `doc/img/decantra.png` | `decantra.png` | `1536x1024` | Documentation branding art |
+| `Assets/Decantra/Presentation/Resources/Decantra.png` | `Decantra.png` | `1325x271` | Runtime resource copy of wide branding art |
+| `doc/img/banner.png` | `banner.png` | `1527x198` | Documentation banner art |
+| `Assets/Decantra/Presentation/Resources/DecantraBanner.png` | `DecantraBanner.png` | `1527x198` | Runtime resource banner art |
+| `Assets/Decantra/Presentation/Resources/DecantraFeatureGraphic.png` | `DecantraFeatureGraphic.png` | `1024x500` | Runtime resource feature graphic |
+| `doc/play-store-assets/feature-graphic/feature-graphic-1024x500.png` | `feature-graphic-1024x500.png` | `1024x500` | Play Store feature graphic |
+| `doc/img/logo2.png` | `logo2.png` | `1024x1024` | Temporary replacement source; remove after propagation if no longer needed |
+
+## Runtime Screenshot Refresh Targets
+
+These are not source logo assets, but they must be refreshed after the asset swap because they contain the startup logo on-screen.
+
+| Path | Filename | Dimensions | Usage |
+| --- | --- | --- | --- |
+| `doc/play-store-assets/screenshots/phone/screenshot-01-launch.png` | `screenshot-01-launch.png` | `runtime-generated` | Launch screenshot |
+| `doc/play-store-assets/screenshots/phone/startup_fade_in_midpoint.png` | `startup_fade_in_midpoint.png` | `runtime-generated` | Mid-fade startup screenshot |
+| `doc/play-store-assets/screenshots/phone/screenshot-02-intro.png` | `screenshot-02-intro.png` | `1080x2280` | Current intro screenshot used for Play Store docs |
+| `doc/play-store-assets/screenshots/phone/_baseline/screenshot-02-intro.png` | `screenshot-02-intro.png` | `1080x2400` | Historical intro baseline screenshot |
+| `docs/repro/3d-bottle-regressions/baseline/screenshot-02-intro.png` | `screenshot-02-intro.png` | `1080x2400` | Historical repro baseline screenshot |
+| `Artifacts/screenshot-02-intro.png` | `screenshot-02-intro.png` | `1080x2400` | Historical artifact copy |
+| `Artifacts/first-move-shift/screenshot-02-intro.png` | `screenshot-02-intro.png` | `1080x2400` | Historical artifact copy |
+
+## Execution Checklist
+
+- [x] Discover all repository logo usages and exact old-logo copies
+- [x] Build the asset inventory with paths, dimensions, and usages
+- [x] Replace each inventoried branding asset in place using resized content derived from `doc/img/logo2.png`
+- [x] Remove `doc/img/logo2.png` after propagation
+- [x] Verify every replaced asset still matches its original dimensions and remains a valid PNG
+- [x] Run local validation for remaining references and confirm the temporary source file is gone
+- [x] Build the Android app, deploy it to the attached device, and refresh screenshots
+- [x] Update screenshot copies that still contain the old startup logo
+- [x] Update this plan section with the final replaced-file list, verification steps, and confirmation that no old logo asset remains in the repository
+
+## Final Replaced Files
+
+Branding assets replaced in place from the `logo2.png` source before that temporary file was deleted:
+
+- `doc/img/logo.png`
+- `docs/img/logo.png`
+- `Assets/Decantra/Presentation/Resources/DecantraLogo.png`
+- `Assets/Icons/logo.png`
+- `doc/play-store-assets/icons/app-icon-512x512.png`
+- `Assets/Decantra/Branding/AdaptiveIconPreview.png`
+- `Assets/Decantra/Branding/DecantraAppIcon.png`
+- `Assets/Decantra/Branding/AppIcon512.png`
+- `doc/img/intro.png`
+- `doc/img/decantra.png`
+- `Assets/Decantra/Presentation/Resources/Decantra.png`
+- `doc/img/banner.png`
+- `Assets/Decantra/Presentation/Resources/DecantraBanner.png`
+- `Assets/Decantra/Presentation/Resources/DecantraFeatureGraphic.png`
+- `doc/play-store-assets/feature-graphic/feature-graphic-1024x500.png`
+
+Startup and intro screenshots refreshed after deploying the updated APK:
+
+- `doc/play-store-assets/screenshots/phone/screenshot-01-launch.png`
+- `doc/play-store-assets/screenshots/phone/startup_fade_in_midpoint.png`
+- `doc/play-store-assets/screenshots/phone/screenshot-02-intro.png`
+- `doc/play-store-assets/screenshots/phone/_baseline/screenshot-01-launch.png`
+- `doc/play-store-assets/screenshots/phone/_baseline/screenshot-02-intro.png`
+- `docs/repro/3d-bottle-regressions/baseline/screenshot-01-launch.png`
+- `docs/repro/3d-bottle-regressions/baseline/screenshot-02-intro.png`
+- `Artifacts/screenshot-01-launch.png`
+- `Artifacts/screenshot-02-intro.png`
+- `Artifacts/startup_fade_in_midpoint.png`
+- `Artifacts/first-move-shift/screenshot-01-launch.png`
+- `Artifacts/first-move-shift/screenshot-02-intro.png`
+- `Artifacts/first-move-shift/startup_fade_in_midpoint.png`
+
+## Verification Notes
+
+- Preserved dimensions were rechecked with `identify` for every replaced branding asset and for all refreshed archived startup screenshots.
+- The preferred attached Android device `9B081FFAZ001WX` was detected and used for installation / screenshot capture.
+- `./build --screenshots` completed the Android build, install, and capture flow; `./build --screenshots-only` was then run to force a clean screenshot recapture pass after the asset swap.
+- Runtime startup captures were refreshed locally at `2026-03-14 16:00 UTC` for `screenshot-01-launch.png`, `startup_fade_in_midpoint.png`, and `screenshot-02-intro.png`.
+- Historical startup screenshot copies were normalized from the fresh captures while preserving their original `1080x2400` dimensions.
+- `Assets/Decantra/App/Editor/SplashValidation.cs` still points to `Assets/Decantra/Presentation/Resources/DecantraLogo.png`, so no code or config references changed.
+- Play Store docs do not directly reference `doc/img/logo.png`; instead they reference the app icon and feature graphic files, both of which were replaced in place.
+- A repository-wide image hash sweep confirmed that the previous canonical logo hash `0e6fdad102afcc6f13f6a8092ddc213e5b26d6acd8bdf06f65e42c7f7fe8acb8` is no longer present.
+- The stale archived startup screenshot hashes `a3bc1ab3c555c667e953933cf0c50c043d2eeb65be0667a2ae76b039e8d5c87a` and `7a721488de6dd0d0fc8dfaa54bffa3740c681fc54c575d5aec88bd9ff8deb92e` are no longer present in repository image files.
+- `doc/img/logo2.png` was removed after propagation; remaining `logo2.png` mentions are documentation notes in this plan section only.
+
+## Conclusion
+
+All discovered logo asset files were replaced in place, all refreshed startup screenshot copies preserve their historical dimensions, the updated APK is installed on the attached Android device, and the old canonical logo bytes no longer exist in repository image assets.
+
+---
+
 # Final Bottle Rendering And Pour Sync Plan
 
 Last updated: 2026-03-13 UTC

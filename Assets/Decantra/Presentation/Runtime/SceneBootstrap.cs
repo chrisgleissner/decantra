@@ -1713,17 +1713,16 @@ namespace Decantra.Presentation
 
             var baseGo = CreateUiChild(bottleGo.transform, "BasePlate");
             var basePlate = baseGo.AddComponent<Image>();
-            basePlate.sprite = rounded;
-            basePlate.type = Image.Type.Sliced;
-            basePlate.color = new Color(0.6f, 0.7f, 0.82f, 0.3f);
+            basePlate.sprite = GetPlaceholderSprite();
+            basePlate.type = Image.Type.Simple;
+            basePlate.color = new Color(0.58f, 0.69f, 0.82f, 0.5f);
             basePlate.raycastTarget = false;
             var baseRect = baseGo.GetComponent<RectTransform>();
             baseRect.anchorMin = new Vector2(0.5f, 0f);
             baseRect.anchorMax = new Vector2(0.5f, 0f);
             baseRect.pivot = new Vector2(0.5f, 0f);
-            baseRect.sizeDelta = new Vector2(120, 40);
-            baseRect.anchoredPosition = new Vector2(0, 6);
-            baseGo.SetActive(false);
+            baseRect.sizeDelta = new Vector2(144, 18);
+            baseRect.anchoredPosition = new Vector2(0, 1);
 
             var rimGo = CreateUiChild(bottleGo.transform, "Rim");
             var rim = rimGo.AddComponent<Image>();
@@ -1821,6 +1820,7 @@ namespace Decantra.Presentation
             outlineRect.pivot = new Vector2(0.5f, 0.5f);
             outlineRect.sizeDelta = new Vector2(150, 372);
             outlineRect.anchoredPosition = new Vector2(0, -6);
+            outlineGo.transform.SetAsLastSibling();
 
             var anchorCollarGo = CreateUiChild(bottleGo.transform, "AnchorCollar");
             var anchorCollar = anchorCollarGo.AddComponent<Image>();

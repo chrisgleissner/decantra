@@ -52,9 +52,9 @@ Shader "Decantra/Liquid3D"
         _Agitation ("Agitation", Range(0,1)) = 0
 
         // Horizontal-only cylindrical shading, tuned to match the cork readability model.
-        _CylPower ("Cyl Power", Range(0.5, 4.0)) = 1.65
-        _CylEdgeBrightness ("Cyl Edge Brightness", Range(0.5, 1.0)) = 0.78
-        _CylCenterBrightness ("Cyl Center Brightness", Range(1.0, 1.25)) = 1.12
+        _CylPower ("Cyl Power", Range(0.5, 4.0)) = 1.9
+        _CylEdgeBrightness ("Cyl Edge Brightness", Range(0.5, 1.0)) = 0.72
+        _CylCenterBrightness ("Cyl Center Brightness", Range(1.0, 1.25)) = 1.18
     }
 
     SubShader

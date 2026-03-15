@@ -1596,8 +1596,8 @@ namespace Decantra.Tests.PlayMode
         private static Color BoostForBottleLiquid(Color color)
         {
             Color.RGBToHSV(color, out float h, out float s, out float v);
-            v = Mathf.Clamp01(v * 1.35f + 0.08f);
-            s = Mathf.Clamp01(Mathf.Lerp(s, 1f, 0.12f));
+            s = 1f;
+            v = Mathf.Clamp01(Mathf.Max(v * 1.3f, 0.92f));
             return Color.HSVToRGB(h, s, v);
         }
 

@@ -16,15 +16,14 @@ namespace Decantra.Presentation.View3D
     ///
     /// Bottle anatomy (Y axis, local space, origin at bottle centre)
     /// ---------------------------------------------------------------
-    ///   BaseDomeY     = -BodyHalfHeight         (bottom of hemispherical dome)
-    ///   BodyBottomY   = -BodyHalfHeight + DomeRadius
-    ///   BodyTopY      = +BodyHalfHeight
+    ///   BaseBottomY   = ExteriorBottomY         (bottom of flat rounded base)
+    ///   BodyBottomY   = InteriorBottomY         (top of the opaque glass base)
     ///   ShoulderTopY  = BodyTopY + ShoulderHeight
     ///   NeckBottomY   = ShoulderTopY
     ///   NeckTopY      = NeckBottomY + NeckHeight
     ///
     /// The mesh is built from:
-    ///   1. Hemispherical base dome (bottom)
+    ///   1. Flat-bottom rounded base (bottom)
     ///   2. Cylindrical body
     ///   3. Tapered shoulder (lerp radius: BodyRadius → NeckRadius)
     ///   4. Cylindrical neck
@@ -53,14 +52,20 @@ namespace Decantra.Presentation.View3D
         /// <summary>World-space height of the cylindrical neck.</summary>
         public const float NeckHeight = 0.22f;
 
-        /// <summary>Hemisphere radius for the base dome.</summary>
+        /// <summary>Legacy pre-flat-base radius retained as the fill-region reference offset.</summary>
         public const float DomeRadius = BodyRadius;
+
+        /// <summary>World-space height of the opaque glass base below the liquid region.</summary>
+        public const float BaseHeight = DomeRadius * 0.21f;
+
+        /// <summary>Corner radius used to softly round the flat base edges.</summary>
+        public const float BaseCornerRadius = BaseHeight * 0.25f;
 
         /// <summary>Number of azimuthal segments (longitude). Higher = smoother cylinder.</summary>
         public const int Segments = 40;
 
-        /// <summary>Number of latitude segments for the base dome.</summary>
-        public const int DomeLatitudes = 12;
+        /// <summary>Number of profile steps used for the rounded base corners.</summary>
+        public const int BaseCornerSteps = 5;
 
         /// <summary>Number of vertical segments for the shoulder taper.</summary>
         public const int ShoulderSteps = 6;
@@ -73,6 +78,12 @@ namespace Decantra.Presentation.View3D
 
         /// <summary>Rim lip height.</summary>
         public const float RimLipHeight = 0.035f;
+
+        /// <summary>Extra-thick base glass depth so the bottom reads heavier than the rim.</summary>
+        public const float BaseGlassThickness = GlassThickness * 2.5f;
+
+        private const float BaseUvMin = 0.97f;
+        private const float BaseUvMax = 1f;
 
         // ── Stopper / cork geometry ───────────────────────────────────────────
         // Realistic cork proportions (updated from flat-disc spec to proper cylinder):
@@ -111,12 +122,32 @@ namespace Decantra.Presentation.View3D
         /// </summary>
         public const float StopperPeekHeight = StopperTotalHeight * 0.25f;   // 0.056 wu
 
+        private const float BodyHalfHeight = BodyHeight * 0.5f;
+
+        /// <summary>
+        /// Y position of the interior bottom of the liquid region (top of the base glass).
+        /// This remains fixed so the liquid region stays unchanged relative to the body.
+        /// </summary>
+        public static readonly float InteriorBottomY = -BodyHalfHeight + DomeRadius;
+
+        /// <summary>Y position of the exterior flat base bottom.</summary>
+        public static readonly float ExteriorBottomY = InteriorBottomY - BaseHeight;
+
+        /// <summary>
+        /// Y position of the interior top of the liquid region (top of body cylinder).
+        /// bodyBottom = InteriorBottomY, bodyTop = bodyBottom + BodyHeight.
+        /// </summary>
+        public static readonly float InteriorTopY = InteriorBottomY + BodyHeight;
+
+        /// <summary>Total interior liquid height in world units.</summary>
+        public static float InteriorHeight => InteriorTopY - InteriorBottomY;
+
+        /// <summary>Full exterior bottle height for a reference-capacity bottle.</summary>
+        public static float ReferenceMeshHeight => BaseHeight + BodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+
         // Computed Y position of the rim/flange top referenced by Bottle3DView.
-        // Formula: bodyBottom + BodyHeight + ShoulderHeight + NeckHeight + RimLipHeight
-        // where bodyBottom = -BodyHalfHeight + DomeRadius. The body cylinder starts exactly
-        // where the base hemisphere ends so the two surfaces meet without self-overlap.
         public static readonly float RimTopY =
-            BodyHeight * 0.5f + DomeRadius + ShoulderHeight + NeckHeight + RimLipHeight;
+            InteriorBottomY + BodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
 
         // The cork bottom is measured relative to the visible rim/flange top, not the neck top.
         // This keeps the cork visually flush with the bottle top instead of hovering above short bottles.
@@ -125,8 +156,7 @@ namespace Decantra.Presentation.View3D
         public static float GetRimTopY(float capacityRatio)
         {
             float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
-            float bodyBottom = -BodyHalfHeight + DomeRadius;
-            return bodyBottom + BodyHeight * capped + ShoulderHeight + NeckHeight + RimLipHeight;
+            return InteriorBottomY + BodyHeight * capped + ShoulderHeight + NeckHeight + RimLipHeight;
         }
 
         /// <summary>
@@ -146,23 +176,6 @@ namespace Decantra.Presentation.View3D
             return InteriorBottomY + BodyHeight * capped;
         }
 
-        private const float BodyHalfHeight = BodyHeight * 0.5f;
-
-        /// <summary>
-        /// Y position of the interior bottom of the liquid region (bottom of body cylinder).
-        /// Used by Bottle3DView to anchor liquid fill heights in local space.
-        /// </summary>
-        public static readonly float InteriorBottomY = -BodyHalfHeight + DomeRadius;
-
-        /// <summary>
-        /// Y position of the interior top of the liquid region (top of body cylinder).
-        /// bodyBottom = -BodyHalfHeight + DomeRadius, bodyTop = bodyBottom + BodyHeight.
-        /// </summary>
-        public static readonly float InteriorTopY = -BodyHalfHeight + DomeRadius + BodyHeight;
-
-        /// <summary>Total interior liquid height in world units.</summary>
-        public static float InteriorHeight => InteriorTopY - InteriorBottomY;
-
         // ── Mesh generation ───────────────────────────────────────────────────
 
         /// <summary>
@@ -178,7 +191,7 @@ namespace Decantra.Presentation.View3D
         /// <param name="keepReadable">Keep CPU-side mesh data readable (true for tests).</param>
         /// <returns>A new <see cref="Mesh"/> instance. Caller is responsible for lifetime.</returns>
         /// <param name="capacityRatio">Fraction of full body height to generate, in [0.1..1]. Only the
-        /// cylindrical body section scales; the dome (bottom), shoulder, neck, and rim stay at their
+        /// cylindrical body section scales; the base, shoulder, neck, and rim stay at their
         /// reference sizes — matching the 2D BottleView body-only stretch philosophy.</param>
         public static Mesh GenerateBottleMesh(float capacityRatio = 1f, bool keepReadable = false)
         {
@@ -189,10 +202,10 @@ namespace Decantra.Presentation.View3D
 
             // Only the body cylinder scales; all other sections stay fixed.
             float scaledBodyHeight = BodyHeight * Mathf.Clamp(capacityRatio, 0.1f, 1f);
-            float yMin = -BodyHalfHeight;
-            float bodyBottom = yMin + DomeRadius;
+            float yMin = ExteriorBottomY;
+            float bodyBottom = InteriorBottomY;
             float bodyTop = bodyBottom + scaledBodyHeight;  // body end floats up/down
-            float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+            float totalHeight = BaseHeight + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
             float shoulderTop = bodyTop + ShoulderHeight;
             float neckTop = shoulderTop + NeckHeight;
             float rimTop = neckTop + RimLipHeight;
@@ -200,14 +213,26 @@ namespace Decantra.Presentation.View3D
             // Inner shell dimensions (clamped for robustness)
             float innerBodyRadius = Mathf.Max(BodyRadius - GlassThickness, 0.01f);
             float innerNeckRadius = Mathf.Max(NeckRadius - GlassThickness * 0.9f, 0.01f);
-            float innerDomeRadius = Mathf.Max(DomeRadius - GlassThickness, 0.01f);
             float innerBodyBottom = bodyBottom + GlassThickness * 0.55f;
             float innerBodyTop = bodyTop - GlassThickness * 0.25f;
             float innerShoulderTop = shoulderTop - GlassThickness * 0.15f;
             float innerNeckTop = neckTop + RimLipHeight * 0.58f;
+            float innerBottomY = yMin + BaseGlassThickness;
+            float innerBaseHeight = Mathf.Max(innerBodyBottom - innerBottomY, 0.04f);
+            float innerCornerRadius = Mathf.Clamp(
+                BaseCornerRadius - GlassThickness * 1.25f,
+                0.02f,
+                Mathf.Min(innerBaseHeight - 0.005f, innerBodyRadius - 0.02f));
 
             // ── Outer shell ───────────────────────────────────────────────────
-            AppendDome(verts, norms, uvs, tris, yMin, totalHeight, DomeRadius, flipY: true, invertWinding: false, invertNormal: false);
+            AppendRoundedFlatBase(verts, norms, uvs, tris,
+                                  topY: bodyBottom,
+                                  bottomY: yMin,
+                                  sideRadius: BodyRadius,
+                                  cornerRadius: BaseCornerRadius,
+                                  totalHeight: totalHeight,
+                                  invertWinding: false,
+                                  invertNormal: false);
             AppendCylinder(verts, norms, uvs, tris,
                            y0: bodyBottom, y1: bodyTop,
                            r0: BodyRadius, r1: BodyRadius,
@@ -247,7 +272,14 @@ namespace Decantra.Presentation.View3D
                            invertNormal: false);
 
             // ── Inner shell (inward normals, reversed winding) ──────────────
-            AppendDome(verts, norms, uvs, tris, yMin + GlassThickness * 0.55f, totalHeight, innerDomeRadius, flipY: true, invertWinding: true, invertNormal: true);
+            AppendRoundedFlatBase(verts, norms, uvs, tris,
+                                  topY: innerBodyBottom,
+                                  bottomY: innerBottomY,
+                                  sideRadius: innerBodyRadius,
+                                  cornerRadius: innerCornerRadius,
+                                  totalHeight: totalHeight,
+                                  invertWinding: true,
+                                  invertNormal: true);
             AppendCylinder(verts, norms, uvs, tris,
                            y0: innerBodyBottom, y1: innerBodyTop,
                            r0: innerBodyRadius, r1: innerBodyRadius,
@@ -352,10 +384,9 @@ namespace Decantra.Presentation.View3D
 
             float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
             float scaledBodyHeight = BodyHeight * capped;
-            float yMin = -BodyHalfHeight;
-            float bodyBottom = yMin + DomeRadius;
+            float bodyBottom = InteriorBottomY;
             float bodyTop = bodyBottom + scaledBodyHeight;
-            float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+            float totalHeight = BaseHeight + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
             float shoulderTop = bodyTop + ShoulderHeight;
             float neckTop = shoulderTop + NeckHeight;
             float rimTop = neckTop + RimLipHeight;
@@ -415,7 +446,7 @@ namespace Decantra.Presentation.View3D
 
             float capped = Mathf.Clamp(capacityRatio, 0.1f, 1f);
             float scaledBodyHeight = BodyHeight * capped;
-            float totalHeight = DomeRadius + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
+            float totalHeight = BaseHeight + scaledBodyHeight + ShoulderHeight + NeckHeight + RimLipHeight;
             float boundaryY = topBoundary ? GetBodyTopY(capped) : InteriorBottomY;
             float collarHeight = 0.012f;
             float y0 = topBoundary ? boundaryY - collarHeight : boundaryY;
@@ -463,55 +494,94 @@ namespace Decantra.Presentation.View3D
 
         // ── Primitive builders ────────────────────────────────────────────────
 
-        /// <summary>Append a hemisphere, dome-up or dome-down depending on flipY.</summary>
-        private static void AppendDome(
+        /// <summary>
+        /// Append a rotationally-symmetric flat base with softly rounded lower corners.
+        /// The entire base UV range is packed into the existing shader band [0.97..1.0]
+        /// so sink and regular bottles preserve their prior base-color logic unchanged.
+        /// </summary>
+        private static void AppendRoundedFlatBase(
             List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> tris,
-            float yBase, float totalHeight, float domeRadius, bool flipY, bool invertWinding, bool invertNormal)
+            float topY, float bottomY, float sideRadius, float cornerRadius, float totalHeight,
+            bool invertWinding, bool invertNormal)
         {
-            int baseIdx = verts.Count;
-            float ySign = flipY ? -1f : 1f;
-            float domeCenter = flipY ? yBase + domeRadius : yBase - domeRadius;
-
-            for (int lat = 0; lat <= DomeLatitudes; lat++)
+            float baseHeight = topY - bottomY;
+            if (baseHeight <= 0.001f || sideRadius <= 0.01f)
             {
-                float t = (float)lat / DomeLatitudes;
-                float phi = t * Mathf.PI * 0.5f; // 0..90 degrees
-                float sinPhi = Mathf.Sin(phi);
-                float cosPhi = Mathf.Cos(phi);
+                AppendCylinder(verts, norms, uvs, tris,
+                               y0: bottomY, y1: topY,
+                               r0: sideRadius, r1: sideRadius,
+                               totalHeight: totalHeight,
+                               invertWinding: invertWinding,
+                               invertNormal: invertNormal);
+                return;
+            }
 
-                for (int lon = 0; lon <= Segments; lon++)
+            float clampedCorner = Mathf.Min(cornerRadius, Mathf.Min(baseHeight, sideRadius - 0.01f));
+            float flatRadius = Mathf.Max(sideRadius - clampedCorner, 0.01f);
+            float cornerCenterY = bottomY + clampedCorner;
+
+            var rowYs = new List<float>(BaseCornerSteps + 2) { topY };
+            var rowRadii = new List<float>(BaseCornerSteps + 2) { sideRadius };
+            var rowRadialNormals = new List<float>(BaseCornerSteps + 2) { 1f };
+            var rowVerticalNormals = new List<float>(BaseCornerSteps + 2) { 0f };
+
+            if (topY - cornerCenterY > 0.001f)
+            {
+                rowYs.Add(cornerCenterY);
+                rowRadii.Add(sideRadius);
+                rowRadialNormals.Add(1f);
+                rowVerticalNormals.Add(0f);
+            }
+
+            for (int step = 1; step <= BaseCornerSteps; step++)
+            {
+                float angle = (float)step / BaseCornerSteps * Mathf.PI * 0.5f;
+                float radial = Mathf.Cos(angle);
+                float vertical = Mathf.Sin(angle);
+                rowYs.Add(cornerCenterY - vertical * clampedCorner);
+                rowRadii.Add(flatRadius + radial * clampedCorner);
+                rowRadialNormals.Add(radial);
+                rowVerticalNormals.Add(-vertical);
+            }
+
+            int baseIdx = verts.Count;
+            int stride = Segments + 1;
+            for (int row = 0; row < rowYs.Count; row++)
+            {
+                float rowY = rowYs[row];
+                float radius = rowRadii[row];
+                float radialNormal = rowRadialNormals[row];
+                float verticalNormal = rowVerticalNormals[row];
+                float t = Mathf.InverseLerp(topY, bottomY, rowY);
+                float vFrac = Mathf.Lerp(BaseUvMin, BaseUvMax, t);
+
+                for (int lon = 0; lon < Segments; lon++)
                 {
                     float theta = (float)lon / Segments * Mathf.PI * 2f;
                     float cosTheta = Mathf.Cos(theta);
                     float sinTheta = Mathf.Sin(theta);
+                    verts.Add(new Vector3(radius * cosTheta, rowY, radius * sinTheta));
 
-                    var pos = new Vector3(
-                        domeRadius * sinPhi * cosTheta,
-                        domeCenter + ySign * domeRadius * cosPhi,
-                        domeRadius * sinPhi * sinTheta);
-
-                    var n = new Vector3(sinPhi * cosTheta, ySign * cosPhi, sinPhi * sinTheta);
-                    if (flipY) n.y = -Mathf.Abs(n.y);
-                    if (invertNormal) n = -n;
-
-                    float v = (pos.y - (yBase - totalHeight)) / totalHeight;
-                    verts.Add(pos);
-                    norms.Add(n.normalized);
-                    uvs.Add(new Vector2((float)lon / Segments, Mathf.Clamp01(v)));
+                    var normal = new Vector3(
+                        radialNormal * cosTheta,
+                        verticalNormal,
+                        radialNormal * sinTheta);
+                    if (invertNormal) normal = -normal;
+                    norms.Add(normal.normalized);
+                    uvs.Add(new Vector2((float)lon / Segments, vFrac));
                 }
             }
 
-            // Triangulate dome rings
-            int stride = Segments + 1;
-            for (int lat = 0; lat < DomeLatitudes; lat++)
+            for (int row = 0; row < rowYs.Count - 1; row++)
             {
+                int rowBase = baseIdx + row * stride;
                 for (int lon = 0; lon < Segments; lon++)
                 {
-                    int i0 = baseIdx + lat * stride + lon;
+                    int i0 = rowBase + lon;
                     int i1 = i0 + 1;
                     int i2 = i0 + stride;
                     int i3 = i2 + 1;
-                    if (flipY ^ invertWinding)
+                    if (invertWinding)
                     {
                         tris.Add(i0); tris.Add(i2); tris.Add(i1);
                         tris.Add(i1); tris.Add(i2); tris.Add(i3);
@@ -523,6 +593,13 @@ namespace Decantra.Presentation.View3D
                     }
                 }
             }
+
+            AppendDisk(verts, norms, uvs, tris,
+                       y: bottomY,
+                       r: flatRadius,
+                       totalHeight: totalHeight,
+                       faceUp: invertWinding,
+                       vOverride: BaseUvMax);
         }
 
         /// <summary>Append a truncated cylinder (cone if r0 ≠ r1).</summary>
@@ -538,7 +615,7 @@ namespace Decantra.Presentation.View3D
                 float t = (float)step / steps;
                 float y = Mathf.Lerp(y0, y1, t);
                 float r = Mathf.Lerp(r0, r1, t);
-                float vFrac = Mathf.Clamp01((y + BodyHalfHeight + DomeRadius) / totalHeight);
+                float vFrac = Mathf.Clamp01((y - ExteriorBottomY) / totalHeight);
 
                 // Outward normal tilt for taper
                 float dr = r1 - r0;
@@ -589,7 +666,7 @@ namespace Decantra.Presentation.View3D
         {
             int baseIdx = verts.Count;
             float ny = faceUp ? 1f : -1f;
-            float vFrac = Mathf.Clamp01((y + BodyHalfHeight + DomeRadius) / totalHeight);
+            float vFrac = Mathf.Clamp01((y - ExteriorBottomY) / totalHeight);
 
             for (int lon = 0; lon <= Segments; lon++)
             {
@@ -628,11 +705,11 @@ namespace Decantra.Presentation.View3D
         /// <summary>Append a filled disk cap (for neck top or base centre).</summary>
         private static void AppendDisk(
             List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> tris,
-            float y, float r, float totalHeight, bool faceUp)
+            float y, float r, float totalHeight, bool faceUp, float vOverride = -1f)
         {
             int baseIdx = verts.Count;
             float ny = faceUp ? 1f : -1f;
-            float vFrac = Mathf.Clamp01((y + BodyHalfHeight + DomeRadius) / totalHeight);
+            float vFrac = vOverride >= 0f ? vOverride : Mathf.Clamp01((y - ExteriorBottomY) / totalHeight);
 
             // Centre vertex
             verts.Add(new Vector3(0f, y, 0f));

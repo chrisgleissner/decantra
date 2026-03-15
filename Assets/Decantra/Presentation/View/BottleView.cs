@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 using System.Collections;
 using System.Collections.Generic;
 using Decantra.Domain.Model;
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -550,7 +551,13 @@ namespace Decantra.Presentation.View
 
             isSink = bottle.IsSink;
 
-            if (basePlate != null) basePlate.gameObject.SetActive(false);
+            if (basePlate != null)
+            {
+                basePlate.gameObject.SetActive(true);
+                basePlate.color = isSink
+                    ? new Color(0f, 0f, 0f, 0.92f)
+                    : baseDefaultColor;
+            }
             if (anchorCollar != null) anchorCollar.gameObject.SetActive(false);
             if (normalShadow != null) normalShadow.gameObject.SetActive(true);
             if (curvedHighlight != null) curvedHighlight.gameObject.SetActive(true);
@@ -726,6 +733,13 @@ namespace Decantra.Presentation.View
             target.localRotation = source.localRotation;
         }
 
+        private static Color ApplyLiquidVibrancy(Color baseColor, float alpha)
+        {
+            var tuned = LiquidColorTuning.ApplyGameplayVibrancy(baseColor);
+            tuned.a = alpha;
+            return tuned;
+        }
+
         private void EnsureColorsInitialized()
         {
             if (outline != null && outlineDefaultColor == default)
@@ -787,9 +801,7 @@ namespace Decantra.Presentation.View
 
             if (palette != null)
             {
-                var c = palette.GetColor(color);
-                c.a = 0.6f;
-                image.color = c;
+                image.color = ApplyLiquidVibrancy(palette.GetColor(color), 0.6f);
             }
 
             UpdateLiquidSurfaceForFill(lastBottle.Count + amount, color);
@@ -828,9 +840,7 @@ namespace Decantra.Presentation.View
 
             if (palette != null)
             {
-                var c = palette.GetColor(color);
-                c.a = 0.75f;
-                image.color = c;
+                image.color = ApplyLiquidVibrancy(palette.GetColor(color), 0.75f);
             }
 
             UpdateLiquidSurfaceForFill(lastBottle.Count + amount * t, color);
@@ -1001,16 +1011,7 @@ namespace Decantra.Presentation.View
 
             if (color.HasValue && palette != null)
             {
-                var c = palette.GetColor(color.Value);
-
-                // Boost brightness while preserving saturation
-                Color.RGBToHSV(c, out float h, out float s, out float v);
-                v = Mathf.Clamp01(v * 1.35f + 0.08f);
-                s = Mathf.Clamp01(Mathf.Lerp(s, 1f, 0.12f));
-                c = Color.HSVToRGB(h, s, v);
-
-                c.a = 1f;
-                image.color = c;
+                image.color = ApplyLiquidVibrancy(palette.GetColor(color.Value), 1f);
             }
             else
             {
@@ -1114,12 +1115,7 @@ namespace Decantra.Presentation.View
 
             if (topColor.HasValue && palette != null)
             {
-                var c = palette.GetColor(topColor.Value);
-                Color.RGBToHSV(c, out float h, out float s, out float v);
-                v = Mathf.Clamp01(v + 0.18f);
-                c = Color.HSVToRGB(h, s, v);
-                c.a = 0.55f;
-                liquidSurface.color = c;
+                liquidSurface.color = ApplyLiquidVibrancy(palette.GetColor(topColor.Value), 0.55f);
             }
             else
             {
