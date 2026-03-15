@@ -2,7 +2,8 @@
   "name": "Decantra.Presentation.Visual.Tests",
   "references": [
     "Decantra.Domain",
-    "Decantra.Presentation.Visual"
+    "Decantra.Presentation.Visual",
+    "Decantra.Presentation.View3D"
   ],
   "includePlatforms": [
     "Editor"
@@ -15,5 +16,5 @@
   "testAssemblies": true,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": true
+  "noEngineReferences": false
 }

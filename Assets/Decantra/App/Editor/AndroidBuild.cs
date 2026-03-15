@@ -914,17 +914,19 @@ namespace Decantra.App.Editor
                 return ciVersionCode.Value;
             }
 
+            int existing = PlayerSettings.Android.bundleVersionCode;
+
             // Command-line args (passed via customParameters in CI, reliable in Docker containers)
             string cmdCode = GetCommandLineArg("-versionCode");
             if (TryParsePositiveInt(cmdCode, out int cmdCodeInt))
             {
-                return ClampVersionCode(cmdCodeInt);
+                return ClampVersionCode(Math.Max(existing, cmdCodeInt));
             }
 
             string envVersionCode = FirstNonEmptyEnv("VERSION_CODE", "DECANTRA_VERSION_CODE");
             if (TryParsePositiveInt(envVersionCode, out int code))
             {
-                return ClampVersionCode(code);
+                return ClampVersionCode(Math.Max(existing, code));
             }
 
             string runNumberRaw = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
@@ -938,16 +940,15 @@ namespace Decantra.App.Editor
                 }
 
                 long computed = 1000L + (long)runNumber * 10L + Math.Max(0, runAttempt - 1);
-                return ClampVersionCode(computed);
+                return ClampVersionCode(Math.Max(existing, (int)Math.Min(computed, int.MaxValue)));
             }
 
             string commitCountRaw = TryRunGit("rev-list", "--count", "HEAD");
             if (TryParsePositiveInt(commitCountRaw, out int commitCount))
             {
-                return ClampVersionCode(1000L + commitCount);
+                return ClampVersionCode(Math.Max(existing, 1000L + commitCount));
             }
 
-            int existing = PlayerSettings.Android.bundleVersionCode;
             return existing > 0 ? existing : 1;
         }
 

@@ -183,16 +183,25 @@ namespace Decantra.Presentation.View3D
         public const float VisualScale = 0.88f;
 
         // Fraction of the canvas cell height the bottle should occupy.
-        // Keep a small safety margin so taller bottles can grow without intersecting
-        // adjacent rows or the HUD on full-board scenes.
-        private const float CellFitFraction = 0.90f;
+        // Raised slightly to reclaim the vertical space freed by the flatter base.
+        public const float HeightFitFraction = 0.99f;
+
+        // Additional horizontal enlargement so bottles read slightly wider without
+        // changing the shader, interaction logic, or bottle internals.
+        public const float WidthFitMultiplier = 1.065f;
+
+        // The canvas-side interaction collider remains on the unscaled UI object, so
+        // its local height still needs to preserve the pre-flat-base hit target.
+        private const float LegacyColliderFitFraction = 0.90f;
+
+        private static readonly float LegacyColliderHeight =
+            BottleMeshGenerator.BodyHeight
+            + BottleMeshGenerator.ShoulderHeight
+            + BottleMeshGenerator.NeckHeight
+            + BottleMeshGenerator.DomeRadius;
 
         // Full mesh height (cap ratio 1.0) in local world units before any worldRoot scale.
-        private const float MeshFullHeight = BottleMeshGenerator.DomeRadius
-                                             + BottleMeshGenerator.BodyHeight
-                                             + BottleMeshGenerator.ShoulderHeight
-                                             + BottleMeshGenerator.NeckHeight
-                                             + BottleMeshGenerator.RimLipHeight;
+        private static readonly float MeshFullHeight = BottleMeshGenerator.ReferenceMeshHeight;
 
         // Glass body property IDs
         private static readonly int PropSinkOnly = Shader.PropertyToID("_SinkOnly");
@@ -236,11 +245,7 @@ namespace Decantra.Presentation.View3D
         {
             _levelMaxCapacity = Mathf.Max(1, maxCapacity);
             // Block C diagnostic: log expected max bottle height for this capacity setting.
-            float maxMeshHeight = (BottleMeshGenerator.BodyHeight
-                                   + BottleMeshGenerator.DomeRadius
-                                   + BottleMeshGenerator.ShoulderHeight
-                                   + BottleMeshGenerator.NeckHeight
-                                   + BottleMeshGenerator.RimLipHeight) * VisualScale;
+            float maxMeshHeight = BottleMeshGenerator.ReferenceMeshHeight * VisualScale;
             Debug.Log($"[Bottle3DView] SetLevelMaxCapacity={maxCapacity}  " +
                       $"maxBottleHeight≈{maxMeshHeight:F3}wu  " +
                       $"activeViews={s_activeViews.Count}");
@@ -364,7 +369,7 @@ namespace Decantra.Presentation.View3D
             _isReceiveAnimating = true;
             _receiveFillFrom = Mathf.Clamp01(fillFrom);
             _receiveFillTo = Mathf.Clamp01(fillTo);
-            _receiveColor = new Color(r, g, b, 1f);
+            _receiveColor = LiquidColorTuning.ApplyGameplayVibrancy(new Color(r, g, b, 1f));
             EnsureReceiveLayerGO();
         }
 
@@ -1062,7 +1067,7 @@ namespace Decantra.Presentation.View3D
             _contactShadowGO.layer = targetLayer;
             // Keep the contact shadow compact and close to the bottle base so it does not
             // visually read as part of the bottle on the row below.
-            _contactShadowGO.transform.localPosition = new Vector3(0f, BottleMeshGenerator.InteriorBottomY - 0.035f, 0.06f);
+            _contactShadowGO.transform.localPosition = new Vector3(0f, BottleMeshGenerator.ExteriorBottomY - 0.028f, 0.06f);
             // Euler(90,0,0) rotates the XZ-plane disk to lie flat in XY as a ground shadow.
             _contactShadowGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             _contactShadowGO.transform.localScale = new Vector3(0.07f, 0.07f, 0.025f);
@@ -1141,10 +1146,11 @@ namespace Decantra.Presentation.View3D
                 float cellWorldH = rt.TransformVector(new Vector3(0f, rt.rect.height, 0f)).magnitude;
                 if (cellWorldH > 0.01f)
                 {
-                    float newScale = cellWorldH * CellFitFraction / MeshFullHeight;
+                    float newScale = cellWorldH * HeightFitFraction / MeshFullHeight;
                     var cur = _worldRoot.transform.localScale;
-                    if (Mathf.Abs(newScale - cur.x) > 1e-4f)
-                        _worldRoot.transform.localScale = new Vector3(newScale, newScale, newScale);
+                    float targetXzScale = newScale * WidthFitMultiplier;
+                    if (Mathf.Abs(targetXzScale - cur.x) > 1e-4f || Mathf.Abs(newScale - cur.y) > 1e-4f)
+                        _worldRoot.transform.localScale = new Vector3(targetXzScale, newScale, targetXzScale);
                 }
             }
         }
@@ -1172,12 +1178,12 @@ namespace Decantra.Presentation.View3D
             box.isTrigger = true;
             box.center = new Vector3(
                 0f,
-                (BottleMeshGenerator.InteriorBottomY + BottleMeshGenerator.InteriorTopY) * 0.5f,
+                BottleMeshGenerator.ExteriorBottomY + BottleMeshGenerator.ReferenceMeshHeight * 0.5f,
                 0f);
             box.size = new Vector3(
-                BottleMeshGenerator.BodyRadius * 2.15f,
-                BottleMeshGenerator.BodyHeight + BottleMeshGenerator.ShoulderHeight + BottleMeshGenerator.NeckHeight + BottleMeshGenerator.DomeRadius,
-                BottleMeshGenerator.BodyRadius * 1.15f);
+                BottleMeshGenerator.BodyRadius * 2.15f * WidthFitMultiplier,
+                LegacyColliderHeight * (HeightFitFraction / LegacyColliderFitFraction),
+                BottleMeshGenerator.BodyRadius * 1.15f * WidthFitMultiplier);
         }
 
         private void EnsureLayerObjects(int requiredCount)
@@ -1241,7 +1247,7 @@ namespace Decantra.Presentation.View3D
 
                 // Set all 9 layer colors/fills on the material (shader reads all 9)
                 // We use a single shared layer per mesh so index 0 is always "this layer"
-                block.SetColor(PropLayerColor[0], new Color(layer.R, layer.G, layer.B, 1f));
+                block.SetColor(PropLayerColor[0], LiquidColorTuning.ApplyGameplayVibrancy(new Color(layer.R, layer.G, layer.B, 1f)));
                 block.SetFloat(PropLayerMin[0], layer.FillMin);
                 block.SetFloat(PropLayerMax[0], layer.FillMax);
 

@@ -85,6 +85,21 @@ namespace Decantra.Tests.EditMode
                 "Play() must end by setting background alpha to 0 so the overlay is removed after the intro sequence.");
         }
 
+        [Test]
+        public void HudBrandLockup_AndIntroBanner_UseDifferentLogoAssets()
+        {
+            string bootstrapPath = Path.Combine(ProjectRoot, "Assets", "Decantra",
+                "Presentation", "Runtime", "SceneBootstrap.cs");
+            string content = File.ReadAllText(bootstrapPath);
+
+            Assert.IsTrue(
+                content.Contains("Resources.Load<Sprite>(\"Decantra\")"),
+                "The top HUD brand lockup must keep using the wide main-screen Decantra asset.");
+            Assert.IsTrue(
+                content.Contains("Resources.Load<Sprite>(\"DecantraLogo\")"),
+                "The intro banner must keep using the separate startup DecantraLogo asset.");
+        }
+
         private static string FindProjectRoot()
         {
             var current = new DirectoryInfo(Directory.GetCurrentDirectory());

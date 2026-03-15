@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+using Decantra.Presentation.View3D;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,16 +27,16 @@ namespace Decantra.Presentation.View
         // (and between adjacent bottles).  This is expressed in canvas/reference pixels.
         private const float MinClearancePx = 48f;
 
-        // The 3D bottle mesh is not vertically centred in its canvas cell.  Its local
-        // origin is placed at the cell centre but the mesh top is at y = +1.735 (local),
-        // so it extends above the cell top by:
-        //   overhang = yMax * CellFitFraction / MeshFullHeight  -  0.5
-        //            = 1.735 * 0.9 / 2.535  -  0.5  =  0.1162
+        // The 3D bottle mesh is not vertically centred in its canvas cell. Its local
+        // origin is placed at the cell centre, so the bottle top extends above the cell
+        // top by:
+        //   overhang = RimTopY * HeightFitFraction / ReferenceMeshHeight - 0.5
         // This fraction must be subtracted from the raw gap to get the true HUD clearance.
         // Derivation: clearance = idealGap - BottleTopOverhang * cellH >= MinClearancePx
         //   with idealGap = (available - rows*cellH)/(rows+1):
         //   => cellH <= (available - (rows+1)*MinClearancePx) / (rows + (rows+1)*BottleTopOverhang)
-        private const float BottleTopOverhang = 0.1162f;
+        private static readonly float BottleTopOverhang =
+            BottleMeshGenerator.RimTopY * Bottle3DView.HeightFitFraction / BottleMeshGenerator.ReferenceMeshHeight - 0.5f;
         private const float ThreeRowInnerGapReductionPx = 56f;
         private const float ThreeRowTopGapBiasPx = 6f;
         private const float ThreeRowBottomGapReductionPx = 28f;

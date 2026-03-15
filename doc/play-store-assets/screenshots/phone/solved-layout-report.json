@@ -12,11 +12,11 @@
   "corkInsertionDepthRatioMax": 0.7500,
   "corkInsertionDepthValid": true,
   "corkValidationPassed": false,
-  "shadowLengthRatioMax": 0.0552,
+  "shadowLengthRatioMax": 0.0667,
   "shadowLengthConstraintPassed": true,
   "topperCount": 7,
   "sinkBottleCount": 0,
   "activeBottleCount": 9,
   "overlapDetected": false,
-  "generatedAt": "2026-03-13T17:32:18Z"
+  "generatedAt": "2026-03-15T11:25:31Z"
 }

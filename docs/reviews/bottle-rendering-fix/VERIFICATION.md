@@ -14,7 +14,7 @@
 - Bottles remain translucent: the renderer still uses `Decantra/BottleGlass` with capped glass alpha and an empty-bottle edge boost, preserving visible liquid through the glass body while making empty bottles readable on dark backgrounds.
 - Outline state mapping is correct: the default outline shell is hidden=True; the valid-pour highlight switches to width 0.050 and color (0.94, 0.98, 1.00, 0.38); the sink-only state hides the outline shell (sink body looks like a regular bottle, only neck+dome bands are dark).
 - Valid-pour glow only appears during valid pours: the active capture used source bottle 0 -> target bottle 6 with `GetPourAmount(...) = 2`.
-- Top row is fully visible: on the full-board capture the minimum measured vertical clearance between the top-row bottles and the HUD buttons is -5.4 screen pixels. Overlap detected = True. Fully on-screen = True.
+- Top row is fully visible: on the full-board capture the minimum measured vertical clearance between the top-row bottles and the HUD buttons is -13.3 screen pixels. Overlap detected = True. Fully on-screen = True.
 - HUD overlap status: fail for Reset, Options, and Stars under the measured full-board scene.
 
 ## Requirement Check
