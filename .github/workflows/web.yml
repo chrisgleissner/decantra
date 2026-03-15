@@ -7,6 +7,10 @@ on:
       - "feat/**"
     tags:
       - "*"
+  release:
+    types:
+      - published
+      - prereleased
   pull_request:
     types:
       - opened
@@ -77,6 +81,8 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.deploy_ref }}" ]]; then
             echo "ref=${{ github.event.inputs.deploy_ref }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "release" && -n "${{ github.event.release.tag_name }}" ]]; then
+            echo "ref=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           else
             echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
           fi
@@ -93,6 +99,8 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.deploy_ref }}" ]]; then
             VERSION_NAME="${{ github.event.inputs.deploy_ref }}"
+          elif [[ "${{ github.event_name }}" == "release" && -n "${{ github.event.release.tag_name }}" ]]; then
+            VERSION_NAME="${{ github.event.release.tag_name }}"
           elif [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
             VERSION_NAME="${GITHUB_REF_NAME}"
           else
@@ -198,7 +206,7 @@ jobs:
           github.ref == format('refs/heads/{0}', github.event.repository.default_branch) ||
           startsWith(github.ref, 'refs/tags/')
         )
-      ) || github.event_name == 'workflow_dispatch'
+      ) || github.event_name == 'workflow_dispatch' || github.event_name == 'release'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -209,6 +217,8 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.deploy_ref }}" ]]; then
             echo "ref=${{ github.event.inputs.deploy_ref }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "release" && -n "${{ github.event.release.tag_name }}" ]]; then
+            echo "ref=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           else
             echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
           fi

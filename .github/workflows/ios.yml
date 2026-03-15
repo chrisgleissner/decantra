@@ -6,6 +6,10 @@ on:
       - "**"
     tags:
       - "*"
+  release:
+    types:
+      - published
+      - prereleased
   pull_request:
     types:
       - opened
@@ -67,6 +71,7 @@ jobs:
         with:
           lfs: true
           fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - name: Resolve artifact versioning
         id: versioning
@@ -74,7 +79,9 @@ jobs:
           set -euo pipefail
           git fetch --tags --force --prune --prune-tags || true
 
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "release" && -n "${{ github.event.release.tag_name }}" ]]; then
+            artifact_version="${{ github.event.release.tag_name }}"
+          elif [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
             artifact_version="${GITHUB_REF_NAME}"
           else
             base_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
@@ -193,6 +200,7 @@ jobs:
         with:
           lfs: true
           fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - uses: actions/cache@v4
         with:
@@ -205,7 +213,9 @@ jobs:
           set -euo pipefail
           git fetch --tags --force --prune --prune-tags || true
 
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "release" && -n "${{ github.event.release.tag_name }}" ]]; then
+            artifact_version="${{ github.event.release.tag_name }}"
+          elif [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
             artifact_version="${GITHUB_REF_NAME}"
           else
             base_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
