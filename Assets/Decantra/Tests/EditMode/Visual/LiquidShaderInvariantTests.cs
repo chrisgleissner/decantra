@@ -128,6 +128,19 @@ namespace Decantra.Tests.EditMode.Visual
         }
 
         [Test]
+        public void Bottle3DView_DerivesReceiveLayerOverlap_FromSurfaceArcHeight()
+        {
+            string bottleView = File.ReadAllText(Bottle3DViewPath);
+
+            Assert.That(bottleView, Does.Contain("private static readonly int PropSurfaceArcHeight = Shader.PropertyToID(\"_SurfaceArcHeight\");"));
+            Assert.That(bottleView, Does.Contain("float kArcOverlap = GetReceiveLayerArcOverlap();"));
+            Assert.That(bottleView, Does.Contain("private float GetReceiveLayerArcOverlap()"));
+            Assert.That(bottleView, Does.Contain("liquidMaterialTemplate != null && liquidMaterialTemplate.HasProperty(PropSurfaceArcHeight)"));
+            Assert.That(bottleView, Does.Contain("surfaceArcHeight = liquidMaterialTemplate.GetFloat(PropSurfaceArcHeight);"));
+            Assert.That(bottleView, Does.Contain("return Mathf.Max(0.001f, surfaceArcHeight + kArcOverlapMargin);"));
+        }
+
+        [Test]
         public void BottleView_AppliesMatchingHuePreservingVibrancyBoost_ToUiLiquidLayers()
         {
             string bottleView = File.ReadAllText(BottleViewPath);

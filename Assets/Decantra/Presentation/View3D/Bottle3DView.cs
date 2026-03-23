@@ -218,6 +218,7 @@ namespace Decantra.Presentation.View3D
         private static readonly int PropTotalFill = Shader.PropertyToID("_TotalFill");
         private static readonly int PropLayerCount = Shader.PropertyToID("_LayerCount");
         private static readonly int PropSurfaceTilt = Shader.PropertyToID("_SurfaceTiltDegrees");
+        private static readonly int PropSurfaceArcHeight = Shader.PropertyToID("_SurfaceArcHeight");
         private static readonly int PropWobbleOffset = Shader.PropertyToID("_WobbleOffset");
         private static readonly int PropAgitation = Shader.PropertyToID("_Agitation");
         // Per-layer color/fill property IDs (indexed 0–8)
@@ -984,7 +985,7 @@ namespace Decantra.Presentation.View3D
             // curved surface has geometry to render on, eliminating the transient gap
             // between existing liquid and incoming liquid during pour.  The shader's own
             // _Layer0Min + arc-offset logic prevents any visible over-draw.
-            const float kArcOverlap = 0.015f; // just above _SurfaceArcHeight (0.012)
+            float kArcOverlap = GetReceiveLayerArcOverlap();
             float meshFillMin = Mathf.Max(0f, _receiveFillFrom - kArcOverlap);
             mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(
                 meshFillMin, _receiveFillTo, _capacityRatio);
@@ -1006,6 +1007,20 @@ namespace Decantra.Presentation.View3D
             _receiveLayerBlock.SetInt(PropLayerCount, 1);
             _receiveLayerBlock.SetFloat(PropTotalFill, _receiveFillFrom);
             _receiveLayerRenderer.SetPropertyBlock(_receiveLayerBlock);
+        }
+
+        private float GetReceiveLayerArcOverlap()
+        {
+            const float kDefaultSurfaceArcHeight = 0.012f;
+            const float kArcOverlapMargin = 0.003f;
+
+            float surfaceArcHeight = kDefaultSurfaceArcHeight;
+            if (liquidMaterialTemplate != null && liquidMaterialTemplate.HasProperty(PropSurfaceArcHeight))
+            {
+                surfaceArcHeight = liquidMaterialTemplate.GetFloat(PropSurfaceArcHeight);
+            }
+
+            return Mathf.Max(0.001f, surfaceArcHeight + kArcOverlapMargin);
         }
 
         private void SetReceiveLayerTotalFill(float t)
