@@ -980,8 +980,14 @@ namespace Decantra.Presentation.View3D
             _receiveLayerGO.layer = _liquidRoot.layer;
 
             var mf = _receiveLayerGO.AddComponent<MeshFilter>();
+            // Extend mesh slightly below _receiveFillFrom so the shader's boundary-arc
+            // curved surface has geometry to render on, eliminating the transient gap
+            // between existing liquid and incoming liquid during pour.  The shader's own
+            // _Layer0Min + arc-offset logic prevents any visible over-draw.
+            const float kArcOverlap = 0.015f; // just above _SurfaceArcHeight (0.012)
+            float meshFillMin = Mathf.Max(0f, _receiveFillFrom - kArcOverlap);
             mf.sharedMesh = BottleMeshGenerator.GenerateLiquidLayerMesh(
-                _receiveFillFrom, _receiveFillTo, _capacityRatio);
+                meshFillMin, _receiveFillTo, _capacityRatio);
 
             _receiveLayerRenderer = _receiveLayerGO.AddComponent<MeshRenderer>();
             _receiveLayerRenderer.sharedMaterial = liquidMaterialTemplate != null
