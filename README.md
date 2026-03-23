@@ -11,6 +11,17 @@ A bottle-sorting puzzle game with procedurally generated levels that never run o
 
 <img src="./doc/img/logo.png" alt="Decantra Logo" width="200"/>
 
+## How to Play
+
+Sort the colored liquids by pouring from one bottle to another until each bottle holds a single color.
+
+- **Pour** by dragging one bottle onto another.
+- You can only pour onto **the same color** or into an **empty bottle**.
+- **Black bottles** (sinks) accept liquid but can't be picked up - plan around them.
+- A level is solved when every non-empty bottle contains exactly one color.
+
+Early levels ease you in. Later levels introduce more colors, varying bottle sizes, and multiple sinks that demand careful sequencing. Every level is procedurally generated, so there's always a fresh puzzle waiting.
+
 <table>
   <tr>
     <td><img src="doc/play-store-assets/screenshots/phone/screenshot-03-level-01.png" alt="Level 1" width="240"/></td>
@@ -23,17 +34,6 @@ A bottle-sorting puzzle game with procedurally generated levels that never run o
     <td><img src="doc/play-store-assets/screenshots/phone/screenshot-07-level-36.png" alt="Level 36" width="240"/></td>
   </tr>
 </table>
-
-## How to Play
-
-Sort the colored liquids by pouring from one bottle to another until each bottle holds a single color.
-
-- **Pour** by dragging one bottle onto another.
-- You can only pour onto **the same color** or into an **empty bottle**.
-- **Black bottles** (sinks) accept liquid but can't be picked up - plan around them.
-- A level is solved when every non-empty bottle contains exactly one color.
-
-Early levels ease you in. Later levels introduce more colors, varying bottle sizes, and multiple sinks that demand careful sequencing. Every level is procedurally generated, so there's always a fresh puzzle waiting.
 
 ## Play Now
 
