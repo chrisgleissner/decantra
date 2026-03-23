@@ -56,9 +56,8 @@ The fastest way to try Decantra is in your browser — no install required:
 ## Features
 
 - **Endless levels** — procedural generation means no two puzzles are alike and you never hit a dead end.
-- **Escalating difficulty** — more colors, different bottle capacities, and sink bottles that constrain your options.
+- **Increasing difficulty** — more colors, different bottle capacities, and sink bottles that constrain your options.
 - **Three platforms** — Android, iOS, and Web from a single Unity codebase.
-- **Open source** — read the code, suggest improvements, or build your own variant.
 
 ## License
 
