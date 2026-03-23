@@ -30,14 +30,14 @@ Sort the colored liquids by pouring from one bottle to another until each bottle
 
 - **Pour** by dragging one bottle onto another.
 - You can only pour onto **the same color** or into an **empty bottle**.
-- **Black bottles** (sinks) accept liquid but can't be picked up — plan around them.
+- **Black bottles** (sinks) accept liquid but can't be picked up - plan around them.
 - A level is solved when every non-empty bottle contains exactly one color.
 
 Early levels ease you in. Later levels introduce more colors, varying bottle sizes, and multiple sinks that demand careful sequencing. Every level is procedurally generated, so there's always a fresh puzzle waiting.
 
 ## Play Now
 
-The fastest way to try Decantra is in your browser — no install required:
+The fastest way to try Decantra is in your browser - no install required:
 
 **[Play Decantra in your browser](https://chrisgleissner.github.io/decantra/webgl/)**
 
@@ -55,9 +55,9 @@ The fastest way to try Decantra is in your browser — no install required:
 
 ## Features
 
-- **Endless levels** — procedural generation means no two puzzles are alike and you never hit a dead end.
-- **Increasing difficulty** — more colors, different bottle capacities, and sink bottles that constrain your options.
-- **Three platforms** — Android, iOS, and Web from a single Unity codebase.
+- **Endless levels** - procedural generation means no two puzzles are alike and you never hit a dead end.
+- **Increasing difficulty** - more colors, different bottle capacities, and sink bottles that constrain your options.
+- **Three platforms** - Android, iOS, and Web from a single Unity codebase.
 
 ## License
 
