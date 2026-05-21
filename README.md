@@ -59,6 +59,11 @@ The fastest way to try Decantra is in your browser - no install required:
 - **Increasing difficulty** - more colors, different bottle capacities, and sink bottles that constrain your options.
 - **Three platforms** - Android, iOS, and Web from a single Unity codebase.
 
+## Docs
+
+- [DeepWiki](https://deepwiki.com/chrisgleissner/decantra) - architectural and design overview
+- [Developer Docs](./doc/developer.md) - build instructions
+
 ## License
 
 Licensed under GPL v2. See [LICENSE](LICENSE) for details.
