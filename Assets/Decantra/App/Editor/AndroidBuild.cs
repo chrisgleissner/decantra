@@ -69,7 +69,7 @@ namespace Decantra.App.Editor
             PlayerSettings.Android.minSdkVersion =
                 AndroidSdkVersions.AndroidApiLevel30;
             PlayerSettings.Android.targetSdkVersion =
-                AndroidSdkVersions.AndroidApiLevel35;
+                AndroidSdkVersions.AndroidApiLevel36;
 
             // ---- Disable unused services ----
             PlayerSettings.enableCrashReportAPI = false;
@@ -122,7 +122,7 @@ namespace Decantra.App.Editor
             PlayerSettings.Android.minSdkVersion =
                 AndroidSdkVersions.AndroidApiLevel30;
             PlayerSettings.Android.targetSdkVersion =
-                AndroidSdkVersions.AndroidApiLevel35;
+                AndroidSdkVersions.AndroidApiLevel36;
 
             // ---- Disable unused services ----
             PlayerSettings.enableCrashReportAPI = false;
@@ -161,7 +161,7 @@ namespace Decantra.App.Editor
             Debug.Log($"========================================");
 
             PlayerSettings.Android.targetSdkVersion =
-                AndroidSdkVersions.AndroidApiLevel35;
+                AndroidSdkVersions.AndroidApiLevel36;
             ConfigureAndroidToolchainFromEnv();
             ConfigureVersioningFromEnv();
             bool requireKeystore = ShouldRequireKeystore(options);

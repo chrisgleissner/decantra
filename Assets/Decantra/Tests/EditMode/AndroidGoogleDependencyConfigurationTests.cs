@@ -39,6 +39,27 @@ namespace Decantra.Tests.EditMode
         }
 
         [Test]
+        public void AndroidTargetSdk_IsApiLevel36InProjectAndBuildConfiguration()
+        {
+            string projectSettingsPath = Path.Combine(ProjectRoot, "ProjectSettings", "ProjectSettings.asset");
+            string androidBuildPath = Path.Combine(ProjectRoot, "Assets", "Decantra", "App", "Editor", "AndroidBuild.cs");
+
+            Assert.That(File.Exists(projectSettingsPath), $"Missing file: {projectSettingsPath}");
+            Assert.That(File.Exists(androidBuildPath), $"Missing file: {androidBuildPath}");
+
+            string settings = File.ReadAllText(projectSettingsPath);
+            string source = File.ReadAllText(androidBuildPath);
+
+            StringAssert.Contains("AndroidTargetSdkVersion: 36", settings);
+            StringAssert.DoesNotContain("AndroidTargetSdkVersion: 35", settings);
+            Assert.That(
+                source.Split(new[] { "AndroidSdkVersions.AndroidApiLevel36" }, StringSplitOptions.None).Length - 1,
+                Is.EqualTo(3),
+                "Every Android artifact build path must target API level 36.");
+            StringAssert.DoesNotContain("AndroidSdkVersions.AndroidApiLevel35", source);
+        }
+
+        [Test]
         public void AndroidManifest_RemovesGooglePermissionsAndBilling()
         {
             string manifestPath = Path.Combine(ProjectRoot, "Assets", "Plugins", "Android", "AndroidManifest.xml");
